@@ -296,8 +296,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request
             UpdateRequest request = new UpdateRequest(
                     "posts", // <1>
-                    "_doc",  // <2>
-                    "1");   // <3>
+                    "1");   // <2>
             //end::update-request
             request.fetchSource(true);
             //tag::update-request-with-inline-script
@@ -311,7 +310,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
             assertEquals(4, updateResponse.getGetResult().getSource().get("field"));
 
-            request = new UpdateRequest("posts", "_doc", "1").fetchSource(true);
+            request = new UpdateRequest("posts", "1").fetchSource(true);
             //tag::update-request-with-stored-script
             Script stored = new Script(
                     ScriptType.STORED, null, "increment-field", parameters);  // <1>
@@ -326,7 +325,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> jsonMap = new HashMap<>();
             jsonMap.put("updated", new Date());
             jsonMap.put("reason", "daily update");
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc(jsonMap); // <1>
             //end::update-request-with-doc-as-map
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
@@ -341,7 +340,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 builder.field("reason", "daily update");
             }
             builder.endObject();
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc(builder);  // <1>
             //end::update-request-with-doc-as-xcontent
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
@@ -349,7 +348,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-request-shortcut
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc("updated", new Date(),
                          "reason", "daily update"); // <1>
             //end::update-request-shortcut
@@ -358,7 +357,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-request-with-doc-as-string
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1");
+            UpdateRequest request = new UpdateRequest("posts", "1");
             String jsonString = "{" +
                     "\"updated\":\"2017-01-01\"," +
                     "\"reason\":\"daily update\"" +
@@ -374,7 +373,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::update-response
             String index = updateResponse.getIndex();
-            String type = updateResponse.getType();
             String id = updateResponse.getId();
             long version = updateResponse.getVersion();
             if (updateResponse.getResult() == DocWriteResponse.Result.CREATED) {
@@ -415,7 +413,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-docnotfound
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "does_not_exist")
+            UpdateRequest request = new UpdateRequest("posts", "does_not_exist")
                     .doc("field", "value");
             try {
                 UpdateResponse updateResponse = client.update(
@@ -429,7 +427,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::update-conflict
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc("field", "value")
                     .version(1);
             try {
@@ -443,7 +441,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-conflict
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1").doc("reason", "no source");
+            UpdateRequest request = new UpdateRequest("posts", "1").doc("reason", "no source");
             //tag::update-request-no-source
             request.fetchSource(true); // <1>
             //end::update-request-no-source
@@ -453,7 +451,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, updateResponse.getGetResult().sourceAsMap().size());
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1").doc("reason", "source includes");
+            UpdateRequest request = new UpdateRequest("posts", "1").doc("reason", "source includes");
             //tag::update-request-source-include
             String[] includes = new String[]{"updated", "r*"};
             String[] excludes = Strings.EMPTY_ARRAY;
@@ -468,7 +466,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("updated"));
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1").doc("reason", "source excludes");
+            UpdateRequest request = new UpdateRequest("posts", "1").doc("reason", "source excludes");
             //tag::update-request-source-exclude
             String[] includes = Strings.EMPTY_ARRAY;
             String[] excludes = new String[]{"updated"};
@@ -483,7 +481,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("field"));
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "id");
+            UpdateRequest request = new UpdateRequest("posts", "id");
             // tag::update-request-routing
             request.routing("routing"); // <1>
             // end::update-request-routing
@@ -520,7 +518,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-request-active-shards
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "async").doc("reason", "async update").docAsUpsert(true);
+            UpdateRequest request = new UpdateRequest("posts", "async").doc("reason", "async update").docAsUpsert(true);
 
             ActionListener<UpdateResponse> listener;
             // tag::update-execute-listener

@@ -120,7 +120,26 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest() {
 
     }
+    
+    /**
+     * Constructor taking the parameters required to identify the document
+     * @param index The index containing the doc
+     * @param id The unique id of the document in the index
+     */
+    public UpdateRequest(String index, String id) {
+        super(index);
+        this.type = "_doc";
+        this.id = id;
+    }    
 
+    /**
+     * Constructor taking the parameters required to identify the document
+     * @param index The index containing the doc
+     * @param type  The type of the document (types are being phased out)
+     * @param id The unique id of the document in the index
+     * @deprecated use {@link #UpdateRequest(String, String)} instead
+     */
+    @Deprecated
     public UpdateRequest(String index, String type, String id) {
         super(index);
         this.type = type;
@@ -173,6 +192,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * The type of the indexed document.
+     * @deprecated  Types are in the process of being removed.
      */
     @Override
     public String type() {
@@ -181,6 +201,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * Sets the type of the indexed document.
+     * @deprecated  Types are in the process of being removed.
      */
     public UpdateRequest type(String type) {
         this.type = type;

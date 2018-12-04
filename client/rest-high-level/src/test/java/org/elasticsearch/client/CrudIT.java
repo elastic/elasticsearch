@@ -492,7 +492,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testUpdate() throws IOException {
         {
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "does_not_exist");
+            UpdateRequest updateRequest = new UpdateRequest("index", "does_not_exist");
             updateRequest.doc(singletonMap("field", "value"), randomFrom(XContentType.values()));
 
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
@@ -507,14 +507,14 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "id");
+            UpdateRequest updateRequest = new UpdateRequest("index", "id");
             updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
 
             UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
             assertEquals(RestStatus.OK, updateResponse.status());
             assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
 
-            UpdateRequest updateRequestConflict = new UpdateRequest("index", "_doc", "id");
+            UpdateRequest updateRequestConflict = new UpdateRequest("index", "id");
             updateRequestConflict.doc(singletonMap("field", "with_version_conflict"), randomFrom(XContentType.values()));
             updateRequestConflict.version(indexResponse.getVersion());
 
@@ -530,7 +530,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "with_script");
+            UpdateRequest updateRequest = new UpdateRequest("index", "with_script");
             Script script = new Script(ScriptType.INLINE, "painless", "ctx._source.counter += params.count", singletonMap("count", 8));
             updateRequest.script(script);
             updateRequest.fetchSource(true);
@@ -551,7 +551,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
             assertEquals(12L, indexResponse.getVersion());
 
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "with_doc");
+            UpdateRequest updateRequest = new UpdateRequest("index", "with_doc");
             updateRequest.doc(singletonMap("field_2", "two"), randomFrom(XContentType.values()));
             updateRequest.fetchSource("field_*", "field_3");
 
@@ -573,7 +573,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
             assertEquals(1L, indexResponse.getVersion());
 
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "noop");
+            UpdateRequest updateRequest = new UpdateRequest("index", "noop");
             updateRequest.doc(singletonMap("field", "value"), randomFrom(XContentType.values()));
 
             UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
@@ -589,7 +589,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(2L, updateResponse.getVersion());
         }
         {
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "with_upsert");
+            UpdateRequest updateRequest = new UpdateRequest("index", "with_upsert");
             updateRequest.upsert(singletonMap("doc_status", "created"));
             updateRequest.doc(singletonMap("doc_status", "updated"));
             updateRequest.fetchSource(true);
@@ -604,7 +604,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("created", getResult.sourceAsMap().get("doc_status"));
         }
         {
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "with_doc_as_upsert");
+            UpdateRequest updateRequest = new UpdateRequest("index", "with_doc_as_upsert");
             updateRequest.doc(singletonMap("field", "initialized"));
             updateRequest.fetchSource(true);
             updateRequest.docAsUpsert(true);
@@ -619,7 +619,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("initialized", getResult.sourceAsMap().get("field"));
         }
         {
-            UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "with_scripted_upsert");
+            UpdateRequest updateRequest = new UpdateRequest("index", "with_scripted_upsert");
             updateRequest.fetchSource(true);
             updateRequest.script(new Script(ScriptType.INLINE, "painless", "ctx._source.level = params.test", singletonMap("test", "C")));
             updateRequest.scriptedUpsert(true);
@@ -637,7 +637,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
-                UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "id");
+                UpdateRequest updateRequest = new UpdateRequest("index", "id");
                 updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
                 updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
                 execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
@@ -645,6 +645,28 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
                     exception.getMessage());
         }
+    }
+    
+    
+    
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        // TODO Remove this override when we remove the reference to types below
+        return false;
+    }
+
+    public void testDeprecatedUpdate() throws IOException {
+        IndexRequest indexRequest = new IndexRequest("index", "no_doc", "id");
+        indexRequest.source(singletonMap("field", "value"));
+        IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        UpdateRequest updateRequest = new UpdateRequest("index", "no_doc", "id");
+        updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
+
+        UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+        assertEquals(RestStatus.OK, updateResponse.status());
+        assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
     }
 
     public void testBulk() throws IOException {

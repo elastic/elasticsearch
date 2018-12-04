@@ -77,7 +77,7 @@ Infra/Packaging::
 * Add missing entries to conffiles  {pull}35810[#35810] (issue: {issue}35691[#35691])
 
 Infra/Scripting::
-* Actually add joda time back to whitelist {pull}35965[#35965] (issue: {issue}35915[#35915])
+* Actually add joda time back to whitelist {pull}35965[#35965]
 * Add back joda to whitelist {pull}35915[#35915] (issue: {issue}35913[#35913])
 
 Machine Learning::

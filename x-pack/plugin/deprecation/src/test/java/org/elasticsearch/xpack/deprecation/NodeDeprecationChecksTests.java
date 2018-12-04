@@ -59,6 +59,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testTribeNodeCheck() {
+        String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Tribe Node removed in favor of Cross Cluster Search",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#_tribe_node_removed",
+            "nodes with tribe node settings: [node_check]");
+        assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
+    }
+
     public void testAzurePluginCheck() {
         Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         PluginInfo deprecatedPlugin = new PluginInfo(

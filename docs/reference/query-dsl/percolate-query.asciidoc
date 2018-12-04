@@ -619,13 +619,13 @@ The above search request returns a response similar to this:
   },
   "hits": {
     "total": 1,
-    "max_score": 0.5753642,
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {

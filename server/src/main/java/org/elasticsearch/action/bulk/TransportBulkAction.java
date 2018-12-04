@@ -68,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -205,8 +204,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
         boolean hasIndexRequestsWithPipelines = false;
-        final ClusterState state = clusterService.state();
-        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = state.getMetaData().indices();
+        final MetaData metaData = clusterService.state().metaData();
+        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
@@ -215,7 +214,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
                     if (indexMetaData == null) {
                         //check the alias
-                        AliasOrIndex indexOrAlias = state.metaData().getAliasAndIndexLookup().get(indexRequest.index());
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
                         if (indexOrAlias != null && indexOrAlias.isAlias()) {
                             AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
                             indexMetaData = alias.getWriteIndex();

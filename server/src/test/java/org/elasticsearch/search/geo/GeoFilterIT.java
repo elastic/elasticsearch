@@ -131,7 +131,8 @@ public class GeoFilterIT extends ESIntegTestCase {
         // polygon with hole
         new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
-                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
+                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5)
+                        .coordinate(5, -5).close()))
                 .buildS4J();
         try {
             // polygon with overlapping hole
@@ -149,8 +150,10 @@ public class GeoFilterIT extends ESIntegTestCase {
             // polygon with intersection holes
             new PolygonBuilder(new CoordinatesBuilder()
                     .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
-                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
-                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4).coordinate(-5, -4).close()))
+                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5)
+                            .coordinate(5, -5).close()))
+                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4)
+                            .coordinate(-5, -4).close()))
                     .buildS4J();
             fail("Intersection of holes not detected");
         } catch (InvalidShapeException e) {
@@ -220,7 +223,8 @@ public class GeoFilterIT extends ESIntegTestCase {
         // the second polygon of size 4x4 equidistant from all sites
         MultiPolygonBuilder polygon = new MultiPolygonBuilder()
                 .polygon(new PolygonBuilder(
-                                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10)
+                                .close())
                         .hole(new LineStringBuilder(new CoordinatesBuilder()
                                     .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())))
                 .polygon(new PolygonBuilder(
@@ -329,7 +333,8 @@ public class GeoFilterIT extends ESIntegTestCase {
         // Create a polygon crossing longitude 180 with hole.
         builder = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
-                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
+                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5)
+                            .coordinate(175, 5).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
@@ -441,11 +446,14 @@ public class GeoFilterIT extends ESIntegTestCase {
         assertThat(GeoHashUtils.addNeighbors("r", new ArrayList<String>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(GeoHashUtils.addNeighbors("dk", new ArrayList<String>()), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+        assertThat(GeoHashUtils.addNeighbors("dk", new ArrayList<String>()),
+                containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(GeoHashUtils.addNeighbors("d5", new ArrayList<String>()), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(GeoHashUtils.addNeighbors("d0", new ArrayList<String>()), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
+        assertThat(GeoHashUtils.addNeighbors("d5", new ArrayList<String>()),
+                containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(GeoHashUtils.addNeighbors("d0", new ArrayList<String>()),
+                containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {

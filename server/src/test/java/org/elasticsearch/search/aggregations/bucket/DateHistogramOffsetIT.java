@@ -41,8 +41,9 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
  * The serialisation of offsets for the date histogram aggregation was corrected in version 1.4 to allow negative offsets and as such the
- * serialisation of negative offsets in these tests would break in pre 1.4 versions.  These tests are separated from the other DateHistogramTests so the
- * AssertingLocalTransport for these tests can be set to only use versions 1.4 onwards while keeping the other tests using all versions
+ * serialisation of negative offsets in these tests would break in pre 1.4 versions.  These tests are separated from the other
+ * DateHistogramTests so the AssertingLocalTransport for these tests can be set to only use versions 1.4 onwards while keeping the other
+ * tests using all versions
  */
 @ESIntegTestCase.SuiteScopeTestCase
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
@@ -64,10 +65,12 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         internalCluster().wipeIndices("idx2");
     }
 
-    private void prepareIndex(DateTime date, int numHours, int stepSizeHours, int idxIdStart) throws IOException, InterruptedException, ExecutionException {
+    private void prepareIndex(DateTime date, int numHours, int stepSizeHours, int idxIdStart)
+            throws IOException, InterruptedException, ExecutionException {
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
-            reqs[i - idxIdStart] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().timeField("date", date).endObject());
+            reqs[i - idxIdStart] = client().prepareIndex("idx2", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }
         indexRandom(true, reqs);

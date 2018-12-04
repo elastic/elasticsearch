@@ -153,7 +153,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         boolQuery().must(termQuery("userid", 880)).filter(
-                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875).type("indexed"))
+                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875)
+                                .type("indexed"))
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
@@ -166,7 +167,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         boolQuery().must(termQuery("userid", 534)).filter(
-                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875).type("indexed"))
+                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875)
+                                .type("indexed"))
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
@@ -204,7 +206,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, -180, -50, 180).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, -180, -50, 180)
+                        .type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
@@ -214,7 +217,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, -180, -90, 180).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, -180, -90, 180)
+                        .type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
 
@@ -225,7 +229,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, 0, -50, 360).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, 0, -50, 360)
+                        .type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
@@ -235,7 +240,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         searchResponse = client().prepareSearch()
                 .setQuery(
-                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, 0, -90, 360).type("indexed")
+                        geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, 0, -90, 360)
+                        .type("indexed")
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
     }

@@ -157,7 +157,8 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
-        assertThat((double) ((InternalAggregation)missing).getProperty("avg_value.value"), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
+        assertThat((double) ((InternalAggregation)missing).getProperty("avg_value.value"),
+                equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
     }
 
     public void testEmptyAggregation() throws Exception {

@@ -74,7 +74,8 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
                         (filter("inclass", QueryBuilders.termQuery("class", true)))
-                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
+                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2)
+                                        .executionHint(randomExecutionHint()))
                 )
                 .execute()
                 .actionGet();
@@ -87,7 +88,9 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         response = client().prepareSearch(index)
                 .addAggregation(
                         (filter("inclass", QueryBuilders.termQuery("class", true)))
-                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
+                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2)
+                                        .shardMinDocCount(2).size(2)
+                                        .executionHint(randomExecutionHint()))
                 )
                 .execute()
                 .actionGet();
@@ -132,7 +135,8 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
-                        terms("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()).order(BucketOrder.key(true))
+                        terms("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint())
+                        .order(BucketOrder.key(true))
                 )
                 .execute()
                 .actionGet();
@@ -143,7 +147,8 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
         response = client().prepareSearch(index)
                 .addAggregation(
-                        terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()).order(BucketOrder.key(true))
+                        terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint())
+                        .order(BucketOrder.key(true))
                 )
                 .execute()
                 .actionGet();

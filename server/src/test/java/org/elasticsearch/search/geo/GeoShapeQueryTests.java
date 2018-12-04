@@ -230,7 +230,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     public void testReusableBuilder() throws IOException {
         PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
-                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
+                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5)
+                        .coordinate(175, 5).close()));
         assertUnmodified(polygon);
 
         LineStringBuilder linestring = new LineStringBuilder(new CoordinatesBuilder()
@@ -359,7 +360,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection
-        EnvelopeBuilder env = new EnvelopeBuilder(new Coordinate(mbr.getMinX(), mbr.getMaxY()), new Coordinate(mbr.getMaxX(), mbr.getMinY()));
+        EnvelopeBuilder env = new EnvelopeBuilder(new Coordinate(mbr.getMinX(), mbr.getMaxY()),
+                new Coordinate(mbr.getMaxX(), mbr.getMinY()));
         docSource = env.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
         client().prepareIndex("test", "type", "2").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
@@ -407,7 +409,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 "location",
                 new GeometryCollectionBuilder()
                         .polygon(
-                                new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0)
+                                new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0)
+                                        .coordinate(103.0, 3.0).coordinate(103.0, -1.0)
                                         .coordinate(99.0, -1.0)))).relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
@@ -416,16 +419,19 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         filter = QueryBuilders.geoShapeQuery(
                 "location",
                 new GeometryCollectionBuilder().polygon(
-                        new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
+                        new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0)
+                                .coordinate(193.0, 13.0).coordinate(193.0, -11.0)
                                 .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
         filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder()
-                .polygon(new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0).coordinate(99.0, -1.0)))
+                .polygon(new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0)
+                        .coordinate(103.0, -1.0).coordinate(99.0, -1.0)))
                         .polygon(
-                                new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
+                                new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0)
+                                        .coordinate(193.0, 13.0).coordinate(193.0, -11.0)
                                         .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();

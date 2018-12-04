@@ -79,7 +79,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 randomPreference = randomUnicodeOfLengthBetween(0, 4);
             }
             // id is not indexed, but lets see that we automatically convert to
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomPreference).get();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery())
+                    .setPreference(randomPreference).get();
             assertHitCount(searchResponse, 6L);
 
         }
@@ -195,23 +196,28 @@ public class SimpleSearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
         ensureGreen();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d")).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d")
+                .lte("2010-01-04||+2d/d")).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2L);
 
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lte("2010-01-06T02:00")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00")
+                .lte("2010-01-06T02:00")).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2L);
 
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lt("2010-01-06T02:00")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00")
+                .lt("2010-01-06T02:00")).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("2010-01-05T02:00").lt("2010-01-06T02:00")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("2010-01-05T02:00")
+                .lt("2010-01-06T02:00")).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 0L);
 
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(
+                QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")).execute().actionGet();
         assertHitCount(searchResponse, 2L);
     }
 

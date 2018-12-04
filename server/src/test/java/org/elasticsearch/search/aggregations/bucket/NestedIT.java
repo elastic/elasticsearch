@@ -399,8 +399,14 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
-        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "1")
+                .setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, " +
+                        "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [" +
+                        "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "2")
+                .setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, " +
+                        "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [" +
+                        "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
@@ -647,7 +653,8 @@ public class NestedIT extends ESIntegTestCase {
 
         response = client().prepareSearch("classes").addAggregation(nested("to_method", "methods")
                 .subAggregation(terms("return_type").field("methods.return_type").subAggregation(
-                                filter("num_string_params", nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None))
+                                filter("num_string_params", nestedQuery("methods.parameters",
+                                        termQuery("methods.parameters.type", "String"), ScoreMode.None))
                         )
                 )).get();
         toMethods = response.getAggregations().get("to_method");

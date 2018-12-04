@@ -111,9 +111,12 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         cities.clear();
         cities.addAll(Arrays.asList(
-                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"), // first point is within the ~17.5km, the second is ~710km
-                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"), // first point is ~576km, the second is within the ~35km
-                indexCity("idx-multi", "city3", "32.0741, 34.777"))); // above 1000km
+                // first point is within the ~17.5km, the second is ~710km
+                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"),
+                // first point is ~576km, the second is within the ~35km
+                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"),
+                // above 1000km
+                indexCity("idx-multi", "city3", "32.0741, 34.777")));
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
@@ -414,7 +417,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location").addRange("0-100", 0.0, 100.0)))
+                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")
+                                .addRange("0-100", 0.0, 100.0)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));

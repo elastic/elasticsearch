@@ -68,7 +68,9 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             } catch (Exception t) {
             }
         }
-        awaitBusy(() -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0, 1, TimeUnit.SECONDS);
+        awaitBusy(
+                () -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0,
+                1, TimeUnit.SECONDS);
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
     }

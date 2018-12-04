@@ -322,7 +322,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
 
-        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type").setRouting(String.valueOf(between(1, numRoutingValues)))
+        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type")
+                .setRouting(String.valueOf(between(1, numRoutingValues)))
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -558,7 +559,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
 
-        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type").setRouting(String.valueOf(between(1, numRoutingValues)))
+        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type")
+                .setRouting(String.valueOf(between(1, numRoutingValues)))
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -794,7 +796,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
 
-        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type").setRouting(String.valueOf(between(1, numRoutingValues)))
+        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type")
+                .setRouting(String.valueOf(between(1, numRoutingValues)))
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)

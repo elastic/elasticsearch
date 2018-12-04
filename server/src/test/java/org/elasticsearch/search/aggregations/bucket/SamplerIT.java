@@ -90,8 +90,10 @@ public class SamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test", "book", "" + i).setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price",Float.parseFloat(parts[3])).get();
-            client().prepareIndex("idx_unmapped_author", "book", "" + i).setSource("name", parts[2], "genre", parts[8],"price",Float.parseFloat(parts[3])).get();
+            client().prepareIndex("test", "book", "" + i)
+            .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price",Float.parseFloat(parts[3])).get();
+            client().prepareIndex("idx_unmapped_author", "book", "" + i)
+            .setSource("name", parts[2], "genre", parts[8],"price",Float.parseFloat(parts[3])).get();
         }
         client().admin().indices().refresh(new RefreshRequest("test")).get();
     }

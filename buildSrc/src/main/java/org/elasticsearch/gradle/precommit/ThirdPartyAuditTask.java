@@ -133,7 +133,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     public Set<File> getJarsToScan() {
-        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() == null || dep.getGroup().startsWith("org.elasticsearch") == false;
+        // These are SelfResolvingDependency, and some of them backed by file collections, like  the Gradle API files,
+        // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
+        // err on the side of scanning these to make sure we don't miss anything
+        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null &&
+            dep.getGroup().startsWith("org.elasticsearch") == false;
         Set<File> jars = getRuntimeConfiguration()
             .getResolvedConfiguration()
             .getFiles(reallyThirdParty);

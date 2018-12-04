@@ -19,15 +19,10 @@
 
 package org.elasticsearch.test.discovery;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -66,9 +61,6 @@ public class TestZenDiscovery extends ZenDiscovery {
     public static final Setting<Boolean> USE_ZEN2 =
         Setting.boolSetting("discovery.zen.use_zen2", true, Setting.Property.NodeScope);
 
-    public static final Setting<Boolean> USE_ZEN2_PERSISTED_STATE =
-        Setting.boolSetting("discovery.zen.use_zen2_persisted_state", false, Setting.Property.NodeScope);
-
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
         protected final Settings settings;
@@ -86,24 +78,10 @@ public class TestZenDiscovery extends ZenDiscovery {
             Settings fixedSettings = Settings.builder().put(settings).putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()).build();
             return Collections.singletonMap("test-zen", () -> {
                 if (USE_ZEN2.get(settings)) {
-                    Supplier<CoordinationState.PersistedState> persistedStateSupplier;
-                    if (USE_ZEN2_PERSISTED_STATE.get(settings)) {
-                        persistedStateSupplier = () -> {
-                            gatewayMetaState.setLocalNode(transportService.getLocalNode());
-                            return gatewayMetaState;
-                        };
-                    } else {
-                        if (clusterApplier instanceof ClusterApplierService) {
-                            //if InMemoryPersisted is used, we let GatewayMetaState receive all events,
-                            //because some tests rely on it due to dangling indices functionality.
-                            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
-                        }
-
-                        persistedStateSupplier =
-                                () -> new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                                        .nodes(DiscoveryNodes.builder().add(transportService.getLocalNode())
-                                                .localNodeId(transportService.getLocalNode().getId()).build()).build());
-                    }
+                    Supplier<CoordinationState.PersistedState> persistedStateSupplier = () -> {
+                        gatewayMetaState.applyClusterStateUpdaters();
+                        return gatewayMetaState;
+                    };
 
                     return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
                         allocationService, masterService, persistedStateSupplier, hostsProvider, clusterApplier,
@@ -117,7 +95,7 @@ public class TestZenDiscovery extends ZenDiscovery {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(USE_MOCK_PINGS, USE_ZEN2, USE_ZEN2_PERSISTED_STATE);
+            return Arrays.asList(USE_MOCK_PINGS, USE_ZEN2);
         }
 
         @Override

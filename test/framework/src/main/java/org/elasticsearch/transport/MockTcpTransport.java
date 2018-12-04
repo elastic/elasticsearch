@@ -78,7 +78,7 @@ public class MockTcpTransport extends TcpTransport {
      * A pre-built light connection profile that shares a single connection across all
      * types.
      */
-    public static final ConnectionProfile LIGHT_PROFILE;
+    static final ConnectionProfile LIGHT_PROFILE;
 
     private final Set<MockChannel> openChannels = new HashSet<>();
 
@@ -173,7 +173,7 @@ public class MockTcpTransport extends TcpTransport {
     protected MockChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
-        final MockChannel channel = new MockChannel(socket, address, "none");
+        final MockChannel channel = new MockChannel(socket, address, false, "none");
 
         boolean success = false;
         try {
@@ -219,6 +219,7 @@ public class MockTcpTransport extends TcpTransport {
         }
         builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
+        builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
     }
@@ -242,10 +243,12 @@ public class MockTcpTransport extends TcpTransport {
         private final ServerSocket serverSocket;
         private final Set<MockChannel> workerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final Socket activeChannel;
+        private final boolean isServer;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final CompletableContext<Void> closeFuture = new CompletableContext<>();
         private final CompletableContext<Void> connectFuture = new CompletableContext<>();
+        private final ChannelStats stats = new ChannelStats();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -254,9 +257,10 @@ public class MockTcpTransport extends TcpTransport {
          * @param localAddress Address associated with the corresponding local server socket. Must not be null.
          * @param profile The associated profile name.
          */
-        public MockChannel(Socket socket, InetSocketAddress localAddress, String profile) {
+        MockChannel(Socket socket, InetSocketAddress localAddress, boolean isServer, String profile) {
             this.localAddress = localAddress;
             this.activeChannel = socket;
+            this.isServer = isServer;
             this.serverSocket = null;
             this.profile = profile;
             synchronized (openChannels) {
@@ -274,6 +278,7 @@ public class MockTcpTransport extends TcpTransport {
             this.localAddress = (InetSocketAddress) serverSocket.getLocalSocketAddress();
             this.serverSocket = serverSocket;
             this.profile = profile;
+            this.isServer = false;
             this.activeChannel = null;
             synchronized (openChannels) {
                 openChannels.add(this);
@@ -288,8 +293,9 @@ public class MockTcpTransport extends TcpTransport {
                     configureSocket(incomingSocket);
                     synchronized (this) {
                         if (isOpen.get()) {
-                            incomingChannel = new MockChannel(incomingSocket,
-                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile);
+                            InetSocketAddress localAddress = new InetSocketAddress(incomingSocket.getLocalAddress(),
+                                incomingSocket.getPort());
+                            incomingChannel = new MockChannel(incomingSocket, localAddress, true, profile);
                             MockChannel finalIncomingChannel = incomingChannel;
                             incomingChannel.addCloseListener(new ActionListener<Void>() {
                                 @Override
@@ -390,6 +396,11 @@ public class MockTcpTransport extends TcpTransport {
         }
 
         @Override
+        public boolean isServerChannel() {
+            return isServer;
+        }
+
+        @Override
         public void addCloseListener(ActionListener<Void> listener) {
             closeFuture.addListener(ActionListener.toBiConsumer(listener));
         }
@@ -397,6 +408,11 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             connectFuture.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public ChannelStats getChannelStats() {
+            return stats;
         }
 
         @Override

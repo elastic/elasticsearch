@@ -38,7 +38,8 @@ public class DeprecationChecks {
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             NodeDeprecationChecks::azureRepositoryChanges,
-            NodeDeprecationChecks::gcsRepositoryChanges
+            NodeDeprecationChecks::gcsRepositoryChanges,
+            NodeDeprecationChecks::fileDiscoveryPluginRemoved
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

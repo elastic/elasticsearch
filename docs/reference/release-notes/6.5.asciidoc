@@ -85,7 +85,6 @@ Machine Learning::
 * [ML] Prevent potential NPE when reading the model memory limit {pull}35827[#35827]
 
 SQL::
-* SQL: IS NULL and IS NOT NULL doesn't behave correctly when used in HAVING clause [OPEN] [ISSUE] {pull}35139[#35139]
 * SQL: Fix issue with wrong data type for scripted Grouping keys {pull}35969[#35969] (issue: {issue}35662[#35662])
 * SQL: Fix translation of math functions to painless {pull}35910[#35910] (issue: {issue}35654[#35654])
 * Build: Fix jdbc jar to include deps {pull}35602[#35602]

@@ -43,7 +43,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
     public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
-        filter = filterBuilder.toFilter(context.getQueryShardContext());
+        filter = filterBuilder.toQuery(context.getQueryShardContext());
     }
 
     /**

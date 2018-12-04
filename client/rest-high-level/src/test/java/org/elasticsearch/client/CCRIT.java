@@ -159,7 +159,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             assertThat(indexExists("copy-logs-20200101"), is(true));
             // TODO: replace with HLRC follow stats when available:
             Map<String, Object> rsp = toMap(client().performRequest(new Request("GET", "/copy-logs-20200101/_ccr/stats")));
-            String index = ObjectPath.eval("indices.0.index", rsp);
+            String index = null;
+            try {
+                index = ObjectPath.eval("indices.0.index", rsp);
+            } catch (Exception e){ }
             assertThat(index, equalTo("copy-logs-20200101"));
         });
 

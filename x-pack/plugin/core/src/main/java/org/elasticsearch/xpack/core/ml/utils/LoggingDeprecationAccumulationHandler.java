@@ -29,7 +29,7 @@ public class LoggingDeprecationAccumulationHandler implements DeprecationHandler
     public void usedDeprecatedName(String usedName, String modernName) {
         LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(usedName, modernName);
         deprecations.add(LoggerMessageFormat.format("Deprecated field [{}] used, expected [{}] instead",
-            usedName,
+            (Object)usedName,
             modernName));
     }
 
@@ -37,7 +37,7 @@ public class LoggingDeprecationAccumulationHandler implements DeprecationHandler
     public void usedDeprecatedField(String usedName, String replacedWith) {
         LoggingDeprecationHandler.INSTANCE.usedDeprecatedField(usedName, replacedWith);
         deprecations.add(LoggerMessageFormat.format("Deprecated field [{}] used, replaced by [{}]",
-            usedName,
+            (Object)usedName,
             replacedWith));
     }
 

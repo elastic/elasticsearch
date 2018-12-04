@@ -13,7 +13,7 @@ import org.elasticsearch.action.Action;
 public class WatcherStatsAction extends Action<WatcherStatsResponse> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
-    public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";
+    public static final String NAME = "cluster:monitor/watcher/stats/dist";
 
     private WatcherStatsAction() {
         super(NAME);

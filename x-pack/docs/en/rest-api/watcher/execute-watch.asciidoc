@@ -9,9 +9,9 @@ watch execution for debugging purposes.
 [float]
 ==== Request
 
-`POST _xpack/watcher/watch/<watch_id>/_execute` +
+`POST watcher/watch/<watch_id>/_execute` +
 
-`POST _xpack/watcher/watch/_execute`
+`POST watcher/watch/_execute`
 
 [float]
 ==== Description
@@ -137,7 +137,7 @@ The following example executes the `my_watch` watch:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST watcher/watch/my_watch/_execute
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]
@@ -146,7 +146,7 @@ The following example shows a comprehensive example of executing the `my-watch` 
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST watcher/watch/my_watch/_execute
 {
   "trigger_data" : { <1>
      "triggered_time" : "now",
@@ -289,7 +289,7 @@ name with the action id:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST watcher/watch/my_watch/_execute
 {
   "action_modes" : {
     "action1" : "force_simulate",
@@ -305,7 +305,7 @@ using `_all` as the action id:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST watcher/watch/my_watch/_execute
 {
   "action_modes" : {
     "_all" : "force_execute"
@@ -319,7 +319,7 @@ The following example shows how to execute a watch inline:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/_execute
+POST watcher/watch/_execute
 {
   "watch" : {
     "trigger" : { "schedule" : { "interval" : "10s" } },
@@ -356,7 +356,7 @@ during the execution this condition will be ignored:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/_execute
+POST watcher/watch/_execute
 {
   "ignore_condition" : true,
   "watch" : {

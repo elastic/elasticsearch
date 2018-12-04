@@ -11,7 +11,7 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchResponse> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
-    public static final String NAME = "cluster:monitor/xpack/watcher/watch/get";
+    public static final String NAME = "cluster:monitor/watcher/watch/get";
 
     private GetWatchAction() {
         super(NAME);

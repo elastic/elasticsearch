@@ -13,7 +13,7 @@ import org.elasticsearch.action.Action;
 public class ActivateWatchAction extends Action<ActivateWatchResponse> {
 
     public static final ActivateWatchAction INSTANCE = new ActivateWatchAction();
-    public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";
+    public static final String NAME = "cluster:admin/watcher/watch/activate";
 
     private ActivateWatchAction() {
         super(NAME);

@@ -46,7 +46,7 @@ a throttle period with the `email_administrator` action:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/error_logs_alert
+PUT watcher/watch/error_logs_alert
 {
   "metadata" : {
     "color" : "red"
@@ -101,7 +101,7 @@ defined in the watch:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_event_watch
+PUT watcher/watch/log_event_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "5m" }
@@ -177,7 +177,7 @@ To acknowledge an action, you use the
 
 [source,js]
 ----------------------------------------------------------------------
-POST _xpack/watcher/watch/<id>/_ack/<action_ids>
+POST watcher/watch/<id>/_ack/<action_ids>
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[skip:https://github.com/elastic/x-plugins/issues/2513]
@@ -204,7 +204,7 @@ there are more than 5 hits in the search result.
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_event_watch
+PUT watcher/watch/log_event_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "5m" }

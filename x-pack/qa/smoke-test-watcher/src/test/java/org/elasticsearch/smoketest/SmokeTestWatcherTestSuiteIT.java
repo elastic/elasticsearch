@@ -40,12 +40,12 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(new Request("DELETE", "/.watcher-history-*")));
 
         assertBusy(() -> {
-            Response response = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+            Response response = adminClient().performRequest(new Request("GET", "/watcher/stats"));
             String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
 
             switch (state) {
                 case "stopped":
-                    Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
+                    Response startResponse = adminClient().performRequest(new Request("POST", "/watcher/_start"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until stopped state reached started state");
@@ -72,7 +72,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     @After
     public void stopWatcher() throws Exception {
         assertBusy(() -> {
-            Response response = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+            Response response = adminClient().performRequest(new Request("GET", "/watcher/stats"));
             String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
 
             switch (state) {
@@ -84,7 +84,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state to stop");
                 case "started":
-                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
+                    Response stopResponse = adminClient().performRequest(new Request("POST", "/watcher/_stop"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until started state reached stopped state");
@@ -162,7 +162,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        Request request = new Request("PUT", "/_xpack/watcher/watch/" + watchId);
+        Request request = new Request("PUT", "/watcher/watch/" + watchId);
         request.setJsonEntity(Strings.toString(builder));
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
@@ -170,7 +170,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     }
 
     private void deleteWatch(String watchId) throws IOException {
-        Response response = client().performRequest(new Request("DELETE", "/_xpack/watcher/watch/" + watchId));
+        Response response = client().performRequest(new Request("DELETE", "/watcher/watch/" + watchId));
         assertOK(response);
         ObjectPath path = ObjectPath.createFromResponse(response);
         boolean found = path.evaluate("found");
@@ -207,7 +207,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     }
 
     private void assertWatchCount(int expectedWatches) throws IOException {
-        Response watcherStatsResponse = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+        Response watcherStatsResponse = adminClient().performRequest(new Request("GET", "/watcher/stats"));
         ObjectPath objectPath = ObjectPath.createFromResponse(watcherStatsResponse);
         int watchCount = objectPath.evaluate("stats.0.watch_count");
         assertThat(watchCount, is(expectedWatches));

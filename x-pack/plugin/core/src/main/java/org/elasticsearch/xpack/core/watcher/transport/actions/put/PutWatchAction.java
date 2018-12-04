@@ -14,7 +14,7 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 public class PutWatchAction extends Action<PutWatchResponse> {
 
     public static final PutWatchAction INSTANCE = new PutWatchAction();
-    public static final String NAME = "cluster:admin/xpack/watcher/watch/put";
+    public static final String NAME = "cluster:admin/watcher/watch/put";
 
     private PutWatchAction() {
         super(NAME);

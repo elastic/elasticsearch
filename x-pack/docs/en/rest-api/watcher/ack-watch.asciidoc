@@ -14,9 +14,9 @@ execution.
 [float]
 ==== Request
 
-`PUT _xpack/watcher/watch/<watch_id>/_ack` +
+`PUT watcher/watch/<watch_id>/_ack` +
 
-`PUT _xpack/watcher/watch/<watch_id>/_ack/<action_id>`
+`PUT watcher/watch/<watch_id>/_ack/<action_id>`
 
 [float]
 ==== Path Parameters
@@ -42,7 +42,7 @@ To demonstrate let's create a new watch:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my_watch
+PUT watcher/watch/my_watch
 {
   "trigger": {
     "schedule": {
@@ -80,7 +80,7 @@ watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/watcher/watch/my_watch
+GET watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 
@@ -117,12 +117,12 @@ check the status:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST watcher/watch/my_watch/_execute
 {
   "record_execution" : true
 }
 
-GET _xpack/watcher/watch/my_watch
+GET watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -172,8 +172,8 @@ Now we can acknowledge it:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my_watch/_ack/test_index
-GET _xpack/watcher/watch/my_watch
+PUT watcher/watch/my_watch/_ack/test_index
+GET watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -226,7 +226,7 @@ comma-separated list of action ids:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_ack/action1,action2
+POST watcher/watch/my_watch/_ack/action1,action2
 --------------------------------------------------
 // CONSOLE
 
@@ -235,7 +235,7 @@ parameter:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_ack
+POST watcher/watch/my_watch/_ack
 --------------------------------------------------
 // TEST[s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
 // CONSOLE

@@ -581,30 +581,6 @@ public abstract class AbstractClient implements Client {
         return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
     }
 
-    @Deprecated
-    @Override
-    public ActionFuture<TermVectorsResponse> termVector(final TermVectorsRequest request) {
-        return termVectors(request);
-    }
-
-    @Deprecated
-    @Override
-    public void termVector(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
-        termVectors(request, listener);
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector() {
-        return prepareTermVectors();
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
-        return prepareTermVectors(index, type, id);
-    }
-
     @Override
     public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
         return execute(MultiTermVectorsAction.INSTANCE, request);

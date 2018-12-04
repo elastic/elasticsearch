@@ -37,7 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import java.util.Map;
 
 class ClusterStateUpdaters {
-    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
+    private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
     static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
         return ClusterState.builder(clusterState)

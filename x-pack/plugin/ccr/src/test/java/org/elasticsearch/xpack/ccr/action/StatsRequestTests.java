@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
-public class StatsRequestTests extends AbstractStreamableTestCase<FollowStatsAction.StatsRequest> {
+public class StatsRequestTests extends AbstractWireSerializingTestCase<FollowStatsAction.StatsRequest> {
 
     @Override
-    protected FollowStatsAction.StatsRequest createBlankInstance() {
-        return new FollowStatsAction.StatsRequest();
+    protected Writeable.Reader<FollowStatsAction.StatsRequest> instanceReader() {
+        return FollowStatsAction.StatsRequest::new;
     }
 
     @Override

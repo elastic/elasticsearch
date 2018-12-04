@@ -99,14 +99,9 @@ public class RepositoriesService implements ClusterStateApplier {
             registrationListener = listener;
         }
 
-
         // Trying to create the new repository on master to make sure it works
         try {
-            if (!registerRepository(newRepositoryMetaData)) {
-                // The new repository has the same settings as the old one - ignore
-                registrationListener.onResponse(new ClusterStateUpdateResponse(true));
-                return;
-            }
+            closeRepository(createRepository(newRepositoryMetaData));
         } catch (Exception e) {
             registrationListener.onFailure(e);
             return;
@@ -134,6 +129,10 @@ public class RepositoriesService implements ClusterStateApplier {
 
                     for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                         if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
+                            if (newRepositoryMetaData.equals(repositoryMetaData)) {
+                                // Previous version is the same as this one no update is needed.
+                                return currentState;
+                            }
                             found = true;
                             repositoriesMetaData.add(newRepositoryMetaData);
                         } else {
@@ -357,32 +356,6 @@ public class RepositoriesService implements ClusterStateApplier {
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
-    }
-
-    /**
-     * Creates a new repository.
-     * <p>
-     * If a repository with the same name but different types or settings already exists, it will be closed and
-     * replaced with the new repository. If a repository with the same name exists but it has the same type and settings
-     * the new repository is ignored.
-     *
-     * @param repositoryMetaData new repository metadata
-     * @return {@code true} if new repository was added or {@code false} if it was ignored
-     */
-    private boolean registerRepository(RepositoryMetaData repositoryMetaData) {
-        Repository previous = repositories.get(repositoryMetaData.name());
-        if (previous != null) {
-            RepositoryMetaData previousMetadata = previous.getMetadata();
-            if (previousMetadata.equals(repositoryMetaData)) {
-                // Previous version is the same as this one - ignore it
-                return false;
-            }
-        }
-        createRepository(repositoryMetaData);
-        if (previous != null) {
-            closeRepository(previous);
-        }
-        return true;
     }
 
     /** Closes the given repository. */

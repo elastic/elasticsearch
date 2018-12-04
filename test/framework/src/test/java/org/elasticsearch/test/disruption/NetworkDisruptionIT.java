@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -34,13 +35,13 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36205")
 public class NetworkDisruptionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/35861")
     public void testNetworkPartitionWithNodeShutdown() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String[] nodeNames = internalCluster().getNodeNames();

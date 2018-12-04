@@ -133,7 +133,7 @@ public class SimpleKdcLdapServer {
         simpleKdc.setKdcRealm(realm);
         if (transport != null) {
             if (kdcPort == 0) {
-                kdcPort = randomServerPort(transport);
+                kdcPort = getServerPort(transport);
             }
             if (transport.trim().equals("TCP")) {
                 simpleKdc.setKdcTcpPort(kdcPort);
@@ -225,34 +225,21 @@ public class SimpleKdcLdapServer {
         logger.info("SimpleKdcServer stoppped.");
     }
 
-    private static int randomServerPort(String transport) {
-        int tries = 0;
-        int port = -1;
-        do  {
-            if (tries > 100) {
-                throw new IllegalArgumentException("Could not find available port for KDC server");
-            }
-            port = ESTestCase.randomIntBetween(1024, 65535);
-            tries++;
-        } while (isPortAvailable(port, transport) == false);
-        return port;
-    }
-
-    private static boolean isPortAvailable(int port, String transport) {
+    private static int getServerPort(String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("tcp")) {
-            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(port, 1,
+            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1,
                     InetAddress.getByName("127.0.0.1"))) {
-                return serverSocket.isBound();
+                return serverSocket.getLocalPort();
             } catch (Exception ex) {
-                return false;
+                throw new RuntimeException("Failed to get a tcp server socket point");
             }
         } else if (transport != null && transport.trim().equalsIgnoreCase("udp")) {
-            try (DatagramSocket socket = new DatagramSocket(port, InetAddress.getByName("127.0.0.1"))) {
-                return socket.isBound();
+            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+                return socket.getLocalPort();
             } catch (Exception ex) {
-                return false;
+                throw new RuntimeException("Failed to get a udp server socket point");
             }
         }
-        return false;
+        throw new IllegalArgumentException("Invalid transport: " + transport);
     }
 }

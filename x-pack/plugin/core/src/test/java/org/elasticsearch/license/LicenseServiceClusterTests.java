@@ -43,7 +43,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence
                 .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 

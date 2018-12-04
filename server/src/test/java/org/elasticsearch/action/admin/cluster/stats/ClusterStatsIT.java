@@ -34,7 +34,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -212,15 +211,14 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode(Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+            internalCluster().startMasterOnlyNode();
         } else {
-            internalCluster().startDataOnlyNode(Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+            internalCluster().startDataOnlyNode();
         }
         // wait for the cluster status to settle
         ensureGreen();

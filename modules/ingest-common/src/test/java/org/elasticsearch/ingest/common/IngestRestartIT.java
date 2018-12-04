@@ -47,13 +47,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class IngestRestartIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
-            .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IngestCommonPlugin.class, CustomScriptPlugin.class);
     }

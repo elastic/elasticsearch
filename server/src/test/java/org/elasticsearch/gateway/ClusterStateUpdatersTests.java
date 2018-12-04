@@ -45,6 +45,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CLUSTER_READ_ONLY_BLOCK;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.closeBadIndices;
+import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.mixCurrentStateAndRecoveredState;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.recoverClusterBlocks;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.removeStateNotRecoveredBlock;
@@ -269,6 +270,44 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         assertMetaDataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
         assertThat(updatedState.nodes().getSize(), is(1));
+    }
+
+    public void testDoNotHideStateIfRecovered() {
+        final IndexMetaData indexMetaData = createIndexMetaData("test", Settings.EMPTY);
+        final MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test", "test").build())
+                .put(indexMetaData, false)
+                .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .metaData(metaData)
+                .build();
+        assertMetaDataEquals(initialState, hideStateIfNotRecovered(initialState));
+    }
+
+    public void testHideStateIfNotRecovered() {
+        final IndexMetaData indexMetaData = createIndexMetaData("test",
+                Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true).build());
+        final MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+                .transientSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build())
+                .put(indexMetaData, false)
+                .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .metaData(metaData)
+                .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+                .build();
+        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                Sets.newHashSet(DiscoveryNode.Role.MASTER), Version.CURRENT);
+        final ClusterState updatedState = Function.<ClusterState>identity()
+                .andThen(state -> setLocalNode(state, localNode))
+                .andThen(ClusterStateUpdaters::recoverClusterBlocks)
+                .apply(initialState);
+        final ClusterState hiddenState = hideStateIfNotRecovered(updatedState);
+        assertTrue(MetaData.isGlobalStateEquals(hiddenState.metaData(), MetaData.EMPTY_META_DATA));
+        assertTrue(hiddenState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+        assertFalse(hiddenState.blocks().hasGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK));
+        assertFalse(hiddenState.blocks().hasGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK));
+        assertFalse(hiddenState.blocks().hasIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_READ_ONLY_BLOCK));
     }
 
 }

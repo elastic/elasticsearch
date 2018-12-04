@@ -47,13 +47,6 @@ import static org.elasticsearch.persistent.PersistentTasksClusterService.needsRe
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
-            .build();
-    }
-
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);

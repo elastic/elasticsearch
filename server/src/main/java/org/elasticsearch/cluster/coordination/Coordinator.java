@@ -81,6 +81,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
@@ -209,7 +210,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
             coordinationState.get().handleCommit(applyCommitRequest);
-            final ClusterState committedState = coordinationState.get().getLastAcceptedState();
+            final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(committedState) : committedState;
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // master node applies the committed state at the end of the publication process, not here.

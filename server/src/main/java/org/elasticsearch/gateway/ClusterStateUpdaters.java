@@ -36,7 +36,9 @@ import org.elasticsearch.indices.IndicesService;
 
 import java.util.Map;
 
-class ClusterStateUpdaters {
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+
+public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
     static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
@@ -147,6 +149,22 @@ class ClusterStateUpdaters {
                 .blocks(blocks)
                 .metaData(metaDataBuilder)
                 .build();
+    }
+
+    public static ClusterState hideStateIfNotRecovered(ClusterState state) {
+        if (state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
+            ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
+            blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+            blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+            for (IndexMetaData indexMetaData: state.metaData()) {
+                blocks.removeIndexBlocks(indexMetaData.getIndex().getName());
+            }
+            return ClusterState.builder(state)
+                    .metaData(MetaData.EMPTY_META_DATA)
+                    .blocks(blocks.build())
+                    .build();
+        }
+        return state;
     }
 
 }

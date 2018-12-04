@@ -48,7 +48,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestTermVectorsAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in term vector requests is deprecated.";
 
     public RestTermVectorsAction(Settings settings, RestController controller) {

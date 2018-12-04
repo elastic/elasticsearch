@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiTermVectorsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestTermVectorsAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in multi term vector requests is deprecated.";
 
     public RestMultiTermVectorsAction(Settings settings, RestController controller) {

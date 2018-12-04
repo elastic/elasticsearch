@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
+import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -626,7 +626,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecated(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecated(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
                         throw new ElasticsearchParseException("failed to parse term vectors request. " +

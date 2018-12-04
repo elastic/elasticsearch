@@ -20,8 +20,12 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -32,6 +36,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
@@ -52,6 +57,22 @@ public class RestTermVectorsActionTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.POST)
             .withPath("/some_index/some_type/some_id/_termvectors")
+            .build();
+
+        performRequest(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+     public void testTypeInBody() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .field("_type", "some_type")
+            .field("_id", 1)
+        .endObject();
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(Method.GET)
+            .withPath("/some_index/_termvectors/some_id")
+            .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
 
         performRequest(request);

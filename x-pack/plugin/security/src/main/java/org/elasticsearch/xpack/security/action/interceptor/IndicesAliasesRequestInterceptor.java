@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 
 import java.util.HashMap;
 import java.util.Map;

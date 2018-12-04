@@ -100,14 +100,14 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         completeMatch = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0 )) {
             cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
         }
         index = readResourcePrivileges(in);
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             username = in.readString();
         }
     }
@@ -127,14 +127,14 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(completeMatch);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);
         }
         writeResourcePrivileges(out, index);
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeMap(application, StreamOutput::writeString, HasPrivilegesResponse::writeResourcePrivileges);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeString(username);
         }
     }

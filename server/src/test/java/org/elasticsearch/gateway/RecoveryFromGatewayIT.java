@@ -36,6 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,6 +47,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
@@ -82,7 +84,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     @Override
@@ -413,8 +415,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1))
-            .get();
+            .setSettings(Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 1)
+                // disable merges to keep segments the same
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+            ).get();
 
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);

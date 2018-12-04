@@ -220,7 +220,7 @@ public class PeerFinderTests extends ESTestCase {
             assert isConnected != isDisconnected : discoveryNode + ": isConnected=" + isConnected + ", isDisconnected=" + isDisconnected;
             return isConnected;
         });
-        connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> capturingTransport.openConnection(discoveryNode, null));
+        connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> capturingTransport.createConnection(discoveryNode));
         transportService = new TransportService(settings, capturingTransport, deterministicTaskQueue.getThreadPool(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet(), connectionManager);
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction;
@@ -30,7 +31,16 @@ public class RestDeleteDataFrameJobAction extends BaseRestHandler {
         String id = restRequest.param(DataFrameJob.ID.getPreferredName());
         DeleteDataFrameJobAction.Request request = new DeleteDataFrameJobAction.Request(id);
 
-        return channel -> client.execute(DeleteDataFrameJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteDataFrameJobAction.INSTANCE, request,
+                new RestToXContentListener<DeleteDataFrameJobAction.Response>(channel) {
+                    @Override
+                    protected RestStatus getStatus(DeleteDataFrameJobAction.Response response) {
+                        if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
+                            return RestStatus.INTERNAL_SERVER_ERROR;
+                        }
+                        return RestStatus.OK;
+                    }
+                });
     }
 
     @Override

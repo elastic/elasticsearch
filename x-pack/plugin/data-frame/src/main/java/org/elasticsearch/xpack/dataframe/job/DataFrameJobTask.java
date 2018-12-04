@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
+import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.action.StartDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.action.StopDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.action.StartDataFrameJobAction.Response;
@@ -35,16 +36,18 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     private static final Logger logger = LogManager.getLogger(DataFrameJobTask.class);
 
     private final DataFrameJob job;
+    private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final DataFrameIndexer indexer;
 
-    static final String SCHEDULE_NAME = "xpack/data_frame/job" + "/schedule";
+    static final String SCHEDULE_NAME = DataFrame.TASK_NAME + "/schedule";
 
     public DataFrameJobTask(long id, String type, String action, TaskId parentTask, DataFrameJob job,
             DataFrameJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
             Map<String, String> headers) {
         super(id, type, action, DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + job.getConfig().getId(), parentTask, headers);
         this.job = job;
+        this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
         logger.info("construct job task");
         // todo: simplistic implementation for now
@@ -83,6 +86,38 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
             logger.debug(
                     "Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
+        }
+    }
+
+    /**
+     * Attempt to gracefully cleanup the data frame job so it can be terminated.
+     * This tries to remove the job from the scheduler, and potentially any other
+     * cleanup operations in the future
+     */
+    synchronized void shutdown() {
+        try {
+            logger.info("Data frame indexer [" + job.getConfig().getId() + "] received abort request, stopping indexer.");
+            schedulerEngine.remove(SCHEDULE_NAME + "_" + job.getConfig().getId());
+            schedulerEngine.unregister(this);
+        } catch (Exception e) {
+            markAsFailed(e);
+            return;
+        }
+        markAsCompleted();
+    }
+
+    /**
+     * This is called when the persistent task signals that the allocated task should be terminated.
+     * Termination in the task framework is essentially voluntary, as the allocated task can only be
+     * shut down from the inside.
+     */
+    @Override
+    public synchronized void onCancelled() {
+        logger.info(
+                "Received cancellation request for data frame job [" + job.getConfig().getId() + "], state: [" + indexer.getState() + "]");
+        if (indexer.abort()) {
+            // there is no background job running, we can shutdown safely
+            shutdown();
         }
     }
 

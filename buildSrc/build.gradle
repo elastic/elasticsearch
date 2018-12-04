@@ -167,6 +167,10 @@ if (project != rootProject) {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
+  // we need to apply these again to override the build plugin
+  targetCompatibility = "10"
+  sourceCompatibility = "10"
+
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false
 

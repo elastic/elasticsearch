@@ -44,6 +44,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 public class ClusterBootstrapService {
 
@@ -57,14 +61,22 @@ public class ClusterBootstrapService {
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
         Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
+    public static final Setting<TimeValue> UNCONFIGURED_DISCOVERY_TIMEOUT_SETTING =
+        Setting.timeSetting("cluster.unconfigured_discovery_timeout",
+            TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
+
     private final int initialMasterNodeCount;
     private final List<String> initialMasterNodes;
+    private final TimeValue unconfiguredDiscoveryTimeout;
     private final TransportService transportService;
     private volatile boolean running;
 
     public ClusterBootstrapService(Settings settings, TransportService transportService) {
         initialMasterNodeCount = INITIAL_MASTER_NODE_COUNT_SETTING.get(settings);
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
+        final boolean isConfigured = Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+            INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
+        unconfiguredDiscoveryTimeout = isConfigured ? TimeValue.MINUS_ONE : UNCONFIGURED_DISCOVERY_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
     }
 
@@ -72,7 +84,54 @@ public class ClusterBootstrapService {
         assert running == false;
         running = true;
 
-        if (initialMasterNodeCount > 0 && transportService.getLocalNode().isMasterNode()) {
+        if (transportService.getLocalNode().isMasterNode() == false) {
+            return;
+        }
+
+        if (unconfiguredDiscoveryTimeout.compareTo(TimeValue.ZERO) > 0) {
+            logger.debug("discovery not configured, performing best-effort cluster formation after [{}]", unconfiguredDiscoveryTimeout);
+            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+
+                transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredDiscoveryTimeout, Names.SAME, new Runnable() {
+                    @Override
+                    public void run() {
+                        final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
+                        logger.trace("sending {}", request);
+                        transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
+                            new TransportResponseHandler<GetDiscoveredNodesResponse>() {
+                                @Override
+                                public void handleResponse(GetDiscoveredNodesResponse response) {
+                                    logger.debug("discovered {}, starting to bootstrap", response.getNodes());
+                                    awaitBootstrap(response.getBootstrapConfiguration());
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    logger.warn("discovery attempt failed", exp);
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return Names.SAME;
+                                }
+
+                                @Override
+                                public GetDiscoveredNodesResponse read(StreamInput in) throws IOException {
+                                    return new GetDiscoveredNodesResponse(in);
+                                }
+                            });
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "development-mode delayed bootstrap";
+                    }
+                });
+
+            }
+        } else if (initialMasterNodeCount > 0) {
             logger.debug("unsafely waiting for discovery of [{}] master-eligible nodes", initialMasterNodeCount);
 
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();

@@ -317,7 +317,7 @@ public class RBACEngine implements AuthorizationEngine {
         return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
     }
 
-    // nocommit make this pkg private!
+    // FIXME make this pkg private!
     public static class RBACAuthorizationInfo implements AuthorizationInfo {
 
         private final Role role;
@@ -331,7 +331,7 @@ public class RBACEngine implements AuthorizationEngine {
                 authenticatedUserRole == null ? this : new RBACAuthorizationInfo(authenticatedUserRole, null);
         }
 
-        // nocommit make this pkg private!
+        // FIXME make this pkg private!
         public Role getRole() {
             return role;
         }

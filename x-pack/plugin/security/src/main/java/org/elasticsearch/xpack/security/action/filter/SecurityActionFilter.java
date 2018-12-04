@@ -172,7 +172,7 @@ public class SecurityActionFilter implements ActionFilter {
                  * We use a separate concept for code that needs to be run after authentication and authorization that could
                  * affect the running of the action. This is done to make it more clear of the state of the request.
                  */
-                // nocommit this needs to be done in a way that allows us to operate without a role
+                // FIXME this needs to be done in a way that allows us to operate without a role
                 Role role = null;
                 AuthorizationInfo authorizationInfo = threadContext.getTransient("_authz_info");
                 if (authorizationInfo instanceof RBACAuthorizationInfo) {

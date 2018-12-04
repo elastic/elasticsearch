@@ -168,7 +168,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-
     private void maybeFork(final Thread thread, final Runnable runnable) {
         if (thread == Thread.currentThread()) {
             fork(runnable);
@@ -185,7 +184,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 runnable.run();
             }
 
@@ -376,5 +375,4 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         assert iterator.skip();
         successfulShardExecution(iterator);
     }
-
 }

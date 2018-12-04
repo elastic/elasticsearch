@@ -60,6 +60,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -1266,4 +1269,51 @@ public final class IndicesClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::analyze, options,
             AnalyzeResponse::fromXContent, listener, emptySet());
     }
+
+    /**
+     * Synchronously calls the _freeze API
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public ShardsAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously calls the _freeze API
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void freezeAsync(FreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Synchronously calls the _unfreeze API
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public ShardsAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously calls the _unfreeze API
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
 }

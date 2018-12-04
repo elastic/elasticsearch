@@ -683,16 +683,22 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
-                .addClause(
-                    new SpanOrQuery(
-                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
                 .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
+                .setSlop(2)
+                .build();
+            expectedQuery = new BooleanQuery.Builder()
+                .add(pq1, Occur.SHOULD)
+                .add(pq2, Occur.SHOULD)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
@@ -1467,6 +1473,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field(STRING_FIELD_NAME)
             .phraseSlop(10)
             .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testAnalyzedPrefix() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("quick* @&*")
+            .field(STRING_FIELD_NAME)
+            .analyzer("standard")
+            .analyzeWildcard(true)
+            .toQuery(createShardContext());
+        Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
         assertEquals(expected, query);
     }
 

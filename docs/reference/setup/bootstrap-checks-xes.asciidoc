@@ -49,6 +49,7 @@ valid. The Distinguished Names (DNs) that are listed in the role mappings files
 must also be valid.
 
 [float]
+[[bootstrap-checks-tls]]
 === SSL/TLS check
 //See TLSLicenseBootstrapCheck.java
 

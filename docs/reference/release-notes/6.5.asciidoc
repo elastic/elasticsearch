@@ -6,7 +6,7 @@
 // TEMPLATE
 
 // [[release-notes-n.n.n]]
-// == {es} n.n.n
+// == {es} version n.n.n
 
 // coming[n.n.n]
 
@@ -44,11 +44,57 @@
 // === Known Issues
 ////
 
+[[release-notes-6.5.2]]
+== {es} version 6.5.2
+
+coming[6.5.2]
+
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
+
+
+[[release-notes-6.5.1]]
+== {es} version 6.5.1
+
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
+
+[float]
+[[enhancement-6.5.1]]
+=== Enhancements
+
+Authorization::
+* Grant .tasks access to kibana_system role {pull}35573[#35573]
+
+Search::
+* has_parent builder: exception message/param fix {pull}31182[#31182]
+
+[float]
+[[bug-6.5.1]]
+=== Bug fixes
+
+Aggregations::
+* Correct implemented interface of ParsedReverseNested {pull}35455[#35455] (issue: {issue}35449[#35449])
+* Handle IndexOrDocValuesQuery in composite aggregation {pull}35392[#35392]
+* Preserve `format` when aggregation contains unmapped date fields {pull}35254[#35254] (issue: {issue}31760[#31760])
+
+Infra/Core::
+* Upgrade to Joda 2.10.1 {pull}35410[#35410] (issue: {issue}33749[#33749])
+
+Machine Learning::
+* Fix find_file_structure NPE with should_trim_fields {pull}35465[#35465] (issue: {issue}35462[#35462])
+* Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
+
+SQL::
+* Fix query translation for scripted queries {pull}35408[#35408] (issue: {issue}35232[#35232])
+* Clear the cursor if nested inner hits are enough to fulfill the query required limits {pull}35398[#35398] (issue: {issue}35176[#35176])
+* SQL: Introduce IsNull node to simplify expressions {pull}35206[#35206] (issues: {issue}34876[#34876], {issue}35171[#35171])
+
+Scripting::
+* [Painless] Partially fixes def boxed types casting {pull}35563[#35563] (issue: {issue}35351[#35351])
+
 [[release-notes-6.5.0]]
-== 6.5.0 Release Notes
+== {es} version 6.5.0 
 
-
-Also see <<breaking-changes-6.5>>.
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
 [[breaking-6.5.0]]
 [float]

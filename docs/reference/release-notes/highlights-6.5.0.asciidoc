@@ -78,7 +78,18 @@ currently the same as JDBC. An alpha version of the ODBC client is now
 available for download.
 
 [float]
-=== Cross-cluster replication (beta)
+=== Delegate authorization to other realms
+
+If you enable the {es} {security-features}, some realms now have the 
+ability to perform _authentication_ internally then delegate _authorization_ to 
+another realm. For example, you could authenticate using PKI then delegate to an 
+LDAP realm for role information. The realms that support this feature have a 
+new `authorization_realms` setting that you can configure in the 
+`elasticsearch.yml` file. For more information, see 
+{stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>. 
+
+[float]
+=== Cross-cluster replication (beta^*^)
 
 Cross-cluster replication enables you to replicate indices that exist in remote 
 clusters to your local cluster. You create an index in your local cluster 
@@ -93,7 +104,7 @@ For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
 and <<ccr-apis>>. 
 
 [float]
-=== Monitor {es} with {metricbeat} (beta)
+=== Monitor {es} with {metricbeat} (beta^*^)
 
 In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 
 it directly to your monitoring cluster, rather than routing it through {es}. Now 
@@ -101,14 +112,9 @@ in 6.5, you can also use {metricbeat} to collect and ship data about {es}. If
 you are monitoring {ls} or Beats, at this time you must still use exporters to 
 route the data. See <<configuring-metricbeat>> and 
 {stack-ov}/how-monitoring-works.html[How monitoring works]. 
+ 
 
-[float]
-=== Delegate authorization to other realms
-
-If you enable the {es} {security-features}, some realms now have the 
-ability to perform _authentication_ internally then delegate _authorization_ to 
-another realm. For example, you could authenticate using PKI then delegate to an 
-LDAP realm for role information. The realms that support this feature have a 
-new `authorization_realms` setting that you can configure in the 
-`elasticsearch.yml` file. For more information, see 
-{stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>.  
+^*^ This functionality is in beta and is subject to change. The design and code 
+is less mature than official GA features and is being provided as-is with no 
+warranties. Please try this functionality in your test and development environments 
+and provide feedback in the https://discuss.elastic.co/[Elastic community forums].

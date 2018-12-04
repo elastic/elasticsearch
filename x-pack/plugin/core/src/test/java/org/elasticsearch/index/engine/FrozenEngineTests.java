@@ -297,11 +297,15 @@ public class FrozenEngineTests extends EngineTestCase {
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     DirectoryReader reader;
                     try (Engine.Searcher searcher = frozenEngine.acquireSearcher("can_match")) {
+                        assertNotNull(ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()));
+                        assertEquals(config.getShardId(), ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher
+                            .getDirectoryReader()).shardId());
                         reader = searcher.getDirectoryReader();
                         assertNotEquals(reader, Matchers.instanceOf(FrozenEngine.LazyDirectoryReader.class));
                         assertEquals(0, listener.afterRefresh.get());
                         DirectoryReader unwrap = FilterDirectoryReader.unwrap(searcher.getDirectoryReader());
                         assertThat(unwrap, Matchers.instanceOf(RewriteCachingDirectoryReader.class));
+                        assertNotNull(ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()));
                     }
 
                     try (Engine.Searcher searcher = frozenEngine.acquireSearcher("can_match")) {

@@ -577,6 +577,552 @@ value of `service` to the value of the field `code`:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[ingest-conditionals]]
+== Conditional Execution in Pipelines
+
+Each processor allows for an optional `if` condition to determine if that
+processor should be executed or skipped. The value of the `if` is a
+<<modules-scripting-painless, Painless>> script that needs to evaluate
+to `true` or `false`.
+
+For example the following processor will <<drop-processor,drop>> the document
+(i.e. not index it) if the input document has a field named `network_name`
+and it is equal to `Guest`.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/drop_guests_network
+{
+  "processors": [
+    {
+      "drop": {
+        "if": "ctx.network_name == 'Guest'"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+Using that pipeline for an index request:
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/1?pipeline=drop_guests_network
+{
+  "network_name" : "Guest"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Results in nothing indexed since the conditional evaluated to `true`.
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "1",
+  "_version": -3,
+  "result": "noop",
+  "_shards": {
+    "total": 0,
+    "successful": 0,
+    "failed": 0
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+[[ingest-conditional-nullcheck]]
+=== Handling Nested Fields in Conditionals
+
+Source documents often contain nested fields. Care should be taken
+to avoid NullPointerExceptions if the parent object does not exist
+in the document. For example `ctx.a.b.c` can throw an NullPointerExceptions
+if the source document does not have top level `a` object, or a second
+level `b` object.
+
+To help protect against NullPointerExceptions, null safe operations should be used.
+Fortunately, Painless makes {painless}/painless-operators-reference.html#null-safe-operator[null safe]
+operations easy with the `?.` operator.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/drop_guests_network
+{
+  "processors": [
+    {
+      "drop": {
+        "if": "ctx.network?.name == 'Guest'"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+The following document will get <<drop-processor,dropped>> correctly:
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/1?pipeline=drop_guests_network
+{
+  "network": {
+    "name": "Guest"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+////
+Hidden example assertion:
+[source,js]
+--------------------------------------------------
+GET test/_doc/1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:missing]
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "1",
+  "found": false
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
+
+Thanks to the `?.` operator the following document will not throw an error.
+If the pipeline used a `.` the following document would throw a NullPointerException
+since the `network` object is not part of the source document.
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/2?pipeline=drop_guests_network
+{
+  "foo" : "bar"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+////
+Hidden example assertion:
+[source,js]
+--------------------------------------------------
+GET test/_doc/2
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "2",
+  "_version": 1,
+  "found": true,
+  "_source": {
+    "foo": "bar"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
+
+The source document can also use dot delimited fields to represent nested fields.
+
+For example instead the source document defining the fields nested:
+
+[source,js]
+--------------------------------------------------
+{
+  "network": {
+    "name": "Guest"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The source document may have the nested fields flattened as such:
+[source,js]
+--------------------------------------------------
+{
+  "network.name": "Guest"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If this is the case, use the <<dot-expand-processor, Dot Expand Processor>>
+so that the nested fields may be used in a conditional.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/drop_guests_network
+{
+  "processors": [
+    {
+      "dot_expander": {
+        "field": "network.name"
+      }
+    },
+    {
+      "drop": {
+        "if": "ctx.network?.name == 'Guest'"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+Now the following input document can be used with a conditional in the pipeline.
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/3?pipeline=drop_guests_network
+{
+  "network.name": "Guest"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+////
+Hidden example assertion:
+[source,js]
+--------------------------------------------------
+GET test/_doc/3
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:missing]
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "3",
+  "found": false
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
+
+The `?.` operators works well for use in the `if` conditional
+because the {painless}/painless-operators-reference.html#null-safe-operator[null safe operator]
+returns null if the object is null and `==` is null safe (as well as many other
+{painless}/painless-operators.html[painless operators]).
+
+However, calling a method such as `.equalsIgnoreCase` is not null safe
+and can result in a NullPointerException.
+
+Some situations allow for the same functionality but done so in a null safe manner.
+For example: `'Guest'.equalsIgnoreCase(ctx.network?.name)` is null safe because
+`Guest` is always non null, but `ctx.network?.name.equalsIgnoreCase('Guest')` is not null safe
+since `ctx.network?.name` can return null.
+
+Some situations require an explicit null check. In the following example there
+is not null safe alternative, so an explict null check is needed.
+
+[source,js]
+--------------------------------------------------
+{
+  "drop": {
+    "if": "ctx.network?.name != null && ctx.network.name.contains('Guest')"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[ingest-conditional-complex]]
+=== Complex Conditionals
+The `if` condition can be more then a simple equality check.
+The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
+running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
+
+IMPORTANT: The value of ctx is read-only in `if` conditions. 
+
+A more complex `if` condition that drops the document (i.e. not index it)
+unless it has a multi-valued tag field with at least one value that contains the characters
+`prod` (case insensitive).
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/not_prod_dropper
+{
+  "processors": [
+    {
+      "drop": {
+        "if": "Collection tags = ctx.tags;if(tags != null){for (String tag : tags) {if (tag.toLowerCase().contains('prod')) { return false;}}} return true;"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+The conditional needs to be all on one line since JSON does not
+support new line characters. However, Kibana's console supports
+a triple quote syntax to help with writing and debugging
+scripts like these.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/not_prod_dropper
+{
+  "processors": [
+    {
+      "drop": {
+        "if": """
+            Collection tags = ctx.tags;
+            if(tags != null){
+              for (String tag : tags) {
+                  if (tag.toLowerCase().contains('prod')) {
+                      return false;
+                  }
+              }
+            }
+            return true;
+        """
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/1?pipeline=not_prod_dropper
+{
+  "tags": ["application:myapp", "env:Stage"]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The document is <<drop-processor,dropped>> since `prod` (case insensitive)
+is not found in the tags.
+
+////
+Hidden example assertion:
+[source,js]
+--------------------------------------------------
+GET test/_doc/1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:missing]
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "1",
+  "found": false
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
+
+The following document is indexed (i.e. not dropped) since
+`prod` (case insensitive) is found in the tags.
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/2?pipeline=not_prod_dropper
+{
+  "tags": ["application:myapp", "env:Production"]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+////
+Hidden example assertion:
+[source,js]
+--------------------------------------------------
+GET test/_doc/2
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "2",
+  "_version": 1,
+  "found": true,
+  "_source": {
+    "tags": [
+      "application:myapp",
+      "env:Production"
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
+
+
+
+The <<simulate-pipeline-api>> with verbose can be used to help build out
+complex conditionals. If the conditional evaluates to false it will be
+omitted from the verbose results of the simulation since the document will not change.
+
+Care should be taken to avoid overly complex or expensive conditional checks
+since the condition needs to be checked for each and every document.
+
+[[conditionals-with-multiple-pipelines]]
+=== Conditionals with the Pipeline Processor
+The combination of the `if` conditional and the <<pipeline-processor>> can result in a simple,
+yet powerful means to process heterogeneous input. For example, you can define a single pipeline
+that delegates to other pipelines based on some criteria.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/logs_pipeline
+{
+  "description": "A pipeline of pipelines for log files",
+  "version": 1,
+  "processors": [
+    {
+      "pipeline": {
+        "if": "ctx.service?.name == 'apache_httpd'",
+        "name": "httpd_pipeline"
+      }
+    },
+    {
+      "pipeline": {
+        "if": "ctx.service?.name == 'syslog'",
+        "name": "syslog_pipeline"
+      }
+    },
+    {
+      "fail": {
+        "message": "This pipeline requires service.name to be either `syslog` or `apache_httpd`"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+The above example allows consumers to point to a single pipeline for all log based index requests.
+Based on the conditional, the correct pipeline will be called to process that type of data.
+
+This pattern works well with a <<dynamic-index-settings, default pipeline>> defined in an index mapping
+template for all indexes that hold data that needs pre-index processing.
+
+[[conditionals-with-regex]]
+=== Conditionals with the Regular Expressions
+The `if` conditional is implemented as a Painless script, which requires
+{painless}//painless-examples.html#modules-scripting-painless-regex[explicit support for regular expressions].
+
+`script.painless.regex.enabled: true` must be set in `elasticsearch.yml` to use regular
+expressions in the `if` condition.
+
+If regular expressions are enabled, operators such as `=~` can be used against a `/pattern/` for conditions.
+
+For example:
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/check_url
+{
+  "processors": [
+    {
+      "set": {
+        "if": "ctx.href?.url =~ /^http[^s]/",
+        "field": "href.insecure",
+        "value": true
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/1?pipeline=check_url
+{
+  "href": {
+    "url": "http://www.elastic.co/"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Results in:
+
+////
+Hidden example assertion:
+[source,js]
+--------------------------------------------------
+GET test/_doc/1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+////
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "test",
+  "_type": "_doc",
+  "_id": "1",
+  "_version": 1,
+  "found": true,
+  "_source": {
+    "href": {
+      "insecure": true,
+      "url": "http://www.elastic.co/"
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+Regular expressions can be expensive and should be avoided if viable
+alternatives exist.
+
+For example in this case `startsWith` can be used to get the same result
+without using a regular expression:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/check_url
+{
+  "processors": [
+    {
+      "set": {
+        "if": "ctx.href?.url != null && ctx.href.url.startsWith('http://')",
+        "field": "href.insecure",
+        "value": true
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
 [[handling-failure-in-pipelines]]
 == Handling Failures in Pipelines
 
@@ -737,13 +1283,15 @@ and accesses a read only version of the document via the same `ctx` variable use
 --------------------------------------------------
 {
   "set": {
-    "if": "ctx.bar == 'expectedValue'",
-    "field": "foo",
-    "value": "bar"
+    "if": "ctx.foo == 'someValue'",
+    "field": "found",
+    "value": true
   }
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+See <<ingest-conditionals>> to learn more about the `if` field and conditional execution.
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 

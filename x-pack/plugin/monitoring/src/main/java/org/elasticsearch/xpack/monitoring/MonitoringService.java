@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 import java.io.Closeable;
@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * service life cycles, the intended way to temporarily stop the publishing is using the start and stop methods.
  */
 public class MonitoringService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(MonitoringService.class);
+
 
     /**
      * Log a deprecation warning if {@code value} is -1.
@@ -201,14 +203,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     protected void doClose() {
         logger.debug("monitoring service is closing");
         monitor.close();
-
-        for (Exporter exporter : exporters) {
-            try {
-                exporter.close();
-            } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
-            }
-        }
+        exporters.close();
         logger.debug("monitoring service closed");
     }
 

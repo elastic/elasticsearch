@@ -182,8 +182,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo-01", "baz-01", "squash");
+        ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
         // Occasionally the explain is so fast that the indices have not yet left the "new" phase,
         // so we assertBusy here in the event that they haven't progressed to the "hot" phase yet.
         assertBusy(() -> {
@@ -278,8 +277,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         RetryLifecyclePolicyRequest retryRequest = new RetryLifecyclePolicyRequest("retry");
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
             () -> execute(
-                retryRequest, highLevelClient().indexLifecycle()::retryLifecycleStep,
-                highLevelClient().indexLifecycle()::retryLifecycleStepAsync
+                retryRequest, highLevelClient().indexLifecycle()::retryLifecyclePolicy,
+                highLevelClient().indexLifecycle()::retryLifecyclePolicyAsync
             )
         );
         assertEquals(400, ex.status().getStatus());

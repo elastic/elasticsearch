@@ -35,13 +35,21 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
+import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -94,6 +102,33 @@ public final class SecurityClient {
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putUser, options,
             PutUserResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Removes user from the native realm synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html">
+     * the docs</a> for more.
+     * @param request the request with the user to delete
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the delete user call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteUserResponse deleteUser(DeleteUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteUser, options,
+            DeleteUserResponse::fromXContent, singleton(404));
+    }
+
+    /**
+     *  Asynchronously deletes a user in the native realm.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html">
+     * the docs</a> for more.
+     * @param request the request with the user to delete
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteUserAsync(DeleteUserRequest request, RequestOptions options, ActionListener<DeleteUserResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteUser, options,
+            DeleteUserResponse::fromXContent, listener, singleton(404));
     }
 
     /**
@@ -245,6 +280,34 @@ public final class SecurityClient {
     }
 
     /**
+     * Determine whether the current user has a specified list of privileges
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the privileges to check
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the has privileges call
+     */
+    public HasPrivilegesResponse hasPrivileges(HasPrivilegesRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::hasPrivileges, options,
+            HasPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously determine whether the current user has a specified list of privileges
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the privileges to check
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void hasPrivilegesAsync(HasPrivilegesRequest request, RequestOptions options, ActionListener<HasPrivilegesResponse> listener) {
+         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::hasPrivileges, options,
+            HasPrivilegesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Clears the cache in one or more realms.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html">
      * the docs</a> for more.
@@ -376,6 +439,35 @@ public final class SecurityClient {
     }
 
     /**
+     * Asynchronously retrieves roles from the native roles store.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the roles to get
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRolesAsync(GetRolesRequest request, RequestOptions options, ActionListener<GetRolesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getRoles, options,
+            GetRolesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieves roles from the native roles store.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the roles to get
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the delete role call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetRolesResponse getRoles(final GetRolesRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoles, options,
+            GetRolesResponse::fromXContent, emptySet());
+    }
+
+    /**
      * Asynchronously delete a role mapping.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role-mapping.html">
      * the docs</a> for more.
@@ -476,9 +568,46 @@ public final class SecurityClient {
     }
 
     /**
+     * Synchronously get application privilege(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request {@link GetPrivilegesRequest} with the application name and the privilege name.
+     *                If no application name is provided, information about all privileges for all applications is retrieved.
+     *                If no privilege name is provided, information about all privileges of the specified application is retrieved.
+     * @param options the request options (e.g. headers), use
+     *                {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get privileges call
+     * @throws IOException in case there is a problem sending the request or
+     *                     parsing back the response
+     */
+    public GetPrivilegesResponse getPrivileges(final GetPrivilegesRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getPrivileges,
+            options, GetPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get application privilege(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request  {@link GetPrivilegesRequest} with the application name and the privilege name.
+     *                 If no application name is provided, information about all privileges for all applications is retrieved.
+     *                 If no privilege name is provided, information about all privileges of the specified application is retrieved.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getPrivilegesAsync(final GetPrivilegesRequest request, final RequestOptions options,
+                                   final ActionListener<GetPrivilegesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getPrivileges,
+            options, GetPrivilegesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Removes application privilege(s)
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html">
      * the docs</a> for more.
+     *
      * @param request the request with the application privilege to delete
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the delete application privilege call
@@ -493,12 +622,13 @@ public final class SecurityClient {
      * Asynchronously removes an application privilege
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html">
      * the docs</a> for more.
-     * @param request the request with the application privilege to delete
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     *
+     * @param request  the request with the application privilege to delete
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void deletePrivilegesAsync(DeletePrivilegesRequest request, RequestOptions options,
-                                     ActionListener<DeletePrivilegesResponse> listener) {
+                                      ActionListener<DeletePrivilegesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deletePrivileges, options,
             DeletePrivilegesResponse::fromXContent, listener, singleton(404));
     }

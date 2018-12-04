@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 
 /**
  * This class contains utilities to identify which jobs are the "best" for a given aggregation tree.
@@ -97,11 +98,13 @@ public class RollupJobIdentifierUtils {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
 
-                        String thisTimezone  = (String)agg.get(DateHistogramGroupConfig.TIME_ZONE);
-                        String sourceTimeZone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
+                        TimeZone thisTimezone = DateTimeZone.forID((String)agg.get(DateHistogramGroupConfig.TIME_ZONE)).toTimeZone();
+                        TimeZone sourceTimeZone = source.timeZone() == null
+                            ? DateTimeZone.UTC.toTimeZone()
+                            : source.timeZone().toTimeZone();
 
                         // Ensure we are working on the same timezone
-                        if (thisTimezone.equalsIgnoreCase(sourceTimeZone) == false) {
+                        if (thisTimezone.hasSameRules(sourceTimeZone) == false) {
                             continue;
                         }
                         if (source.dateHistogramInterval() != null) {

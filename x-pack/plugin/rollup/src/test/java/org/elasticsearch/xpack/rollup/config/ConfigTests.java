@@ -89,6 +89,11 @@ public class ConfigTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("The datetime zone id 'FOO' is not recognised"));
     }
 
+    public void testObsoleteTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "Canada/Mountain");
+        assertThat(config.getTimeZone(), equalTo("America/Edmonton"));
+    }
+
     public void testEmptyHistoField() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, (String[]) null));
         assertThat(e.getMessage(), equalTo("Fields must have at least one value"));

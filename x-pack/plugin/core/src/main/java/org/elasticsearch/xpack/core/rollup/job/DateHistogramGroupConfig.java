@@ -103,7 +103,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         this.interval = interval;
         this.field = field;
         this.delay = delay;
-        this.timeZone = (timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE;
+        this.timeZone = DateTimeZone.forID((timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE).toString();
 
         // validate interval
         createRounding(this.interval.toString(), this.timeZone);

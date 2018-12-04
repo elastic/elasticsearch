@@ -96,7 +96,7 @@ public class RestMultiTermVectorsActionTests extends ESTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     private void performRequest(RestRequest request) {

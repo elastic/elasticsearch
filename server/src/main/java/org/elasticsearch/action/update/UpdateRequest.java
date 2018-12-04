@@ -194,6 +194,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * The type of the indexed document.
      * @deprecated  Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -203,6 +204,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Sets the type of the indexed document.
      * @deprecated  Types are in the process of being removed.
      */
+    @Deprecated
     public UpdateRequest type(String type) {
         this.type = type;
         return this;

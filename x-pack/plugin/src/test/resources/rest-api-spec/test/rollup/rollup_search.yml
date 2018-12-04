@@ -1048,16 +1048,16 @@ setup:
                     field: "price"
 
   - length: { aggregations.histo.buckets: 4 }
-  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2016-12-31T22:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
   - match: { aggregations.histo.buckets.0.the_max.value: 1 }
-  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2016-12-31T23:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
   - match: { aggregations.histo.buckets.1.the_max.value: 2 }
-  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T00:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.2.doc_count: 10 }
   - match: { aggregations.histo.buckets.2.the_max.value: 3 }
-  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T01:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.3.doc_count: 20 }
   - match: { aggregations.histo.buckets.3.the_max.value: 4 }
 
@@ -1078,16 +1078,16 @@ setup:
                     field: "price"
 
   - length: { aggregations.histo.buckets: 4 }
-  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2016-12-31T22:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
   - match: { aggregations.histo.buckets.0.the_max.value: 1 }
-  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2016-12-31T23:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
   - match: { aggregations.histo.buckets.1.the_max.value: 2 }
-  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T00:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.2.doc_count: 10 }
   - match: { aggregations.histo.buckets.2.the_max.value: 3 }
-  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T01:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.3.doc_count: 20 }
   - match: { aggregations.histo.buckets.3.the_max.value: 4 }
 

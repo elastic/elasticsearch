@@ -164,6 +164,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -1069,6 +1070,9 @@ public final class InternalTestCluster extends TestCluster {
         if (wipeData) {
             wipePendingDataDirectories();
         }
+
+        assertTrue("expected at least one master-eligible node left in " + nodes,
+            nodes.isEmpty() || nodes.values().stream().anyMatch(NodeAndClient::isMasterEligible));
 
         final int prevNodeCount = nodes.size();
 

@@ -61,7 +61,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testTribeNodeCheck() {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Tribe Node removed in favor of Cross Cluster Search",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
                 "#_tribe_node_removed",

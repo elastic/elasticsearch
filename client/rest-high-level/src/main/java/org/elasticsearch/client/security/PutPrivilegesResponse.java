@@ -82,8 +82,20 @@ public final class PutPrivilegesResponse {
             if (entry.getValue() instanceof Map) {
                 final Map<String, Boolean> privilegeToStatus = applicationPrivilegesCreatedOrUpdated.computeIfAbsent(entry.getKey(),
                         (a) -> new HashMap<>());
-                Map<String, Object> createdOrUpdated = (Map<String, Object>) entry.getValue();
-                createdOrUpdated.forEach((k, v) -> privilegeToStatus.put(k, ((Map<String, Boolean>) v).get("created")));
+                final Map<String, Object> createdOrUpdated = (Map<String, Object>) entry.getValue();
+                for (String privilegeName : createdOrUpdated.keySet()) {
+                    if (createdOrUpdated.get(privilegeName) instanceof Map) {
+                        final Map<String, Object> statusMap = (Map<String, Object>) createdOrUpdated.get(privilegeName);
+                        final Object status = statusMap.get("created");
+                        if (status instanceof Boolean) {
+                            privilegeToStatus.put(privilegeName, (Boolean) status);
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "Failed to parse object, unexpected structure");
+                        }
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "Failed to parse object, unexpected structure");
+                    }
+                }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Failed to parse object, unexpected structure");
             }

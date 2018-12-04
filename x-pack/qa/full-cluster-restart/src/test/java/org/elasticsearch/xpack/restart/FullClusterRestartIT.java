@@ -132,7 +132,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 }
                 // run upgrade API
                 Response upgradeResponse = client().performRequest(
-                        new Request("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex));
+                        new Request("POST", "_migration/upgrade/" + concreteSecurityIndex));
                 logger.info("upgrade response:\n{}", toStr(upgradeResponse));
             }
 
@@ -176,7 +176,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
             logger.info("checking if the upgrade procedure on the new cluster is required");
-            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/migration/assistance")));
+            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_migration/assistance")));
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
@@ -189,7 +189,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("starting upgrade procedure on the new cluster");
 
-                Request migrationAssistantRequest = new Request("POST", "_xpack/migration/upgrade/.watches");
+                Request migrationAssistantRequest = new Request("POST", "_migration/upgrade/.watches");
                 migrationAssistantRequest.addParameter("error_trace", "true");
                 Map<String, Object> upgradeResponse = entityAsMap(client().performRequest(migrationAssistantRequest));
                 assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
@@ -198,7 +198,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("checking that upgrade procedure on the new cluster is no longer required");
                 Map<String, Object> responseAfter = entityAsMap(client().performRequest(
-                        new Request("GET", "/_xpack/migration/assistance")));
+                        new Request("GET", "/_migration/assistance")));
                 @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
                 assertNull(indicesAfter.get(".watches"));
             } else {
@@ -282,7 +282,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "/_xpack/rollup/job/rollup-job-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-job-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -341,7 +341,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "/_xpack/rollup/job/rollup-id-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -373,14 +373,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertRollUpJob("rollup-id-test");
 
             // stop the rollup job to force a state save, which will upgrade the ID
-            final Request stopRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_stop");
+            final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");
             Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
             assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
 
             waitForRollUpJob("rollup-id-test", equalTo("stopped"));
 
             // start the rollup job again
-            final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -622,12 +622,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest;
-        if (isRunningAgainstOldCluster()) {
-            getRollupJobRequest = new Request("GET", "/_xpack/rollup/job/" + rollupJob);
-        } else {
-            getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-        }
+        final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
@@ -673,12 +668,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest;
-            if (isRunningAgainstOldCluster()) {
-                getRollupJobRequest = new Request("GET", "/_xpack/rollup/job/" + rollupJob);
-            } else {
-                getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-            }
+            final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 

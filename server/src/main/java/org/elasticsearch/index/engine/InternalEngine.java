@@ -2108,8 +2108,9 @@ public class InternalEngine extends Engine {
         // Give us the opportunity to upgrade old segments while performing
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
+        // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
+        iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         if (softDeleteEnabled) {
-            iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
             mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, softDeletesPolicy::getRetentionQuery,
                 new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery, mergePolicy));
         }

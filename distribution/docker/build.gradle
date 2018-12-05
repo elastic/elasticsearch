@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
@@ -68,7 +69,7 @@ void addCopyDockerContextTask(final boolean oss) {
 }
 
 void addBuildDockerImage(final boolean oss) {
-  task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
+  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
     dependsOn taskName("copy", oss, "Dockerfile")
     dependsOn taskName("copy", oss, "DockerContext")
     final List<String> tags
@@ -89,6 +90,7 @@ void addBuildDockerImage(final boolean oss) {
     }
     args dockerArgs.toArray()
   }
+  BuildPlugin.requireDocker(buildDockerImageTask)
 }
 
 for (final boolean oss : [false, true]) {

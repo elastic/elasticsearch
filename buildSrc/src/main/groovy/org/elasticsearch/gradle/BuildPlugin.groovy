@@ -232,6 +232,29 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
+    static void requireDocker(final Task task) {
+        final Project rootProject = task.project.rootProject
+        if (rootProject.hasProperty('requiresDocker') == false) {
+            rootProject.rootProject.ext.requiresDocker = []
+            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                if (new File('/usr/bin/docker').exists() || new File('/usr/local/bin/docker').exists()) {
+                    return
+                }
+                final List<String> tasks =
+                        ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
+                if (tasks.isEmpty() == false) {
+                    throw new GradleException(
+                            String.format(
+                                    Locale.ROOT,
+                                    "Docker is rqeuired to run the following task%s: \n%s",
+                                    tasks.size() > 1 ? "s" : "",
+                                    tasks.join('\n')))
+                }
+            }
+        }
+        rootProject.requiresDocker.add(task)
+    }
+
     private static String findCompilerJavaHome() {
         final String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')

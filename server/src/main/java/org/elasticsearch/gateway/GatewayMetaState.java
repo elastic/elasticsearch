@@ -205,6 +205,9 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         }
 
         try {
+            // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
+            // that's higher than the last accepted term.
+            // TODO: can we get rid of this hack?
             if (event.state().term() > getCurrentTerm()) {
                 Manifest manifest = new Manifest(event.state().term(), previousManifest.getClusterStateVersion(),
                     previousManifest.getGlobalGeneration(), new HashMap<>(previousManifest.getIndexGenerations()));

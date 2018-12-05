@@ -44,7 +44,7 @@ public class DelayedDataDetectorFactory {
                 window,
                 job.getId(),
                 job.getDataDescription().getTimeField(),
-                datafeedConfig.getQuery(),
+                datafeedConfig.getParsedQuery(),
                 datafeedConfig.getIndices().toArray(new String[0]),
                 client);
         } else {

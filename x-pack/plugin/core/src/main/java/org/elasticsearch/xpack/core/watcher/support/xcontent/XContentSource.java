@@ -146,12 +146,16 @@ public class XContentSource implements ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         XContentSource that = (XContentSource) o;
-        return Objects.equals(bytes, that.bytes) &&
-            contentType == that.contentType;
+        return Objects.equals(data(), that.data());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(bytes, contentType);
+        return Objects.hash(data());
+    }
+
+    @Override
+    public String toString() {
+        return bytes.utf8ToString();
     }
 }

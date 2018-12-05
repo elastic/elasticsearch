@@ -21,10 +21,14 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
@@ -698,4 +702,21 @@ public class BootstrapChecksTests extends ESTestCase {
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
+    public void testDiscoveryConfiguredCheck() throws NodeValidationException {
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(defaultContext, true, checks));
+        assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use")));
+
+        BootstrapChecks.check(defaultContext, false, checks); // not always enforced
+
+        CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
+            BootstrapChecks.check(new BootstrapContext(b.build(), MetaData.EMPTY_META_DATA), true, checks);
+
+        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 0));
+        ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
+    }
 }

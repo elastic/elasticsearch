@@ -76,10 +76,13 @@ public class ClusterBootstrapService {
     public ClusterBootstrapService(Settings settings, TransportService transportService) {
         initialMasterNodeCount = INITIAL_MASTER_NODE_COUNT_SETTING.get(settings);
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
-        final boolean isConfigured = Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-            INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
-        unconfiguredBootstrapTimeout = isConfigured ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
+        unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
+    }
+
+    public static boolean discoveryIsConfigured(Settings settings) {
+        return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+            INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
     }
 
     public void start() {

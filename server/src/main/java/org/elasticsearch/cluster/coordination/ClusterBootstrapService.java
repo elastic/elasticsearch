@@ -69,7 +69,7 @@ public class ClusterBootstrapService {
     private final int initialMasterNodeCount;
     private final List<String> initialMasterNodes;
     @Nullable
-    private final TimeValue unconfiguredDiscoveryTimeout;
+    private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
     private volatile boolean running;
 
@@ -78,7 +78,7 @@ public class ClusterBootstrapService {
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
         final boolean isConfigured = Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
             INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
-        unconfiguredDiscoveryTimeout = isConfigured ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
+        unconfiguredBootstrapTimeout = isConfigured ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
     }
 
@@ -90,13 +90,14 @@ public class ClusterBootstrapService {
             return;
         }
 
-        if (unconfiguredDiscoveryTimeout != null) {
-            logger.info("discovery not configured, will perform best-effort cluster bootstrapping after [{}]", unconfiguredDiscoveryTimeout);
+        if (unconfiguredBootstrapTimeout != null) {
+            logger.info("discovery not configured, will perform best-effort cluster bootstrapping after [{}]",
+                unconfiguredBootstrapTimeout);
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
 
-                transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredDiscoveryTimeout, Names.SAME, new Runnable() {
+                transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.SAME, new Runnable() {
                     @Override
                     public void run() {
                         final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();

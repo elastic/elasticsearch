@@ -1,0 +1,122 @@
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'base'
+
+configurations {
+  dockerPlugins
+  dockerSource
+  ossDockerSource
+}
+
+dependencies {
+  dockerPlugins project(path: ":plugins:ingest-geoip", configuration: 'zip')
+  dockerPlugins project(path: ":plugins:ingest-user-agent", configuration: 'zip')
+  dockerSource project(path: ":distribution:archives:tar")
+  ossDockerSource project(path: ":distribution:archives:oss-tar")
+}
+
+ext.expansions = { oss ->
+  return [
+    'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
+    'jdkVersion' : '11.0.1',
+    'license': oss ? 'Apache-2.0' : 'Elastic License',
+    'ingest-geoip' : "ingest-geoip-${VersionProperties.elasticsearch}.zip",
+    'ingest-user-agent' : "ingest-user-agent-${VersionProperties.elasticsearch}.zip",
+    'tarball' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
+    'version' : VersionProperties.elasticsearch
+  ]
+}
+
+static String files(final boolean oss) {
+  return "build/${ oss ? 'oss-' : ''}docker"
+}
+
+static String taskName(final String prefix, final boolean oss, final String suffix) {
+  return "${prefix}${oss ? 'Oss' : ''}${suffix}"
+}
+
+void addProcessDockerfileTask(final boolean oss) {
+  task(taskName("process", oss, "Dockerfile"), type: Copy) {
+    into files(oss)
+
+    from 'src/docker/Dockerfile'
+    MavenFilteringHack.filter(it, expansions(oss))
+  }
+}
+
+void addCopyBinFilesTask(final boolean oss) {
+  task(taskName("copy", oss, "BinFiles"), type: Copy) {
+    into "${files(oss)}/bin"
+
+    from 'src/docker/bin'
+  }
+}
+
+void addCopyConfigFilesTask(final boolean oss) {
+  task(taskName("copy", oss, "ConfigFiles"), type: Copy) {
+    into files(oss)
+
+    from 'src/docker/config'
+  }
+}
+
+void addCopyElasticsearchDistributionTask(final boolean oss) {
+  task(taskName("copy", oss, "ElasticsearchDistribution"), type: Copy) {
+    into files(oss)
+
+    if (oss) {
+      from configurations.ossDockerSource
+    } else {
+      from configurations.dockerSource
+    }
+  }
+}
+
+void addCopyPluginsTask(final boolean oss) {
+  task(taskName("copy", oss, "Plugins"), type: Copy) {
+    into files(oss)
+
+    from configurations.dockerPlugins
+  }
+}
+
+void addBuildDockerImage(final boolean oss) {
+  task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
+    dependsOn taskName("process", oss, "Dockerfile")
+    dependsOn taskName("copy", oss, "BinFiles")
+    dependsOn taskName("copy", oss, "ConfigFiles")
+    dependsOn taskName("copy", oss, "ElasticsearchDistribution")
+    dependsOn taskName("copy", oss, "Plugins")
+    final List<String> tags
+    if (oss) {
+      tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
+    } else {
+      tags = [
+        "elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}"
+      ]
+    }
+    executable 'docker'
+    final List<String> dockerArgs = ['build', files(oss), '--pull']
+    for (final String tag : tags) {
+      dockerArgs.add('--tag')
+      dockerArgs.add(tag)
+    }
+    args dockerArgs.toArray()
+  }
+}
+
+for (final boolean oss : [false, true]) {
+  addProcessDockerfileTask(oss)
+  addCopyBinFilesTask(oss)
+  addCopyConfigFilesTask(oss)
+  addCopyElasticsearchDistributionTask(oss)
+  addCopyPluginsTask(oss)
+  addBuildDockerImage(oss)
+}
+
+assemble.dependsOn "buildOssDockerImage"
+assemble.dependsOn "buildDockerImage"

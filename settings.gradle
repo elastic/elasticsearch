@@ -20,6 +20,8 @@ List projects = [
   'distribution:archives:zip',
   'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:docker:default',
+  'distribution:docker:oss',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-rpm',

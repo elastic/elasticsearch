@@ -57,14 +57,14 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
         super(settings);
 
         // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_execute", this,
-                                                 POST, "/_watcher/watch/{id}/_execute", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_execute", this,
-                                                 PUT, "/_watcher/watch/{id}/_execute", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/_execute", this,
-                                                 POST, "/_watcher/watch/_execute", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/_execute", this,
-                                                 PUT, "/_watcher/watch/_execute", deprecationLogger);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_execute", this);
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_execute", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_execute", this);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_execute", this);
+        controller.registerHandler(POST, URI_BASE + "/watch/_execute", this);
+        controller.registerHandler(POST, "/_watcher/watch/_execute", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/_execute", this);
+        controller.registerHandler(PUT, "/_watcher/watch/_execute", this);
     }
 
     @Override

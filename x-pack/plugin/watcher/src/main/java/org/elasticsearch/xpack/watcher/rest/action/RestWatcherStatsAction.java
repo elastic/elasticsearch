@@ -31,10 +31,10 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         super(settings);
 
         // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(GET, URI_BASE + "/stats", this,
-                                                 GET, "/_watcher/stats", deprecationLogger);
-        controller.registerWithDeprecatedHandler(GET, URI_BASE + "/stats/{metric}", this,
-                                                 GET, "/_watcher/stats/{metric}", deprecationLogger);
+        controller.registerHandler(GET, URI_BASE + "/stats", this);
+        controller.registerHandler(GET, "/_watcher/stats", this);
+        controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);
+        controller.registerHandler(GET, "/_watcher/stats/{metric}", this);
     }
 
     @Override

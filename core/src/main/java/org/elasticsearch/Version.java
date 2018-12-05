@@ -168,12 +168,10 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_6_12 = new Version(V_5_6_12_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_5_6_13_ID = 5061399;
     public static final Version V_5_6_13 = new Version(V_5_6_13_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
-    public static final int V_5_6_14_ID = 5061499;
-    public static final Version V_5_6_14 = new Version(V_5_6_14_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
-    public static final int V_5_6_15_ID_UNRELEASED = 5061599;
-    public static final Version V_5_6_15_UNRELEASED = new Version(V_5_6_15_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_14_ID_UNRELEASED = 5061499;
+    public static final Version V_5_6_14_UNRELEASED = new Version(V_5_6_14_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_1);
 
-    public static final Version CURRENT = V_5_6_15_UNRELEASED;
+    public static final Version CURRENT = V_5_6_14_UNRELEASED;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -188,10 +186,8 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_5_6_15_ID_UNRELEASED:
-                return V_5_6_15_UNRELEASED;
-            case V_5_6_14_ID:
-                return V_5_6_14;
+            case V_5_6_14_ID_UNRELEASED:
+                return V_5_6_14_UNRELEASED;
             case V_5_6_13_ID:
                 return V_5_6_13;
             case V_5_6_12_ID:

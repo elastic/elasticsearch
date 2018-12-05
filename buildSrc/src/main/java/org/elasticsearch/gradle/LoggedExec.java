@@ -29,7 +29,9 @@ public class LoggedExec extends Exec {
             doLast((unused) -> {
                     if (getExecResult().getExitValue() != 0) {
                         try {
+                            getLogger().error("Standard output:");
                             getLogger().error(output.toString("UTF-8"));
+                            getLogger().error("Standard error:");
                             getLogger().error(error.toString("UTF-8"));
                         } catch (UnsupportedEncodingException e) {
                             throw new GradleException("Failed to read exec output", e);
@@ -74,7 +76,9 @@ public class LoggedExec extends Exec {
             });
         } catch (Exception e) {
             try {
+                getLogger().error("Standard output:");
                 project.getLogger().error(output.toString("UTF-8"));
+                getLogger().error("Standard error:");
                 project.getLogger().error(error.toString("UTF-8"));
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);

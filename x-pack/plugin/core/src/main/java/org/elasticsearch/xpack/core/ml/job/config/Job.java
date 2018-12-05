@@ -239,7 +239,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
         }
 
-        return "job-" + jobId;
+        return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
     }
 
 

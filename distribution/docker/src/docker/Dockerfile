@@ -5,13 +5,13 @@
 ################################################################################
 
 ################################################################################
-# Build stage 0 `prep_files`:
+# Build stage 0 `builder`:
 # Extract elasticsearch artifact
 # Install required plugins
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS prep_files
+FROM centos:7 AS builder
 
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
@@ -50,7 +50,7 @@ FROM centos:7
 ENV ELASTIC_CONTAINER true
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
-COPY --from=prep_files /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
+COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
 RUN yum update -y && \
     yum install -y nc unzip wget which && \
@@ -62,7 +62,7 @@ RUN groupadd -g 1000 elasticsearch && \
     chgrp 0 /usr/share/elasticsearch
 
 WORKDIR /usr/share/elasticsearch
-COPY --from=prep_files --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 
 COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

@@ -5,8 +5,9 @@
 <titleabbrev>Security settings</titleabbrev>
 ++++
 
-By default, {security} is disabled when you have a basic or trial license. To
-enable {security}, use the `xpack.security.enabled` setting.
+By default, the {es} {security-features} are disabled when you have a basic or
+trial license. To enable {security-features}, use the `xpack.security.enabled`
+setting.
 
 You configure `xpack.security` settings  to
 <<anonymous-access-settings, enable anonymous access>>
@@ -25,13 +26,15 @@ For more information about creating and updating the {es} keystore, see
 [[general-security-settings]]
 ==== General security settings
 `xpack.security.enabled`::
-Set to `true` to enable {security} on the node. +
+Set to `true` to enable {es} {security-features} on the node. +
 +
 --
 If set to `false`, which is the default value for basic and trial licenses,
-{security} is disabled. It also affects all {kib} instances that connect to this
-{es} instance; you do not need to disable {security} in those `kibana.yml` files.
-For more information about disabling {security} in specific {kib} instances, see  {kibana-ref}/security-settings-kb.html[{kib} security settings].
+{security-features} are disabled. It also affects all {kib} instances that
+connect to this {es} instance; you do not need to disable {security-features} in
+those `kibana.yml` files. For more information about disabling {security-features}
+in specific {kib} instances, see
+{kibana-ref}/security-settings-kb.html[{kib} security settings].
 
 TIP: If you have gold or higher licenses, the default value is `true`; we 
 recommend that you explicitly add this setting to avoid confusion.  
@@ -67,7 +70,7 @@ See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see {xpack-ref}/anonymous-access.html[
+`elasticsearch.yml`.  For more information, see {stack-ov}/anonymous-access.html[
 Enabling anonymous access].
 
 `xpack.security.authc.anonymous.username`::
@@ -117,7 +120,7 @@ Defaults to `48h` (48 hours).
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see
-{xpack-ref}/field-and-document-access-control.html[Setting up document and field
+{stack-ov}/field-and-document-access-control.html[Setting up document and field
 level security].
 
 `xpack.security.dls_fls.enabled`::
@@ -165,7 +168,7 @@ xpack.security.authc.realms:
 ----------------------------------------
 
 The valid settings vary depending on the realm type. For more
-information, see {xpack-ref}/setting-up-authentication.html[Setting up authentication].
+information, see {stack-ov}/setting-up-authentication.html[Setting up authentication].
 
 [float]
 [[ref-realm-settings]]
@@ -204,7 +207,7 @@ Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {xpack-ref}/run-as-privilege.html[run as] and
+(See the {stack-ov}/run-as-privilege.html[run as] and
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
 Defaults to `true`.
 
@@ -233,7 +236,7 @@ user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {xpack-ref}/run-as-privilege.html[run as] and
+(See the {stack-ov}/run-as-privilege.html[run as] and
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
 Defaults to `true`.
 
@@ -282,7 +285,7 @@ The DN template that replaces the user name with the string `{0}`.
 This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
-the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
 
 `authorization_realms`::
 The names of the realms that should be consulted for delegated authorization.
@@ -306,7 +309,7 @@ to `memberOf`.
 Specifies a container DN to search for users. Required
 to operated in user search mode. If `user_dn_templates` is specified, this 
 setting is not valid. For more information on
-the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
 
 `user_search.scope`::
 The scope of the user search. Valid values are `sub_tree`, `one_level` or
@@ -379,11 +382,11 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
 referenced in a
-{xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+{stack-ov}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
 role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
-The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[
+The <<security-files,location>> for the {stack-ov}/mapping-roles.html#mapping-roles[
 YAML role mapping configuration file]. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
@@ -501,7 +504,7 @@ in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {xpack-ref}/run-as-privilege.html[run as] and
+(See the {stack-ov}/run-as-privilege.html[run as] and
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
 Defaults to `true`.
 
@@ -557,7 +560,7 @@ is not referenced in any role-mapping files. API-based role mappings are not
 considered. Defaults to `false`.
 
 `files.role_mapping`::
-The {xpack-ref}/security-files.html[location] for the YAML
+The <<security-files,location>> for the YAML
 role mapping configuration file. Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `user_search.base_dn`::
@@ -748,7 +751,7 @@ the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssh
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {xpack-ref}/run-as-privilege.html[run as] and
+(See the {stack-ov}/run-as-privilege.html[run as] and
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
 Defaults to `true`.
 
@@ -789,8 +792,8 @@ The path of a truststore to use. Defaults to the trusted certificates configured
 for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
-Specifies the {xpack-ref}/security-files.html[location] of the
-{xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
+Specifies the <<security-files,location>> of the
+{stack-ov}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
@@ -1207,7 +1210,7 @@ through the list of URLs will continue until a successful connection is made.
 ==== Default TLS/SSL settings
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
-{xpack-ref}/encrypting-communications.html[Encrypting communications]. These settings will be used
+{stack-ov}/encrypting-communications.html[Encrypting communications]. These settings will be used
 for all of {xpack} unless they have been overridden by more specific
 settings such as those for HTTP or Transport.
 
@@ -1447,7 +1450,7 @@ See also <<remote-audit-settings>>.
 [float]
 [[ip-filtering-settings]]
 ==== IP filtering settings
-You can configure the following settings for {xpack-ref}/ip-filtering.html[IP filtering].
+You can configure the following settings for {stack-ov}/ip-filtering.html[IP filtering].
 
 `xpack.security.transport.filter.allow`::
 List of IP addresses to allow.

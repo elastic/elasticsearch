@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -192,7 +193,30 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             case V_EMPTY_ID:
                 return V_EMPTY;
             default:
-                return new Version(id, org.apache.lucene.util.Version.LATEST);
+                // We need at least the major of the Lucene version to be correct.
+                // Our best guess is to use the same Lucene version as the previous
+                // version in the list, assuming that it didn't change. This is at
+                // least correct for patch versions of known minors since we never
+                // update the Lucene dependency for patch versions.
+                List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
+                Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
+                int index = Collections.binarySearch(versions, tmp);
+                if (index < 0) {
+                    index = -2 - index;
+                } else {
+                    assert false : "Version [" + tmp + "] is declared but absent from the switch statement in Version#fromId";
+                }
+                final org.apache.lucene.util.Version luceneVersion;
+                if (index == -1) {
+                    // this version is older than any supported version, so we
+                    // assume it is the previous major to the oldest Lucene version
+                    // that we know about
+                    luceneVersion = org.apache.lucene.util.Version.fromBits(
+                            versions.get(0).luceneVersion.major - 1, 0, 0);
+                } else {
+                    luceneVersion = versions.get(index).luceneVersion;
+                }
+                return new Version(id, luceneVersion);
         }
     }
 
@@ -300,7 +324,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
-        this.luceneVersion = luceneVersion;
+        this.luceneVersion = Objects.requireNonNull(luceneVersion);
     }
 
     public boolean after(Version version) {

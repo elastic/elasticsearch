@@ -70,5 +70,13 @@ public enum AnalysisMode {
         return this.readableName;
     }
 
-    public abstract AnalysisMode merge(AnalysisMode other);
+    /**
+     * Returns a mode that is compatible with both this mode and the other mode, that is:
+     * <ul>
+     * <li>ALL.merge(INDEX_TIME) == INDEX_TIME</li>
+     * <li>ALL.merge(SEARCH_TIME) == SEARCH_TIME</li>
+     * <li>INDEX_TIME.merge(SEARCH_TIME) throws an {@link IllegalStateException}</li>
+     * </ul>
+     */
+    abstract AnalysisMode merge(AnalysisMode other);
 }

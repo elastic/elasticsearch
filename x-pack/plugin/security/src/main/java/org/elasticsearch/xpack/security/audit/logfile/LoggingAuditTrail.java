@@ -102,6 +102,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String URL_PATH_FIELD_NAME = "url.path";
     public static final String URL_QUERY_FIELD_NAME = "url.query";
     public static final String REQUEST_BODY_FIELD_NAME = "request.body";
+    public static final String REQUEST_ID_FIELD_NAME = "request.id";
     public static final String ACTION_FIELD_NAME = "action";
     public static final String INDICES_FIELD_NAME = "indices";
     public static final String REQUEST_NAME_FIELD_NAME = "request.name";
@@ -183,7 +184,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
+        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, DEPRECATED_EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING,
+                DEPRECATED_EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, DEPRECATED_EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
                 INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
@@ -209,7 +211,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, RestRequest request) {
+    public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
@@ -217,6 +219,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                     .with(REALM_FIELD_NAME, realm)
                     .withRestUri(request)
+                    .withRequestId(requestId)
                     .withPrincipal(user)
                     .withRestOrigin(request)
                     .withRequestBody(request)
@@ -227,7 +230,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
+    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -238,6 +241,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(REALM_FIELD_NAME, realm)
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withPrincipal(user)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -249,7 +253,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void anonymousAccessDenied(String action, TransportMessage message) {
+    public void anonymousAccessDenied(String requestId, String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -259,6 +263,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -269,7 +274,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void anonymousAccessDenied(RestRequest request) {
+    public void anonymousAccessDenied(String requestId, RestRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
                 && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
@@ -278,6 +283,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -285,7 +291,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -296,6 +302,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(ACTION_FIELD_NAME, action)
                         .with(PRINCIPAL_FIELD_NAME, token.principal())
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -306,7 +313,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationFailed(RestRequest request) {
+    public void authenticationFailed(String requestId, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
@@ -314,6 +321,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -321,7 +329,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationFailed(String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -331,6 +339,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -341,7 +350,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
@@ -351,6 +360,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -358,7 +368,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -370,6 +380,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(PRINCIPAL_FIELD_NAME, token.principal())
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -380,7 +391,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
@@ -391,6 +402,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -398,20 +410,21 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg, String[] roleNames) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
-            final Optional<String[]> indices = indices(message);
+            final Optional<String[]> indices = indices(msg);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
                         .with(ACTION_FIELD_NAME, action)
-                        .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .with(REQUEST_NAME_FIELD_NAME, msg.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withSubject(authentication)
-                        .withRestOrTransportOrigin(message, threadContext)
+                        .withRestOrTransportOrigin(msg, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
                         .withOpaqueId(threadContext)
@@ -422,7 +435,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
@@ -432,6 +445,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -444,7 +458,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void tamperedRequest(RestRequest request) {
+    public void tamperedRequest(String requestId, RestRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
@@ -452,6 +466,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -459,7 +474,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void tamperedRequest(String action, TransportMessage message) {
+    public void tamperedRequest(String requestId, String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -469,6 +484,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -479,7 +495,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportMessage message) {
+    public void tamperedRequest(String requestId, User user, String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -489,6 +505,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .withPrincipal(user)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -532,7 +549,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
@@ -542,6 +559,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRunAsSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -554,7 +572,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
@@ -564,6 +582,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
+                        .withRequestId(requestId)
                         .withRunAsSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -576,7 +595,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, String[] roleNames) {
         if (events.contains(RUN_AS_DENIED)
                 && eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                         Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false) {
@@ -588,6 +607,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withRunAsSubject(authentication)
                     .withRestOrigin(request)
                     .withRequestBody(request)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -669,6 +689,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (Strings.hasLength(requestContent)) {
                     logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
                 }
+            }
+            return this;
+        }
+
+        LogEntryBuilder withRequestId(String requestId) {
+            if (requestId != null) {
+                logEntry.with(REQUEST_ID_FIELD_NAME, requestId);
             }
             return this;
         }
@@ -758,8 +785,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     public static void registerSettings(List<Setting<?>> settings) {
         settings.add(EMIT_HOST_ADDRESS_SETTING);
+        settings.add(DEPRECATED_EMIT_HOST_ADDRESS_SETTING);
         settings.add(EMIT_HOST_NAME_SETTING);
+        settings.add(DEPRECATED_EMIT_HOST_NAME_SETTING);
         settings.add(EMIT_NODE_NAME_SETTING);
+        settings.add(DEPRECATED_EMIT_NODE_NAME_SETTING);
         settings.add(EMIT_NODE_ID_SETTING);
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);

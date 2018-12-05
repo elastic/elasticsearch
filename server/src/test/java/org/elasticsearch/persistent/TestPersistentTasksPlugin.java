@@ -454,9 +454,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public TestTasksRequest() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
             operation = in.readOptionalString();
         }
 

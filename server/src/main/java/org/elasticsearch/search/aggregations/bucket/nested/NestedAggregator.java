@@ -140,13 +140,21 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         final DocIdSetIterator childDocs;
         final LongArrayList bucketBuffer = new LongArrayList();
 
+        Scorer scorer;
         int currentParentDoc = -1;
+        final CachedScorer cachedScorer = new CachedScorer();
 
         BufferingNestedLeafBucketCollector(LeafBucketCollector sub, BitSet parentDocs, DocIdSetIterator childDocs) {
             super(sub, null);
             this.sub = sub;
             this.parentDocs = parentDocs;
             this.childDocs = childDocs;
+        }
+
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
+            this.scorer = scorer;
+            super.setScorer(cachedScorer);
         }
 
         @Override
@@ -159,7 +167,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
             if (currentParentDoc != parentDoc) {
                 processBufferedChildBuckets();
+                if (needsScores()) {
+                    // cache the score of the current parent
+                    cachedScorer.score = scorer.score();
+                }
                 currentParentDoc = parentDoc;
+
             }
             bucketBuffer.add(bucket);
         }
@@ -177,6 +190,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
             }
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
+                cachedScorer.doc = childDocId;
                 final long[] buffer = bucketBuffer.buffer;
                 final int size = bucketBuffer.size();
                 for (int i = 0; i < size; i++) {
@@ -184,6 +198,26 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
                 }
             }
             bucketBuffer.clear();
+        }
+    }
+
+    private static class CachedScorer extends Scorer {
+        int doc;
+        float score;
+
+        private CachedScorer() { super(null); }
+
+        @Override
+        public DocIdSetIterator iterator() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final float score() { return score; }
+
+        @Override
+        public int docID() {
+            return doc;
         }
 
     }

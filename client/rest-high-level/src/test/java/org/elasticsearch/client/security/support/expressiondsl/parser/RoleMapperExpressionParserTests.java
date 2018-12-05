@@ -123,7 +123,11 @@ public class RoleMapperExpressionParserTests extends ESTestCase {
                     @Override
                     public void usedDeprecatedField(String usedName, String replacedWith) {
                     }
-                }, json));
+
+                    @Override
+                    public void deprecated(String message, Object... params) {
+                    }
+        }, json));
     }
 
 }

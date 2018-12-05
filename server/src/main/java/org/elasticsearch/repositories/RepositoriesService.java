@@ -42,7 +42,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -102,6 +101,14 @@ public class RepositoriesService implements ClusterStateApplier {
             registrationListener = listener;
         }
 
+        // Trying to create the new repository on master to make sure it works
+        try {
+            closeRepository(createRepository(newRepositoryMetaData));
+        } catch (Exception e) {
+            registrationListener.onFailure(e);
+            return;
+        }
+
         clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -109,13 +116,8 @@ public class RepositoriesService implements ClusterStateApplier {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws IOException {
+            public ClusterState execute(ClusterState currentState) {
                 ensureRepositoryNotInUse(currentState, request.name);
-                // Trying to create the new repository on master to make sure it works
-                if (!registerRepository(newRepositoryMetaData)) {
-                    // The new repository has the same settings as the old one - ignore
-                    return currentState;
-                }
                 MetaData metaData = currentState.metaData();
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
@@ -129,6 +131,10 @@ public class RepositoriesService implements ClusterStateApplier {
 
                     for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                         if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
+                            if (newRepositoryMetaData.equals(repositoryMetaData)) {
+                                // Previous version is the same as this one no update is needed.
+                                return currentState;
+                            }
                             found = true;
                             repositoriesMetaData.add(newRepositoryMetaData);
                         } else {
@@ -355,37 +361,8 @@ public class RepositoriesService implements ClusterStateApplier {
         throw new RepositoryMissingException(repositoryName);
     }
 
-    /**
-     * Creates a new repository and adds it to the list of registered repositories.
-     * <p>
-     * If a repository with the same name but different types or settings already exists, it will be closed and
-     * replaced with the new repository. If a repository with the same name exists but it has the same type and settings
-     * the new repository is ignored.
-     *
-     * @param repositoryMetaData new repository metadata
-     * @return {@code true} if new repository was added or {@code false} if it was ignored
-     */
-    private boolean registerRepository(RepositoryMetaData repositoryMetaData) throws IOException {
-        Repository previous = repositories.get(repositoryMetaData.name());
-        if (previous != null) {
-            RepositoryMetaData previousMetadata = previous.getMetadata();
-            if (previousMetadata.equals(repositoryMetaData)) {
-                // Previous version is the same as this one - ignore it
-                return false;
-            }
-        }
-        Repository newRepo = createRepository(repositoryMetaData);
-        if (previous != null) {
-            closeRepository(previous);
-        }
-        Map<String, Repository> newRepositories = new HashMap<>(repositories);
-        newRepositories.put(repositoryMetaData.name(), newRepo);
-        repositories = newRepositories;
-        return true;
-    }
-
     /** Closes the given repository. */
-    private void closeRepository(Repository repository) throws IOException {
+    private void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }

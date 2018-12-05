@@ -32,25 +32,22 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            ClusterDeprecationChecks::checkShardLimit
+            ClusterDeprecationChecks::checkShardLimit,
+            ClusterDeprecationChecks::checkClusterName
         ));
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB
+            NodeDeprecationChecks::azureRepositoryChanges,
+            NodeDeprecationChecks::gcsRepositoryChanges
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::allMetaFieldIsDisabledByDefaultCheck,
-            IndexDeprecationChecks::baseSimilarityDefinedCheck,
-            IndexDeprecationChecks::coercionCheck,
-            IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
-            IndexDeprecationChecks::includeInAllCheck,
-            IndexDeprecationChecks::indexSharedFileSystemCheck,
-            IndexDeprecationChecks::indexStoreTypeCheck,
-            IndexDeprecationChecks::storeThrottleSettingsCheck,
-            IndexDeprecationChecks::delimitedPayloadFilterCheck));
+            IndexDeprecationChecks::oldIndicesCheck,
+            IndexDeprecationChecks::delimitedPayloadFilterCheck,
+            IndexDeprecationChecks::indexNameCheck
+            ));
 
     /**
      * helper utility function to reduce repeat of running a specific {@link Set} of checks.

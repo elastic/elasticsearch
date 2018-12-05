@@ -58,6 +58,10 @@ public class ExpressionRoleMappingTests extends ESTestCase {
                     @Override
                     public void usedDeprecatedField(String usedName, String replacedWith) {
                     }
+
+                    @Override
+                    public void deprecated(String message, Object... params) {
+                    }
                 }, json), "example-role-mapping");
         final ExpressionRoleMapping expectedRoleMapping = new ExpressionRoleMapping("example-role-mapping", FieldRoleMapperExpression
                 .ofKeyValues("realm.name", "kerb1"), Collections.singletonList("superuser"), null, true);

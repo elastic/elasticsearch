@@ -5471,6 +5471,34 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testOpenSoftDeletesIndexWithSoftDeletesDisabled() throws Exception {
+        try (Store store = createStore()) {
+            Path translogPath = createTempDir();
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final IndexSettings softDeletesEnabled = IndexSettingsModule.newIndexSettings(
+                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder().
+                    put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)).build());
+            final List<DocIdSeqNoAndTerm> docs;
+            try (InternalEngine engine = createEngine(
+                config(softDeletesEnabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get))) {
+                List<Engine.Operation> ops = generateReplicaHistory(between(1, 100), randomBoolean());
+                applyOperations(engine, ops);
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                engine.syncTranslog();
+                engine.flush();
+                docs = getDocIds(engine, true);
+            }
+            final IndexSettings softDeletesDisabled = IndexSettingsModule.newIndexSettings(
+                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder()
+                    .put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
+            EngineConfig config = config(softDeletesDisabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
+            trimUnsafeCommits(config);
+            try (InternalEngine engine = createEngine(config)) {
+                assertThat(getDocIds(engine, true), equalTo(docs));
+            }
+        }
+    }
+
     static void trimUnsafeCommits(EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final TranslogConfig translogConfig = config.getTranslogConfig();

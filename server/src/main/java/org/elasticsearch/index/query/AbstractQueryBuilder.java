@@ -374,6 +374,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final String toString() {
-        return Strings.toString(this, true, true);
+        return toString(true);
+    }
+
+    public final String toString(boolean pretty) {
+        return Strings.toString(this, pretty, true);
     }
 }

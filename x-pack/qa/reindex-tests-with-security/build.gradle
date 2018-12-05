@@ -21,6 +21,7 @@ integTestCluster {
     test_admin: 'superuser',
     powerful_user: 'superuser',
     minimal_user: 'minimal',
+    minimal_with_task_user: 'minimal_with_task',
     readonly_user: 'readonly',
     dest_only_user: 'dest_only',
     can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',

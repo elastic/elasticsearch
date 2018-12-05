@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -162,7 +163,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     private void putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers,
                              ActionListener<PutDatafeedAction.Response> listener) {
-
         String datafeedId = request.getDatafeed().getId();
         String jobId = request.getDatafeed().getJobId();
         ElasticsearchException validationError = checkConfigsAreNotDefinedInClusterState(datafeedId, jobId);
@@ -170,6 +170,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             listener.onFailure(validationError);
             return;
         }
+
+        DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations());
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
             datafeedConfigProvider.putDatafeedConfig(request.getDatafeed(), headers, ActionListener.wrap(

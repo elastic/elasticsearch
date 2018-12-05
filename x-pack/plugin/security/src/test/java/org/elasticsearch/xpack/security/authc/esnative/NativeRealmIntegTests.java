@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -571,7 +572,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                                 basicAuthHeaderValue(username, getReservedPassword())))
                 .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username))
                 .get();
-        assertThat(authenticateResponse.user().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("reserved"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), equalTo("reserved"));
+        assertNull(authenticateResponse.authentication().getLookedUpBy());
     }
 
     public void testOperationsOnReservedRoles() throws Exception {

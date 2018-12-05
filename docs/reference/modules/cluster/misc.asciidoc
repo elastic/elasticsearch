@@ -39,6 +39,11 @@ in an error, rather than a deprecation warning. This property will be removed in
 Elasticsearch 7.0, as strict enforcement of the limit will be the default and
 only behavior.
 
+IMPORTANT: This limit is intended as a safety net, not a sizing recommendation. The
+exact number of shards your cluster can safely support depends on your hardware
+configuration and workload, but should remain well below this limit in almost
+all cases, as the default limit is set quite high.
+
 If an operation, such as creating a new index, restoring a snapshot of an index,
 or opening a closed index would lead to the number of shards in the cluster
 going over this limit, the operation will issue a deprecation warning.
@@ -53,16 +58,16 @@ Replicas count towards this limit, but closed indexes do not. An index with 5
 primary shards and 2 replicas will be counted as 15 shards.  Any closed index
 is counted as 0, no matter how many shards and replicas it contains.
 
-The limit defaults to 1,000 shards per node, and be dynamically adjusted using
-the following property:
+The limit defaults to 1,000 shards per data node, and be dynamically adjusted
+using the following property:
 
 `cluster.max_shards_per_node`::
 
-     Controls the number of shards allowed in the cluster per node.
+     Controls the number of shards allowed in the cluster per data node.
 
 For example, a 3-node cluster with the default setting would allow 3,000 shards
-total, across all open indexes.  If the above setting is changed to 1,500, then
-the cluster would allow 4,500 shards total.
+total, across all open indexes. If the above setting is changed to 500, then
+the cluster would allow 1,500 shards total.
 
 [[user-defined-data]]
 ==== User Defined Cluster Metadata

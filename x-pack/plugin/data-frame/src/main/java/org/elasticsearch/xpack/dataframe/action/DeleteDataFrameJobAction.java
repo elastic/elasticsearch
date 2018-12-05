@@ -122,8 +122,7 @@ public class DeleteDataFrameJobAction extends Action<DeleteDataFrameJobAction.Re
         }
 
         public Response(boolean acknowledged) {
-            super(Collections.emptyList(), Collections.emptyList());
-            this.acknowledged = acknowledged;
+            this(acknowledged, Collections.emptyList(), Collections.emptyList());
         }
 
         public Response() {

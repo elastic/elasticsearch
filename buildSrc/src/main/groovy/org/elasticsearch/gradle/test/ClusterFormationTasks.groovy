@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import java.util.stream.Collectors
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -92,7 +93,8 @@ class ClusterFormationTasks {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
-        if (config.numBwcNodes > 0) {
+        boolean hasBwcNodes = config.numBwcNodes > 0
+        if (hasBwcNodes) {
             if (config.bwcVersion == null) {
                 throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
             }
@@ -134,6 +136,13 @@ class ClusterFormationTasks {
                         esConfig['discovery.zen.hosts_provider'] = 'file'
                     }
                     esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    if (esConfig.containsKey('discovery.type') == false
+                      && config.minimumMasterNodes.call() > 1 && hasBwcNodes == false) {
+                        esConfig['discovery.type'] = 'zen2'
+                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                            "node-" + n.nodeNum
+                        }).collect(Collectors.toList())
+                    }
                     esConfig
                 }
                 dependsOn = startDependencies

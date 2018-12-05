@@ -215,6 +215,8 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
+        // TODO: Use zen2 in bwc tests
+        setting 'discovery.type', 'zen'
       }
     }
 

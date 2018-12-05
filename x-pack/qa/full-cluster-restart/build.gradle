@@ -216,6 +216,8 @@ subprojects {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
       }
+      // TODO: Use zen2 in bwc tests
+      setting 'discovery.type', 'zen'
     }
 
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")

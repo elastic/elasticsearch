@@ -153,14 +153,19 @@ public class ClusterStateUpdaters {
 
     public static ClusterState hideStateIfNotRecovered(ClusterState state) {
         if (state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-            ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
+            final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
             blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
             blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             for (IndexMetaData indexMetaData: state.metaData()) {
                 blocks.removeIndexBlocks(indexMetaData.getIndex().getName());
             }
+            final MetaData metaData = MetaData.builder()
+                    .clusterUUID(state.metaData().clusterUUID())
+                    .coordinationMetaData(state.metaData().coordinationMetaData())
+                    .build();
+
             return ClusterState.builder(state)
-                    .metaData(MetaData.EMPTY_META_DATA)
+                    .metaData(metaData)
                     .blocks(blocks.build())
                     .build();
         }

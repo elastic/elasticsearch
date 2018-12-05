@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,6 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -287,9 +289,18 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     public void testHideStateIfNotRecovered() {
         final IndexMetaData indexMetaData = createIndexMetaData("test",
                 Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true).build());
+        final String clusterUUID = UUIDs.randomBase64UUID();
+        final CoordinationMetaData coordinationMetaData = new CoordinationMetaData(randomLong(),
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
+                Arrays.stream(generateRandomStringArray(5, 5, false))
+                        .map(id -> new CoordinationMetaData.VotingTombstone(id, id))
+                        .collect(Collectors.toSet()));
         final MetaData metaData = MetaData.builder()
                 .persistentSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true).build())
                 .transientSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build())
+                .clusterUUID(clusterUUID)
+                .coordinationMetaData(coordinationMetaData)
                 .put(indexMetaData, false)
                 .build();
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -302,8 +313,12 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .andThen(state -> setLocalNode(state, localNode))
                 .andThen(ClusterStateUpdaters::recoverClusterBlocks)
                 .apply(initialState);
+
         final ClusterState hiddenState = hideStateIfNotRecovered(updatedState);
-        assertTrue(MetaData.isGlobalStateEquals(hiddenState.metaData(), MetaData.EMPTY_META_DATA));
+
+        assertTrue(MetaData.isGlobalStateEquals(hiddenState.metaData(),
+                MetaData.builder().coordinationMetaData(coordinationMetaData).clusterUUID(clusterUUID).build()));
+        assertThat(hiddenState.metaData().indices().size(), is(0));
         assertTrue(hiddenState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK));

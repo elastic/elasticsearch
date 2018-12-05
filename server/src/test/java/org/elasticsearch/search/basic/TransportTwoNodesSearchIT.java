@@ -148,15 +148,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 SearchHit hit = hits[i];
                 assertThat(hit.getExplanation(), notNullValue());
                 assertThat(hit.getExplanation().getDetails().length, equalTo(1));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(3));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getDescription(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
                     startsWith("n,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getValue(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
                     equalTo(100L));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getDescription(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
                     startsWith("N,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getValue(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
                     equalTo(100L));
                 assertThat("id[" + hit.getId() + "] -> " + hit.getExplanation().toString(), hit.getId(),
                         equalTo(Integer.toString(100 - total - i - 1)));
@@ -187,15 +187,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 SearchHit hit = hits[i];
                 assertThat(hit.getExplanation(), notNullValue());
                 assertThat(hit.getExplanation().getDetails().length, equalTo(1));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(3));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getDescription(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
                     startsWith("n,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getValue(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
                     equalTo(100L));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getDescription(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
                     startsWith("N,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getValue(),
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
                     equalTo(100L));
                 assertThat("id[" + hit.getId() + "]", hit.getId(), equalTo(Integer.toString(total + i)));
             }

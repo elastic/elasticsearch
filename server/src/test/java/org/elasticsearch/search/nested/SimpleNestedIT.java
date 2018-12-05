@@ -326,7 +326,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         Explanation explanation = searchResponse.getHits().getHits()[0].getExplanation();
         assertThat(explanation.getValue(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertThat(explanation.toString(), startsWith("0.36464313 = Score based on 2 child docs in range from 0 to 1"));
+        assertThat(explanation.toString(), startsWith(explanation.getValue() + " = Score based on 2 child docs in range from 0 to 1"));
     }
 
     public void testSimpleNestedSorting() throws Exception {

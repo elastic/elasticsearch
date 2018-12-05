@@ -761,7 +761,7 @@ public final class SearchPhaseController {
         TopDocsStats(boolean trackTotalHits) {
             this.trackTotalHits = trackTotalHits;
             this.totalHits = 0;
-            this.totalHitsRelation = trackTotalHits ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
+            this.totalHitsRelation = Relation.EQUAL_TO;
         }
 
         TotalHits getTotalHits() {

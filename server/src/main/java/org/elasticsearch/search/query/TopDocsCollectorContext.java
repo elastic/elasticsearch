@@ -111,8 +111,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 }
             } else {
                 this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
-                // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
-                this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+                this.hitCountSupplier = () -> null;
             }
         }
 
@@ -223,8 +222,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1); // don't compute hit counts via the collector
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 if (hitCount == -1) {
-                    assert trackTotalHits == false;
-                    totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+                    totalHitsSupplier = () -> null;
                 } else {
                     totalHitsSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
                 }

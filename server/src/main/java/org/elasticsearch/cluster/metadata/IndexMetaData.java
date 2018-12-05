@@ -1135,7 +1135,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             int numberOfReplicas = maybeNumberOfReplicas;
             if (numberOfReplicas < 0) {
-                throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
+                throw new IllegalArgumentException("must specify non-negative number of replicas for index [" + index + "]");
             }
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);

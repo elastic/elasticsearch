@@ -38,7 +38,7 @@ import java.util.function.UnaryOperator;
 
 /**
  * Script level doc values, the assumption is that any implementation will
- * implement a <code>getValue</code>.
+ * implement a {@link #getValue}.
  *
  * Implementations should not internally re-use objects for the values that they
  * return as a single {@link ScriptDocValues} instance can be reused to return

@@ -29,3 +29,9 @@ To check if a document is missing a value, you can use
 Malformed scripts, either in search templates, ingest pipelines or search 
 requests, return `400 - Bad request` while they would previously return
 `500 - Internal Server Error`. This also applies for stored scripts.
+
+[float]
+==== getValues() removed
+
+The `ScriptDocValues#getValues()` method is deprecated in 6.6 and will
+be removed in 7.0. Use `doc["foo"]` in place of `doc["foo"].values`.

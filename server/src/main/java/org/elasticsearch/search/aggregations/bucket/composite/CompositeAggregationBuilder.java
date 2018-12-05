@@ -154,9 +154,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
-        if (parent != null) {
+        /*if (parent != null) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation");
-        }
+        }*/
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {
             configs[i] = sources.get(i).build(context);

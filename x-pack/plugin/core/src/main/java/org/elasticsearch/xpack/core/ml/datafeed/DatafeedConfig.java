@@ -219,7 +219,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      * @return The ID of document the datafeed config is persisted in
      */
     public static String documentId(String datafeedId) {
-        return "datafeed-" + datafeedId;
+        return TYPE + "-" + datafeedId;
     }
 
     public String getId() {

@@ -87,7 +87,7 @@ public final class Role {
     private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
-    // this read only from the client's perspective. The client cannot change this field of a role on the server.
+    // this is read only from the client's perspective. The client cannot change this field of a role on the server.
     private final Map<String, Object> transientMetadata;
 
     private Role(String name, @Nullable Collection<String> clusterPrivileges,

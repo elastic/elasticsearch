@@ -2,7 +2,7 @@
 --
 :api: put-role
 :request: PutRoleRequest
-:respnse: PutRoleResponse
+:response: PutRoleResponse
 --
 
 [id="{upid}-{api}"]
@@ -13,7 +13,7 @@
 
 The +{request}+ class is used to create or update a role in the Native Roles
 Store. The request contains a single role, which encapsulates privileges over
-resources. These roles can be assigned to users using the
+resources. A role can be assigned to an user using the
 <<{upid}-put-role-mapping, Put Role Mapping API>>.
 
 ["source","java",subs="attributes,callouts,macros"]

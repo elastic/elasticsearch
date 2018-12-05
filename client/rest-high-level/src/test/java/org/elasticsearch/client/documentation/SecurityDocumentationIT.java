@@ -1057,15 +1057,19 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             // end::put-role-execute-listener
 
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
             // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
+            final PlainActionFuture<PutRoleResponse> future = new PlainActionFuture<>();
+            listener = future;
 
             // tag::put-role-execute-async
             client.security().putRoleAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-role-execute-async
 
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertThat(future.get().isCreated(), is(false)); // false because it has already been created by the sync variant
         }
     }
 

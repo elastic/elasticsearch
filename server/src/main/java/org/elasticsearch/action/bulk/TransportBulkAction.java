@@ -334,8 +334,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case DELETE:
                             docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName(),
-                                docWriteRequest.type())) {
+                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName())) {
                                 throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
                             }
                             break;

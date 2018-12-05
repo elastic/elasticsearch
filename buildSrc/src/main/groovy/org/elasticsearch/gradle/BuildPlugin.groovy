@@ -69,7 +69,7 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
-        final String minimumGradleVersion
+        String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
         try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
@@ -155,14 +155,14 @@ class BuildPlugin implements Plugin<Project> {
             println "  Gradle Version        : ${project.gradle.gradleVersion}"
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
-                println "  Compiler JDK Version  : ${getPaddedMajorVersion(compilerJavaVersionEnum)} (${compilerJavaVersionDetails})"
+                println "  Compiler JDK Version  : ${compilerJavaVersionEnum} (${compilerJavaVersionDetails})"
                 println "  Compiler java.home    : ${compilerJavaHome}"
-                println "  Runtime JDK Version   : ${getPaddedMajorVersion(runtimeJavaVersionEnum)} (${runtimeJavaVersionDetails})"
+                println "  Runtime JDK Version   : ${runtimeJavaVersionEnum} (${runtimeJavaVersionDetails})"
                 println "  Runtime java.home     : ${runtimeJavaHome}"
-                println "  Gradle JDK Version    : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  Gradle JDK Version    : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  Gradle java.home      : ${gradleJavaHome}"
             } else {
-                println "  JDK Version           : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
@@ -232,12 +232,8 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
-    private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {
-        compilerJavaVersionEnum.getMajorVersion().toString().padLeft(2)
-    }
-
     private static String findCompilerJavaHome() {
-        final String compilerJavaHome = System.getenv('JAVA_HOME')
+        String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')
         if (compilerJavaProperty != null) {
             compilerJavaHome = findJavaHome(compilerJavaProperty)
@@ -774,12 +770,25 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
-        project.tasks.withType(RandomizedTestingTask) {
+        project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+
+            // Make sure all test tasks are configured properly
+            if (name != "test") {
+                project.tasks.matching { it.name == "test"}.all { testTask ->
+                    task.testClassesDirs = testTask.testClassesDirs
+                    task.classpath = testTask.classpath
+                    task.shouldRunAfter testTask
+                }
+            }
+            // no loose ends: check has to depend on all test tasks
+            project.tasks.matching {it.name == "check"}.all {
+                dependsOn(task)
+            }
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')

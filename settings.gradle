@@ -139,7 +139,4 @@ if (extraProjects.exists()) {
   }
 }
 
-// enable in preparation for Gradle 5.0
-enableFeaturePreview('STABLE_PUBLISHING')
-
 project(":libs:cli").name = 'elasticsearch-cli'

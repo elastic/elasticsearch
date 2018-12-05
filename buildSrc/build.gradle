@@ -184,6 +184,11 @@ if (project != rootProject) {
   test {
     include "**/*Tests.class"
     exclude "**/*IT.class"
+    // The test task is configured to runtimeJava version, but we build-tools doesn't support all of them, so test
+    // with compiler instead on the ones that are too old.
+    if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_10) {
+      jvm = "${project.compilerJavaHome}/bin/java"
+    }
   }
 
   // This can't be an RandomizedTestingTask because we can't yet reference it

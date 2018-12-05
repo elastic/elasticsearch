@@ -6,22 +6,29 @@
 package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
-public class DeleteDataFrameJobAction extends Action<AcknowledgedResponse> {
+public class DeleteDataFrameJobAction extends Action<DeleteDataFrameJobAction.Response> {
 
     public static final DeleteDataFrameJobAction INSTANCE = new DeleteDataFrameJobAction();
     public static final String NAME = "cluster:admin/data_frame/delete";
@@ -31,11 +38,11 @@ public class DeleteDataFrameJobAction extends Action<AcknowledgedResponse> {
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    public Response newResponse() {
+        return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
         private String id;
 
         public Request(String id) {
@@ -52,6 +59,11 @@ public class DeleteDataFrameJobAction extends Action<AcknowledgedResponse> {
 
         public String getId() {
             return id;
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return task.getDescription().equals(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         @Override
@@ -90,10 +102,73 @@ public class DeleteDataFrameJobAction extends Action<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<DeleteDataFrameJobAction.Request, DeleteDataFrameJobAction.Response> {
 
         protected RequestBuilder(ElasticsearchClient client, DeleteDataFrameJobAction action) {
-            super(client, action, new Request());
+            super(client, action, new DeleteDataFrameJobAction.Request());
+        }
+    }
+
+    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
+        private boolean acknowledged;
+        public Response(StreamInput in) throws IOException {
+            super(Collections.emptyList(), Collections.emptyList());
+            readFrom(in);
+        }
+
+        public Response(boolean acknowledged, List<TaskOperationFailure> taskFailures, List<FailedNodeException> nodeFailures) {
+            super(taskFailures, nodeFailures);
+            this.acknowledged = acknowledged;
+        }
+
+        public Response(boolean acknowledged) {
+            this(acknowledged, Collections.emptyList(), Collections.emptyList());
+        }
+
+        public Response() {
+            this(false, Collections.emptyList(), Collections.emptyList());
+        }
+
+        public boolean isDeleted() {
+            return acknowledged;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            acknowledged = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(acknowledged);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                toXContentCommon(builder, params);
+                builder.field("acknowledged", acknowledged);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            DeleteDataFrameJobAction.Response response = (DeleteDataFrameJobAction.Response) o;
+            return super.equals(o) && acknowledged == response.acknowledged;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), acknowledged);
         }
     }
 }

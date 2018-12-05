@@ -5,103 +5,95 @@
  */
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Request;
+import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Response;
+import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
 
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+import java.io.IOException;
+import java.util.List;
 
-public class TransportDeleteDataFrameJobAction
-        extends TransportMasterNodeAction<DeleteDataFrameJobAction.Request, AcknowledgedResponse> {
-
-    private final PersistentTasksService persistentTasksService;
-    private static final Logger logger = LogManager.getLogger(TransportDeleteDataFrameJobAction.class);
+public class TransportDeleteDataFrameJobAction extends TransportTasksAction<DataFrameJobTask, Request, Response, Response> {
 
     @Inject
-    public TransportDeleteDataFrameJobAction(TransportService transportService, ThreadPool threadPool,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-            PersistentTasksService persistentTasksService, ClusterService clusterService) {
-        super(DeleteDataFrameJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteDataFrameJobAction.Request::new);
-        this.persistentTasksService = persistentTasksService;
+    public TransportDeleteDataFrameJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
+            ClusterService clusterService) {
+        super(DeleteDataFrameJobAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+    protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
+            List<FailedNodeException> failedNodeExceptions) {
+        assert tasks.size() + taskOperationFailures.size() == 1;
+        boolean cancelled = tasks.size() > 0 && tasks.stream().allMatch(Response::isDeleted);
+
+        return new Response(cancelled, taskOperationFailures, failedNodeExceptions);
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected Response readTaskResponse(StreamInput in) throws IOException {
+        Response response = new Response();
+        response.readFrom(in);
+        return response;
     }
 
     @Override
-    protected void masterOperation(DeleteDataFrameJobAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
+        assert task.getConfig().getId().equals(request.getId());
+        IndexerState state = task.getState().getJobState();
+        if (state.equals(IndexerState.STOPPED)) {
+            task.onCancelled();
+            listener.onResponse(new Response(true));
+        } else {
+            listener.onFailure(new IllegalStateException("Could not delete job [" + request.getId() + "] because " + "indexer state is ["
+                    + state + "].  Job must be [" + IndexerState.STOPPED + "] before deletion."));
+        }
+    }
 
-        String jobId = request.getId();
-        TimeValue timeout = new TimeValue(60, TimeUnit.SECONDS); // TODO make this a config option
-
-        // Step 1. Cancel the persistent task
-        persistentTasksService.sendRemoveRequest(jobId, new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                logger.debug("Request to cancel Task for data frame job [" + jobId + "] successful.");
-
-                // Step 2. Wait for the task to finish cancellation internally
-                persistentTasksService.waitForPersistentTaskCondition(jobId, Objects::isNull, timeout,
-                        new PersistentTasksService.WaitForPersistentTaskListener<DataFrameJob>() {
-                            @Override
-                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<DataFrameJob> task) {
-                                logger.debug("Task for data frame job [" + jobId + "] successfully canceled.");
-                                listener.onResponse(new AcknowledgedResponse(true));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("Error while cancelling task for data frame job [" + jobId
-                                        + "]." + e);
-                                listener.onFailure(e);
-                            }
-
-                            @Override
-                            public void onTimeout(TimeValue timeout) {
-                                String msg = "Stopping of data frame job [" + jobId + "] timed out after [" + timeout + "].";
-                                logger.warn(msg);
-                                listener.onFailure(new ElasticsearchException(msg));
-                            }
-                        });
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final ClusterState state = clusterService.state();
+        final DiscoveryNodes nodes = state.nodes();
+        if (nodes.isLocalNodeElectedMaster()) {
+            PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
+                super.doExecute(task, request, listener);
+            } else {
+                // If we couldn't find the job in the persistent task CS, it means it was deleted prior to this call,
+                // no need to go looking for the allocated task
+                listener.onFailure(new ResourceNotFoundException("the task with id [" + request.getId() + "] doesn't exist"));
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Error while requesting to cancel task for data frame job [" + jobId + "]" + e);
-                listener.onFailure(e);
+        } else {
+            // Delegates DeleteJob to elected master node, so it becomes the coordinating node.
+            // Non-master nodes may have a stale cluster state that shows jobs which are cancelled
+            // on the master, which makes testing difficult.
+            if (nodes.getMasterNode() == null) {
+                listener.onFailure(new MasterNotDiscoveredException("no known master nodes"));
+            } else {
+                transportService.sendRequest(nodes.getMasterNode(), actionName, request,
+                        new ActionListenerResponseHandler<>(listener, Response::new));
             }
-        });
-
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(DeleteDataFrameJobAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
     }
 }

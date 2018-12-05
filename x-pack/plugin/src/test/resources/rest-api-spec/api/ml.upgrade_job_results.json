@@ -1,0 +1,21 @@
+{
+  "ml.upgrade_job_results": {
+    "documentation": "TODO",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_ml/anomaly_detectors/results/_upgrade",
+      "paths": [ "/_ml/anomaly_detectors/results/_upgrade" ],
+      "params": {
+        "wait_for_completion": {
+          "type": "boolean",
+          "description": "Should this request wait until the operation has completed before returning",
+          "default": false
+        }
+      }
+    },
+    "body": {
+      "description" : "Upgrade options",
+      "required" : false
+    }
+  }
+}

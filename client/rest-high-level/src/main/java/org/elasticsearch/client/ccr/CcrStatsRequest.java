@@ -21,21 +21,5 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.Validatable;
 
-import java.util.Objects;
-
 public final class CcrStatsRequest implements Validatable {
-
-    private final String followerIndex;
-
-    public CcrStatsRequest() {
-        this.followerIndex = null;
-    }
-
-    public CcrStatsRequest(String followerIndex) {
-        this.followerIndex = Objects.requireNonNull(followerIndex);
-    }
-
-    public String getFollowerIndex() {
-        return followerIndex;
-    }
 }

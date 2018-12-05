@@ -403,7 +403,7 @@ public class AutodetectProcessManager {
         }
     }
 
-    public void openJob(JobTask jobTask, Consumer<Exception> handler) {
+    public void openJob(JobTask jobTask, Consumer<Exception> closeHandler) {
         String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
 
@@ -411,7 +411,7 @@ public class AutodetectProcessManager {
                 // NORELEASE JIndex. Should not be doing this work on the network thread
                 job -> {
                     if (job.getJobVersion() == null) {
-                        handler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                        closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
                                 + "] because jobs created prior to version 5.5 are not supported"));
                         return;
                     }
@@ -423,7 +423,7 @@ public class AutodetectProcessManager {
                         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                             @Override
                             public void onFailure(Exception e) {
-                                handler.accept(e);
+                                closeHandler.accept(e);
                             }
 
                             @Override
@@ -440,7 +440,7 @@ public class AutodetectProcessManager {
                                 }
 
                                 try {
-                                    createProcessAndSetRunning(processContext, job, params, handler);
+                                    createProcessAndSetRunning(processContext, job, params, closeHandler);
                                     processContext.getAutodetectCommunicator().init(params.modelSnapshot());
                                     setJobState(jobTask, JobState.OPENED);
                                 } catch (Exception e1) {
@@ -453,17 +453,17 @@ public class AutodetectProcessManager {
                                                 .kill();
                                         processByAllocation.remove(jobTask.getAllocationId());
                                     } finally {
-                                        setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
+                                        setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
                                     }
                                 }
                             }
                         });
                     }, e1 -> {
                         logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-                        setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
+                        setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
                     });
                 },
-                handler
+                closeHandler
         ));
 
     }

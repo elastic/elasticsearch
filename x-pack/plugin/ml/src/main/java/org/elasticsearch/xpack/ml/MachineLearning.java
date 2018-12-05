@@ -438,7 +438,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                new MlAssignmentNotifier(auditor, clusterService),
+                new MlAssignmentNotifier(auditor, threadPool, client, clusterService),
                 memoryTracker
         );
     }
@@ -453,7 +453,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         return Arrays.asList(
                 new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
-                    memoryTracker.get()),
+                    memoryTracker.get(), client),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor( datafeedManager.get())
         );
     }

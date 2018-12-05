@@ -53,6 +53,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -733,6 +734,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         private final AutodetectProcessManager autodetectProcessManager;
         private final MlMemoryTracker memoryTracker;
+        private final Client client;
 
         /**
          * The maximum number of open jobs can be different on each node.  However, nodes on older versions
@@ -746,10 +748,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private volatile int maxLazyMLNodes;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
-                                              AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker) {
+                                              AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker,
+                                              Client client) {
             super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
             this.memoryTracker = memoryTracker;
+            this.client = client;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
@@ -811,9 +815,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 return;
             }
 
+            String jobId = jobTask.getJobId();
             autodetectProcessManager.openJob(jobTask, e2 -> {
                 if (e2 == null) {
-                    task.markAsCompleted();
+                    FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
+                    executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
+                            ActionListener.wrap(
+                                    response -> task.markAsCompleted(),
+                                    e -> logger.error("error finalizing job [" + jobId + "]", e)
+                            ));
                 } else {
                     task.markAsFailed(e2);
                 }

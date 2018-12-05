@@ -91,6 +91,26 @@ public class MlTasksTests extends ESTestCase {
         assertThat(MlTasks.openJobIds(null), empty());
     }
 
+    public void testStartedDatafeedIds() {
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df1"), MlTasks.DATAFEED_TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("df1", 0L),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df2"), MlTasks.DATAFEED_TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("df2", 0L),
+                new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
+
+        assertThat(MlTasks.startedDatafeedIds(tasksBuilder.build()), containsInAnyOrder("df1", "df2"));
+    }
+
+    public void testStartedDatafeedIds_GivenNull() {
+        assertThat(MlTasks.startedDatafeedIds(null), empty());
+    }
+
     public void testTaskExistsForJob() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         assertFalse(MlTasks.taskExistsForJob("job-1", tasksBuilder.build()));

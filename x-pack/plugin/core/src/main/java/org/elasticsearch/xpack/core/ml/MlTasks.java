@@ -99,6 +99,23 @@ public final class MlTasks {
     }
 
     /**
+     * The datafeed Ids of started datafeed tasks
+     *
+     * @param tasks Persistent tasks. If null an empty set is returned.
+     * @return The Ids of running datafeed tasks
+     */
+    public static Set<String> startedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks) {
+        if (tasks == null) {
+            return Collections.emptySet();
+        }
+
+        return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
+                .stream()
+                .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
      * Is there an ml anomaly detector job task for the job {@code jobId}?
      * @param jobId The job id
      * @param tasks Persistent tasks

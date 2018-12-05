@@ -110,7 +110,7 @@ public class NestedIT extends ESIntegTestCase {
             builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(source));
         }
 
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").execute().actionGet();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
@@ -170,7 +170,7 @@ public class NestedIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested", "nested")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -208,7 +208,7 @@ public class NestedIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .addAggregation(nested("nested", "value")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
-                .execute().actionGet();
+                .get();
 
         Nested nested = searchResponse.getAggregations().get("nested");
         assertThat(nested, Matchers.notNullValue());
@@ -221,7 +221,7 @@ public class NestedIT extends ESIntegTestCase {
                 .addAggregation(nested("nested", "nested")
                         .subAggregation(terms("values").field("nested.value").size(100)
                                 .collectMode(aggCollectionMode)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -273,7 +273,7 @@ public class NestedIT extends ESIntegTestCase {
                         .collectMode(aggCollectionMode)
                         .subAggregation(nested("nested", "nested")
                                 .subAggregation(max("max_value").field("nested.value"))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -335,7 +335,7 @@ public class NestedIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(nested("nested", "nested")))
-                .execute().actionGet();
+                .get();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -354,7 +354,7 @@ public class NestedIT extends ESIntegTestCase {
             client().prepareSearch("idx")
                     .setQuery(matchAllQuery())
                     .addAggregation(nested("object_field", "incorrect"))
-                    .execute().actionGet();
+                    .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("[nested] nested path [incorrect] is not nested"));

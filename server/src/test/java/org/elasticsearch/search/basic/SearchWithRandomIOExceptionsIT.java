@@ -94,7 +94,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).get();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
@@ -117,7 +117,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).get();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
             // it's OK to timeout here
@@ -167,7 +167,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
                 SearchResponse searchResponse = client().prepareSearch().setTypes("type")
-                        .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
+                    .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {

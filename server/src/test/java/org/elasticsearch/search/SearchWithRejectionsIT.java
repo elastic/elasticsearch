@@ -46,9 +46,9 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         ensureGreen("test");
         final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").get();
         }
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         refresh();
 
@@ -69,9 +69,9 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             }
         }
         awaitBusy(
-                () -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0,
+                () -> client().admin().indices().prepareStats().get().getTotal().getSearch().getOpenContexts() == 0,
                 1, TimeUnit.SECONDS);
-        indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        indicesStats = client().admin().indices().prepareStats().get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
     }
 }

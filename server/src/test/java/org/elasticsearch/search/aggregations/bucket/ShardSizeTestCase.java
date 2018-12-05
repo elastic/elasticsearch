@@ -90,12 +90,11 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
         indexRandom(true, docs);
 
-        SearchResponse resp = client().prepareSearch("idx").setTypes("type").setRouting(routing1).setQuery(matchAllQuery()).execute()
-                .actionGet();
+        SearchResponse resp = client().prepareSearch("idx").setTypes("type").setRouting(routing1).setQuery(matchAllQuery()).get();
         assertSearchResponse(resp);
         long totalOnOne = resp.getHits().getTotalHits();
         assertThat(totalOnOne, is(15L));
-        resp = client().prepareSearch("idx").setTypes("type").setRouting(routing2).setQuery(matchAllQuery()).execute().actionGet();
+        resp = client().prepareSearch("idx").setTypes("type").setRouting(routing2).setQuery(matchAllQuery()).get();
         assertSearchResponse(resp);
         long totalOnTwo = resp.getHits().getTotalHits();
         assertThat(totalOnTwo, is(12L));

@@ -77,8 +77,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                                 .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2)
                                         .executionHint(randomExecutionHint()))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         InternalFilter filteredBucket = response.getAggregations().get("inclass");
         SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
@@ -92,8 +91,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                                         .shardMinDocCount(2).size(2)
                                         .executionHint(randomExecutionHint()))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         filteredBucket = response.getAggregations().get("inclass");
         sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
@@ -138,8 +136,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                         terms("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint())
                         .order(BucketOrder.key(true))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         Terms sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(0));
@@ -150,8 +147,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                         terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint())
                         .order(BucketOrder.key(true))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));

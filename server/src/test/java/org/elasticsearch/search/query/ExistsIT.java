@@ -48,10 +48,10 @@ public class ExistsIT extends ESIntegTestCase {
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).execute().actionGet();
+        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).get();
         assertSearchResponse(resp);
         resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo")))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(resp);
     }
 
@@ -127,7 +127,7 @@ public class ExistsIT extends ESIntegTestCase {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
-            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).execute().actionGet();
+            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
             assertSearchResponse(resp);
             try {
                 assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count,

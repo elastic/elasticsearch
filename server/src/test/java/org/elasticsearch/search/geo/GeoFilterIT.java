@@ -215,8 +215,8 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
             .addMapping("polygon", mapping, XContentType.JSON);
-        mappingRequest.execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        mappingRequest.get();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         // Create a multipolygon with two polygons. The first is an rectangle of size 10x10
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
@@ -231,14 +231,14 @@ public class GeoFilterIT extends ESIntegTestCase {
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
         BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
         SearchResponse result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(3, 3)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
@@ -246,7 +246,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(4.5, 4.5)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 0);
 
         // by definition the border of a polygon belongs to the inner
@@ -257,7 +257,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(10.0, 5.0)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
@@ -265,7 +265,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(5.0, 2.0)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
@@ -274,14 +274,14 @@ public class GeoFilterIT extends ESIntegTestCase {
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setPostFilter(QueryBuilders.geoDisjointQuery("area", new PointBuilder(3, 3)))
-                    .execute().actionGet();
+                    .get();
             assertHitCount(result, 0);
 
             // Point in polygon hole
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setPostFilter(QueryBuilders.geoDisjointQuery("area", new PointBuilder(4.5, 4.5)))
-                    .execute().actionGet();
+                    .get();
             assertHitCount(result, 1);
             assertFirstHit(result, hasId("1"));
         }
@@ -293,14 +293,14 @@ public class GeoFilterIT extends ESIntegTestCase {
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
-        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).get();
+        client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(4.5, 4.5)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("2"));
 
@@ -318,7 +318,7 @@ public class GeoFilterIT extends ESIntegTestCase {
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setPostFilter(QueryBuilders.geoWithinQuery("area", builder))
-                    .execute().actionGet();
+                    .get();
             assertHitCount(result, 2);
         }
 
@@ -327,8 +327,8 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
         builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -337,31 +337,31 @@ public class GeoFilterIT extends ESIntegTestCase {
                             .coordinate(175, 5).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().admin().indices().prepareRefresh().get();
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 0);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6)))
-                .execute().actionGet();
+                .get();
         assertHitCount(result, 1);
     }
 
@@ -386,19 +386,19 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder).execute().actionGet();
+                .addMapping("country", xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());
         }
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
         String key = "DE";
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchQuery("_id", key))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 1);
 
@@ -408,13 +408,13 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         SearchResponse world = client().prepareSearch().addStoredField("pin").setQuery(
                 geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)
-        ).execute().actionGet();
+        ).get();
 
         assertHitCount(world, 53);
 
         SearchResponse distance = client().prepareSearch().addStoredField("pin").setQuery(
                 geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
-                ).execute().actionGet();
+                ).get();
 
         assertHitCount(distance, 5);
         GeoPoint point = new GeoPoint();

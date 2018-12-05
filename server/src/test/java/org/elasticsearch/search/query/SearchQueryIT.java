@@ -1357,7 +1357,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         response = client().prepareSearch("test")
                 .setQuery(spanOrQuery(spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("description").from("ffa").to("foo"))))
-                .execute().actionGet();
+                .get();
         assertHitCount(response, 3);
 
         response = client().prepareSearch("test")

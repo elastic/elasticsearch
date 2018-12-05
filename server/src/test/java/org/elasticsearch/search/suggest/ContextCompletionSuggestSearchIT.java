@@ -545,7 +545,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .array("input", "Hotel Amsterdam in Berlin")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
+        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).get();
 
         XContentBuilder source2 = jsonBuilder()
                 .startObject()
@@ -556,7 +556,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .array("input", "Hotel Berlin in Amsterdam")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
+        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).get();
 
         refresh();
 
@@ -614,7 +614,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)
-        ).execute().actionGet();
+        ).get();
         CompletionSuggestSearchIT.assertSuggestions(searchResponse, suggestionName, suggestions);
     }
 

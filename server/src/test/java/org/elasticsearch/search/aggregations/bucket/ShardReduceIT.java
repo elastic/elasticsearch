@@ -94,7 +94,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(global("global")
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -109,7 +109,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(filter("filter", QueryBuilders.matchAllQuery())
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -124,7 +124,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(missing("missing").field("foobar")
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -141,7 +141,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                                 .subAggregation(missing("missing").field("foobar")
                                         .subAggregation(dateHistogram("histo").field("date")
                                                 .dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0)))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -158,7 +158,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(nested("nested", "nested")
                         .subAggregation(dateHistogram("histo").field("nested.date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -174,7 +174,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -190,7 +190,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -206,7 +206,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -221,7 +221,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(range("range").field("value").addRange("r1", 0, 10)
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -236,7 +236,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(dateRange("range").field("date").addRange("r1", "2014-01-01", "2014-01-10")
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -251,7 +251,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(ipRange("range").field("ip").addRange("r1", "10.0.0.1", "10.0.0.10")
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -266,7 +266,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(histogram("topHisto").field("value").interval(5)
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -281,7 +281,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("topHisto").field("date").dateHistogramInterval(DateHistogramInterval.MONTH)
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -297,7 +297,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                 .addAggregation(geohashGrid("grid").field("location")
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                                 .minDocCount(0)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 

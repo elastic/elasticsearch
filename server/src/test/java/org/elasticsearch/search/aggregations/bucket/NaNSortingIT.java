@@ -121,7 +121,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 source.field("numeric_value", randomDouble());
             }
-            client().prepareIndex("idx", "type").setSource(source.endObject()).execute().actionGet();
+            client().prepareIndex("idx", "type").setSource(source.endObject()).get();
         }
         refresh();
         ensureSearchable();
@@ -155,7 +155,7 @@ public class NaNSortingIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(fieldName).collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
         final Terms terms = response.getAggregations().get("terms");
@@ -181,7 +181,7 @@ public class NaNSortingIT extends ESIntegTestCase {
                 .addAggregation(histogram("histo")
                         .field("long_value").interval(randomIntBetween(1, 2))
                         .subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
         final Histogram histo = response.getAggregations().get("histo");

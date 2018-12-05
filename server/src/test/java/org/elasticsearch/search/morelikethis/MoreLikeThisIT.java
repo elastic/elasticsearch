@@ -230,11 +230,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject());
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
+        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
-                .execute().actionGet();
-        client().admin().indices().prepareRefresh("foo").execute().actionGet();
+                .get();
+        client().admin().indices().prepareRefresh("foo").get();
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         SearchResponse response = client().prepareSearch().setQuery(
@@ -253,14 +253,14 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject());
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
+        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("2")
-                .execute().actionGet();
-        client().admin().indices().prepareRefresh("foo").execute().actionGet();
+                .get();
+        client().admin().indices().prepareRefresh("foo").get();
 
         SearchResponse response = client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("foo", "bar", "1").routing("2")})).get();
@@ -282,8 +282,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("4000")
-                .execute().actionGet();
-        client().admin().indices().prepareRefresh("foo").execute().actionGet();
+                .get();
+        client().admin().indices().prepareRefresh("foo").get();
         SearchResponse response = client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("foo", "bar", "1").routing("4000")})).get();
         assertNoFailures(response);
@@ -299,14 +299,14 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                         .startObject("int_value").field("type", randomFrom(numericTypes)).endObject()
                         .startObject("string_value").field("type", "text").endObject()
                         .endObject()
-                    .endObject().endObject()).execute().actionGet();
+                    .endObject().endObject()).get();
         ensureGreen();
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
-                .execute().actionGet();
+                .get();
         client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
-                .execute().actionGet();
+                .get();
 
         refresh();
 
@@ -322,12 +322,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         // mlt query with no field -> No results (because _all is not enabled)
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[] {"index"}).minTermFreq(1).minDocFreq(1))
-                .execute().actionGet();
+                .get();
         assertHitCount(searchResponse, 0L);
 
         // mlt query with string fields
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[]{"string_value"}, new String[] {"index"}, null)
-                .minTermFreq(1).minDocFreq(1)).execute().actionGet();
+                .minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(searchResponse, 2L);
 
         // mlt query with at least a numeric field -> fail by default
@@ -361,7 +361,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(
                 moreLikeThisQuery(new String[] {"int_value"}, new String[] {"42"}, null).minTermFreq(1).minDocFreq(1)
-                .failOnUnsupportedField(false)).execute().actionGet();
+                .failOnUnsupportedField(false)).get();
         assertHitCount(searchResponse, 0L);
     }
 
@@ -454,7 +454,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Running MoreLikeThis");
         MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, ids("1")).include(true)
                 .minTermFreq(1).minDocFreq(1);
-        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
+        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).get();
         assertHitCount(mltResponse, 3L);
     }
 
@@ -484,7 +484,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .minTermFreq(1).minDocFreq(1)
                     .maxQueryTerms(max_query_terms).minimumShouldMatch("0%");
             SearchResponse response = client().prepareSearch("test").setTypes("type1")
-                    .setQuery(mltQuery).execute().actionGet();
+                    .setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, max_query_terms);
         }

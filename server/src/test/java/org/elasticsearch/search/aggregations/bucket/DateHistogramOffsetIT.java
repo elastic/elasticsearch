@@ -57,7 +57,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     @Before
     public void beforeEachTest() throws IOException {
-        prepareCreate("idx2").addMapping("type", "date", "type=date").execute().actionGet();
+        prepareCreate("idx2").addMapping("type", "date", "type=date").get();
     }
 
     @After
@@ -86,7 +86,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .offset("2h")
                         .format(DATE_FORMAT)
                         .dateHistogramInterval(DateHistogramInterval.DAY))
-                .execute().actionGet();
+                .get();
 
         assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
@@ -108,7 +108,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .offset("-2h")
                         .format(DATE_FORMAT)
                         .dateHistogramInterval(DateHistogramInterval.DAY))
-                .execute().actionGet();
+                .get();
 
         assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
@@ -135,7 +135,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .minDocCount(0)
                         .format(DATE_FORMAT)
                         .dateHistogramInterval(DateHistogramInterval.DAY))
-                .execute().actionGet();
+                .get();
 
         assertThat(response.getHits().getTotalHits(), equalTo(24L));
 

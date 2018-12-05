@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
+import java.util.Locale;
 import java.util.Objects;
 
 public class RequestInfo {
@@ -20,8 +21,8 @@ public class RequestInfo {
     }
     
     public RequestInfo(Mode mode, String clientId) {
-        this.mode = mode;
-        this.clientId = clientId;
+        mode(mode);
+        clientId(clientId);
     }
     
     public Mode mode() {
@@ -37,6 +38,12 @@ public class RequestInfo {
     }
     
     public void clientId(String clientId) {
+        if (clientId != null) {
+            clientId = clientId.toLowerCase(Locale.ROOT);
+            if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                clientId = null;
+            }
+        }
         this.clientId = clientId;
     }
 

@@ -30,6 +30,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlTranslateRequest, Void> PARSER = objectParser(SqlTranslateRequest::new);
 
     public SqlTranslateRequest() {
+        super();
     }
 
     public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,

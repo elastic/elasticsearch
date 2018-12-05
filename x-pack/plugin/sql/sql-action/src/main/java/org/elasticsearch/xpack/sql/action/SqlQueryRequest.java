@@ -38,6 +38,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private String cursor = "";
 
     public SqlQueryRequest() {
+        super();
     }
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,

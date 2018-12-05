@@ -66,11 +66,11 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         Map<String, Object> baseStats = getStats();
         List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
         
-        // used for "client.id" request parameter value, but also for getting the stats from ES
+        // used for "client_id" request parameter value, but also for getting the stats from ES
         clientType = randomFrom(ClientType.values()).toString();
         ignoreClientType = randomBoolean();
         
-        // "client.id" parameter will not be sent in the requests
+        // "client_id" parameter will not be sent in the requests
         // and "clientType" will only be used for getting the stats back from ES
         if (ignoreClientType) {
             clientType = ClientType.REST.toString();
@@ -283,7 +283,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             request.setOptions(options);
         }
         request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
-                (ignoreClientType ? "" : ",\"client.id\":\"" + restClient + "\"") + "}",
+                (ignoreClientType ? "" : ",\"client_id\":\"" + restClient + "\"") + "}",
                 ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }

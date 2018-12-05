@@ -65,7 +65,7 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        // method called only from CLI. "client.id" is set to "cli"
+        // method called only from CLI. "client_id" is set to "cli"
         SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, TimeZone.getTimeZone("UTC"),
             fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
             new RequestInfo(Mode.PLAIN, CLI));
@@ -77,7 +77,7 @@ public class HttpClient {
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        // method called only from CLI. "client.id" is set to "cli"
+        // method called only from CLI. "client_id" is set to "cli"
         SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
                 TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.PLAIN, CLI));
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);

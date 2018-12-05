@@ -21,12 +21,11 @@ import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlClearCursorRequest> {
     
     public RequestInfo requestInfo;
-    public String clientId;
 
     @Before
     public void setup() {
-        clientId = randomFrom(CLI, CANVAS, randomAlphaOfLengthBetween(10, 20));
-        requestInfo = new RequestInfo(randomFrom(Mode.values()), clientId);
+        requestInfo = new RequestInfo(randomFrom(Mode.values()),
+                randomFrom(CLI, CANVAS, randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
@@ -45,7 +44,7 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     }
     
     private RequestInfo randomRequestInfo() {
-        return new RequestInfo(randomFrom(Mode.values()), randomFrom(CLI, CANVAS, clientId));
+        return new RequestInfo(randomFrom(Mode.values()), randomFrom(CLI, CANVAS, requestInfo.clientId()));
     }
 
     @Override

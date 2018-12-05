@@ -35,20 +35,32 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertParsingErrorMessage("{\"cursor\" : \"whatever\", \"fetch_size\":123}", "unknown field [fetch_size]",
                 SqlClearCursorRequest::fromXContent);
         
-        SqlClearCursorRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"jdbc\", \"client.id\" : \"bla\"}",
+        SqlClearCursorRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"jdbc\", \"client_id\" : \"bla\"}",
                 SqlClearCursorRequest::fromXContent);
-        assertEquals("bla", request.clientId());
+        assertNull(request.clientId());
         assertEquals("jdbc", request.mode().toString());
         assertEquals("whatever", request.getCursor());
         
-        request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"some foo mode\", \"client.id\" : \"bla\"}",
+        request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"some foo mode\", \"client_id\" : \"bla\"}",
                 SqlClearCursorRequest::fromXContent);
-        assertEquals("bla", request.clientId());
+        assertNull(request.clientId());
         assertEquals("plain", request.mode().toString());
         assertEquals("whatever", request.getCursor());
         
         request = generateRequest("{\"cursor\" : \"whatever\"}", SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
+        assertEquals("plain", request.mode().toString());
+        assertEquals("whatever", request.getCursor());
+        
+        request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\"}",
+                SqlClearCursorRequest::fromXContent);
+        assertEquals("cli", request.clientId());
+        assertEquals("plain", request.mode().toString());
+        assertEquals("whatever", request.getCursor());
+        
+        request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"cANVAs\"}",
+                SqlClearCursorRequest::fromXContent);
+        assertEquals("canvas", request.clientId());
         assertEquals("plain", request.mode().toString());
         assertEquals("whatever", request.getCursor());
     }
@@ -64,16 +76,16 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertParsingErrorMessage("{\"mode\" : 123}", "mode doesn't support values of type: VALUE_NUMBER", SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"cursor\" : \"whatever\", \"fetch_size\":\"abc\"}", "failed to parse field [fetch_size]",
                 SqlQueryRequest::fromXContent);
-        assertParsingErrorMessage("{\"client.id\":123}", "client.id doesn't support values of type: VALUE_NUMBER",
+        assertParsingErrorMessage("{\"client_id\":123}", "client_id doesn't support values of type: VALUE_NUMBER",
                 SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"params\":[{\"value\":123}]}", "failed to parse field [params]", SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"time_zone\":12}", "time_zone doesn't support values of type: VALUE_NUMBER",
                 SqlQueryRequest::fromXContent);
         
-        SqlQueryRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"jdbc\", \"client.id\" : \"bla\","
+        SqlQueryRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"jdbc\", \"client_id\" : \"bla\","
                 + "\"query\":\"select\",\"params\":[{\"value\":123, \"type\":\"whatever\"}], \"time_zone\":\"UTC\","
                 + "\"request_timeout\":\"5s\",\"page_timeout\":\"10s\"}", SqlQueryRequest::fromXContent);
-        assertEquals("bla", request.clientId());
+        assertNull(request.clientId());
         assertEquals("jdbc", request.mode().toString());
         assertEquals("whatever", request.cursor());
         assertEquals("select", request.query());

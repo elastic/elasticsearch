@@ -19,9 +19,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CLIENT_ID;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CURSOR;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.MODE;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CLIENT_ID;
 
 /**
  * Request to clean all SQL resources associated with the cursor
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequ
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private static final ConstructingObjectParser<SqlClearCursorRequest, RequestInfo> PARSER =
-            // here the position in "objects" is the same as the fields parser declarations below 
+        // here the position in "objects" is the same as the fields parser declarations below 
         new ConstructingObjectParser<>(SqlClearCursorAction.NAME, objects -> {
             RequestInfo requestInfo = new RequestInfo(Mode.fromString((String) objects[1]),
                     (String) objects[2]);
@@ -46,6 +46,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     private String cursor;
 
     public SqlClearCursorRequest() {
+        super();
     }
     
     public SqlClearCursorRequest(RequestInfo requestInfo, String cursor) {

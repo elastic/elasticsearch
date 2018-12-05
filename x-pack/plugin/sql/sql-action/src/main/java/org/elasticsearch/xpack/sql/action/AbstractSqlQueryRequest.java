@@ -61,21 +61,8 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         // TODO: convert this into ConstructingObjectParser
         ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", false, supplier);
         parser.declareString(AbstractSqlQueryRequest::query, SqlRequestField.QUERY);
-        parser.declareString((request, mode) -> {
-            Mode m = Mode.fromString(mode);
-            if (request.requestInfo() != null) {
-                request.requestInfo().mode(m);
-            } else {
-                request.requestInfo(new RequestInfo(m));
-            }
-        }, SqlRequestField.MODE);
-        parser.declareString((request, clientId) -> {
-            if (request.requestInfo() != null) {
-                request.requestInfo().clientId(clientId);
-            } else {
-                request.requestInfo(new RequestInfo(Mode.PLAIN, clientId));
-            }
-        }, SqlRequestField.CLIENT_ID);
+        parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), SqlRequestField.MODE);
+        parser.declareString((request, clientId) -> request.clientId(clientId), SqlRequestField.CLIENT_ID);
         parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), SqlRequestField.PARAMS);
         parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), SqlRequestField.TIME_ZONE);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, SqlRequestField.FETCH_SIZE);
@@ -262,6 +249,6 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         ParseField PAGE_TIMEOUT = new ParseField("page_timeout");
         ParseField FILTER = new ParseField("filter");
         ParseField MODE = new ParseField("mode");
-        ParseField CLIENT_ID = new ParseField("client.id");
+        ParseField CLIENT_ID = new ParseField("client_id");
     }
 }

@@ -10,10 +10,10 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.sql.action.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
 import org.elasticsearch.xpack.sql.proto.Protocol;
@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * REST action for translating SQL queries into ES requests
  */
-public class RestSqlTranslateAction extends AbstractSqlAction {
+public class RestSqlTranslateAction extends BaseRestHandler {
     
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlTranslateAction.class));
     
@@ -41,20 +41,15 @@ public class RestSqlTranslateAction extends AbstractSqlAction {
                 POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this,
                 POST, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, deprecationLogger);
     }
-    
+
     @Override
-    protected AbstractSqlRequest initializeSqlRequest(RestRequest request) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         SqlTranslateRequest sqlRequest;
         try (XContentParser parser = request.contentParser()) {
             sqlRequest = SqlTranslateRequest.fromXContent(parser);
         }
         
-        return sqlRequest;
-    }
-
-    @Override
-    protected RestChannelConsumer doPrepareRequest(AbstractSqlRequest sqlRequest, RestRequest request, NodeClient client)
-            throws IOException {
         return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

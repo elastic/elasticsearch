@@ -1324,7 +1324,7 @@ public class RequestConvertersTests extends ESTestCase {
         int numberOfRequests = randomIntBetween(0, 5);
         for (int i = 0; i < numberOfRequests; i++) {
             String index = randomAlphaOfLengthBetween(3, 10);
-            String type = randomFrom(null, randomAlphaOfLengthBetween(3, 10));
+            String type = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
             String id = randomAlphaOfLengthBetween(3, 10);
             TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
             String[] fields = generateRandomStringArray(10, 5, false, false);

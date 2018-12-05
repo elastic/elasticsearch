@@ -10,12 +10,12 @@ testClusters {
 task user1 {
     useCluster testClusters.myTestCluster
     doFirst {
-        println "$path"
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
     }
 }
 task user2 {
     useCluster testClusters.myTestCluster
     doFirst {
-        println "$path"
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
     }
 }

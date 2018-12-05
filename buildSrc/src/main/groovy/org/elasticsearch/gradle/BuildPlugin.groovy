@@ -771,12 +771,25 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
-        project.tasks.withType(RandomizedTestingTask) {
+        project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+
+            // Make sure all test tasks are configured properly
+            if (name != "test") {
+                project.tasks.matching { it.name == "test"}.all { testTask ->
+                    task.testClassesDirs = testTask.testClassesDirs
+                    task.classpath = testTask.classpath
+                    task.shouldRunAfter testTask
+                }
+            }
+            // no loose ends: check has to depend on all test tasks
+            project.tasks.matching {it.name == "check"}.all {
+                dependsOn(task)
+            }
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')

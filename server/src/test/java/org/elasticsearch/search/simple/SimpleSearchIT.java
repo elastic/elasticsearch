@@ -275,8 +275,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .addDocValueField("rank")
                 .setTrackTotalHits(false)
                 .addSort("rank", SortOrder.ASC)
-                .setSize(i).execute().actionGet();
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(-1L));
+                .setSize(i).get();
+            assertNull(searchResponse.getHits().getTotalHits());
             for (int j = 0; j < i; j++) {
                 assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(),
                     equalTo((long) j));

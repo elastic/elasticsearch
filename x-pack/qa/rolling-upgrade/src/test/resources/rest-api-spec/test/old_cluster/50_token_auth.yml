@@ -69,6 +69,7 @@
       headers:
         Authorization: Bearer ${token}
       search:
+        rest_total_hits_as_int: true
         index: token_index
 
   - match: { hits.total: 5 }

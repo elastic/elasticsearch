@@ -19,10 +19,11 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesRequest;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -30,24 +31,31 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-public class RestClearVotingTombstonesAction extends BaseRestHandler {
+public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
-    public RestClearVotingTombstonesAction(Settings settings, RestController controller) {
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
+
+    public RestAddVotingConfigExclusionAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_cluster/withdrawn_votes", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this);
     }
 
     @Override
     public String getName() {
-        return "clear_voting_tombstones_action";
+        return "add_voting_config_exclusions_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClearVotingTombstonesRequest req = new ClearVotingTombstonesRequest();
-        if (request.hasParam("wait_for_removal")) {
-            req.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", true));
-        }
-        return channel -> client.execute(ClearVotingTombstonesAction.INSTANCE, req, new RestToXContentListener<>(channel));
+        String nodeName = request.param("node_name");
+        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = new AddVotingConfigExclusionsRequest(
+            new String[]{nodeName},
+            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
+        );
+        return channel -> client.execute(
+            AddVotingConfigExclusionsAction.INSTANCE,
+            votingConfigExclusionsRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

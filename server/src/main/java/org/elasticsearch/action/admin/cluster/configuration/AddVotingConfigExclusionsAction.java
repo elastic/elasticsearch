@@ -18,14 +18,24 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 
-import java.io.IOException;
+public class AddVotingConfigExclusionsAction extends Action<AddVotingConfigExclusionsResponse> {
+    public static final AddVotingConfigExclusionsAction INSTANCE = new AddVotingConfigExclusionsAction();
+    public static final String NAME = "cluster:admin/voting_config/add_exclusions";
 
-public class AddVotingTombstonesResponseTests extends ESTestCase {
-    public void testSerialization() throws IOException {
-        final AddVotingTombstonesResponse originalRequest = new AddVotingTombstonesResponse();
-        copyWriteable(originalRequest, writableRegistry(), AddVotingTombstonesResponse::new);
-        // there are no fields so we're just checking that this doesn't throw anything
+    private AddVotingConfigExclusionsAction() {
+        super(NAME);
+    }
+
+    @Override
+    public AddVotingConfigExclusionsResponse newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Reader<AddVotingConfigExclusionsResponse> getResponseReader() {
+        return AddVotingConfigExclusionsResponse::new;
     }
 }

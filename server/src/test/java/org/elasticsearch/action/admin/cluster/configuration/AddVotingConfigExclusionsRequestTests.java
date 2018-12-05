@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AddVotingTombstonesRequestTests extends ESTestCase {
+public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         int descriptionCount = between(0, 5);
         String[] descriptions = new String[descriptionCount];
@@ -47,8 +47,9 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
             descriptions[i] = randomAlphaOfLength(10);
         }
         TimeValue timeout = TimeValue.timeValueMillis(between(0, 30000));
-        final AddVotingTombstonesRequest originalRequest = new AddVotingTombstonesRequest(descriptions, timeout);
-        final AddVotingTombstonesRequest deserialized = copyWriteable(originalRequest, writableRegistry(), AddVotingTombstonesRequest::new);
+        final AddVotingConfigExclusionsRequest originalRequest = new AddVotingConfigExclusionsRequest(descriptions, timeout);
+        final AddVotingConfigExclusionsRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
+            AddVotingConfigExclusionsRequest::new);
         assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }
@@ -56,66 +57,66 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
     public void testResolve() {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", "local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-        final VotingTombstone localNodeTombstone = new VotingTombstone(localNode);
+        final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
         final DiscoveryNode otherNode1
             = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-        final VotingTombstone otherNode1Tombstone = new VotingTombstone(otherNode1);
+        final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
         final DiscoveryNode otherNode2
             = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-        final VotingTombstone otherNode2Tombstone = new VotingTombstone(otherNode2);
+        final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         final DiscoveryNode otherDataNode
             = new DiscoveryNode("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
 
-        assertThat(makeRequest().resolveVotingTombstones(clusterState),
-                containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_all").resolveVotingTombstones(clusterState),
-                containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_local").resolveVotingTombstones(clusterState),
-                contains(localNodeTombstone));
-        assertThat(makeRequest("other*").resolveVotingTombstones(clusterState),
-                containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
+        assertThat(makeRequest().resolveVotingConfigExclusions(clusterState),
+                containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(makeRequest("_all").resolveVotingConfigExclusions(clusterState),
+                containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(makeRequest("_local").resolveVotingConfigExclusions(clusterState),
+                contains(localNodeExclusion));
+        assertThat(makeRequest("other*").resolveVotingConfigExclusions(clusterState),
+                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
 
         assertThat(expectThrows(IllegalArgumentException.class,
-                () -> makeRequest("not-a-node").resolveVotingTombstones(clusterState)).getMessage(),
-                    equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
+                () -> makeRequest("not-a-node").resolveVotingConfigExclusions(clusterState)).getMessage(),
+                    equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
     }
 
     public void testResolveAndCheckMaximum() {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", "local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-        final VotingTombstone localNodeTombstone = new VotingTombstone(localNode);
+        final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
         final DiscoveryNode otherNode1
             = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-        final VotingTombstone otherNode1Tombstone = new VotingTombstone(otherNode1);
+        final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
         final DiscoveryNode otherNode2
             = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-        final VotingTombstone otherNode2Tombstone = new VotingTombstone(otherNode2);
+        final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
 
         final ClusterState.Builder builder = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()));
         builder.metaData(MetaData.builder()
-                .coordinationMetaData(CoordinationMetaData.builder().addVotingTombstone(otherNode1Tombstone).build()));
+                .coordinationMetaData(CoordinationMetaData.builder().addVotingConfigExclusion(otherNode1Exclusion).build()));
         final ClusterState clusterState = builder.build();
 
-        assertThat(makeRequest().resolveVotingTombstonesAndCheckMaximum(clusterState, 3, "setting.name"),
-                containsInAnyOrder(localNodeTombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_local").resolveVotingTombstonesAndCheckMaximum(clusterState, 2, "setting.name"),
-                contains(localNodeTombstone));
+        assertThat(makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 3, "setting.name"),
+                containsInAnyOrder(localNodeExclusion, otherNode2Exclusion));
+        assertThat(makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
+                contains(localNodeExclusion));
 
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest().resolveVotingTombstonesAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),
-            equalTo("add voting tombstones request for [] would add [2] voting tombstones to the existing [1] which would exceed the " +
-                "maximum of [2] set by [setting.name]"));
+            () -> makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),
+            equalTo("add voting config exclusions request for [] would add [2] exclusions to the existing [1] which would exceed " +
+                "the maximum of [2] set by [setting.name]"));
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest("_local").resolveVotingTombstonesAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
-            equalTo("add voting tombstones request for [_local] would add [1] voting tombstones to the existing [1] which would exceed " +
-                "the maximum of [1] set by [setting.name]"));
+            () -> makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
+            equalTo("add voting config exclusions request for [_local] would add [1] exclusions to the existing [1] which would " +
+                "exceed the maximum of [1] set by [setting.name]"));
     }
 
-    private static AddVotingTombstonesRequest makeRequest(String... descriptions) {
-        return new AddVotingTombstonesRequest(descriptions);
+    private static AddVotingConfigExclusionsRequest makeRequest(String... descriptions) {
+        return new AddVotingConfigExclusionsRequest(descriptions);
     }
 }

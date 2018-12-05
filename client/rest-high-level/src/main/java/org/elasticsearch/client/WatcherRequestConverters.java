@@ -25,16 +25,20 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.elasticsearch.client.watcher.DeactivateWatchRequest;
-import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
 import org.elasticsearch.client.watcher.GetWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
 
 final class WatcherRequestConverters {
 
@@ -105,6 +109,28 @@ final class WatcherRequestConverters {
             .build();
 
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request executeWatch(ExecuteWatchRequest executeWatchRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "watcher", "watch")
+            .addPathPart(executeWatchRequest.getId())       // will ignore if ID is null
+            .addPathPartAsIs("_execute").build();
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (executeWatchRequest.isDebug()) {
+            params.putParam("debug", "true");
+        }
+        if (executeWatchRequest.ignoreCondition()) {
+            params.putParam("ignore_condition", "true");
+        }
+        if (executeWatchRequest.recordExecution()) {
+            params.putParam("record_execution", "true");
+        }
+
+        request.setEntity(RequestConverters.createEntity(executeWatchRequest, XContentType.JSON));
         return request;
     }
 

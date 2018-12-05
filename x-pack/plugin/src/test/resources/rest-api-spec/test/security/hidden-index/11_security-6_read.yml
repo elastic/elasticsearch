@@ -73,11 +73,13 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: ".security-6"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: ".security*6"
   - match: { hits.total: 0 }
 

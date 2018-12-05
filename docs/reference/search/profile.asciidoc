@@ -45,7 +45,10 @@ This will yield the following result:
       "failed": 0
    },
    "hits": {
-      "total": 4,
+      "total" : {
+          "value": 4,
+          "relation": "eq"
+      },
       "max_score": 0.5093388,
       "hits": [...] <1>
    },

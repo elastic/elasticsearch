@@ -62,8 +62,8 @@ public class ClusterBootstrapService {
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
         Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
-    public static final Setting<TimeValue> UNCONFIGURED_DISCOVERY_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.unconfigured_discovery_timeout",
+    public static final Setting<TimeValue> UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
             TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
 
     private final int initialMasterNodeCount;
@@ -78,7 +78,7 @@ public class ClusterBootstrapService {
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
         final boolean isConfigured = Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
             INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
-        unconfiguredDiscoveryTimeout = isConfigured ? null : UNCONFIGURED_DISCOVERY_TIMEOUT_SETTING.get(settings);
+        unconfiguredDiscoveryTimeout = isConfigured ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
     }
 

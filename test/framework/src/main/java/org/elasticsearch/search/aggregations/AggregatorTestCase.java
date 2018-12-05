@@ -76,7 +76,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
-import org.mockito.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -306,8 +305,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         NestedScope nestedScope = new NestedScope();
-        when(queryShardContext.isFilter()).thenCallRealMethod();
-        Mockito.doCallRealMethod().when(queryShardContext).setIsFilter(Matchers.anyBoolean());
         when(queryShardContext.nestedScope()).thenReturn(nestedScope);
         return queryShardContext;
     }

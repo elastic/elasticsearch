@@ -278,7 +278,7 @@ class BuildPlugin implements Plugin<Project> {
                                         tasks.size() > 1 ? "s" : "",
                                         tasks.join('\n'),
                                         exitCode,
-                                        dockerErrorOutput))
+                                        dockerErrorOutput.trim()))
                     }
                 }
             }

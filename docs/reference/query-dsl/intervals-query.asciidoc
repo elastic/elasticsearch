@@ -1,0 +1,124 @@
+[[intervals-query]]
+=== Intervals query
+
+An `intervals` query allows fine-grained control over the order and proximity of
+matching terms.  Matching rules are constructed from a small set of `source`
+objects, and the rules are then applied to terms from a particular `field`.
+
+The source definitions produce sequences of intervals that span terms in a
+body of text.  These intervals can be further combined and filtered by
+parent sources.
+
+The example below will search for the phrase `my favourite food` appearing
+before the terms `hot` and `water` or `cold` and `porridge` in any order, in
+the field `my_text`
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+  "query": {
+    "intervals" : {
+      "field" : "my_text",
+      "source" : {
+        "combine" : {
+          "type" : "ordered",
+          "sources" : [
+            "match" : {
+              "text" : "my favourite food",
+              "type" : "phrase"
+            },
+            "or" : {
+              "sources" : [
+                "match" : { "text" : "hot water" },
+                "match" : { "text" : "cold porridge" }
+              ]
+            }
+          ]
+        }
+      }
+      "boost" : 1.0
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+In the above example, the text `my favourite food is cold porridge` would
+match because the two intervals matching `my favourite food` and `cold
+porridge` appear in the correct order, but the text `when it's cold my
+favourite food is porridge` would not match, because the interval matching
+`cold porridge` starts before the interval matching `my favourite food`.
+
+==== `match` source
+
+The `match` source matches analyzed text, and takes the following parameters:
+
+[horizontal]
+`text`::
+The text to match. It will be analyzed using the search analyzer configured
+on the top-level query's field.
+`max_width`::
+Specify a maximum distance between the terms in the text.  Terms that appear
+further apart than this distance will not match.  Note that the terms themselves
+are included in the width.  If unspecified then there is no width restriction
+on the match.
+`type`::
+An optional restriction on how the terms in the text appear in the document.
+Can be `phrase` (the terms must appear consecutively and in-order), `ordered`
+and `unordered` (the default).
+
+==== `combine` source
+
+The `combine` will match subsources that have specific ordering and proximity
+relations to each other.  When nested, the intervals produced by this source
+span all their subsources.
+
+[horizontal]
+`sources`::
+An array of sources to combine.  All subsources must produce a match in a
+document for the overall source to match.
+`max_width`::
+Specify a maximum width covered by the matching sources - combinations that
+match across a distance greater than this width will not match.  Note that the
+width of the subsources are included here, so a combination of `black sheep`
+and `yes sir` will have a minimum width of `4`.  If unspecified then there is
+no width restriction on the match.
+`type`::
+An optional restriction on how the subsources in the match appear in the
+document.  Can be `block` (the subsources must appear consecutively and in-order),
+`ordered` and `unordered` (the default).
+
+==== `or` source
+
+The `or` source will match any of its nested sub-sources.
+
+[horizontal]
+`sources`::
+An array of sources to match
+
+==== `relate` source
+
+The `relate` source will filter a source by its relation to another source.
+The resulting intervals are taken directly from the `source`.
+
+[horizontal]
+`source`::
+The source to filter
+`filter`::
+The source to filter by
+`relation`::
+How the filter should be applied
+
+The following relations are available:
+[horizontal]
+`containing`::
+Produces intervals that contain an interval from the filter source
+`contained_by`::
+Produces intervals that are contained by an interval from the filter source
+`not_containing`::
+Produces intervals that do not contain an interval from the filter source
+`not_contained_by`::
+Produces intervals that are not contained by an interval from the filter source
+`not_overlapping`::
+Produces intervals that do not overlap with an interval from the filter source

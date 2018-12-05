@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -127,6 +128,8 @@ public final class TransportPutFollowAction
 
         String remoteCluster = request.getRemoteCluster();
 
+        Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+
         ActionListener<RestoreSnapshotResponse> restoreCompleteHandler = new ActionListener<RestoreSnapshotResponse>() {
             @Override
             public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
@@ -135,7 +138,7 @@ public final class TransportPutFollowAction
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore. It is possible the index was restored. initiateFollowing will timeout waiting
                     // for the shards to be active if the index was not successfully restored.
-                    initiateFollowing(request, listener);
+                    initiateFollowing(client, request, listener);
                 } else {
                     listener.onFailure(new ElasticsearchException("failed to restore [" + restoreInfo.failedShards() + "] shards"));
                 }
@@ -178,6 +181,7 @@ public final class TransportPutFollowAction
     }
 
     private void initiateFollowing(
+        final Client client,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},

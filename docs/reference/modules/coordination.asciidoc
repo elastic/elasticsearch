@@ -300,108 +300,31 @@ all the information they need from the elected master, and nodes that have
 previously been part of a cluster will have stored to disk all the information
 required when restarting.
 
-A cluster can be bootstrapped by sending the _bootstrap configuration_ to any
-of its master-eligible nodes via the `POST /_cluster/bootstrap_configuration`
-API:
+A cluster can be bootstrapped by setting the names or addresses of the initial
+set of master nodes in the `elasticsearch.yml` file:
 
-[source,js]
+[source]
 --------------------------------------------------
-POST /_cluster/bootstrap_configuration
-{
-  "master_nodes": [
-    {
-      "id": "gAMDNeJRTX6A_VelgSb84g",
-      "name": "master-a"
-    },
-    {
-      "id": "t3LZCVGxTf-idQIC8z4A1A",
-      "name": "master-b"
-    },
-    {
-      "id": "GfwXZYVVSFCOWNT0zcDixQ",
-      "name": "master-c"
-    }
-  ]
-}
---------------------------------------------------
-// CONSOLE
-
-This only needs to occur once, on a single master-eligible node in the cluster,
-but for robustness it is safe to repeatedly call `POST
-/_cluster/bootstrap_configuration`, and to call it on different nodes
-concurrently. However **it is vitally important** to use exactly the same
-bootstrap configuration in each call.
-
-WARNING: You must pass exactly the same bootstrap configuration to each call to
-`POST /_cluster/bootstrap_configuration` in order to be sure that only a single
-cluster forms during bootstrapping and therefore to avoid the risk of data
-loss.
-
-The simplest and safest way to construct a bootstrap configuration is to use
-the `GET /_cluster/bootstrap_configuration` API.  This API returns a
-properly-constructed bootstrap configuration that is ready to pass back to the
-`POST /_cluster/bootstrap_configuration` API. It includes all of the
-master-eligible nodes that the handling node has discovered via the
-gossip-based discovery protocol, and returns an error if fewer nodes have been
-discovered than required:
-
-[source,js]
---------------------------------------------------
-# Immediately return a bootstrap configuration based on the nodes
-# discovered so far.
-GET /_cluster/bootstrap_configuration
-# Return a bootstrap configuration of at least three nodes, or return an
-# error if fewer than three nodes have been discovered.
-GET /_cluster/bootstrap_configuration?min_size=3
-# Return a bootstrap configuration of at least three nodes, waiting for
-# up to a minute for this many nodes to be discovered before returning
-# an error.
-GET /_cluster/bootstrap_configuration?min_size=3&timeout=1m
---------------------------------------------------
-// CONSOLE
-
-It is also possible to construct a bootstrap configuration manually and to
-specify the initial set of nodes in terms of their names alone, rather than
-including their IDs too:
-
-[source,js]
---------------------------------------------------
-POST /_cluster/bootstrap_configuration
-{
-  "master_nodes": [
-    {
-      "name": "master-a"
-    },
-    {
-      "name": "master-b"
-    },
-    {
-      "name": "master-c"
-    }
-  ]
-}
---------------------------------------------------
-// CONSOLE
-
-It is safer to include the node IDs, in case two nodes are accidentally started
-with the same name.
-
-[float]
-==== Cluster bootstrapping tool
-
-A simpler way to bootstrap a cluster is to use the
-`elasticsearch-bootstrap-cluster` command-line tool which implements the
-process described here:
-
-[source,txt]
---------------------------------------------------
-$ bin/elasticsearch-bootstrap-cluster --node http://10.0.12.1:9200/ \
-    --node http://10.0.13.1:9200/ --node https://10.0.14.1:9200/
+cluster.initial_master_nodes:
+  - master-a
+  - master-b
+  - master-c
 --------------------------------------------------
 
-The arguments to this tool are the addresses of (some, preferably all, of) its
-master-eligible nodes. The tool will construct a bootstrap warrant and then
-bootstrap the cluster, retrying safely if any step fails.
+This only needs to be set on a single master-eligible node in the cluster, but
+for robustness it is safe to set this on every node in the cluster.  However
+**it is vitally important** to use exactly the same set of nodes in each
+configuration file.
+
+WARNING: You must put exactly the same set of master nodes in each
+configuration file in order to be sure that only a single cluster forms during
+bootstrapping and therefore to avoid the risk of data loss.
+
+If the cluster is running with a completely default configuration then it will
+automatically bootstrap based on the nodes that could be discovered within a
+short time after startup. Since nodes may not always reliably discover each
+other quickly enough this automatic bootstrapping is not always reliable and
+cannot be used in production deployments.
 
 [float]
 === Unsafe disaster recovery

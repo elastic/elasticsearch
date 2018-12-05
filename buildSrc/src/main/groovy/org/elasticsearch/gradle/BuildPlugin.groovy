@@ -244,6 +244,17 @@ class BuildPlugin implements Plugin<Project> {
              *
              *  If either of these fail, we fail the build.
              */
+            final boolean buildDocker
+            final String buildDockerProperty = System.getProperty("build.docker")
+            if (buildDockerProperty == null || buildDockerProperty == "true") {
+                buildDocker = true
+            } else if (buildDockerProperty == "false") {
+                buildDocker = false
+            } else {
+                throw new IllegalArgumentException(
+                        "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
+            }
+            rootProject.rootProject.ext.buildDocker = buildDocker
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 // check if the Docker binary exists and record its path
@@ -299,7 +310,13 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-        rootProject.requiresDocker.add(task)
+        if (rootProject.buildDocker) {
+            rootProject.requiresDocker.add(task)
+        } else {
+            // do not overwrite an existing onlyIf closure
+            final Closure onlyIf = task.onlyIf
+            task.onlyIf { onlyIf && false }
+        }
     }
 
     private static String findCompilerJavaHome() {

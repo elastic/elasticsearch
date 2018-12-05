@@ -324,55 +324,58 @@ setup:
 
 ---
 "Test put datafeed with aggregations":
-- do:
-    xpack.ml.put_datafeed:
-      datafeed_id: test-datafeed-aggs-1
-      body:  >
-        {
-          "job_id":"datafeeds-crud-1",
-          "indices":["index-foo"],
-          "types":["type-bar"],
-          "aggs": {
-            "histogram_buckets":{
-              "date_histogram": {
-                "field": "@timestamp",
-                "interval": "5m",
-                "time_zone": "UTC",
-                "min_doc_count": 0
-              },
-              "aggs": {
-                "@timestamp": {
-                   "max": {
-                      "field": "@timestamp"
-                   }
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-aggs-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indices":["index-foo"],
+            "types":["type-bar"],
+            "aggs": {
+              "histogram_buckets":{
+                "date_histogram": {
+                  "field": "@timestamp",
+                  "interval": "5m",
+                  "time_zone": "UTC",
+                  "min_doc_count": 0
                 },
-                "bytes_in_avg": {
-                  "avg": {
-                     "field": "system.network.in.bytes"
-                  }
-                },
-                "bytes_in_derivative": {
-                  "derivative": {
-                    "buckets_path": "bytes_in_avg"
-                  }
-                },
-                "non_negative_bytes": {
-                  "bucket_script": {
-                    "buckets_path": {
-                      "bytes": "bytes_in_derivative"
-                    },
-                    "script": "params.bytes > 0 ? params.bytes : null"
+                "aggs": {
+                  "@timestamp": {
+                     "max": {
+                        "field": "@timestamp"
+                     }
+                  },
+                  "bytes_in_avg": {
+                    "avg": {
+                       "field": "system.network.in.bytes"
+                    }
+                  },
+                  "bytes_in_derivative": {
+                    "derivative": {
+                      "buckets_path": "bytes_in_avg"
+                    }
+                  },
+                  "non_negative_bytes": {
+                    "bucket_script": {
+                      "buckets_path": {
+                        "bytes": "bytes_in_derivative"
+                      },
+                      "script": "params.bytes > 0 ? params.bytes : null"
+                    }
                   }
                 }
               }
             }
           }
-        }
-- match: { datafeed_id: "test-datafeed-aggs-1" }
-- match: { aggregations.histogram_buckets.date_histogram.field: "@timestamp" }
-- match: { aggregations.histogram_buckets.aggregations.@timestamp.max.field: "@timestamp" }
-- match: { aggregations.histogram_buckets.aggregations.bytes_in_avg.avg.field: "system.network.in.bytes" }
-- match: { aggregations.histogram_buckets.aggregations.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
+  - do:
+      xpack.ml.get_datafeeds:
+        datafeed_id: test-datafeed-aggs-1
+  - match: { datafeeds.0.datafeed_id: "test-datafeed-aggs-1" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.date_histogram.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.@timestamp.max.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.bytes_in_avg.avg.field: "system.network.in.bytes" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
 
 ---
 "Test delete datafeed":

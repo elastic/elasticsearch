@@ -294,7 +294,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
                 new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
                 Arrays.stream(generateRandomStringArray(5, 5, false))
-                        .map(id -> new CoordinationMetaData.VotingTombstone(id, id))
+                        .map(id -> new CoordinationMetaData.VotingConfigExclusion(id, id))
                         .collect(Collectors.toSet()));
         final MetaData metaData = MetaData.builder()
                 .persistentSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true).build())

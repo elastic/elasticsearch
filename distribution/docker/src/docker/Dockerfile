@@ -30,8 +30,8 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-COPY ${tarball} ${ingest-geoip} ${ingest-user-agent} /opt/
-RUN tar zxf /opt/${tarball} --strip-components=1
+COPY ${elasticsearch} ${ingest-geoip} ${ingest-user-agent} /opt/
+RUN tar zxf /opt/${elasticsearch} --strip-components=1
 RUN elasticsearch-plugin install --batch file:///opt/${ingest-geoip}
 RUN elasticsearch-plugin install --batch file:///opt/${ingest-user-agent}
 RUN mkdir -p config data logs

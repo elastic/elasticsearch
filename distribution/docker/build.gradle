@@ -19,12 +19,12 @@ dependencies {
 
 ext.expansions = { oss ->
   return [
+    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",      
     'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
     'jdkVersion' : '11.0.1',
     'license': oss ? 'Apache-2.0' : 'Elastic License',
     'ingest-geoip' : "ingest-geoip-${VersionProperties.elasticsearch}.zip",
     'ingest-user-agent' : "ingest-user-agent-${VersionProperties.elasticsearch}.zip",
-    'tarball' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
     'version' : VersionProperties.elasticsearch
   ]
 }

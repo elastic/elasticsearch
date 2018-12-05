@@ -50,7 +50,12 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
@@ -133,7 +138,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private List<JobWrapper> jobs;
+        private final List<JobWrapper> jobs;
 
         public Response(List<JobWrapper> jobs) {
             super(Collections.emptyList(), Collections.emptyList());
@@ -145,22 +150,8 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             this.jobs = jobs;
         }
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
-            readFrom(in);
-        }
-
-        public List<JobWrapper> getJobs() {
-            return jobs;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             jobs = in.readList(JobWrapper::new);
         }
 
@@ -168,6 +159,10 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(jobs);
+        }
+
+        public List<JobWrapper> getJobs() {
+            return jobs;
         }
 
         @Override

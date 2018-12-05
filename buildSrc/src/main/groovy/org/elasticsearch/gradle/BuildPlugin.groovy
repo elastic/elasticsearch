@@ -235,8 +235,18 @@ class BuildPlugin implements Plugin<Project> {
     static void requireDocker(final Task task) {
         final Project rootProject = task.project.rootProject
         if (rootProject.hasProperty('requiresDocker') == false) {
+            /*
+             * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
+             * that register as requiring Docker. We will add a delayed execution that when the task graph is ready if any such tasks are
+             * in the task graph, then we check two things:
+             *  - the Docker binary is available
+             *  - we can execute a Docker command that requires privileges
+             *
+             *  If either of these fail, we fail the build.
+             */
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                // check if the Docker binary exists and record its path
                 final String dockerBinary
                 if (new File('/usr/bin/docker').exists()) {
                     dockerBinary = '/usr/bin/docker'
@@ -249,11 +259,13 @@ class BuildPlugin implements Plugin<Project> {
                     exitCode = -1
                     dockerErrorOutput = null
                 } else {
+                    // the Docker binary executes, check that we can execute a privileged command
                     final Process process = new ProcessBuilder(dockerBinary, "images").start()
                     exitCode = process.waitFor()
                     if (exitCode == 0) {
                         return
                     }
+                    // capture the standard error output into a single token using the beginning of input delimiter
                     final Scanner scanner = new Scanner(process.errorStream).useDelimiter("\\A")
                     dockerErrorOutput = scanner.hasNext() ? scanner.next() : ""
                     process.closeStreams()
@@ -261,6 +273,10 @@ class BuildPlugin implements Plugin<Project> {
                 final List<String> tasks =
                         ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
                 if (tasks.isEmpty() == false) {
+                    /*
+                     * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
+                     * exist or because execution of a privileged Docker command failed.
+                     */
                     if (dockerBinary == null) {
                         throw new GradleException(
                                 String.format(
@@ -274,7 +290,7 @@ class BuildPlugin implements Plugin<Project> {
                                 String.format(
                                         Locale.ROOT,
                                         "a problem occurred running Docker yet it is required to run the following task%s: \n%s\n" +
-                                                "the problem is that Docker exited with exit code [%d] with error output [%s]",
+                                                "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
                                         tasks.size() > 1 ? "s" : "",
                                         tasks.join('\n'),
                                         exitCode,

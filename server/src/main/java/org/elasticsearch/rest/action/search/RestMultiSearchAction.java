@@ -114,7 +114,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
             multiRequest.add(searchRequest);

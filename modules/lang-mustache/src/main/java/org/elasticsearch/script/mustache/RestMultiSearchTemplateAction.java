@@ -89,7 +89,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
                     if (searchRequest.types().length > 0) {
-                        deprecationLogger.deprecated(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.deprecatedAndMaybeLog("msearch_template_with_types",
+                            RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
                     }
                     SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                     if (searchTemplateRequest.getScript() != null) {

@@ -23,7 +23,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-public class RestTableTests extends ESTestCase {
+public class RestTableTests extends RestActionTestCase {
 
     private static final String APPLICATION_JSON = XContentType.JSON.mediaType();
     private static final String APPLICATION_YAML = XContentType.YAML.mediaType();

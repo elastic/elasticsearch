@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -30,10 +28,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.hamcrest.CustomMatcher;
 import org.mockito.Mockito;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
@@ -42,7 +43,7 @@ import static org.mockito.Mockito.mock;
 /**
  * Tests for {@link RestBulkAction}.
  */
-public class RestBulkActionTests extends ESTestCase {
+public class RestBulkActionTests extends RestActionTestCase {
 
     public void testBulkPipelineUpsert() throws Exception {
         final NodeClient mockClient = mock(NodeClient.class);

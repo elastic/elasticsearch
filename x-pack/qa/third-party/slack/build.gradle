@@ -22,4 +22,5 @@ integTestCluster {
 
 if (!slackUrl) {
   integTest.enabled = false
+  testingConventions.enabled = false
 }

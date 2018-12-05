@@ -56,9 +56,8 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
     private DirectoryProperty outputDir;
 
     public ExportElasticsearchBuildResourcesTask() {
-        outputDir = getProject().getLayout().directoryProperty(
-            getProject().getLayout().getBuildDirectory().dir("build-tools-exported")
-        );
+        outputDir = getProject().getObjects().directoryProperty();
+        outputDir.set(new File(getProject().getBuildDir(), "build-tools-exported"));
     }
 
     @OutputDirectory

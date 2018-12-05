@@ -29,9 +29,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.ccr.CcrStatsRequest;
+import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
+import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
@@ -46,6 +49,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +59,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
     @Before
-    public void setupRemoteClusterConfig() throws IOException {
+    public void setupRemoteClusterConfig() throws Exception {
         // Configure local cluster as remote cluster:
         // TODO: replace with nodes info highlevel rest client code when it is available:
         final Request request = new Request("GET", "/_nodes");
@@ -69,6 +73,14 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsResponse updateSettingsResponse =
             highLevelClient().cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
+                .performRequest(new Request("GET", "/_remote/info")))
+                .get("local");
+            assertThat(localConnection, notNullValue());
+            assertThat(localConnection.get("connected"), is(true));
+        });
     }
 
     public void testIndexFollowing() throws Exception {
@@ -95,6 +107,15 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(leaderSearchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         assertBusy(() -> {
+            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
+            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
+            List<ShardFollowStats> shardFollowStats = ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+            long followerGlobalCheckpoint = shardFollowStats.stream()
+                .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
+                .max()
+                .getAsLong();
+            assertThat(followerGlobalCheckpoint, equalTo(0L));
+
             SearchRequest followerSearchRequest = new SearchRequest("follower");
             SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
             assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -111,6 +132,15 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(resumeFollowResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {
+            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
+            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
+            List<ShardFollowStats> shardFollowStats = ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+            long followerGlobalCheckpoint = shardFollowStats.stream()
+                .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
+                .max()
+                .getAsLong();
+            assertThat(followerGlobalCheckpoint, equalTo(1L));
+
             SearchRequest followerSearchRequest = new SearchRequest("follower");
             SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
             assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(2L));
@@ -132,7 +162,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(unfollowResponse.isAcknowledged(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35937")
     public void testAutoFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
         PutAutoFollowPatternRequest putAutoFollowPatternRequest =
@@ -148,15 +177,19 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isAcknowledged(), is(true));
 
         assertBusy(() -> {
-            assertThat(indexExists("copy-logs-20200101"), is(true));
+            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
+            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
+            assertThat(ccrStatsResponse.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
         });
+        assertThat(indexExists("copy-logs-20200101"), is(true));
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
         GetAutoFollowPatternResponse getAutoFollowPatternResponse =
             execute(getAutoFollowPatternRequest, ccrClient::getAutoFollowPattern, ccrClient::getAutoFollowPatternAsync);
-        assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1L));
-        GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("patterns1");
+        assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1));
+        GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("pattern1");
         assertThat(pattern, notNullValue());
         assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
         assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));

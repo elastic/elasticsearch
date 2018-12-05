@@ -38,18 +38,11 @@ public class BytesChannelContext extends SocketChannelContext {
 
     @Override
     public int read() throws IOException {
-        if (channelBuffer.getRemaining() == 0) {
-            // Requiring one additional byte will ensure that a new page is allocated.
-            channelBuffer.ensureCapacity(channelBuffer.getCapacity() + 1);
-        }
-
-        int bytesRead = readFromChannel(channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()));
+        int bytesRead = readFromChannel(channelBuffer);
 
         if (bytesRead == 0) {
             return 0;
         }
-
-        channelBuffer.incrementIndex(bytesRead);
 
         handleReadBytes();
 

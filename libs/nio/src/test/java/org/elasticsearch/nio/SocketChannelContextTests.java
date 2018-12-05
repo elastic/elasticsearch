@@ -54,6 +54,7 @@ public class SocketChannelContextTests extends ESTestCase {
     private BiConsumer<Void, Exception> listener;
     private NioSelector selector;
     private ReadWriteHandler readWriteHandler;
+    private ByteBuffer ioBuffer = ByteBuffer.allocate(1024);
 
     @SuppressWarnings("unchecked")
     @Before
@@ -71,6 +72,10 @@ public class SocketChannelContextTests extends ESTestCase {
         context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
+        when(selector.getIoBuffer()).thenAnswer(invocationOnMock -> {
+            ioBuffer.clear();
+            return ioBuffer;
+        });
     }
 
     public void testIOExceptionSetIfEncountered() throws IOException {
@@ -305,8 +310,8 @@ public class SocketChannelContextTests extends ESTestCase {
         @Override
         public int read() throws IOException {
             if (randomBoolean()) {
-                ByteBuffer[] byteBuffers = {ByteBuffer.allocate(10)};
-                return readFromChannel(byteBuffers);
+                InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
+                return readFromChannel(channelBuffer);
             } else {
                 return readFromChannel(ByteBuffer.allocate(10));
             }

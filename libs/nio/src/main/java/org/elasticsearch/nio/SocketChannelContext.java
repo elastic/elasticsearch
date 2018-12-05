@@ -236,20 +236,21 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
-        ioBuffer.limit(Math.min(buffer.remaining(), buffer.limit()));
+        ioBuffer.limit(Math.min(buffer.remaining(), ioBuffer.limit()));
+        int bytesRead;
         try {
-            int bytesRead = rawChannel.read(ioBuffer);
-            if (bytesRead < 0) {
-                closeNow = true;
-                bytesRead = 0;
-            }
-            ioBuffer.flip();
-            buffer.put(ioBuffer);
-            ioBuffer.clear();
-            return bytesRead;
+            bytesRead = rawChannel.read(ioBuffer);
         } catch (IOException e) {
             closeNow = true;
             throw e;
+        }
+        if (bytesRead < 0) {
+            closeNow = true;
+            return 0;
+        } else {
+            ioBuffer.flip();
+            buffer.put(ioBuffer);
+            return bytesRead;
         }
     }
 
@@ -267,11 +268,38 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
+    protected int readFromChannel(InboundChannelBuffer channelBuffer) throws IOException {
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
+        int bytesRead;
+        try {
+            bytesRead = rawChannel.read(ioBuffer);
+        } catch (IOException e) {
+            closeNow = true;
+            throw e;
+        }
+        if (bytesRead < 0) {
+            closeNow = true;
+            return 0;
+        } else {
+            ioBuffer.flip();
+            channelBuffer.ensureCapacity(channelBuffer.getRemaining() + ioBuffer.remaining());
+            ByteBuffer[] buffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+            int j = 0;
+            while (j < buffers.length && ioBuffer.remaining() > 0) {
+                ByteBuffer buffer = buffers[j];
+                copyBytes(ioBuffer, buffer);
+            }
+            channelBuffer.incrementIndex(bytesRead);
+            return bytesRead;
+        }
+    }
+
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
+        copyBytes(buffer, ioBuffer);
+        ioBuffer.flip();
         try {
-            ioBuffer.clear();
-            return rawChannel.write(buffer);
+            return rawChannel.write(ioBuffer);
         } catch (IOException e) {
             closeNow = true;
             throw e;
@@ -280,13 +308,24 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
+
+        int j = 0;
+        while (j < buffers.length && ioBuffer.remaining() > 0) {
+            ByteBuffer buffer = buffers[j];
+            copyBytes(buffer, ioBuffer);
+        }
         try {
-            int written = (int) rawChannel.write(buffers);
-            ioBuffer.clear();
-            return written;
+            return rawChannel.write(ioBuffer);
         } catch (IOException e) {
             closeNow = true;
             throw e;
+        }
+    }
+
+    private void copyBytes(ByteBuffer from, ByteBuffer to) {
+        int nBytesToCopy = Math.min(to.remaining(), from.remaining());
+        for (int i = 0; i < nBytesToCopy; ++i) {
+            to.put(from.get());
         }
     }
 }

@@ -72,6 +72,7 @@ public class NioSelector implements Closeable {
 
     ByteBuffer getIoBuffer() {
         assertOnSelectorThread();
+        ioBuffer.clear();
         return ioBuffer;
     }
 

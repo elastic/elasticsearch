@@ -808,7 +808,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         protected final IndexService indexService;
 
         BaseAsyncTask(IndexService indexService, TimeValue interval) {
-            super(indexService.logger, indexService.threadPool, interval);
+            super(indexService.logger, indexService.threadPool, interval, true);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }

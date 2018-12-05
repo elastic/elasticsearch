@@ -44,12 +44,12 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testRepeat() throws InterruptedException {
+    public void testAutoRepeat() throws InterruptedException {
 
         final AtomicReference<CountDownLatch> latch1 = new AtomicReference<>(new CountDownLatch(1));
         final AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
         final AtomicInteger count = new AtomicInteger();
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1)) {
+        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), true) {
 
             @Override
             protected boolean mustReschedule() {
@@ -98,9 +98,53 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         assertEquals(2, count.get());
     }
 
+    public void testManualRepeat() throws InterruptedException {
+
+        final AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
+        final AtomicInteger count = new AtomicInteger();
+        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), false) {
+
+            @Override
+            protected boolean mustReschedule() {
+                return true;
+            }
+
+            @Override
+            protected void runInternal() {
+                assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
+                count.incrementAndGet();
+                latch.get().countDown();
+                if (randomBoolean()) {
+                    throw new RuntimeException("foo");
+                }
+            }
+
+            @Override
+            protected String getThreadPool() {
+                return ThreadPool.Names.GENERIC;
+            }
+        };
+
+        assertFalse(task.isScheduled());
+        task.rescheduleIfNecessary();
+        latch.get().await();
+        assertEquals(1, count.get());
+        assertFalse(task.isScheduled());
+        latch.set(new CountDownLatch(1));
+        assertFalse(latch.get().await(100, TimeUnit.MILLISECONDS));
+        assertEquals(1, count.get());
+        task.rescheduleIfNecessary();
+        latch.get().await();
+        assertEquals(2, count.get());
+        assertFalse(task.isScheduled());
+        assertFalse(task.isClosed());
+        task.close();
+        assertTrue(task.isClosed());
+    }
+
     public void testCloseWithNoRun() {
 
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMinutes(10)) {
+        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMinutes(10), true) {
 
             @Override
             protected boolean mustReschedule() {
@@ -124,7 +168,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
 
         final CountDownLatch latch = new CountDownLatch(2);
 
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueHours(1)) {
+        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueHours(1), true) {
 
             @Override
             protected boolean mustReschedule() {

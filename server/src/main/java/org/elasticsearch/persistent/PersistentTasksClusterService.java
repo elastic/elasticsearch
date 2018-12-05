@@ -430,7 +430,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker() {
-            super(logger, threadPool, recheckInterval);
+            super(logger, threadPool, recheckInterval, false);
         }
 
         @Override

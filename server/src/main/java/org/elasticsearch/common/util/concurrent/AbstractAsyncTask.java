@@ -36,15 +36,17 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     private final Logger logger;
     private final ThreadPool threadPool;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final boolean autoReschedule;
     private volatile ScheduledFuture<?> scheduledFuture;
     private volatile boolean isScheduledOrRunning;
     private volatile Exception lastThrownException;
     private volatile TimeValue interval;
 
-    protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, TimeValue interval) {
+    protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, TimeValue interval, boolean autoReschedule) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.interval = interval;
+        this.autoReschedule = autoReschedule;
     }
 
     /**
@@ -131,6 +133,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     public final void run() {
         synchronized (this) {
             scheduledFuture = null;
+            isScheduledOrRunning = autoReschedule;
         }
         try {
             runInternal();
@@ -145,7 +148,9 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
                 lastThrownException = ex;
             }
         } finally {
-            rescheduleIfNecessary();
+            if (autoReschedule) {
+                rescheduleIfNecessary();
+            }
         }
     }
 

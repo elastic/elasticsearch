@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesRequest;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -42,13 +41,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Stream;
-
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 public class ClusterBootstrapService {
 
@@ -59,85 +51,20 @@ public class ClusterBootstrapService {
     public static final Setting<Integer> INITIAL_MASTER_NODE_COUNT_SETTING =
         Setting.intSetting("cluster.unsafe_initial_master_node_count", 0, 0, Property.NodeScope);
 
-    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
-        Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
-
-    public static final Setting<TimeValue> UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
-            TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
-
     private final int initialMasterNodeCount;
-    private final List<String> initialMasterNodes;
-    @Nullable
-    private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
     private volatile boolean running;
 
     public ClusterBootstrapService(Settings settings, TransportService transportService) {
         initialMasterNodeCount = INITIAL_MASTER_NODE_COUNT_SETTING.get(settings);
-        initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
-        unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
-    }
-
-    public static boolean discoveryIsConfigured(Settings settings) {
-        return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-            INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
     }
 
     public void start() {
         assert running == false;
         running = true;
 
-        if (transportService.getLocalNode().isMasterNode() == false) {
-            return;
-        }
-
-        if (unconfiguredBootstrapTimeout != null) {
-            logger.info("no discovery configuration found, will perform best-effort cluster bootstrapping after [{}] " +
-                    "unless existing master is discovered", unconfiguredBootstrapTimeout);
-            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                threadContext.markAsSystemContext();
-
-                transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.SAME, new Runnable() {
-                    @Override
-                    public void run() {
-                        final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
-                        logger.trace("sending {}", request);
-                        transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
-                            new TransportResponseHandler<GetDiscoveredNodesResponse>() {
-                                @Override
-                                public void handleResponse(GetDiscoveredNodesResponse response) {
-                                    logger.debug("discovered {}, starting to bootstrap", response.getNodes());
-                                    awaitBootstrap(response.getBootstrapConfiguration());
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    logger.warn("discovery attempt failed", exp);
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return Names.SAME;
-                                }
-
-                                @Override
-                                public GetDiscoveredNodesResponse read(StreamInput in) throws IOException {
-                                    return new GetDiscoveredNodesResponse(in);
-                                }
-                            });
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "unconfigured-discovery delayed bootstrap";
-                    }
-                });
-
-            }
-        } else if (initialMasterNodeCount > 0) {
+        if (initialMasterNodeCount > 0 && transportService.getLocalNode().isMasterNode()) {
             logger.debug("unsafely waiting for discovery of [{}] master-eligible nodes", initialMasterNodeCount);
 
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -146,7 +73,6 @@ public class ClusterBootstrapService {
 
                 final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
                 request.setWaitForNodes(initialMasterNodeCount);
-                request.setRequiredNodes(initialMasterNodes);
                 request.setTimeout(null);
                 logger.trace("sending {}", request);
                 transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,

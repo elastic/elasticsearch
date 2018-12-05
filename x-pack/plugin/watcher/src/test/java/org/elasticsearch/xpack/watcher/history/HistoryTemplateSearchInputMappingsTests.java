@@ -68,7 +68,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits(), is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(1L));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 

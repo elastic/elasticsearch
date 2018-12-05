@@ -73,8 +73,8 @@ public interface Payload extends ToXContentObject {
     }
 
     class XContent extends Simple {
-        public XContent(ToXContentObject response) throws IOException {
-            super(responseToData(response));
+        public XContent(ToXContentObject response, Params params) throws IOException {
+            super(responseToData(response, params));
         }
     }
 }

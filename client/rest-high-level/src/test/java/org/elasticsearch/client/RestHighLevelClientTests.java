@@ -174,7 +174,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         SearchResponse searchResponse = restHighLevelClient.scroll(
                 new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)), RequestOptions.DEFAULT);
         assertEquals(mockSearchResponse.getScrollId(), searchResponse.getScrollId());
-        assertEquals(0, searchResponse.getHits().totalHits);
+        assertEquals(0, searchResponse.getHits().getTotalHits().value);
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(100, searchResponse.getTook().getMillis());
@@ -751,7 +751,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("migration.") == false &&
                             apiName.startsWith("security.") == false &&
                             apiName.startsWith("index_lifecycle.") == false &&
-                            apiName.startsWith("ccr.") == false) {
+                            apiName.startsWith("ccr.") == false &&
+                            apiName.endsWith("freeze") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

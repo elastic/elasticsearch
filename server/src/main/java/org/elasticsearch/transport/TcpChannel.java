@@ -22,8 +22,8 @@ package org.elasticsearch.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 
 
@@ -35,17 +35,14 @@ import java.net.InetSocketAddress;
 public interface TcpChannel extends CloseableChannel {
 
     /**
+     * Indicates if the channel is an inbound server channel.
+     */
+    boolean isServerChannel();
+
+    /**
      * This returns the profile for this channel.
      */
     String getProfile();
-
-    /**
-     * This sets the low level socket option {@link java.net.StandardSocketOptions} SO_LINGER on a channel.
-     *
-     * @param value to set for SO_LINGER
-     * @throws IOException that can be throw by the low level socket implementation
-     */
-    void setSoLinger(int value) throws IOException;
 
     /**
      * Returns the local address for this channel.
@@ -79,4 +76,26 @@ public interface TcpChannel extends CloseableChannel {
      * @param listener to be executed
      */
     void addConnectListener(ActionListener<Void> listener);
+
+    /**
+     * Returns stats about this channel
+     */
+    ChannelStats getChannelStats();
+
+    class ChannelStats {
+
+        private volatile long lastAccessedTime;
+
+        public ChannelStats() {
+            lastAccessedTime = TimeValue.nsecToMSec(System.nanoTime());
+        }
+
+        void markAccessed(long relativeMillisTime) {
+            lastAccessedTime = relativeMillisTime;
+        }
+
+        long lastAccessedTime() {
+            return lastAccessedTime;
+        }
+    }
 }

@@ -84,7 +84,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                         histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(extendedStats("stats").field("value")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -111,7 +111,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(extendedStats("stats").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         ExtendedStats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -502,7 +502,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .script(new Script(ScriptType.INLINE,
-                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap()))
+                                    AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 

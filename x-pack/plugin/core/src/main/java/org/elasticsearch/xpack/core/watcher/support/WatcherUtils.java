@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.watcher.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -27,8 +28,9 @@ public final class WatcherUtils {
     private WatcherUtils() {
     }
 
-    public static Map<String, Object> responseToData(ToXContentObject response) throws IOException {
-        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.JSON, false), false, XContentType.JSON).v2();
+    public static Map<String, Object> responseToData(ToXContentObject response, ToXContent.Params params) throws IOException {
+        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.JSON, params, false), false,
+            XContentType.JSON).v2();
     }
 
     public static Map<String, Object> flattenModel(Map<String, Object> map) {

@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -256,7 +257,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testUpdatingUserAndAuthentication() throws Exception {
@@ -277,7 +278,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
         c.preparePutUser("joe", "s3krit2".toCharArray(), hasher, SecuritySettingsSource.TEST_ROLE).get();
 
@@ -291,7 +292,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         token = basicAuthHeaderValue("joe", new SecureString("s3krit2".toCharArray()));
         searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testCreateDeleteAuthenticate() {
@@ -313,7 +314,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
         DeleteUserResponse response = c.prepareDeleteUser("joe").get();
         assertThat(response.found(), is(true));
@@ -576,7 +577,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                                 basicAuthHeaderValue(username, getReservedPassword())))
                 .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username))
                 .get();
-        assertThat(authenticateResponse.user().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("reserved"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), equalTo("reserved"));
+        assertNull(authenticateResponse.authentication().getLookedUpBy());
     }
 
     public void testOperationsOnReservedRoles() throws Exception {

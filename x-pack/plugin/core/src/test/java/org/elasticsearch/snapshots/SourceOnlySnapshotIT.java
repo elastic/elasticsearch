@@ -191,7 +191,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             }
         };
         assertConsumer.accept(searchResponse, sourceHadDeletions);
-        assertEquals(numDocsExpected, searchResponse.getHits().totalHits);
+        assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
         searchResponse = client().prepareSearch(index)
             .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll("1m")

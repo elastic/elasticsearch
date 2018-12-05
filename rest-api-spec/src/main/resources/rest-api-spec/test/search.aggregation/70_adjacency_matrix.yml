@@ -42,6 +42,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size": 0, "aggs": { "conns": { "adjacency_matrix": {  "filters": { "1": { "term": { "num": 1 } }, "2": { "term": { "num": 2 } }, "4": { "term": { "num": 4 } } } } } } }
 
   - match: { hits.total: 3 }

@@ -104,7 +104,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         SearchRequest leaderSearchRequest = new SearchRequest("leader");
         SearchResponse leaderSearchResponse = highLevelClient().search(leaderSearchRequest, RequestOptions.DEFAULT);
-        assertThat(leaderSearchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(leaderSearchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         assertBusy(() -> {
             CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
@@ -118,7 +118,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
             SearchRequest followerSearchRequest = new SearchRequest("follower");
             SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
-            assertThat(followerSearchResponse.getHits().getTotalHits(), equalTo(1L));
+            assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         });
 
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
@@ -143,7 +143,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
             SearchRequest followerSearchRequest = new SearchRequest("follower");
             SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
-            assertThat(followerSearchResponse.getHits().getTotalHits(), equalTo(2L));
+            assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(2L));
         });
 
         // Need to pause prior to unfollowing it:

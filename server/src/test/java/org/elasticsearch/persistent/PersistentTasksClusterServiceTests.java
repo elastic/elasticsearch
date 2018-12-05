@@ -473,6 +473,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             ClusterState before = state.get();
             ClusterState after = task.execute(before);
             state.set(after);
+            task.clusterStateProcessed("test", before, after);
             return null;
         }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
 

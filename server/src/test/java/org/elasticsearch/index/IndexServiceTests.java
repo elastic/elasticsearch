@@ -136,7 +136,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
         assertFalse(refreshTask.isScheduled());
-        assertFalse(indexService.getRefreshTask().mustReschedule());
 
         // set it to 100ms
         client().admin().indices().prepareUpdateSettings("test")

@@ -205,6 +205,13 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         }
 
         try {
+            if (event.state().term() > getCurrentTerm()) {
+                Manifest manifest = new Manifest(event.state().term(), previousManifest.getClusterStateVersion(),
+                    previousManifest.getGlobalGeneration(), new HashMap<>(previousManifest.getIndexGenerations()));
+                metaStateService.writeManifestAndCleanup("current term changed", manifest);
+                previousManifest = manifest;
+            }
+
             updateClusterState(event.state(), event.previousState());
             incrementalWrite = true;
         } catch (WriteStateException e) {

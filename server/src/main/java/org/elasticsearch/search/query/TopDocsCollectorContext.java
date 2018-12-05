@@ -221,7 +221,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1); // don't compute hit counts via the collector
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
-                if (hitCount == -1) {
+                if (trackTotalHits == false) {
                     totalHitsSupplier = () -> null;
                 } else {
                     totalHitsSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);

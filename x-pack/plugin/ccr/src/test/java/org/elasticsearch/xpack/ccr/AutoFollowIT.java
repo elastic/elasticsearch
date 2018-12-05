@@ -76,6 +76,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
     }
 
+    // TODO: Does not work without multiple concurrent restore work
+    @AwaitsFix(bugUrl = "")
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)

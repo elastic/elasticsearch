@@ -286,7 +286,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             ByteBuffer[] buffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
             int j = 0;
             while (j < buffers.length && ioBuffer.remaining() > 0) {
-                ByteBuffer buffer = buffers[j];
+                ByteBuffer buffer = buffers[j++];
                 copyBytes(ioBuffer, buffer);
             }
             channelBuffer.incrementIndex(bytesRead);
@@ -311,9 +311,10 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         int j = 0;
         while (j < buffers.length && ioBuffer.remaining() > 0) {
-            ByteBuffer buffer = buffers[j];
+            ByteBuffer buffer = buffers[j++];
             copyBytes(buffer, ioBuffer);
         }
+        ioBuffer.flip();
         try {
             return rawChannel.write(ioBuffer);
         } catch (IOException e) {

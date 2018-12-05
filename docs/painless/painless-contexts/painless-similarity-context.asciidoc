@@ -15,6 +15,9 @@ documents in a query.
 `params` (`Map`, read-only)::
         User-defined parameters passed in at query-time.
 
+`weight` (`float`, read-only)::
+        The weight as calculated by a <<painless-weight-context,weight script>>
+
 `query.boost` (`float`, read-only)::
         The boost value if provided by the query.  If this is not provided the
         value is `1.0f`.
@@ -37,11 +40,22 @@ documents in a query.
         The total occurrences of the current term in the index.
 
 `doc.length` (`long`, read-only)::
-        The number of tokens the current document has in the current field.
+        The number of tokens the current document has in the current field.  This
+        is decoded from the stored {ref}/norms.html[norms] and may be approximate for
+        long fields
 
 `doc.freq` (`long`, read-only)::
         The number of occurrences of the current term in the current
         document for the current field.
+
+Note that the `query`, `field`, and `term` variables are also available to the
+<<painless-weight-context,weight context>>. They are more efficiently used
+there, as they are constant for all documents.
+
+For queries that contain multiple terms, the script is called once for each
+term with that term's calculated weight, and the results are summed.  Note that some
+terms might have a `doc.freq` value of `0` on a document, for example if a query
+uses synonyms.
 
 *Return*
 

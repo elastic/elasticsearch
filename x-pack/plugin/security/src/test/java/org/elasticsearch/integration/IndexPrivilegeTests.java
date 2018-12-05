@@ -492,13 +492,13 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_search");
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/foo/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvector");
+                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvectors");
                     assertUserIsAllowed(user, "search", index);
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_count");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_search");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvector");
+                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvectors");
                     assertUserIsDenied(user, "search", index);
                 }
                 break;

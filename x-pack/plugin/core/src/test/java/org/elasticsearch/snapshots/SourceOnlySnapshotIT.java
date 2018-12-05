@@ -122,6 +122,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36276")
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();

@@ -135,7 +135,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testBootstrapsByDefaultInDevelopmentMode() {
+    public void testBootstrapsAutomaticallyWithDefaultConfiguration() {
         clusterBootstrapService = new ClusterBootstrapService(Settings.EMPTY, transportService);
 
         final Set<DiscoveryNode> discoveredNodes = Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toSet());

@@ -27,15 +27,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A response to {@link AddVotingTombstonesRequest} indicating that voting tombstones have been added for the requested nodes and these
- * nodes have been removed from the voting configuration.
+ * A response to {@link ClearVotingConfigExclusionsRequest} indicating that voting config exclusions have been cleared from the
+ * cluster state.
  */
-public class AddVotingTombstonesResponse extends ActionResponse implements ToXContentObject {
-
-    public AddVotingTombstonesResponse() {
+public class ClearVotingConfigExclusionsResponse extends ActionResponse implements ToXContentObject {
+    public ClearVotingConfigExclusionsResponse() {
     }
 
-    public AddVotingTombstonesResponse(StreamInput in) throws IOException {
+    public ClearVotingConfigExclusionsResponse(StreamInput in) throws IOException {
         super(in);
     }
 

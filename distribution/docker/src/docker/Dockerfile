@@ -80,7 +80,7 @@ LABEL org.label-schema.schema-version="1.0" \
   org.label-schema.name="elasticsearch" \
   org.label-schema.version="${version}" \
   org.label-schema.url="https://www.elastic.co/products/elasticsearch" \
-  org.label-schema.vcs-url="https://github.com/elastic/elasticsearch-docker" \
+  org.label-schema.vcs-url="https://github.com/elastic/elasticsearch" \
   license="${license}"
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

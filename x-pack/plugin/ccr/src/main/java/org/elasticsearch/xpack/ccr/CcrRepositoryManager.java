@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,7 +38,7 @@ class CcrRepositoryManager extends RemoteClusterAware {
             client.executeLocally(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
             assert f.isDone() : "Should be completed as it is executed synchronously";
         } else {
-            ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
+            PutInternalCcrRepositoryRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
             PlainActionFuture<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
             client.executeLocally(PutInternalCcrRepositoryAction.INSTANCE, request, f);
             assert f.isDone() : "Should be completed as it is executed synchronously";

@@ -11,16 +11,20 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
+public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryRequest,
+    PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse, PutInternalCcrRepositoryRequestBuilder> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
     public static final String NAME = "cluster:admin/ccr/internal_repository/put";
@@ -39,23 +43,29 @@ public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrReposit
         return PutInternalCcrRepositoryResponse::new;
     }
 
+    @Override
+    public PutInternalCcrRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutInternalCcrRepositoryRequestBuilder(client);
+    }
+
     public static class TransportPutInternalRepositoryAction
         extends TransportAction<PutInternalCcrRepositoryRequest, PutInternalCcrRepositoryResponse> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
+        public TransportPutInternalRepositoryAction(Settings settings, ThreadPool threadPool, RepositoriesService repositoriesService,
+                                                    ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                                     TransportService transportService) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(settings, NAME, threadPool, actionFilters, resolver, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
         }
 
         @Override
-        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request,
-                                 ActionListener<PutInternalCcrRepositoryResponse> listener) {
+        protected void doExecute(PutInternalCcrRepositoryRequest request, ActionListener<PutInternalCcrRepositoryResponse> listener) {
             repositoriesService.registerInternalRepository(request.getName(), request.getType());
             listener.onResponse(new PutInternalCcrRepositoryResponse());
+
         }
     }
 

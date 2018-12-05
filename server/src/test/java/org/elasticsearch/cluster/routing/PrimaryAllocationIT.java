@@ -341,7 +341,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     public void testNotWaitForQuorumCopies() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodes(3, Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build()); // needs state recovery
+        List<String> nodes = internalCluster().startNodes(3);
         logger.info("--> creating index with 1 primary and 2 replicas");
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", randomIntBetween(1, 3)).put("index.number_of_replicas", 2)).get());
@@ -349,9 +349,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
         logger.info("--> removing 2 nodes from cluster");
-        internalCluster().stopRandomDataNode();
-        internalCluster().stopRandomDataNode();
-        internalCluster().fullRestart();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));
+        internalCluster().restartRandomDataNode();
         logger.info("--> checking that index still gets allocated with only 1 shard copy being available");
         ensureYellow("test");
         assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 1L);

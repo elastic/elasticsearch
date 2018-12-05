@@ -209,10 +209,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             // that's higher than the last accepted term.
             // TODO: can we get rid of this hack?
             if (event.state().term() > getCurrentTerm()) {
-                Manifest manifest = new Manifest(event.state().term(), previousManifest.getClusterStateVersion(),
-                    previousManifest.getGlobalGeneration(), new HashMap<>(previousManifest.getIndexGenerations()));
-                metaStateService.writeManifestAndCleanup("current term changed", manifest);
-                previousManifest = manifest;
+                innerSetCurrentTerm(event.state().term());
             }
 
             updateClusterState(event.state(), event.previousState());
@@ -235,15 +232,19 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
 
     @Override
     public void setCurrentTerm(long currentTerm) {
-        Manifest manifest = new Manifest(currentTerm, previousManifest.getClusterStateVersion(), previousManifest.getGlobalGeneration(),
-                new HashMap<>(previousManifest.getIndexGenerations()));
         try {
-            metaStateService.writeManifestAndCleanup("current term changed", manifest);
-            previousManifest = manifest;
+            innerSetCurrentTerm(currentTerm);
         } catch (WriteStateException e) {
             logger.warn("Exception occurred when setting current term", e);
             //TODO re-throw exception
         }
+    }
+
+    private void innerSetCurrentTerm(long currentTerm) throws WriteStateException {
+        Manifest manifest = new Manifest(currentTerm, previousManifest.getClusterStateVersion(), previousManifest.getGlobalGeneration(),
+            new HashMap<>(previousManifest.getIndexGenerations()));
+        metaStateService.writeManifestAndCleanup("current term changed", manifest);
+        previousManifest = manifest;
     }
 
     @Override

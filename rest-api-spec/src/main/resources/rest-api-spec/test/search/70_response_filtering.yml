@@ -23,6 +23,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: "*"
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -40,6 +41,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: "took"
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -56,6 +58,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: "_shards.*"
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -72,6 +75,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: [ "hits.**._i*", "**.total" ]
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -99,6 +103,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         filter_path: [  "-**._source.properties", "**._source" ]
         body: { query: { match_all: {} } }
 
@@ -112,6 +117,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         filter_path: [ "**.properties" , "-hits.hits._source.properties.meta" ]
         body: { query: { match_all: {} } }
 
@@ -129,6 +135,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         filter_path: "**._source,-**.meta.foo"
         body: { query: { match_all: {} } }
 

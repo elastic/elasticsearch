@@ -119,3 +119,10 @@ while now an exception is thrown.
 
 The deprecated graph endpoints (those with `/_graph/_explore`) have been
 removed.
+
+
+[float]
+==== Deprecated `_termvector` endpoint removed
+
+The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
+The endpoint `_termvectors` (plural) should be used instead.

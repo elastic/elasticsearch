@@ -108,6 +108,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           aggs:
@@ -123,6 +124,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: aliased_test_index
 
   - match: { _shards.total: 3 }

@@ -166,10 +166,10 @@ public class QueryProfilerIT extends ESIntegTestCase {
                         vanillaMaxScore, profileMaxScore, 0.001);
             }
 
-            if (vanillaResponse.getHits().totalHits != profileResponse.getHits().totalHits) {
+            if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
                 Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
                 Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-                if (vanillaResponse.getHits().totalHits > profileResponse.getHits().totalHits) {
+                if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
                     vanillaSet.removeAll(profileSet);
                     fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: "
                         + vanillaSet.toString());

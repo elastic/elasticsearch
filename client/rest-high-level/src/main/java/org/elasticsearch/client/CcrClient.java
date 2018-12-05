@@ -365,7 +365,7 @@ public final class CcrClient {
     /**
      * Gets all CCR stats.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-stats.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html">
      * the docs</a> for more.
      *
      * @param request the request
@@ -387,7 +387,7 @@ public final class CcrClient {
     /**
      * Gets all CCR stats.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-stats.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html">
      * the docs</a> for more.
      *
      * @param request the request

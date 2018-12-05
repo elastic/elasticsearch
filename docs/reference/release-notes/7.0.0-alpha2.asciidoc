@@ -1,0 +1,14 @@
+[[release-notes-7.0.0-alpha2]]
+== 7.0.0-alpha2 release notes
+
+The changes listed below have been released for the first time in Elasticsearch 7.0.0-alpha2.
+
+[[breaking-7.0.0-alpha2]]
+[float]
+=== Breaking changes
+
+Search::
+* Scores computed using the BM25 similarity, the default similarity used by
+  Elasticsearch, are lower than previously as one constant factor was removed
+  from the numerator of the scoring formula. Ordering of results is preserved
+  unless scores are computed from multiple fields using different similarities.

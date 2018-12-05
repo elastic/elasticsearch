@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +47,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     public static SearchHits empty() {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients
-        return new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
+        return new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0, null, null, null);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
@@ -56,14 +58,33 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     private float maxScore;
 
+    @Nullable
+    private SortField[] sortFields;
+    @Nullable
+    private String collapseField;
+    @Nullable
+    private Object[] collapseValues;
+
     SearchHits() {
 
     }
 
+    //TODO look for other users of the old constructor!!!
+
+    //TODO we may want to remove this constructor and replace it with the new one:
+    // such change causes a lot of noise, probably wise to make it as a followup
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
+        this(hits, totalHits, maxScore, null, null, null);
+    }
+
+    public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
+                      @Nullable String collapseField, @Nullable Object[] collapseValues) {
         this.hits = hits;
         this.totalHits = totalHits == null ? null : new Total(totalHits);
         this.maxScore = maxScore;
+        this.sortFields = sortFields;
+        this.collapseField = collapseField;
+        this.collapseValues = collapseValues;
     }
 
     /**
@@ -73,7 +94,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     public TotalHits getTotalHits() {
         return totalHits == null ? null : totalHits.in;
     }
-
 
     /**
      * The maximum score of this query.
@@ -94,6 +114,31 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
      */
     public SearchHit getAt(int position) {
         return hits[position];
+    }
+
+    /**
+     * In case documents were sorted by field(s), returns information about such field(s), null otherwise
+     * @see SortField
+     */
+    @Nullable
+    public SortField[] getSortFields() {
+        return sortFields;
+    }
+
+    /**
+     * In case field collapsing was performed, returns the field used for field collapsing, null otherwise
+     */
+    @Nullable
+    public String getCollapseField() {
+        return collapseField;
+    }
+
+    /**
+     * In case field collapsing was performed, returns the values of the field that field collapsing was performed on, null otherwise
+     */
+    @Nullable
+    public Object[] getCollapseValues() {
+        return collapseValues;
     }
 
     @Override
@@ -175,8 +220,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
                 }
             }
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits, maxScore);
-        return searchHits;
+        return new SearchHits(hits.toArray(new SearchHit[0]), totalHits, maxScore);
     }
 
     public static SearchHits readSearchHits(StreamInput in) throws IOException {
@@ -203,6 +247,12 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
                 hits[i] = SearchHit.readSearchHit(in);
             }
         }
+        //TODO update version once backported
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+            collapseField = in.readOptionalString();
+            collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        }
     }
 
     @Override
@@ -219,6 +269,12 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
                 hit.writeTo(out);
             }
         }
+        //TODO update version once backported
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalArray(Lucene::writeSortField, sortFields);
+            out.writeOptionalString(collapseField);
+            out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+        }
     }
 
     @Override
@@ -229,12 +285,16 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         SearchHits other = (SearchHits) obj;
         return Objects.equals(totalHits, other.totalHits)
                 && Objects.equals(maxScore, other.maxScore)
-                && Arrays.equals(hits, other.hits);
+                && Arrays.equals(hits, other.hits)
+                && Arrays.equals(sortFields, other.sortFields)
+                && Objects.equals(collapseField, other.collapseField)
+                && Arrays.equals(collapseValues, other.collapseValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits));
+        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits),
+            Arrays.hashCode(sortFields), collapseField, Arrays.hashCode(collapseValues));
     }
 
     public static TotalHits parseTotalHitsFragment(XContentParser parser) throws IOException {

@@ -235,12 +235,17 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
+        ioBuffer.limit(Math.min(buffer.remaining(), buffer.limit()));
         try {
-            int bytesRead = rawChannel.read(buffer);
+            int bytesRead = rawChannel.read(ioBuffer);
             if (bytesRead < 0) {
                 closeNow = true;
                 bytesRead = 0;
             }
+            ioBuffer.flip();
+            buffer.put(ioBuffer);
+            ioBuffer.clear();
             return bytesRead;
         } catch (IOException e) {
             closeNow = true;
@@ -263,7 +268,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
         try {
+            ioBuffer.clear();
             return rawChannel.write(buffer);
         } catch (IOException e) {
             closeNow = true;
@@ -272,8 +279,11 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
         try {
-            return (int) rawChannel.write(buffers);
+            int written = (int) rawChannel.write(buffers);
+            ioBuffer.clear();
+            return written;
         } catch (IOException e) {
             closeNow = true;
             throw e;

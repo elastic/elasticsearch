@@ -256,7 +256,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             this.types = null;
         }
-        if (in.getVersion().before(Version.CURRENT)) {
+        if (in.getVersion().before(Version.V_6_6_0)) {
             this.query = QUERY_TRANSFORMER.toMap(in.readNamedWriteable(QueryBuilder.class));
             this.aggregations = AGG_TRANSFORMER.toMap(in.readOptionalWriteable(AggregatorFactories.Builder::new));
         } else {
@@ -380,7 +380,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().before(Version.CURRENT)) {
+        if (out.getVersion().before(Version.V_6_6_0)) {
             out.writeNamedWriteable(getParsedQuery());
             out.writeOptionalWriteable(getParsedAggregations());
         } else {

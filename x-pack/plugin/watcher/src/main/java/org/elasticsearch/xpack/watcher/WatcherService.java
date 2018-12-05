@@ -305,7 +305,7 @@ public class WatcherService {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits() == 0) {
+            if (response.getHits().getTotalHits().value == 0) {
                 return Collections.emptyList();
             }
 

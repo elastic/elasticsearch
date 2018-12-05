@@ -19,7 +19,7 @@ dependencies {
 
 ext.expansions = { oss ->
   return [
-    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",      
+    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
     'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
     'jdkVersion' : '11.0.1',
     'license': oss ? 'Apache-2.0' : 'Elastic License',
@@ -29,54 +29,39 @@ ext.expansions = { oss ->
   ]
 }
 
-static String files(final boolean oss) {
+private static String files(final boolean oss) {
   return "build/${ oss ? 'oss-' : ''}docker"
 }
 
-static String taskName(final String prefix, final boolean oss, final String suffix) {
+private static String taskName(final String prefix, final boolean oss, final String suffix) {
   return "${prefix}${oss ? 'Oss' : ''}${suffix}"
 }
 
-void addProcessDockerfileTask(final boolean oss) {
-  task(taskName("process", oss, "Dockerfile"), type: Copy) {
+void addCopyDockerfileTask(final boolean oss) {
+  task(taskName("copy", oss, "Dockerfile"), type: Copy) {
     into files(oss)
 
-    from 'src/docker/Dockerfile'
-    MavenFilteringHack.filter(it, expansions(oss))
+    from('src/docker/Dockerfile') {
+      MavenFilteringHack.filter(it, expansions(oss))
+    }
   }
 }
 
-void addCopyBinFilesTask(final boolean oss) {
-  task(taskName("copy", oss, "BinFiles"), type: Copy) {
-    into "${files(oss)}/bin"
-
-    from 'src/docker/bin'
-  }
-}
-
-void addCopyConfigFilesTask(final boolean oss) {
-  task(taskName("copy", oss, "ConfigFiles"), type: Copy) {
+void addCopyDockerContextTask(final boolean oss) {
+  task(taskName("copy", oss, "DockerContext"), type: Copy) {
     into files(oss)
+
+    into('bin') {
+      from 'src/docker/bin'
+    }
 
     from 'src/docker/config'
-  }
-}
-
-void addCopyElasticsearchDistributionTask(final boolean oss) {
-  task(taskName("copy", oss, "ElasticsearchDistribution"), type: Copy) {
-    into files(oss)
 
     if (oss) {
       from configurations.ossDockerSource
     } else {
       from configurations.dockerSource
     }
-  }
-}
-
-void addCopyPluginsTask(final boolean oss) {
-  task(taskName("copy", oss, "Plugins"), type: Copy) {
-    into files(oss)
 
     from configurations.dockerPlugins
   }
@@ -84,11 +69,8 @@ void addCopyPluginsTask(final boolean oss) {
 
 void addBuildDockerImage(final boolean oss) {
   task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
-    dependsOn taskName("process", oss, "Dockerfile")
-    dependsOn taskName("copy", oss, "BinFiles")
-    dependsOn taskName("copy", oss, "ConfigFiles")
-    dependsOn taskName("copy", oss, "ElasticsearchDistribution")
-    dependsOn taskName("copy", oss, "Plugins")
+    dependsOn taskName("copy", oss, "Dockerfile")
+    dependsOn taskName("copy", oss, "DockerContext")
     final List<String> tags
     if (oss) {
       tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
@@ -110,11 +92,8 @@ void addBuildDockerImage(final boolean oss) {
 }
 
 for (final boolean oss : [false, true]) {
-  addProcessDockerfileTask(oss)
-  addCopyBinFilesTask(oss)
-  addCopyConfigFilesTask(oss)
-  addCopyElasticsearchDistributionTask(oss)
-  addCopyPluginsTask(oss)
+  addCopyDockerfileTask(oss)
+  addCopyDockerContextTask(oss)
   addBuildDockerImage(oss)
 }
 

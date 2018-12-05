@@ -67,14 +67,17 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -90,6 +93,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class JobConfigProvider {
 
     private static final Logger logger = LogManager.getLogger(JobConfigProvider.class);
+
+    public static final Map<String, String> TO_XCONTENT_PARAMS;
+    static {
+        Map<String, String> modifiable = new HashMap<>();
+        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
+        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
+    }
 
     private final Client client;
 
@@ -107,7 +117,7 @@ public class JobConfigProvider {
      */
     public void putJob(Job job, ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            XContentBuilder source = job.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder source = job.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(job.getId()))
                     .setSource(source)

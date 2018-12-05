@@ -57,7 +57,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final ClusterService clusterService;
     private final SecurityContext securityContext;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
@@ -72,7 +71,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
-        this.clusterService = clusterService;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
                 new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);

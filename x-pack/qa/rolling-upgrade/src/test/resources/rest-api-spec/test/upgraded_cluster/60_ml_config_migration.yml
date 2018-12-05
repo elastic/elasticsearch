@@ -62,34 +62,34 @@ setup:
         job_id: migration-old-cluster-open-job
   - is_true: jobs.0.finished_time
 
-
-  - do:
-      xpack.ml.delete_datafeed:
-        datafeed_id: migration-old-cluster-started-datafeed
-
-  - do:
-      xpack.ml.delete_job:
-        job_id: migration-old-cluster-open-job
-
-  - do:
-      catch: missing
-      xpack.ml.get_jobs:
-        job_id: migration-old-cluster-open-job
-
-  - do:
-      xpack.ml.delete_datafeed:
-        datafeed_id: migration-old-cluster-stopped-datafeed
-
-  - do:
-      xpack.ml.delete_job:
-        job_id: migration-old-cluster-closed-job
-
-  - do:
-      xpack.ml.get_jobs:
-          job_id: migration*
-  - match: { count: 0 }
-
-  - do:
-      xpack.ml.get_datafeeds:
-        datafeed_id: migration*
-  - match: { count: 0 }
+# TODO cannot test delete as config may be migrating
+#  - do:
+#      xpack.ml.delete_datafeed:
+#        datafeed_id: migration-old-cluster-started-datafeed
+#
+#  - do:
+#      xpack.ml.delete_job:
+#        job_id: migration-old-cluster-open-job
+#
+#  - do:
+#      catch: missing
+#      xpack.ml.get_jobs:
+#        job_id: migration-old-cluster-open-job
+#
+#  - do:
+#      xpack.ml.delete_datafeed:
+#        datafeed_id: migration-old-cluster-stopped-datafeed
+#
+#  - do:
+#      xpack.ml.delete_job:
+#        job_id: migration-old-cluster-closed-job
+#
+#  - do:
+#      xpack.ml.get_jobs:
+#          job_id: migration*
+#  - match: { count: 0 }
+#
+#  - do:
+#      xpack.ml.get_datafeeds:
+#        datafeed_id: migration*
+#  - match: { count: 0 }

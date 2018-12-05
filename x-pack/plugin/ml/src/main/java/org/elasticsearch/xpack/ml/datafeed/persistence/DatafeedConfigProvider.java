@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,10 +80,12 @@ public class DatafeedConfigProvider {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    private static final Map<String, String> TO_XCONTENT_PARAMS = new HashMap<>();
+    public static final Map<String, String> TO_XCONTENT_PARAMS;
     static {
-        TO_XCONTENT_PARAMS.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
-        TO_XCONTENT_PARAMS.put(ToXContentParams.INCLUDE_TYPE, "true");
+        Map<String, String> modifiable = new HashMap<>();
+        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
+        modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
+        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
 
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {

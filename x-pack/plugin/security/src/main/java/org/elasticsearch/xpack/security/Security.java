@@ -202,6 +202,8 @@ import org.elasticsearch.xpack.security.rest.action.role.RestPutRoleAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
+import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
@@ -767,6 +769,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestSamlAuthenticateAction(settings, restController, getLicenseState()),
                 new RestSamlLogoutAction(settings, restController, getLicenseState()),
                 new RestSamlInvalidateSessionAction(settings, restController, getLicenseState()),
+                new RestOpenIdConnectPrepareAuthenticationAction(settings, restController, getLicenseState()),
+                new RestOpenIdConnectAuthenticateAction(settings, restController, getLicenseState()),
                 new RestGetPrivilegesAction(settings, restController, getLicenseState()),
                 new RestPutPrivilegesAction(settings, restController, getLicenseState()),
                 new RestDeletePrivilegesAction(settings, restController, getLicenseState())

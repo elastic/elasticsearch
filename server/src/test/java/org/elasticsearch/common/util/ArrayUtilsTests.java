@@ -37,7 +37,7 @@ public class ArrayUtilsTests extends ESTestCase {
             for (int i = 0; i < array.length; i++) {
                 double value;
                 if (frequently()) {
-                    value = randomIntBetween(0, 10);
+                    value = randomDoubleBetween(0, 9, true);
                     array[i] = value + ((randomBoolean() ? 1 : -1) * randomDouble() * tolerance);
 
                 } else {                    // sometimes we'll have NaN in the array

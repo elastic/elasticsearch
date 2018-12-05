@@ -445,6 +445,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
+        // soft-deletes setting is checked manually
+        settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_UUID);
         settings.remove(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);

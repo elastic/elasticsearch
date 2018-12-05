@@ -36,7 +36,7 @@ RUN elasticsearch-plugin install --batch file:///opt/${ingest-geoip}
 RUN elasticsearch-plugin install --batch file:///opt/${ingest-user-agent}
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
-COPY elasticsearch.yml log4j2.properties config/
+COPY config/elasticsearch.yml config/log4j2.properties config/
 
 
 ################################################################################

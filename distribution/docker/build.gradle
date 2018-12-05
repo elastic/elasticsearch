@@ -46,7 +46,9 @@ void addCopyDockerContextTask(final boolean oss) {
       from 'src/docker/bin'
     }
 
-    from 'src/docker/config'
+    into('config') {
+      from 'src/docker/config'
+    }
 
     if (oss) {
       from configurations.ossDockerSource

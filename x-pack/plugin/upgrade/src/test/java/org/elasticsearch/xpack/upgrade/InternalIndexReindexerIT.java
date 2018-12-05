@@ -84,7 +84,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         assertThat(response.getCreated(), equalTo(2L));
 
         SearchResponse searchResponse = client().prepareSearch("test-123").get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             assertThat(hit.getId(), startsWith("bar-"));

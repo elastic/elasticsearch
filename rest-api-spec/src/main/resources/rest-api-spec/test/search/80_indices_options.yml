@@ -4,6 +4,7 @@
   - do:
       catch:   /logstash-\d{4}\.\d{2}\.\d{2}/
       search:
+        rest_total_hits_as_int: true
         index: <logstash-{now/M}>
 
 ---
@@ -12,10 +13,12 @@
   - do:
       catch:   missing
       search:
+        rest_total_hits_as_int: true
         index: missing_index
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: missing_index
         ignore_unavailable: true
 
@@ -35,10 +38,12 @@
   - do:
       catch:  /index_closed_exception/
       search:
+        rest_total_hits_as_int: true
         index: index_closed
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: index_closed
         ignore_unavailable: true
 
@@ -46,6 +51,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: index*
 
   - match: {hits.total: 0}
@@ -53,11 +59,13 @@
   - do:
       catch: missing
       search:
+        rest_total_hits_as_int: true
         index: index*
         allow_no_indices: false
 
   - do:
       catch:  /index_closed_exception/
       search:
+        rest_total_hits_as_int: true
         index: index*
         expand_wildcards: ["open","closed"]

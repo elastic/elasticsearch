@@ -93,7 +93,9 @@ public final class CreateApiKeyRequest extends ActionRequest {
     }
 
     public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
+        if (refreshPolicy != null) {
+            this.refreshPolicy = refreshPolicy;
+        }
     }
 
     @Override

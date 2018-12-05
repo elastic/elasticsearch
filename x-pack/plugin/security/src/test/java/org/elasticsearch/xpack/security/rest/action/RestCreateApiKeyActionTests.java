@@ -98,8 +98,8 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
         };
 
         try {
-            final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState,
-                    mockRestController);
+            final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY,
+                    mockRestController, mockLicenseState);
             restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
             final RestResponse restResponse = responseSetOnce.get();

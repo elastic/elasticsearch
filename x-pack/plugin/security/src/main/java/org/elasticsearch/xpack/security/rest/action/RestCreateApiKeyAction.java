@@ -30,22 +30,24 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
      * @param licenseState the license state that will be used to determine if
      * security is licensed
      */
-    protected RestCreateApiKeyAction(Settings settings, XPackLicenseState licenseState, RestController controller) {
+    public RestCreateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.PUT, "/_security/api_key", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/api_key", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/api_key", this);
     }
 
     @Override
     public String getName() {
-        return "create_api_key";
+        return "xpack_security_create_api_key";
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
+            String refresh = request.param("refresh");
             CreateApiKeyRequestBuilder builder = new SecurityClient(client)
                     .prepareCreateApiKey(request.requiredContent(), request.getXContentType())
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.parse(request.param("refresh")));
+                    .setRefreshPolicy((refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh")) : null);
             return channel -> builder.execute(new RestToXContentListener<CreateApiKeyResponse>(channel));
         }
     }

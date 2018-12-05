@@ -26,20 +26,35 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
 
     public void testParserAndCreateApiRequestBuilder() throws IOException {
         boolean withExpiration = randomBoolean();
-        final String json = "{ \"name\" : \"my-api-key\", " + ((withExpiration) ? " \"expiration\": \"1d\", " : "")
+        final String json = "{ \"name\" : \"my-api-key\", "
+                + ((withExpiration) ? " \"expiration\": \"1d\", " : "")
                 +" \"role_descriptors\": { \"role-a\": {\"cluster\":[\"a-1\", \"a-2\"],"
-                + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"p1\"] }] } } }";
+                + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"p1\"] }] }, "
+                + " \"role-b\": {\"cluster\":[\"b\"],"
+                + " \"index\": [{\"names\": [\"indx-b\"], \"privileges\": [\"p1\"] }] } "
+                + "} }";
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
         final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
         final List<RoleDescriptor> actualRoleDescriptors = request.getRoleDescriptors();
         assertThat(request.getName(), equalTo("my-api-key"));
-        assertThat(actualRoleDescriptors.size(), is(1));
-        assertThat(actualRoleDescriptors.get(0).getName(), equalTo("role-a"));
-        assertThat(actualRoleDescriptors.get(0).getClusterPrivileges(), arrayContainingInAnyOrder("a-1", "a-2"));
-        final IndicesPrivileges indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-a").privileges("p1").build();
-        assertThat(actualRoleDescriptors.get(0).getIndicesPrivileges(),
-                arrayContainingInAnyOrder(indicesPrivileges));
+        assertThat(actualRoleDescriptors.size(), is(2));
+        for (RoleDescriptor rd : actualRoleDescriptors) {
+            String[] clusters = null;
+            IndicesPrivileges indicesPrivileges = null;
+            if (rd.getName().equals("role-a")) {
+                clusters = new String[] { "a-1", "a-2" };
+                indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-a").privileges("p1").build();
+            } else if (rd.getName().equals("role-b")){
+                clusters = new String[] { "b" };
+                indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-b").privileges("p1").build();
+            } else {
+                fail("unexpected role name");
+            }
+            assertThat(rd.getClusterPrivileges(), arrayContainingInAnyOrder(clusters));
+            assertThat(rd.getIndicesPrivileges(),
+                    arrayContainingInAnyOrder(indicesPrivileges));
+        }
         if (withExpiration) {
             assertThat(request.getExpiration(), equalTo(TimeValue.parseTimeValue("1d", "expiration")));
         }

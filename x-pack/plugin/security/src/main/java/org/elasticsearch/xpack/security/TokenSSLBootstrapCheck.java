@@ -20,13 +20,24 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
     public BootstrapCheckResult check(BootstrapContext context) {
         final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings);
         final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings);
-        if (httpsEnabled == false && tokenServiceEnabled) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "HTTPS is required in order to use the token service; "
-                            + "please enable HTTPS using the [%s] setting or disable the token service using the [%s] setting",
-                    XPackSettings.HTTP_SSL_ENABLED.getKey(),
-                    XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey());
+        final Boolean apiKeyServiceEnabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(context.settings);
+        if (httpsEnabled == false && (tokenServiceEnabled || apiKeyServiceEnabled)) {
+            String message = null;
+            if (tokenServiceEnabled) {
+                message = String.format(
+                        Locale.ROOT,
+                        "HTTPS is required in order to use the token service; "
+                                + "please enable HTTPS using the [%s] setting or disable the token service using the [%s] setting",
+                        XPackSettings.HTTP_SSL_ENABLED.getKey(),
+                        XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey());
+            } else {
+                message = String.format(
+                        Locale.ROOT,
+                        "HTTPS is required in order to use the API key service; "
+                                + "please enable HTTPS using the [%s] setting or disable the API key service using the [%s] setting",
+                        XPackSettings.HTTP_SSL_ENABLED.getKey(),
+                        XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey());
+            }
             return BootstrapCheckResult.failure(message);
         } else {
             return BootstrapCheckResult.success();

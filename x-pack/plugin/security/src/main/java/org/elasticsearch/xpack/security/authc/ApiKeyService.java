@@ -283,7 +283,7 @@ public class ApiKeyService {
 
     private void ensureEnabled() {
         if (enabled == false) {
-            throw new IllegalStateException("tokens are not enabled");
+            throw new IllegalStateException("api keys are not enabled");
         }
     }
 

@@ -1,0 +1,43 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test create api key":
+
+  - do:
+      xpack.security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["a-1"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["p1"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["b-1"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["p1"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration

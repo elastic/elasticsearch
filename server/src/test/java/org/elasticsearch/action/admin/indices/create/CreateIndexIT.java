@@ -260,8 +260,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
-        logger.info("total: {}", expected.getHits().getTotalHits());
+        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
+        logger.info("total: {}", expected.getHits().getTotalHits().value);
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

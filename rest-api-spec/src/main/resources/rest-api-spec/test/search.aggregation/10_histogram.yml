@@ -51,6 +51,7 @@ setup:
     
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50 } } } }
     
   - match: { hits.total: 4 }
@@ -116,6 +117,7 @@ setup:
     
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50, "format" : "Value is ##0.0" } } } }
     
   - match: { hits.total: 4 }
@@ -186,6 +188,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "aggs" : { "histo" : { "date_histogram" : { "field" : "date", "interval" : "month", "order" : { "_time" : "desc" } } } } }
       warnings:
         - "Deprecated aggregation order key [_time] used, replaced by [_key]"

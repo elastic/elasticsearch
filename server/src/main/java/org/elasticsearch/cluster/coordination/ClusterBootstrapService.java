@@ -129,7 +129,7 @@ public class ClusterBootstrapService {
 
                     @Override
                     public String toString() {
-                        return "development-mode delayed bootstrap";
+                        return "unconfigured-discovery delayed bootstrap";
                     }
                 });
 

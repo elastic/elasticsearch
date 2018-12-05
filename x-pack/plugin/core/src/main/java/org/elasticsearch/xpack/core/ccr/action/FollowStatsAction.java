@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,19 +41,20 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
 
     @Override
     public StatsResponses newResponse() {
-        return new StatsResponses();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<StatsResponses> getResponseReader() {
+        return StatsResponses::new;
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
 
-        private List<StatsResponse> statsResponse;
+        private final List<StatsResponse> statsResponse;
 
         public List<StatsResponse> getStatsResponses() {
             return statsResponse;
-        }
-
-        public StatsResponses() {
-            this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         }
 
         public StatsResponses(
@@ -63,6 +63,17 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
                 final List<StatsResponse> statsResponse) {
             super(taskFailures, nodeFailures);
             this.statsResponse = statsResponse;
+        }
+
+        public StatsResponses(StreamInput in) throws IOException {
+            super(in);
+            statsResponse = in.readList(StatsResponse::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeList(statsResponse);
         }
 
         @Override
@@ -97,18 +108,6 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
             }
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            statsResponse = in.readList(StatsResponse::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeList(statsResponse);
         }
 
         @Override

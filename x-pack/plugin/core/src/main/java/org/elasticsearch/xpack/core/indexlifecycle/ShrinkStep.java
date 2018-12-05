@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -58,13 +57,9 @@ public class ShrinkStep extends AsyncActionStep {
 
         String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName());
-        indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
-            resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
-        });
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
         getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {
-            // TODO(talevy): when is this not acknowledged?
             listener.onResponse(response.isAcknowledged());
         }, listener::onFailure));
 

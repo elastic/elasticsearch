@@ -1315,6 +1315,17 @@ public final class PainlessLookupBuilder {
         }
     }
 
+    /**
+     * Creates a {@link Map} of PainlessMethodKeys to {@link PainlessMethod}s per {@link PainlessClass} stored as
+     * {@link PainlessClass#runtimeMethods} identical to {@link PainlessClass#methods} with the exception of generated
+     * bridge methods. A generated bridge method is created for each whitelisted method that has at least one parameter
+     * with a boxed type to cast from other numeric primitive/boxed types in a symmetric was not handled by
+     * {@link MethodHandle#asType(MethodType)}. As an example {@link MethodHandle#asType(MethodType)} legally casts
+     * from {@link Integer} to long but not from int to {@link Long}. Generated bridge methods cover the latter case.
+     * A generated bridge method replaces the method its a bridge to in the {@link PainlessClass#runtimeMethods}
+     * {@link Map}. The {@link PainlessClass#runtimeMethods} {@link Map} is used exclusively to look up methods at
+     * run-time resulting from calls with a def type value target.
+     */
     private void generateRuntimeMethods() {
         for (PainlessClassBuilder painlessClassBuilder : classesToPainlessClassBuilders.values()) {
             painlessClassBuilder.runtimeMethods.putAll(painlessClassBuilder.methods);
@@ -1430,9 +1441,10 @@ public final class PainlessLookupBuilder {
                 Method bridgeMethod = bridgeClass.getMethod(
                         painlessMethod.javaMethod.getName(), bridgeTypeParameters.toArray(new Class<?>[0]));
                 MethodHandle bridgeHandle = MethodHandles.publicLookup().in(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
-                painlessClassBuilder.runtimeMethods.put(painlessMethodKey,
-                        new PainlessMethod(bridgeMethod, bridgeClass,
-                                painlessMethod.returnType, bridgeTypeParameters, bridgeHandle, bridgeMethodType));
+                bridgePainlessMethod = new PainlessMethod(bridgeMethod, bridgeClass,
+                        painlessMethod.returnType, bridgeTypeParameters, bridgeHandle, bridgeMethodType);
+                painlessClassBuilder.runtimeMethods.put(painlessMethodKey, bridgePainlessMethod);
+                painlessBridgeCache.put(painlessMethod, bridgePainlessMethod);
             } catch (Exception exception) {
                 throw new IllegalStateException(
                         "internal error occurred attempting to generate a bridge method [" + bridgeClassName + "]", exception);

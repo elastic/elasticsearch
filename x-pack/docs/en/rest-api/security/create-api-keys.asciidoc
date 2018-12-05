@@ -86,7 +86,9 @@ API key information.
   "api_key":"ui2lp2axTNmsyakw9tvNnw" <3>
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/1544068612110/$body.expiration/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 <1> unique id for this API key
 <2> optional expiration in milliseconds for this API key
 <3> generated API key

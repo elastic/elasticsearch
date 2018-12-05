@@ -39,12 +39,15 @@ public final class IndicesFollowStats {
     static final ParseField SHARDS_FIELD = new ParseField("shards");
 
     private static final ConstructingObjectParser<Tuple<String, List<ShardFollowStats>>, Void> ENTRY_PARSER =
-        new ConstructingObjectParser<>("entry", args -> {
-        String index = (String) args[0];
-        @SuppressWarnings("unchecked")
-        List<ShardFollowStats> shardFollowStats = (List<ShardFollowStats>) args[1];
-        return new Tuple<>(index, shardFollowStats);
-    });
+        new ConstructingObjectParser<>(
+            "entry",
+            args -> {
+                String index = (String) args[0];
+                @SuppressWarnings("unchecked")
+                List<ShardFollowStats> shardFollowStats = (List<ShardFollowStats>) args[1];
+                return new Tuple<>(index, shardFollowStats);
+            }
+        );
 
     static {
         ENTRY_PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
@@ -149,7 +152,7 @@ public final class IndicesFollowStats {
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats-read-exceptions-entry",
-                args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer)args[1], (ElasticsearchException)args[2])));
+                args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException)args[2])));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER);

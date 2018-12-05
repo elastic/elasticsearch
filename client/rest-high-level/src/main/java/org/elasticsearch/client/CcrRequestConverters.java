@@ -103,7 +103,7 @@ final class CcrRequestConverters {
 
     static Request getCcrStats(CcrStatsRequest ccrStatsRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs(ccrStatsRequest.getFollowerIndex())
+            .addPathPart(ccrStatsRequest.getFollowerIndex())
             .addPathPartAsIs("_ccr", "stats")
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);

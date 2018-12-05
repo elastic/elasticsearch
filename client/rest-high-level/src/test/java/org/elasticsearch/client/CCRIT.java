@@ -42,6 +42,7 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -87,7 +88,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         CcrClient ccrClient = highLevelClient().ccr();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-        createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+        createIndexRequest.settings(Settings.builder()
+            .put("index.soft_deletes.enabled", true)
+            .put("index.number_of_shards", 1)
+        );
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
 

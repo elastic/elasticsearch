@@ -129,7 +129,7 @@ public class ExistsIT extends ESIntegTestCase {
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).execute().actionGet();
             assertSearchResponse(resp);
             try {
-                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, Strings.toString(mapping), resp), count, resp.getHits().getTotalHits());
+                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, Strings.toString(mapping), resp), count, resp.getHits().getTotalHits().value);
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();

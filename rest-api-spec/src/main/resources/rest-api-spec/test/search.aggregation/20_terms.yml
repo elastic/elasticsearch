@@ -67,6 +67,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 
   - match: { hits.total: 3 }
@@ -113,6 +114,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip" } } } }
 
   - match: { hits.total: 3 }
@@ -133,6 +135,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "include" : [ "127.0.0.1" ] } } } }
 
   - match: { hits.total: 3 }
@@ -143,6 +146,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" : [ "127.0.0.1" ] } } } }
 
   - match: { hits.total: 3 }
@@ -154,6 +158,7 @@ setup:
   - do:
       catch: request
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
 
@@ -187,6 +192,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "boolean" } } } }
 
   - match: { hits.total: 3 }
@@ -233,6 +239,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "integer_terms" : { "terms" : { "field" : "integer" } } } }
 
   - match: { hits.total: 3 }
@@ -279,6 +286,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "double" } } } }
 
   - match: { hits.total: 3 }
@@ -325,6 +333,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date" } } } }
 
   - match: { hits.total: 3 }
@@ -345,6 +354,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "include" : [ "2016-05-03" ] } } } }
 
   - match: { hits.total: 3 }
@@ -357,6 +367,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "exclude" : [ "2016-05-03" ] } } } }
 
   - match: { hits.total: 3 }
@@ -396,6 +407,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 0, "num_partitions": 2 } } } } }
 
   - match: { hits.total : 3 }
@@ -410,6 +422,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 1, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
@@ -451,6 +464,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 0, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
@@ -463,6 +477,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 1, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
@@ -488,6 +503,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "string_terms" : { "terms" : { "field" : "unmapped_string", "value_type" : "string", "missing": "abc" } } } }
 
   - match: { hits.total: 1 }
@@ -513,6 +529,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "unmapped_boolean", "value_type" : "boolean", "missing": true } } } }
 
   - match: { hits.total: 1 }
@@ -540,6 +557,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "unmapped_date", "value_type" : "date", "missing": "2016-05-11" } } } }
 
   - match: { hits.total: 1 }
@@ -567,6 +585,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "long_terms" : { "terms" : { "field" : "unmapped_long", "value_type" : "long", "missing": 3 } } } }
 
   - match: { hits.total: 1 }
@@ -592,6 +611,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "unmapped_double", "value_type" : "double", "missing": 3.5 } } } }
 
   - match: { hits.total: 1 }
@@ -645,6 +665,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "number_terms" : { "terms" : { "field" : "number" } } } }
 
   - match: { hits.total: 5 }
@@ -696,6 +717,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "order" :  { "_term" : "desc" } } } } }
       warnings:
         - "Deprecated aggregation order key [_term] used, replaced by [_key]"

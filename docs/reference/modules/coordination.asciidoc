@@ -21,16 +21,28 @@ those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
-as required, as described in more detail below. As nodes are added or removed
-Elasticsearch maintains an optimal level of fault tolerance by updating the
-cluster's _voting configuration_, which is the set of master-eligible nodes
-whose responses are counted when making decisions such as electing a new master
-or committing a new cluster state. A decision is only made once more than half
-of the nodes in the voting configuration have responded. Usually the voting
-configuration is the same as the set of all the master-eligible nodes that are
-currently in the cluster, but there are some situations in which they may be
-different. As long as more than half of the nodes in the voting configuration
-are still healthy then the cluster can still make progress.
+as required, as described in more detail below.
+
+As nodes are added or removed Elasticsearch maintains an optimal level of fault
+tolerance by updating the cluster's _voting configuration_, which is the set of
+master-eligible nodes whose responses are counted when making decisions such as
+electing a new master or committing a new cluster state. A decision is only
+made once more than half of the nodes in the voting configuration have
+responded. Usually the voting configuration is the same as the set of all the
+master-eligible nodes that are currently in the cluster, but there are some
+situations in which they may be different.
+
+To be sure that the cluster remains available you **must not stop half or more
+of the nodes in the voting configuration at the same time**. As long as more
+than half of the voting nodes are available the cluster can still work
+normally. This means that if there are three or four master-eligible nodes then
+the cluster can tolerate one of them being unavailable; if there are two or
+fewer master-eligible nodes then they must all remain available.
+
+After a node has joined or left the cluster the elected master must issue a
+cluster-state update that adjusts the voting configuration to match, and this
+can take a short time to complete. It is important to wait for this adjustment
+to complete before removing more nodes from the cluster.
 
 [float]
 === Cluster maintenance, rolling restarts and migrations

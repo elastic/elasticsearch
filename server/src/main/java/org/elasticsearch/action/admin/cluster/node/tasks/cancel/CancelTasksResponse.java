@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +41,8 @@ public class CancelTasksResponse extends ListTasksResponse {
     private static final ConstructingObjectParser<CancelTasksResponse, Void> PARSER =
         setupParser("cancel_tasks_response", CancelTasksResponse::new);
 
-    public CancelTasksResponse() {
+    public CancelTasksResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException>

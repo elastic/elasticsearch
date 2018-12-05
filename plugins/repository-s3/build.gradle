@@ -73,10 +73,7 @@ task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/RepositoryCredentialsTests.class'
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
-  classpath = tasks.test.classpath
-  testClassesDirs = tasks.test.testClassesDirs
 }
-project.check.dependsOn(testRepositoryCreds)
 
 test {
   // these are tested explicitly in separate test tasks

@@ -15,7 +15,7 @@ The API keys are created by the {es} API key service, which is automatically ena
 when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
 you can explicitly enable the `xpack.security.authc.api_key.enabled` setting. When 
 you are running in production mode, a bootstrap check prevents you from enabling 
-the token service unless you also enable TLS on the HTTP interface. 
+the API key service unless you also enable TLS on the HTTP interface. 
 
 A successful create API key API call returns a JSON structure that contains 
 the unique id, the name to identify API key, the API key and the expiration if 

@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -33,7 +35,7 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
         return result;
     }
 
-    private Boolean isCreated() {
+    private boolean isCreated() {
         return result.getInvalidatedTokens().size() > 0
             && result.getPreviouslyInvalidatedTokens().isEmpty()
             && result.getErrors().isEmpty();
@@ -45,7 +47,7 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
         if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(isCreated());
         } else {
-            TokensInvalidationResult.writeTo(result, out);
+            result.writeTo(out);
         }
     }
 
@@ -53,9 +55,14 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.getVersion().before(Version.V_7_0_0)) {
-            result = TokensInvalidationResult.emptyResult();
+            final boolean created = in.readBoolean();
+            if (created) {
+                result = new TokensInvalidationResult(Arrays.asList(""), Collections.emptyList(), Collections.emptyList(), 0);
+            } else {
+                result = new TokensInvalidationResult(Collections.emptyList(), Arrays.asList(""), Collections.emptyList(), 0);
+            }
         } else {
-            result = TokensInvalidationResult.readFrom(in);
+            result = new TokensInvalidationResult(in);
         }
     }
 

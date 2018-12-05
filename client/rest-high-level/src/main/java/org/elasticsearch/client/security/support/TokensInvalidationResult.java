@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -129,7 +130,7 @@ public class TokensInvalidationResult implements ToXContentObject {
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (IOException e) {
-            return "";
+            throw new UncheckedIOException(e);
         }
     }
 }

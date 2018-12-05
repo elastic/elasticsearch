@@ -655,7 +655,7 @@ public final class TokenService {
                 }, e -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     traceLog("(bwc) invalidate tokens", cause);
-                    if (isShardNotAvailableException(e)) {
+                    if (isShardNotAvailableException(cause)) {
                         attemptCount.incrementAndGet();
                         indexBwcInvalidation(tokenIds, listener, attemptCount, expirationEpochMilli, previousResult);
                     } else {
@@ -1334,12 +1334,14 @@ public final class TokenService {
                 final ElasticsearchException esEx = (ElasticsearchException) exception;
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace("Failure in [{}] for id [{}] - [{}] [{}]", action, identifier, detail, esEx.getDetailedMessage());
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail),
+                        esEx);
                 } else {
-                    logger.trace("Failure in [{}] for id [{}] - [{}]", action, identifier, esEx.getDetailedMessage());
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier),
+                        esEx);
                 }
             } else {
-                logger.trace("Failure in [{}] for id [{}] - [{}]", action, identifier, exception.toString());
+                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
             }
         }
         return exception;
@@ -1354,12 +1356,12 @@ public final class TokenService {
                 final ElasticsearchException esEx = (ElasticsearchException) exception;
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace("Failure in [{}] - [{}] [{}]", action, detail, esEx.getDetailedMessage());
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
                 } else {
-                    logger.trace("Failure in [{}] - [{}]", action, esEx.getDetailedMessage());
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
                 }
             } else {
-                logger.trace("Failure in [{}] - [{}]", action, exception.toString());
+                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
             }
         }
         return exception;

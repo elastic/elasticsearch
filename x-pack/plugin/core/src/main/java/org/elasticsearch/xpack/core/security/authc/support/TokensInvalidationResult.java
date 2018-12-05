@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -27,7 +28,7 @@ import java.util.Objects;
  * <li>how many tokens were not invalidated because of an error and what the error was</li>
  * </ul>
  */
-public class TokensInvalidationResult implements ToXContentObject {
+public class TokensInvalidationResult implements ToXContentObject, Writeable {
 
     private final List<String> invalidatedTokens;
     private final List<String> previouslyInvalidatedTokens;
@@ -46,6 +47,18 @@ public class TokensInvalidationResult implements ToXContentObject {
             this.errors = Collections.emptyList();
         }
         this.attemptCount = attemptCount;
+    }
+
+    public TokensInvalidationResult(StreamInput in) throws IOException {
+        this.invalidatedTokens = in.readList(StreamInput::readString);
+        this.previouslyInvalidatedTokens = in.readList(StreamInput::readString);
+        int errorsSize = in.readVInt();
+        List<ElasticsearchException> errors = new ArrayList<>(errorsSize);
+        for (int i = 0; i < errorsSize; i++) {
+            errors.add(in.readException());
+        }
+        this.errors = errors;
+        this.attemptCount = in.readVInt();
     }
 
     public static TokensInvalidationResult emptyResult() {
@@ -70,28 +83,6 @@ public class TokensInvalidationResult implements ToXContentObject {
 
     public int getAttemptCount() {
         return attemptCount;
-    }
-
-    public static void writeTo(TokensInvalidationResult result, StreamOutput out) throws IOException {
-        out.writeStringList(result.getInvalidatedTokens());
-        out.writeStringList(result.getPreviouslyInvalidatedTokens());
-        out.writeVInt(result.getErrors().size());
-        for (Exception e : result.getErrors()) {
-            out.writeException(e);
-        }
-        out.writeVInt(result.getAttemptCount());
-    }
-
-    public static TokensInvalidationResult readFrom(StreamInput in) throws IOException {
-        List<String> invalidatedTokens = in.readList(StreamInput::readString);
-        List<String> previouslyUnvalidatedTokens = in.readList(StreamInput::readString);
-        int errorsSize = in.readVInt();
-        List<ElasticsearchException> errors = new ArrayList<>(errorsSize);
-        for (int i = 0; i < errorsSize; i++) {
-            errors.add(in.readException());
-        }
-        int attemptCounter = in.readVInt();
-        return new TokensInvalidationResult(invalidatedTokens, previouslyUnvalidatedTokens, errors, attemptCounter);
     }
 
     @Override
@@ -135,5 +126,16 @@ public class TokensInvalidationResult implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(errors, attemptCount, invalidatedTokens, previouslyInvalidatedTokens);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeStringList(invalidatedTokens);
+        out.writeStringList(previouslyInvalidatedTokens);
+        out.writeVInt(errors.size());
+        for (Exception e : errors) {
+            out.writeException(e);
+        }
+        out.writeVInt(attemptCount);
     }
 }

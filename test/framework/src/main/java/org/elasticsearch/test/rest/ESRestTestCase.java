@@ -26,16 +26,19 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClient.WarningListener;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,6 +52,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -608,9 +612,21 @@ public abstract class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
+    //TODO change below LogManager.getLogger... to "new NoOpLogger()" and refactor 
+    // org.elasticsearch.xpack.core.security.support.NoOpLogger to somewhere common outside of security
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ESRestTestCase.class)) {};
+
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
+        builder.setWarningListener(new WarningListener() {
+            @Override
+            public void onWarning(Request request, Response response) {
+                for (String warningMessage : response.getWarnings()) {
+                    deprecationLogger.deprecated(warningMessage);
+                }
+            }            
+        });
         builder.setStrictDeprecationMode(getStrictDeprecationMode());
         return builder.build();
     }

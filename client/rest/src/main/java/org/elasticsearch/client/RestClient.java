@@ -108,16 +108,18 @@ public class RestClient implements Closeable {
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
+    private final WarningListener warningListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final boolean strictDeprecationMode;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
-            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
+            WarningListener warningListener, FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
+        this.warningListener = warningListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
         this.strictDeprecationMode = strictDeprecationMode;
@@ -215,7 +217,11 @@ public class RestClient implements Closeable {
     public Response performRequest(Request request) throws IOException {
         SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
         performRequestAsyncNoCatch(request, listener);
-        return listener.get();
+        Response result = listener.get();
+        if (result.hasWarnings() && warningListener != null) {
+            warningListener.onWarning(request, result);
+        }
+        return result;
     }
 
     /**
@@ -236,9 +242,33 @@ public class RestClient implements Closeable {
      */
     public void performRequestAsync(Request request, ResponseListener responseListener) {
         try {
+            if (warningListener != null) {
+                responseListener = new WarningResponseListener(responseListener, request);
+            }
             performRequestAsyncNoCatch(request, responseListener);
         } catch (Exception e) {
             responseListener.onFailure(e);
+        }
+    }
+    // Used to wrap the caller's listener with one that can handle any warnings. 
+    private class WarningResponseListener implements ResponseListener{
+        final ResponseListener delegate;
+        final Request request;
+
+        WarningResponseListener(ResponseListener delegate, Request request) {
+            this.delegate = delegate;
+            this.request = request;
+        }
+
+        public void onSuccess(Response response) {
+            if(response.hasWarnings()){
+                warningListener.onWarning(request, response);
+            }
+            delegate.onSuccess(response);
+        }
+
+        public void onFailure(Exception exception) {
+            delegate.onFailure(exception);
         }
     }
 
@@ -737,6 +767,16 @@ public class RestClient implements Closeable {
          */
         public void onFailure(Node node) {}
     }
+    
+    /**
+     * Listener that allows to be notified whenever a warning is supplied in a response.
+     */
+    public static class WarningListener {
+        /**
+         * Notifies that a response contained a warning.
+         */
+        public void onWarning(Request request, Response response) {}
+    }    
 
     /**
      * {@link NodeTuple} enables the {@linkplain Node}s and {@linkplain AuthCache}

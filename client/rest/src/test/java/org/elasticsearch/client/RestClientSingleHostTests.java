@@ -153,7 +153,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         failureListener = new HostsTrackingFailureListener();
         strictDeprecationMode = randomBoolean();
         restClient = new RestClient(httpClient, 10000, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
+                singletonList(node), null, null, failureListener, NodeSelector.ANY, strictDeprecationMode);
     }
 
     /**

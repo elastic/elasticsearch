@@ -52,6 +52,7 @@ public final class RestClientBuilder {
     private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
+    private RestClient.WarningListener warningListener;
     private HttpClientConfigCallback httpClientConfigCallback;
     private RequestConfigCallback requestConfigCallback;
     private String pathPrefix;
@@ -101,6 +102,17 @@ public final class RestClientBuilder {
         this.failureListener = failureListener;
         return this;
     }
+    
+    /**
+     * Sets the {@link RestClient.WarningListener} to be notified for each request failure
+     *
+     * @throws NullPointerException if {@code warningListener} is {@code null}.
+     */
+    public RestClientBuilder setWarningListener(RestClient.WarningListener warningListener) {
+        Objects.requireNonNull(warningListener, "warningListener must not be null");
+        this.warningListener = warningListener;
+        return this;
+    }    
 
     /**
      * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
@@ -209,7 +221,7 @@ public final class RestClientBuilder {
             }
         });
         RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
+                pathPrefix, warningListener, failureListener, nodeSelector, strictDeprecationMode);
         httpClient.start();
         return restClient;
     }

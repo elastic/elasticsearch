@@ -114,13 +114,13 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
             bulk("test_index", "_" + CLUSTER_TYPE, 5);
-            Request toBeDeleted = new Request("PUT", "/test_index/doc/to_be_deleted");
+            Request toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted");
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
             assertCount("test_index", expectedCount + 6);
 
-            Request delete = new Request("DELETE", "/test_index/doc/to_be_deleted");
+            Request delete = new Request("DELETE", "/test_index/_doc/to_be_deleted");
             delete.addParameter("refresh", "true");
             client().performRequest(delete);
 
@@ -131,7 +131,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");

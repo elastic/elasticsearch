@@ -229,11 +229,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     String clusterAlias = entry.getKey();
-                    TimeValue pingSchedule = REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-                    ConnectionManager connectionManager = new ConnectionManager(settings, transportService.transport,
-                        transportService.threadPool, pingSchedule);
-                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, connectionManager,
-                        numRemoteConnections, getNodePredicate(settings), proxyAddress);
+                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+                        getNodePredicate(settings), proxyAddress);
                     remoteClusters.put(clusterAlias, remote);
                 }
 
@@ -281,7 +278,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, Predicate<String> indexExists) {
         Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
         if (isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = groupClusterIndices(indices, indexExists);
+            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices, indexExists);
             if (groupedIndices.isEmpty()) {
                 //search on _all in the local cluster if neither local indices nor remote indices were specified
                 originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
@@ -383,8 +380,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return connection;
     }
 
-    @Override
-    protected Set<String> getRemoteClusterNames() {
+    Set<String> getRemoteClusterNames() {
         return this.remoteClusters.keySet();
     }
 

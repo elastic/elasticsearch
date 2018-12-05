@@ -91,7 +91,7 @@ public class ClusterBootstrapService {
         }
 
         if (unconfiguredDiscoveryTimeout != null) {
-            logger.debug("discovery not configured, performing best-effort cluster formation after [{}]", unconfiguredDiscoveryTimeout);
+            logger.info("discovery not configured, will perform best-effort cluster bootstrapping after [{}]", unconfiguredDiscoveryTimeout);
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();

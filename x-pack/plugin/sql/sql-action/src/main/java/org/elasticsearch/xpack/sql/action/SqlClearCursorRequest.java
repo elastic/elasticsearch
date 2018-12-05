@@ -19,9 +19,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CLIENT_ID;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CURSOR;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.MODE;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.MODE;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CLIENT_ID;
 
 /**
  * Request to clean all SQL resources associated with the cursor

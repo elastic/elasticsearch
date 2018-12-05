@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.hasSize;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CURSOR;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 
 public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<SqlQueryResponse> {
 

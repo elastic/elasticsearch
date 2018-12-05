@@ -15,8 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlClearCursorRequest> {
     
@@ -25,7 +24,7 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     @Before
     public void setup() {
         requestInfo = new RequestInfo(randomFrom(Mode.values()),
-                randomFrom(CLI, CANVAS, randomAlphaOfLengthBetween(10, 20)));
+                randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
@@ -44,7 +43,7 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     }
     
     private RequestInfo randomRequestInfo() {
-        return new RequestInfo(randomFrom(Mode.values()), randomFrom(CLI, CANVAS, requestInfo.clientId()));
+        return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
 
     @Override

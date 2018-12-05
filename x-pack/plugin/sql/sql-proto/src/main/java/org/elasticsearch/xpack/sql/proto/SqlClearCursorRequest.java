@@ -43,13 +43,9 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("cursor", cursor);
-        if (requestInfo() != null) {
-            if (mode() != null) {
-                builder.field("mode", mode().toString());
-            }
-            if (clientId() != null) {
-                builder.field("client_id", clientId());
-            }
+        builder.field("mode", mode().toString());
+        if (clientId() != null) {
+            builder.field("client_id", clientId());
         }
         return builder;
     }

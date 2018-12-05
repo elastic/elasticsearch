@@ -27,18 +27,16 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 
     public RequestInfo requestInfo;
-    public String clientId;
 
     @Before
     public void setup() {
-        clientId = randomFrom(CLI, CANVAS, randomAlphaOfLengthBetween(10, 20));
-        requestInfo = new RequestInfo(randomFrom(Mode.values()), clientId);
+        requestInfo = new RequestInfo(randomFrom(Mode.values()), 
+                randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
@@ -62,7 +60,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
     }
     
     private RequestInfo randomRequestInfo() {
-        return new RequestInfo(randomFrom(Mode.values()), randomFrom(CLI, CANVAS, clientId));
+        return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
 
     public List<SqlTypedParamValue> randomParameters() {

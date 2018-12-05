@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CURSOR;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 
 /**
  * Response to perform an sql query

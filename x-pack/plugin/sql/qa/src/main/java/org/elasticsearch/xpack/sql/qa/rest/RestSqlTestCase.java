@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -713,7 +714,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
     
     public static String mode(String mode) {
-        return mode.isEmpty() ? "" : ",\"mode\":\"" + mode + "\"";
+        return Strings.isEmpty(mode) ? "" : ",\"mode\":\"" + mode + "\"";
     }
 
     private void index(String... docs) throws IOException {

@@ -23,7 +23,6 @@ import java.util.Objects;
 import java.util.TimeZone;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CURSOR;
 
 /**
  * Request to perform an sql query

@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
@@ -30,38 +31,51 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertParsingErrorMessage("{\"key\" : \"value\"}", "unknown field [key]", SqlTranslateRequest::fromXContent);
     }
     
+    public void testUnknownModeFieldParsingErrors() throws IOException {
+        assertParsingErrorMessageReason("{\"cursor\":\"foo\",\"mode\" : \"value\"}",
+                "No enum constant org.elasticsearch.xpack.sql.proto.Mode.VALUE", SqlClearCursorRequest::fromXContent);
+        assertParsingErrorMessageReason("{\"cursor\":\"foo\",\"mode\" : \"value\"}",
+                "No enum constant org.elasticsearch.xpack.sql.proto.Mode.VALUE", SqlQueryRequest::fromXContent);
+        assertParsingErrorMessageReason("{\"mode\" : \"value\"}",
+                "No enum constant org.elasticsearch.xpack.sql.proto.Mode.VALUE", SqlTranslateRequest::fromXContent);
+    }
+    
     public void testClearCursorRequestParser() throws IOException {
         assertParsingErrorMessage("{\"mode\" : \"jdbc\"}", "Required [cursor]", SqlClearCursorRequest::fromXContent);
         assertParsingErrorMessage("{\"cursor\" : \"whatever\", \"fetch_size\":123}", "unknown field [fetch_size]",
                 SqlClearCursorRequest::fromXContent);
+        Mode randomMode = randomFrom(Mode.values());
         
-        SqlClearCursorRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"jdbc\", \"client_id\" : \"bla\"}",
+        SqlClearCursorRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \""
+                + randomMode.toString() + "\", \"client_id\" : \"bla\"}",
                 SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
-        assertEquals("jdbc", request.mode().toString());
+        assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.getCursor());
         
-        request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"some foo mode\", \"client_id\" : \"bla\"}",
+        randomMode = randomFrom(Mode.values());
+        request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \""
+                + randomMode.toString() + "\", \"client_id\" : \"bla\"}",
                 SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
-        assertEquals("plain", request.mode().toString());
+        assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.getCursor());
         
         request = generateRequest("{\"cursor\" : \"whatever\"}", SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
-        assertEquals("plain", request.mode().toString());
+        assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
         
         request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\"}",
                 SqlClearCursorRequest::fromXContent);
         assertEquals("cli", request.clientId());
-        assertEquals("plain", request.mode().toString());
+        assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
         
         request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"cANVAs\"}",
                 SqlClearCursorRequest::fromXContent);
         assertEquals("canvas", request.clientId());
-        assertEquals("plain", request.mode().toString());
+        assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
     }
     
@@ -70,6 +84,14 @@ public class SqlRequestParsersTests extends ESTestCase {
 
         SqlTranslateRequest request = generateRequest("{\"query\" : \"select * from foo\"}", SqlTranslateRequest::fromXContent);
         assertEquals("select * from foo", request.query());
+        assertEquals(Mode.PLAIN, request.mode());
+        
+        Mode randomMode = randomFrom(Mode.values());
+        request = generateRequest("{\"query\" : \"whatever\", \"client_id\" : \"foo\", \"mode\":\""
+                + randomMode.toString() + "\"}",
+                SqlTranslateRequest::fromXContent);
+        assertNull(request.clientId());
+        assertEquals(randomMode, request.mode());
     }
     
     public void testQueryRequestParser() throws IOException {
@@ -82,11 +104,13 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertParsingErrorMessage("{\"time_zone\":12}", "time_zone doesn't support values of type: VALUE_NUMBER",
                 SqlQueryRequest::fromXContent);
         
-        SqlQueryRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \"jdbc\", \"client_id\" : \"bla\","
+        Mode randomMode = randomFrom(Mode.values());
+        SqlQueryRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \""
+                + randomMode.toString() + "\", \"client_id\" : \"bla\","
                 + "\"query\":\"select\",\"params\":[{\"value\":123, \"type\":\"whatever\"}], \"time_zone\":\"UTC\","
                 + "\"request_timeout\":\"5s\",\"page_timeout\":\"10s\"}", SqlQueryRequest::fromXContent);
         assertNull(request.clientId());
-        assertEquals("jdbc", request.mode().toString());
+        assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.cursor());
         assertEquals("select", request.query());
         
@@ -108,6 +132,12 @@ public class SqlRequestParsersTests extends ESTestCase {
         XContentParser parser = parser(json);
         Exception e = expectThrows(IllegalArgumentException.class, () -> consumer.accept(parser));
         assertThat(e.getMessage(), containsString(errorMessage));
+    }
+    
+    private void assertParsingErrorMessageReason(String json, String errorMessage, Consumer<XContentParser> consumer) throws IOException {
+        XContentParser parser = parser(json);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> consumer.accept(parser));
+        assertThat(e.getCause().getMessage(), containsString(errorMessage));
     }
     
     private XContentParser parser(String content) throws IOException {

@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationState;
+import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -36,6 +38,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -106,6 +109,17 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
         initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         incrementalWrite = false;
+    }
+
+    public PersistedState getPersistedState(Settings settings, ClusterApplierService clusterApplier) {
+        applyClusterStateUpdaters();
+        if (DiscoveryNode.isMasterNode(settings) == false) {
+            // use Zen1 way of writing cluster state for non-master-eligible nodes
+            // this avoids concurrent manipulating of IndexMetadata with IndicesStore
+            clusterApplier.addLowPriorityApplier(this);
+            return new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState());
+        }
+        return this;
     }
 
     private void initializeClusterState(ClusterName clusterName) throws IOException {

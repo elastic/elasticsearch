@@ -1166,7 +1166,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
-        }, 30, TimeUnit.SECONDS);
+        }, 60L, TimeUnit.SECONDS);
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

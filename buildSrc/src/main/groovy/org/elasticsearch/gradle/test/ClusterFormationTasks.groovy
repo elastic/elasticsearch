@@ -136,7 +136,7 @@ class ClusterFormationTasks {
                         esConfig['discovery.zen.hosts_provider'] = 'file'
                     }
                     esConfig['discovery.zen.ping.unicast.hosts'] = []
-                    if (config.minimumMasterNodes.call() > 1 && hasBwcNodes == false) {
+                    if (hasBwcNodes == false) {
                         esConfig['discovery.type'] = 'zen2'
                         esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
                             "node-" + n.nodeNum

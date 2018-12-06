@@ -28,6 +28,7 @@ setup:
 
     - do:
         search:
+          rest_total_hits_as_int: true
           body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : {} } } }
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
@@ -60,7 +61,8 @@ setup:
 
     - do:
         search:
-          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ "_seq_no" ] } } }, "version": true, "docvalue_fields" : [ "_seq_no" ] }
+          rest_total_hits_as_int: true
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ "_seq_no" ]} }}, "version": true, "docvalue_fields" : [ "_seq_no" ] }
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
@@ -83,7 +85,8 @@ setup:
 
     - do:
         search:
-          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ "_seq_no" ] } } }, "version": true, "docvalue_fields" : [ "_seq_no" ] }
+          rest_total_hits_as_int: true
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ "_seq_no" ]} }}, "version": true, "docvalue_fields" : [ "_seq_no" ] }
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }

@@ -89,7 +89,10 @@ The above request will yield the following response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.26152915,
     "hits": [
       { <1>
@@ -237,7 +240,10 @@ GET /my-index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.7093853,
     "hits": [
       {
@@ -417,7 +423,10 @@ This will yield the following response.
     "failed": 0
   },
   "hits": {
-    "total": 2,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
     "max_score": 0.26152915,
     "hits": [
       {
@@ -522,7 +531,10 @@ The slightly different response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.7093853,
     "hits": [
       {
@@ -618,7 +630,10 @@ The above search request returns a response similar to this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.26152915,
     "hits": [
       {

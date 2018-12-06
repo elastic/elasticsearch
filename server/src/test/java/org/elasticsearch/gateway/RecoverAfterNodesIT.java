@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -59,7 +60,9 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
 
     public void testRecoverAfterNodes() throws Exception {
         logger.info("--> start node (1)");
-        Client clientNode1 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3), 1);
+        Client clientNode1 = startNode(Settings.builder()
+                .put("gateway.recover_after_nodes", 3)
+                .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1), 1);
         assertThat(clientNode1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
@@ -86,7 +89,8 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder()
             .put("gateway.recover_after_master_nodes", 2).put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true), 1);
+            .put(Node.NODE_MASTER_SETTING.getKey(), true)
+            .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1), 1);
         assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
@@ -132,7 +136,8 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         Client master1 = startNode(Settings.builder()
             .put("gateway.recover_after_data_nodes", 2)
             .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true), 1);
+            .put(Node.NODE_MASTER_SETTING.getKey(), true)
+            .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1), 1);
         assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));

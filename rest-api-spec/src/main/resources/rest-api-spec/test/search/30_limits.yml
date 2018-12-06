@@ -22,6 +22,7 @@ setup:
   - do:
       catch:      /Result window is too large, from \+ size must be less than or equal to[:] \[10000\] but was \[10010\]\. See the scroll api for a more efficient way to request large data sets\./
       search:
+        rest_total_hits_as_int: true
         index: test_1
         from: 10000
 
@@ -30,6 +31,7 @@ setup:
   - do:
       catch:      /\[from\] parameter cannot be negative/
       search:
+        rest_total_hits_as_int: true
         index: test_1
         from: -2
 
@@ -38,6 +40,7 @@ setup:
   - do:
       catch:      /Batch size is too large, size must be less than or equal to[:] \[10000\] but was \[10010\]\. Scroll batch sizes cost as much memory as result windows so they are controlled by the \[index.max_result_window\] index level setting\./
       search:
+        rest_total_hits_as_int: true
         index: test_1
         scroll: 5m
         size: 10010
@@ -47,6 +50,7 @@ setup:
   - do:
       catch:      /Rescore window \[10001\] is too large\. It must be less than \[10000\]\./
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -68,6 +72,7 @@ setup:
   - do:
       catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -86,6 +91,7 @@ setup:
   - do:
       catch:      /Trying to retrieve too many script_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_script_fields\] index level setting\./
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -104,6 +110,7 @@ setup:
   - do:
       catch: /The length of regex \[1110\] used in the Regexp Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -126,6 +133,7 @@ setup:
   - do:
       catch: /The length of regex \[1110\]/
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:

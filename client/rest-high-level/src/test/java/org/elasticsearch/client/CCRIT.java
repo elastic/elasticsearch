@@ -71,7 +71,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local.seeds", transportAddress));
+        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local_cluster.seeds", transportAddress));
         ClusterUpdateSettingsResponse updateSettingsResponse =
             highLevelClient().cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
@@ -79,7 +79,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertBusy(() -> {
             Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
                 .performRequest(new Request("GET", "/_remote/info")))
-                .get("local");
+                .get("local_cluster");
             assertThat(localConnection, notNullValue());
             assertThat(localConnection.get("connected"), is(true));
         });
@@ -93,7 +93,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
 
-        PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower");
+        PutFollowRequest putFollowRequest = new PutFollowRequest("local_cluster", "leader", "follower");
         PutFollowResponse putFollowResponse = execute(putFollowRequest, ccrClient::putFollow, ccrClient::putFollowAsync);
         assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
         assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -106,7 +106,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         SearchRequest leaderSearchRequest = new SearchRequest("leader");
         SearchResponse leaderSearchResponse = highLevelClient().search(leaderSearchRequest, RequestOptions.DEFAULT);
-        assertThat(leaderSearchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(leaderSearchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         assertBusy(() -> {
             FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
@@ -121,7 +121,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
             SearchRequest followerSearchRequest = new SearchRequest("follower");
             SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
-            assertThat(followerSearchResponse.getHits().getTotalHits(), equalTo(1L));
+            assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         });
 
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
@@ -147,7 +147,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
             SearchRequest followerSearchRequest = new SearchRequest("follower");
             SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
-            assertThat(followerSearchResponse.getHits().getTotalHits(), equalTo(2L));
+            assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(2L));
         });
 
         // Need to pause prior to unfollowing it:
@@ -169,7 +169,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
     public void testAutoFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
         PutAutoFollowPatternRequest putAutoFollowPatternRequest =
-            new PutAutoFollowPatternRequest("pattern1", "local", Collections.singletonList("logs-*"));
+            new PutAutoFollowPatternRequest("pattern1", "local_cluster", Collections.singletonList("logs-*"));
         putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
         AcknowledgedResponse putAutoFollowPatternResponse =
             execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);

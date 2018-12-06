@@ -1148,7 +1148,8 @@ public class DateHistogramIT extends ESIntegTestCase {
                 ).get();
         assertSearchResponse(response);
 
-        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits().value, equalTo(2L));
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits().value,
+                equalTo(2L));
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

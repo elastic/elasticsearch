@@ -259,14 +259,9 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 // check if the Docker binary exists and record its path
-                String dockerBinary
-                if (new File('/usr/bin/docker').exists()) {
-                    dockerBinary = '/usr/bin/docker'
-                } else if (new File('/usr/local/bin/docker').exists()) {
-                    dockerBinary = '/usr/local/bin/docker'
-                } else {
-                    dockerBinary = null
-                }
+                final List<String> maybeDockerBinaries = ['/usr/bin/docker2', '/usr/local/bin/docker2']
+                final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
+
                 int exitCode
                 String dockerErrorOutput
                 if (dockerBinary == null) {
@@ -275,7 +270,7 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     // the Docker binary executes, check that we can execute a privileged command
                     final ByteArrayOutputStream output = new ByteArrayOutputStream()
-                    final ExecResult result = rootProject.exec({ ExecSpec it ->
+                    final ExecResult result = LoggedExec.exec(rootProject, { ExecSpec it ->
                         it.commandLine dockerBinary, "images"
                         it.errorOutput = output
                         it.ignoreExitValue = true
@@ -293,25 +288,30 @@ class BuildPlugin implements Plugin<Project> {
                      * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
                      * exist or because execution of a privileged Docker command failed.
                      */
+                    String message
                     if (dockerBinary == null) {
-                        throw new GradleException(
-                                String.format(
-                                        Locale.ROOT,
-                                        "Docker is required to run the following task%s: \n%s",
-                                        tasks.size() > 1 ? "s" : "",
-                                        tasks.join('\n')))
+                        message = String.format(
+                                Locale.ROOT,
+                                "Docker (checked [%s]) is required to run the following task%s: \n%s",
+                                maybeDockerBinaries.join(","),
+                                tasks.size() > 1 ? "s" : "",
+                                tasks.join('\n'))
                     } else {
                         assert exitCode > 0 && dockerErrorOutput != null
-                        throw new GradleException(
-                                String.format(
-                                        Locale.ROOT,
-                                        "a problem occurred running Docker yet it is required to run the following task%s: \n%s\n" +
-                                                "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
-                                        tasks.size() > 1 ? "s" : "",
-                                        tasks.join('\n'),
-                                        exitCode,
-                                        dockerErrorOutput.trim()))
+                        message = String.format(
+                                Locale.ROOT,
+                                "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
+                                        "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+                                dockerBinary,
+                                tasks.size() > 1 ? "s" : "",
+                                tasks.join('\n'),
+                                exitCode,
+                                dockerErrorOutput.trim())
                     }
+                    throw new GradleException(
+                            message + "\nyou can address this by attending to the reported issue, "
+                                    + "removing the offending tasks from being executed, "
+                                    + "or by passing -Dbuild.docker=false")
                 }
             }
         }

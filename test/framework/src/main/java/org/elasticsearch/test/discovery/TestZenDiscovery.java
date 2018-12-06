@@ -21,8 +21,11 @@ package org.elasticsearch.test.discovery;
 
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -80,6 +83,12 @@ public class TestZenDiscovery extends ZenDiscovery {
                 if (USE_ZEN2.get(settings)) {
                     Supplier<CoordinationState.PersistedState> persistedStateSupplier = () -> {
                         gatewayMetaState.applyClusterStateUpdaters();
+                        if (DiscoveryNode.isMasterNode(settings) == false) {
+                            // use Zen1 way of writing cluster state for non-master-eligible nodes
+                            // this avoids concurrent manipulating of IndexMetadata with IndicesStore
+                            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
+                            return new InMemoryPersistedState(gatewayMetaState.getCurrentTerm(), gatewayMetaState.getLastAcceptedState());
+                        }
                         return gatewayMetaState;
                     };
 

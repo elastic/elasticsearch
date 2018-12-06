@@ -31,10 +31,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesRequest;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -1636,7 +1636,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
-        final Set<String> withdrawnNodeIds = new HashSet<>();
+        final Set<String> excludedNodeIds = new HashSet<>();
 
         if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
 
@@ -1649,13 +1649,13 @@ public final class InternalTestCluster extends TestCluster {
                 // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
                 // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
                 // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
-                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(withdrawnNodeIds::add);
-                assert withdrawnNodeIds.size() == stoppingMasters;
+                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeIds::add);
+                assert excludedNodeIds.size() == stoppingMasters;
 
-                logger.info("withdrawing votes from {} prior to shutdown", withdrawnNodeIds);
+                logger.info("adding voting config exclusions {} prior to shutdown", excludedNodeIds);
                 try {
-                    client().execute(AddVotingTombstonesAction.INSTANCE,
-                        new AddVotingTombstonesRequest(withdrawnNodeIds.toArray(new String[0]))).get();
+                    client().execute(AddVotingConfigExclusionsAction.INSTANCE,
+                        new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(new String[0]))).get();
                 } catch (InterruptedException | ExecutionException e) {
                     throw new AssertionError("unexpected", e);
                 }
@@ -1673,10 +1673,10 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.close();
         }
 
-        if (withdrawnNodeIds.isEmpty() == false) {
-            logger.info("removing voting tombstones for {} after shutdown", withdrawnNodeIds);
+        if (excludedNodeIds.isEmpty() == false) {
+            logger.info("removing voting config exclusions for {} after shutdown", excludedNodeIds);
             try {
-                client().execute(ClearVotingTombstonesAction.INSTANCE, new ClearVotingTombstonesRequest()).get();
+                client().execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new AssertionError("unexpected", e);
             }

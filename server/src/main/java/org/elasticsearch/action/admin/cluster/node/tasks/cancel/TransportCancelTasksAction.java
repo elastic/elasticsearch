@@ -64,7 +64,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
-            CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+            CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
             new BanParentRequestHandler());
     }
@@ -73,11 +73,6 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     protected CancelTasksResponse newResponse(CancelTasksRequest request, List<TaskInfo> tasks, List<TaskOperationFailure>
         taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
         return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected TaskInfo readTaskResponse(StreamInput in) throws IOException {
-        return new TaskInfo(in);
     }
 
     protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {

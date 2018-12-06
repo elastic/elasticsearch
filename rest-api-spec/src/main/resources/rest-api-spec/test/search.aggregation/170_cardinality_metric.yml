@@ -53,6 +53,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             distinct_int:
@@ -73,6 +74,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             distinct_int:
@@ -99,6 +101,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -123,6 +126,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             constant_score:
@@ -153,6 +157,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             distinct_missing:
@@ -169,6 +174,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             distinct_missing:
@@ -184,6 +190,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             distinct_missing:
@@ -203,6 +210,7 @@ setup:
   - do:
       catch: /\[precisionThreshold\] must be greater than or equal to 0. Found \[-1\] in \[distinct_int\]/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             distinct_int:

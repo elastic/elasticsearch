@@ -305,7 +305,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36291")
     public void testRollupIDSchemeAfterRestart() throws Exception {
         assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
         assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
@@ -353,7 +352,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -393,7 +394,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -502,7 +505,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
         Request searchRequest = new Request("GET", ".watcher-history*/_search");
-        searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        if (isRunningAgainstOldCluster() == false) {
+            searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        }
         Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");
         assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));

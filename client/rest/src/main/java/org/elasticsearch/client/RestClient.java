@@ -110,7 +110,7 @@ public class RestClient implements Closeable {
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
-    private final boolean strictDeprecationMode;
+    private final WarningsHandler warningsHandler;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
             FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
@@ -120,7 +120,7 @@ public class RestClient implements Closeable {
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
-        this.strictDeprecationMode = strictDeprecationMode;
+        this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         setNodes(nodes);
     }
 
@@ -274,15 +274,14 @@ public class RestClient implements Closeable {
         setHeaders(httpRequest, request.getOptions().getHeaders());
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
-        boolean thisRequestStrictDeprecationMode = request.getOptions().getStrictDeprecationMode() == null ?
-                strictDeprecationMode : request.getOptions().getStrictDeprecationMode();
-        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes, thisRequestStrictDeprecationMode,
+        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes,
+                request.getOptions().getWarningsHandler() == null ? warningsHandler : request.getOptions().getWarningsHandler(),
                 request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final NodeTuple<Iterator<Node>> nodeTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
-                                     final boolean thisRequestStrictDeprecationMode,
+                                     final WarningsHandler thisWarningsHandler,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
         final Node node = nodeTuple.nodes.next();
@@ -301,7 +300,8 @@ public class RestClient implements Closeable {
                     Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
-                        if (thisRequestStrictDeprecationMode && response.hasWarnings()) {
+                        if (response.hasWarnings()
+                                && thisWarningsHandler.warningsShouldFailRequest(response.getWarnings())) {
                             listener.onDefinitiveFailure(new ResponseException(response));
                         } else {
                             listener.onSuccess(response);
@@ -347,7 +347,7 @@ public class RestClient implements Closeable {
                         listener.trackFailure(exception);
                         request.reset();
                         performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
-                                thisRequestStrictDeprecationMode, httpAsyncResponseConsumerFactory, listener);
+                                thisWarningsHandler, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);

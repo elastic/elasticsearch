@@ -35,6 +35,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
@@ -217,7 +218,7 @@ public class ClientYamlTestClient implements Closeable {
             options.addHeader(header.getKey(), header.getValue());
         }
         // We check the warnings ourselves so we don't need the client to do it for us
-        options.setStrictDeprecationMode(false);
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
         request.setOptions(options);
     }
 

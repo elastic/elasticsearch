@@ -24,12 +24,10 @@ import org.apache.http.Header;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-
-import java.util.ArrayList;
 
 /**
  * The portion of an HTTP request to Elasticsearch that can be
@@ -44,19 +42,19 @@ public final class RequestOptions {
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
-    private final Boolean strictDeprecationMode;
+    private final WarningsHandler warningsHandler;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
-        this.strictDeprecationMode = builder.strictDeprecationMode;
+        this.warningsHandler = builder.warningsHandler;
     }
 
     /**
      * Create a builder that contains these options but can be modified.
      */
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory, strictDeprecationMode);
+        return new Builder(headers, httpAsyncResponseConsumerFactory, warningsHandler);
     }
 
     /**
@@ -77,21 +75,21 @@ public final class RequestOptions {
     }
 
     /**
-     * Override the client's default for
-     * {@link RestClientBuilder#setStrictDeprecationMode strict deprecation}
-     * . Null means accept the client's default, true means throw an
-     * exception if there are warnings, and false means don't throw.
+     * Handler for warnings or null if the request should use
+     * {@link RestClientBuilder#setStrictDeprecationMode}.
      */
-    public Boolean getStrictDeprecationMode() {
-        return strictDeprecationMode;
+    public WarningsHandler getWarningsHandler() {
+        return warningsHandler;
     }
 
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("RequestOptions{");
+        boolean comma = false;
         if (headers.size() > 0) {
-            b.append(", headers=");
+            b.append("headers=");
+            comma = true;
             for (int h = 0; h < headers.size(); h++) {
                 if (h != 0) {
                     b.append(',');
@@ -100,7 +98,14 @@ public final class RequestOptions {
             }
         }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
-            b.append(", consumerFactory=").append(httpAsyncResponseConsumerFactory);
+            if (comma) b.append(", ");
+            comma = true;
+            b.append("consumerFactory=").append(httpAsyncResponseConsumerFactory);
+        }
+        if (warningsHandler != null) {
+            if (comma) b.append(", ");
+            comma = true;
+            b.append("warningsHandler=").append(warningsHandler);
         }
         return b.append('}').toString();
     }
@@ -116,12 +121,13 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
-                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
+                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
+                && Objects.equals(warningsHandler, other.warningsHandler);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(headers, httpAsyncResponseConsumerFactory);
+        return Objects.hash(headers, httpAsyncResponseConsumerFactory, warningsHandler);
     }
 
     /**
@@ -132,13 +138,13 @@ public final class RequestOptions {
     public static class Builder {
         private final List<Header> headers;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
-        private Boolean strictDeprecationMode;
+        private WarningsHandler warningsHandler;
 
         private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                Boolean strictDeprecationMode) {
+                WarningsHandler warningsHandler) {
             this.headers = new ArrayList<>(headers);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
-            this.strictDeprecationMode = strictDeprecationMode;
+            this.warningsHandler = warningsHandler;
         }
 
         /**
@@ -169,13 +175,11 @@ public final class RequestOptions {
         }
 
         /**
-         * Override the client's default for
-         * {@link RestClientBuilder#setStrictDeprecationMode strict deprecation}
-         * . Null means accept the client's default, true means throw an
-         * exception if there are warnings, and false means don't throw.
+         * Handler for warnings or null if the request should use
+         * {@link RestClientBuilder#setStrictDeprecationMode}.
          */
-        public void setStrictDeprecationMode(Boolean strictDeprecationMode) {
-            this.strictDeprecationMode = strictDeprecationMode;
+        public void setWarningsHandler(WarningsHandler warningsHandler) {
+            this.warningsHandler = warningsHandler;
         }
     }
 

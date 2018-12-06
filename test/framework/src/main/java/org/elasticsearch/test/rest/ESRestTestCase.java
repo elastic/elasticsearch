@@ -620,8 +620,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Whether the used REST client should return any response containing at
      * least one warning header as a failure.
      * @deprecated always run in strict mode and use
-     *   {@link RequestOptions.Builder#setStrictDeprecationMode} to enable
-     *   permissive mode for individual requests
+     *   {@link RequestOptions.Builder#setWarningsHandler} to override this
+     *   behavior on individual requests
      */
     @Deprecated
     protected boolean getStrictDeprecationMode() {

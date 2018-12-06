@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -347,7 +348,50 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         assertDeprecationWarnings(
                 Arrays.asList(formatWarning(chars), "another one", "and another"),
                 Arrays.asList(chars,                "another one", "and another"));
+    }
 
+    private enum DeprecationWarningOption {
+        PERMISSIVE {
+            protected WarningsHandler warningsHandler() {
+                return WarningsHandler.PERMISSIVE;
+            }
+            protected List<String> expectedFailingWarnings(List<String> warnings) {
+                return Collections.<String>emptyList();
+            }
+        },
+        STRICT {
+            protected WarningsHandler warningsHandler() {
+                return WarningsHandler.STRICT;
+            }
+            protected List<String> expectedFailingWarnings(List<String> warnings) {
+                return warnings;
+            }
+        },
+        FILTERED {
+            protected WarningsHandler warningsHandler() {
+                return new WarningsHandler() {
+                    @Override
+                    public boolean warningsShouldFailRequest(List<String> warnings) {
+                        return nonIgnorable(warnings).isEmpty();
+                    }
+                };
+            }
+            protected List<String> expectedFailingWarnings(List<String> warnings) {
+                return nonIgnorable(warnings);
+            }
+            private List<String> nonIgnorable(List<String> warnings) {
+                List<String> result = new ArrayList<>();
+                for (String warning : warnings) {
+                    if (false == warning.startsWith("ignorable")) {
+                        result.add(warning);
+                    }
+                }
+                return result;
+            }
+        };
+
+        protected abstract WarningsHandler warningsHandler();
+        protected abstract List<String> expectedFailingWarnings(List<String> warnings);
     }
 
     private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
@@ -357,27 +401,28 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String warningHeaderText : warningHeaderTexts) {
             options.addHeader("Warning", warningHeaderText);
         }
-        boolean thisRequestStrictDeprecationMode;
+        final List<String> expectedFailingWarnings;
         if (randomBoolean()) {
-            thisRequestStrictDeprecationMode = randomBoolean();
-            options.setStrictDeprecationMode(thisRequestStrictDeprecationMode);
+            expectedFailingWarnings = strictDeprecationMode ? warningBodyTexts : Collections.<String>emptyList();
         } else {
-            thisRequestStrictDeprecationMode = strictDeprecationMode;
+            DeprecationWarningOption warningOption = randomFrom(DeprecationWarningOption.values());
+            options.setWarningsHandler(warningOption.warningsHandler());
+            expectedFailingWarnings = warningOption.expectedFailingWarnings(warningBodyTexts);
         }
         request.setOptions(options);
 
         Response response;
-        if (thisRequestStrictDeprecationMode) {
+        if (expectedFailingWarnings.isEmpty()) {
+            response = restClient.performRequest(request);
+        } else {
             try {
                 restClient.performRequest(request);
-                fail("expected ResponseException because strict deprecation mode is enabled");
+                fail("expected ResponseException because of at least one warning");
                 return;
             } catch (ResponseException e) {
-                assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                assertThat(e.getMessage(), containsString("\nWarnings: " + expectedFailingWarnings));
                 response = e.getResponse();
             }
-        } else {
-            response = restClient.performRequest(request);
         }
         assertTrue(response.hasWarnings());
         assertEquals(warningBodyTexts, response.getWarnings());

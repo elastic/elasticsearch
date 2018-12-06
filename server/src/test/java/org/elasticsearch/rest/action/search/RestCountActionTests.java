@@ -24,14 +24,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class RestCountActionTests extends RestActionTestCase {
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpAction() {
         new RestCountAction(Settings.EMPTY, controller());
     }
 

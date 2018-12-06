@@ -28,13 +28,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.io.IOException;
 
 public class RestTermVectorsActionTests extends RestActionTestCase {
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpAction() {
         new RestTermVectorsAction(Settings.EMPTY, controller());
     }
 

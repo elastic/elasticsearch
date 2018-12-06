@@ -25,13 +25,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 
 public class RestMultiSearchActionTests extends RestActionTestCase {
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpAction() {
         new RestMultiSearchAction(Settings.EMPTY, controller());
     }
 

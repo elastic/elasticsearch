@@ -24,11 +24,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 public class RestDeleteActionTests extends RestActionTestCase {
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpAction() {
         new RestDeleteAction(Settings.EMPTY, controller());
     }
 

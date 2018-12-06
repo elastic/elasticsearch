@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.usage.UsageService;
+import org.junit.Before;
 
 import java.util.Collections;
 
@@ -40,8 +41,8 @@ import static org.mockito.Mockito.mock;
 public abstract class RestActionTestCase extends ESTestCase {
     private RestController controller;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpController() {
         controller = new RestController(Collections.emptySet(), null,
             mock(NodeClient.class),
             new NoneCircuitBreakerService(),

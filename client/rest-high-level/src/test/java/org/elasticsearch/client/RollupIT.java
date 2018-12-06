@@ -189,7 +189,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertBusy(() -> {
             SearchResponse searchResponse = highLevelClient().search(new SearchRequest(rollupIndex), RequestOptions.DEFAULT);
             assertEquals(0, searchResponse.getFailedShards());
-            assertEquals(1L, searchResponse.getHits().getTotalHits());
+            assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             Map<String, Object> source = searchHit.getSourceAsMap();

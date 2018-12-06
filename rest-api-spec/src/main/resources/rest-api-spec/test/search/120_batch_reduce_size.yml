@@ -17,6 +17,7 @@ setup:
   - do:
       catch:      /batchedReduceSize must be >= 2/
       search:
+        rest_total_hits_as_int: true
         index: test_1
         batched_reduce_size: 1
 
@@ -48,6 +49,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         batched_reduce_size: 2
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 

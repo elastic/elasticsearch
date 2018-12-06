@@ -946,7 +946,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                         .subAggregation(dateHistogram("date_histo").field("value").interval(1)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -982,7 +982,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                         .format("yyyy-MM-dd:HH-mm-ssZZ"))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(5L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -1145,7 +1145,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 ).execute().actionGet();
         assertSearchResponse(response);
 
-        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits(), equalTo(2L));
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits().value, equalTo(2L));
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

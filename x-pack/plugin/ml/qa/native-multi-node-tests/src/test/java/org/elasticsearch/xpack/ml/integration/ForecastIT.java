@@ -41,7 +41,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36258")
     public void testSingleSeries() throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
 
@@ -85,6 +84,9 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         Bucket lastBucket = buckets.get(buckets.size() - 1);
         long lastBucketTime = lastBucket.getTimestamp().getTime();
 
+        // bucket results (dependent on feature) are returned for the middle of a bucket, see https://github.com/elastic/ml-cpp/pull/327
+        long bucketShift = bucketSpan.getMillis() / 2;
+
         // Now let's verify forecasts
         double expectedForecastValue = 20.0;
 
@@ -101,10 +103,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             List<Forecast> forecasts = getForecasts(job.getId(), forecastDefaultDurationDefaultExpiry);
             assertThat(forecastDefaultDurationDefaultExpiry.getRecordCount(), equalTo(24L));
             assertThat(forecasts.size(), equalTo(24));
-            assertThat(forecasts.get(0).getTimestamp().getTime(), equalTo(lastBucketTime));
+            assertThat(forecasts.get(0).getTimestamp().getTime(), equalTo(bucketShift + lastBucketTime));
             for (int i = 0; i < forecasts.size(); i++) {
                 Forecast forecast = forecasts.get(i);
-                assertThat(forecast.getTimestamp().getTime(), equalTo(lastBucketTime + i * bucketSpan.getMillis()));
+                assertThat(forecast.getTimestamp().getTime(), equalTo(bucketShift + lastBucketTime + i * bucketSpan.getMillis()));
                 assertThat(forecast.getBucketSpan(), equalTo(bucketSpan.getSeconds()));
                 assertThat(forecast.getForecastPrediction(), closeTo(expectedForecastValue, 0.01));
             }
@@ -116,10 +118,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             List<Forecast> forecasts = getForecasts(job.getId(), forecastDuration1HourNoExpiry);
             assertThat(forecastDuration1HourNoExpiry.getRecordCount(), equalTo(1L));
             assertThat(forecasts.size(), equalTo(1));
-            assertThat(forecasts.get(0).getTimestamp().getTime(), equalTo(lastBucketTime));
+            assertThat(forecasts.get(0).getTimestamp().getTime(), equalTo(bucketShift + lastBucketTime));
             for (int i = 0; i < forecasts.size(); i++) {
                 Forecast forecast = forecasts.get(i);
-                assertThat(forecast.getTimestamp().getTime(), equalTo(lastBucketTime + i * bucketSpan.getMillis()));
+                assertThat(forecast.getTimestamp().getTime(), equalTo(bucketShift + lastBucketTime + i * bucketSpan.getMillis()));
                 assertThat(forecast.getBucketSpan(), equalTo(bucketSpan.getSeconds()));
                 assertThat(forecast.getForecastPrediction(), closeTo(expectedForecastValue, 0.01));
             }
@@ -133,10 +135,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             List<Forecast> forecasts = getForecasts(job.getId(), forecastDuration3HoursExpiresIn24Hours);
             assertThat(forecastDuration3HoursExpiresIn24Hours.getRecordCount(), equalTo(3L));
             assertThat(forecasts.size(), equalTo(3));
-            assertThat(forecasts.get(0).getTimestamp().getTime(), equalTo(lastBucketTime));
+            assertThat(forecasts.get(0).getTimestamp().getTime(), equalTo(bucketShift + lastBucketTime));
             for (int i = 0; i < forecasts.size(); i++) {
                 Forecast forecast = forecasts.get(i);
-                assertThat(forecast.getTimestamp().getTime(), equalTo(lastBucketTime + i * bucketSpan.getMillis()));
+                assertThat(forecast.getTimestamp().getTime(), equalTo(bucketShift + lastBucketTime + i * bucketSpan.getMillis()));
                 assertThat(forecast.getBucketSpan(), equalTo(bucketSpan.getSeconds()));
                 assertThat(forecast.getForecastPrediction(), closeTo(expectedForecastValue, 0.01));
             }

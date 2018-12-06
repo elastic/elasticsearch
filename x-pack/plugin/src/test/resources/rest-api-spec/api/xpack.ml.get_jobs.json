@@ -1,12 +1,12 @@
 {
-  "xpack.ml.get_jobs": {
+  "ml.get_jobs": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html",
     "methods": [ "GET"],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}",
+      "path": "/_ml/anomaly_detectors/{job_id}",
       "paths": [
-        "/_xpack/ml/anomaly_detectors/{job_id}",
-        "/_xpack/ml/anomaly_detectors"
+        "/_ml/anomaly_detectors/{job_id}",
+        "/_ml/anomaly_detectors"
       ],
       "parts": {
         "job_id": {

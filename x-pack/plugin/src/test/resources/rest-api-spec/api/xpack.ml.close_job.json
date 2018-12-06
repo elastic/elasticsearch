@@ -1,10 +1,10 @@
 {
-  "xpack.ml.close_job": {
+  "ml.close_job": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-close-job.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_close",
-      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/_close" ],
+      "path": "/_ml/anomaly_detectors/{job_id}/_close",
+      "paths": [ "/_ml/anomaly_detectors/{job_id}/_close" ],
       "parts": {
         "job_id": {
           "type": "string",

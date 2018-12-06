@@ -1,13 +1,13 @@
 {
-  "xpack.ml.stop_datafeed": {
+  "ml.stop_datafeed": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html",
     "methods": [
       "POST"
     ],
     "url": {
-      "path": "/_xpack/ml/datafeeds/{datafeed_id}/_stop",
+      "path": "/_ml/datafeeds/{datafeed_id}/_stop",
       "paths": [
-        "/_xpack/ml/datafeeds/{datafeed_id}/_stop"
+        "/_ml/datafeeds/{datafeed_id}/_stop"
       ],
       "parts": {
         "datafeed_id": {

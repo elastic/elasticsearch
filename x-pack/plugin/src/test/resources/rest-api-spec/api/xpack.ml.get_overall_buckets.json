@@ -1,11 +1,11 @@
 {
-  "xpack.ml.get_overall_buckets": {
+  "ml.get_overall_buckets": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/overall_buckets",
+      "path": "/_ml/anomaly_detectors/{job_id}/results/overall_buckets",
       "paths": [
-        "/_xpack/ml/anomaly_detectors/{job_id}/results/overall_buckets"
+        "/_ml/anomaly_detectors/{job_id}/results/overall_buckets"
       ],
       "parts": {
         "job_id": {

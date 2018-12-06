@@ -1,10 +1,10 @@
 {
-  "xpack.ml.revert_model_snapshot": {
+  "ml.revert_model_snapshot": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert",
-      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert" ],
+      "path": "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert",
+      "paths": [ "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert" ],
       "parts": {
         "job_id": {
           "type": "string",

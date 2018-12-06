@@ -1,9 +1,9 @@
 {
-  "xpack.ml.delete_expired_data": {
+  "ml.delete_expired_data": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/ml/_delete_expired_data",
-      "paths": [ "/_xpack/ml/_delete_expired_data" ],
+      "path": "/_ml/_delete_expired_data",
+      "paths": [ "/_ml/_delete_expired_data" ],
       "parts": {}
     },
     "body": null

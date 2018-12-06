@@ -1,9 +1,9 @@
 {
-  "xpack.ml.validate": {
+  "ml.validate": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/_validate",
-      "paths": [ "/_xpack/ml/anomaly_detectors/_validate" ],
+      "path": "/_ml/anomaly_detectors/_validate",
+      "paths": [ "/_ml/anomaly_detectors/_validate" ],
       "params": {}
     },
     "body": {

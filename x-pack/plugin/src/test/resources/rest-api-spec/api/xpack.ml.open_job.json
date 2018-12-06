@@ -1,10 +1,10 @@
 {
-  "xpack.ml.open_job": {
+  "ml.open_job": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_open",
-      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/_open" ],
+      "path": "/_ml/anomaly_detectors/{job_id}/_open",
+      "paths": [ "/_ml/anomaly_detectors/{job_id}/_open" ],
       "parts": {
         "job_id": {
           "type": "string",

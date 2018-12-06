@@ -1,10 +1,10 @@
 {
-  "xpack.ml.get_calendar_events": {
+  "ml.get_calendar_events": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/ml/calendars/{calendar_id}/events",
+      "path": "/_ml/calendars/{calendar_id}/events",
       "paths": [
-        "/_xpack/ml/calendars/{calendar_id}/events"
+        "/_ml/calendars/{calendar_id}/events"
       ],
       "parts": {
         "calendar_id": {

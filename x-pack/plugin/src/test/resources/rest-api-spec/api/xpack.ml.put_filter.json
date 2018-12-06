@@ -1,9 +1,9 @@
 {
-  "xpack.ml.put_filter": {
+  "ml.put_filter": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_xpack/ml/filters/{filter_id}",
-      "paths": [ "/_xpack/ml/filters/{filter_id}" ],
+      "path": "/_ml/filters/{filter_id}",
+      "paths": [ "/_ml/filters/{filter_id}" ],
       "parts": {
         "filter_id": {
           "type": "string",

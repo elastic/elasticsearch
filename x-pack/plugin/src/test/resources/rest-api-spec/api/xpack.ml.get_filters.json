@@ -1,9 +1,9 @@
 {
-  "xpack.ml.get_filters": {
+  "ml.get_filters": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/ml/filters/{filter_id}",
-      "paths": [ "/_xpack/ml/filters", "/_xpack/ml/filters/{filter_id}" ],
+      "path": "/_ml/filters/{filter_id}",
+      "paths": [ "/_ml/filters", "/_ml/filters/{filter_id}" ],
       "parts": {
         "filter_id": {
           "type" : "string",

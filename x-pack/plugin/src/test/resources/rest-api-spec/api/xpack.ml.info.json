@@ -1,9 +1,9 @@
 {
-  "xpack.ml.info": {
+  "ml.info": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/ml/info",
-      "paths": [ "/_xpack/ml/info" ],
+      "path": "/_ml/info",
+      "paths": [ "/_ml/info" ],
       "parts": {},
       "body": null
     }

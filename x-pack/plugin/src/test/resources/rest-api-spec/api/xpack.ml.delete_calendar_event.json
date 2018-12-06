@@ -1,9 +1,9 @@
 {
-  "xpack.ml.delete_calendar_event": {
+  "ml.delete_calendar_event": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/ml/calendars/{calendar_id}/events/{event_id}",
-      "paths": [ "/_xpack/ml/calendars/{calendar_id}/events/{event_id}" ],
+      "path": "/_ml/calendars/{calendar_id}/events/{event_id}",
+      "paths": [ "/_ml/calendars/{calendar_id}/events/{event_id}" ],
       "parts": {
         "calendar_id": {
           "type" : "string",

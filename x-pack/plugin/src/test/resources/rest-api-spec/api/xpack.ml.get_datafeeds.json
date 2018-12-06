@@ -1,12 +1,12 @@
 {
-  "xpack.ml.get_datafeeds": {
+  "ml.get_datafeeds": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed.html",
     "methods": [ "GET"],
     "url": {
-      "path": "/_xpack/ml/datafeeds/{datafeed_id}",
+      "path": "/_ml/datafeeds/{datafeed_id}",
       "paths": [
-        "/_xpack/ml/datafeeds/{datafeed_id}",
-        "/_xpack/ml/datafeeds"
+        "/_ml/datafeeds/{datafeed_id}",
+        "/_ml/datafeeds"
       ],
       "parts": {
         "datafeed_id": {

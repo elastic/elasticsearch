@@ -1,9 +1,9 @@
 {
-  "xpack.ml.put_calendar": {
+  "ml.put_calendar": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_xpack/ml/calendars/{calendar_id}",
-      "paths": [ "/_xpack/ml/calendars/{calendar_id}" ],
+      "path": "/_ml/calendars/{calendar_id}",
+      "paths": [ "/_ml/calendars/{calendar_id}" ],
       "parts": {
         "calendar_id": {
           "type": "string",

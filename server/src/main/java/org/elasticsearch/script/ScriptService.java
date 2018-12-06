@@ -139,8 +139,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         this.contexts = Objects.requireNonNull(contexts);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
-            throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations not using `script.disable_dynamic: false` in elasticsearch.yml");
+            throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with " +
+                    "fine-grained script settings. \n Dynamic scripts can be enabled for all languages and all operations not " +
+                    "using `script.disable_dynamic: false` in elasticsearch.yml");
         }
 
         this.typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
@@ -357,7 +358,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
                 } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
+                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]",
+                            exception);
                 }
 
                 // Since the cache key is the script content itself we don't need to

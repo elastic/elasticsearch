@@ -388,7 +388,7 @@ public class DerivativeIT extends ESIntegTestCase {
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -418,7 +418,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                 .subAggregation(derivative("deriv", "_count").gapPolicy(randomFrom(GapPolicy.values()))))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx_rnd));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -447,7 +447,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                 .subAggregation(derivative("deriv", "_count").gapPolicy(GapPolicy.INSERT_ZEROS))).execute()
                                 .actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -476,7 +476,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv", "sum"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -518,7 +518,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                 .subAggregation(derivative("deriv", "sum").gapPolicy(GapPolicy.INSERT_ZEROS))).execute()
                 .actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -557,7 +557,7 @@ public class DerivativeIT extends ESIntegTestCase {
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv", "sum").gapPolicy(gapPolicy))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx_rnd));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());

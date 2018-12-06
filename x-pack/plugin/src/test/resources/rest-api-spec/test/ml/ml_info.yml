@@ -12,7 +12,7 @@
       cluster.put_settings:
         body:
           persistent:
-            ml.max_model_memory_limit: "512mb"
+            xpack.ml.max_model_memory_limit: "512mb"
 
   - do:
       ml.info: {}
@@ -26,7 +26,7 @@
       cluster.put_settings:
         body:
           persistent:
-            ml.max_model_memory_limit: "6gb"
+            xpack.ml.max_model_memory_limit: "6gb"
 
   - do:
       ml.info: {}

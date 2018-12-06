@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesRequest;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -89,7 +89,7 @@ public class Zen1IT extends ESIntegTestCase {
                 final int masterIndex = nodes.indexOf(internalCluster().getMasterName());
                 if (zen1NodeCount <= nodeIndex && zen1NodeCount <= masterIndex) {
                     // restarting a Zen2 node following a Zen2 master, with < 3 Zen2 nodes, so it might be the only one with a vote.
-                    client().execute(AddVotingTombstonesAction.INSTANCE, new AddVotingTombstonesRequest(new String[]{node})).get();
+                    client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{node})).get();
                     addedVotingTombstone = true;
                 } else {
                     addedVotingTombstone = false;
@@ -115,9 +115,9 @@ public class Zen1IT extends ESIntegTestCase {
             ensureGreen("test");
 
             if (addedVotingTombstone) {
-                final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
+                final ClearVotingConfigExclusionsRequest clearVotingTombstonesRequest = new ClearVotingConfigExclusionsRequest();
                 clearVotingTombstonesRequest.setWaitForRemoval(false);
-                client().execute(ClearVotingTombstonesAction.INSTANCE, clearVotingTombstonesRequest).get();
+                client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingTombstonesRequest).get();
             }
         }
     }

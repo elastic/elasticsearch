@@ -41,14 +41,15 @@ public class WriteStateException extends IOException {
         return dirty;
     }
 
-    public void rethrowAsErrorOrUncheckedException(String msg) {
+    /**
+     * Rethrows this {@link WriteStateException} as {@link IOError} if dirty flag is set, which will lead to JVM shutdown.
+     * If dirty flag is not set, this exception is wrapped into {@link UncheckedIOException}.
+     */
+    public void rethrowAsErrorOrUncheckedException() {
         if (isDirty()) {
-            // IOError is the best thing we have in java library to indicate that serious IO problem has occurred.
-            // IOError will be caught by ElasticsearchUncaughtExceptionHandler and JVM will be halted.
-            // Sadly, it has no constructor that accepts error message, so we first wrap WriteStateException with IOException.
-            throw new IOError(new IOException(msg + ", storage is dirty", this));
+            throw new IOError(this);
         } else {
-            throw new UncheckedIOException(msg, this);
+            throw new UncheckedIOException(this);
         }
     }
 }

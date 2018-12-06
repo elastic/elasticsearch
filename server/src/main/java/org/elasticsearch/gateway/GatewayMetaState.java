@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -235,8 +236,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         try {
             innerSetCurrentTerm(currentTerm);
         } catch (WriteStateException e) {
-            logger.error("Failed to set current term to {}", currentTerm);
-            e.rethrowAsErrorOrUncheckedException("setCurrentTerm failed");
+            logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
+            e.rethrowAsErrorOrUncheckedException();
         }
     }
 
@@ -253,8 +254,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             incrementalWrite = previousClusterState.term() == clusterState.term();
             updateClusterState(clusterState, previousClusterState);
         } catch (WriteStateException e) {
-            logger.error("Failed to set last accepted state with version {}", clusterState.version());
-            e.rethrowAsErrorOrUncheckedException("setLastAcceptedState failed");
+            logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
+            e.rethrowAsErrorOrUncheckedException();
         }
     }
 

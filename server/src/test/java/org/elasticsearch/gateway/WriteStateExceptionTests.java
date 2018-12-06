@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOError;
 import java.io.UncheckedIOException;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -38,15 +37,13 @@ public class WriteStateExceptionTests extends ESTestCase {
 
     public void testNonDirtyRethrow() {
         WriteStateException ex = new WriteStateException(false, "test", null);
-        UncheckedIOException ex2 = expectThrows(UncheckedIOException.class, () -> ex.rethrowAsErrorOrUncheckedException("test message"));
+        UncheckedIOException ex2 = expectThrows(UncheckedIOException.class, () -> ex.rethrowAsErrorOrUncheckedException());
         assertThat(ex2.getCause(), instanceOf(WriteStateException.class));
-        assertThat(ex2.getMessage(), equalTo("test message"));
     }
 
     public void testDirtyRethrow() {
         WriteStateException ex = new WriteStateException(true, "test", null);
-        IOError err = expectThrows(IOError.class, () -> ex.rethrowAsErrorOrUncheckedException("test message"));
-        assertThat(err.getCause().getCause(), instanceOf(WriteStateException.class));
-        assertThat(err.getMessage(), containsString("test message, storage is dirty"));
+        IOError err = expectThrows(IOError.class, () -> ex.rethrowAsErrorOrUncheckedException());
+        assertThat(err.getCause(), instanceOf(WriteStateException.class));
     }
 }

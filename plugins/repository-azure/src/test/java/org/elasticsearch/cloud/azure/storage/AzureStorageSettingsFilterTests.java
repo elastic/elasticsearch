@@ -19,7 +19,13 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
-import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -31,7 +37,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
 
 /**
@@ -50,8 +58,8 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
 
     public void testSettingsFiltering() throws IOException {
         AzureRepositoryPlugin p = new AzureRepositoryPlugin(settings);
-        SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter());
-        SettingsFilter settingsFilter = ModuleTestCase.bindAndGetInstance(module, SettingsFilter.class);
+        SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter(), emptySet());
+        SettingsFilter settingsFilter = bindAndGetInstance(module, SettingsFilter.class);
 
         // Test using direct filtering
         Settings filteredSettings = settingsFilter.filter(settings);
@@ -64,9 +72,41 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
         xContentBuilder.startObject();
         settings.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
-        String filteredSettingsString = xContentBuilder.string();
+        String filteredSettingsString = Strings.toString(xContentBuilder);
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings.keySet(), contains("cloud.azure.storage.azure1.default"));
+
+        assertSettingDeprecationsAndWarnings(
+                new Setting<?>[] { AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING.getConcreteSettingForNamespace("azure1"),
+                        AzureStorageSettings.DEPRECATED_KEY_SETTING.getConcreteSettingForNamespace("azure1"),
+                        AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING.getConcreteSettingForNamespace("azure2"),
+                        AzureStorageSettings.DEPRECATED_KEY_SETTING.getConcreteSettingForNamespace("azure2"),
+                        AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING.getConcreteSettingForNamespace("azure3"),
+                        AzureStorageSettings.DEPRECATED_KEY_SETTING.getConcreteSettingForNamespace("azure3"),
+                        AzureStorageSettings.DEPRECATED_DEFAULT_SETTING.getConcreteSettingForNamespace("azure1") });
     }
 
+    /**
+     * Configures the module, and returns an instance  bound to the "to" class.
+     */
+    public static <T> T bindAndGetInstance(Module module, Class<T> to) {
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof InstanceBinding) {
+                @SuppressWarnings("rawtypes")
+                InstanceBinding binding = (InstanceBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    return to.cast(binding.getInstance());
+                }
+            } else if (element instanceof ProviderInstanceBinding) {
+                @SuppressWarnings("rawtypes")
+                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    return to.cast(binding.getProviderInstance().get());
+                }
+            }
+        }
+        fail("can't get instance for class " + to);
+        return null; // won't happen ;)
+    }
 }

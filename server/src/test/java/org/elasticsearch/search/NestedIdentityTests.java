@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -76,7 +77,7 @@ public class NestedIdentityTests extends ESTestCase {
               "    \"field\" : \"foo\",\n" +
               "    \"offset\" : 5\n" +
               "  }\n" +
-              "}", builder.string());
+              "}", Strings.toString(builder));
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
         builder = JsonXContent.contentBuilder();
@@ -94,7 +95,7 @@ public class NestedIdentityTests extends ESTestCase {
               "      \"offset\" : 3\n" +
               "    }\n" +
               "  }\n" +
-              "}", builder.string());
+              "}", Strings.toString(builder));
     }
 
     /**

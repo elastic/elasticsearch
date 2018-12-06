@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -62,14 +61,16 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
+                    request.request().preference());
     }
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
         // update the routing (request#index here is possibly an alias)
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
+        request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(),
+            request.request().index()));
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
@@ -93,5 +94,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected GetResponse newResponse() {
         return new GetResponse();
+    }
+
+    @Override
+    protected String getExecutor(GetRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

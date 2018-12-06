@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,12 +39,12 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.YES;
  * the cluster. It exposes two settings via the cluster update API that allow
  * changes in real-time:
  * <ul>
- * <li><tt>cluster.routing.allocation.node_initial_primaries_recoveries</tt> -
+ * <li>{@code cluster.routing.allocation.node_initial_primaries_recoveries} -
  * restricts the number of initial primary shard recovery operations on a single
- * node. The default is <tt>4</tt></li>
- * <li><tt>cluster.routing.allocation.node_concurrent_recoveries</tt> -
+ * node. The default is {@code 4}</li>
+ * <li>{@code cluster.routing.allocation.node_concurrent_recoveries} -
  * restricts the number of total concurrent shards initializing on a single node. The
- * default is <tt>2</tt></li>
+ * default is {@code 2}</li>
  * </ul>
  * <p>
  * If one of the above thresholds is exceeded per node this allocation decider
@@ -51,6 +53,8 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.YES;
  * processes.
  */
 public class ThrottlingAllocationDecider extends AllocationDecider {
+
+    private static final Logger logger = LogManager.getLogger(ThrottlingAllocationDecider.class);
 
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = 2;
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES = 4;
@@ -81,7 +85,6 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int concurrentOutgoingRecoveries;
 
     public ThrottlingAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.primariesInitialRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.get(settings);
         concurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
         concurrentOutgoingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings);

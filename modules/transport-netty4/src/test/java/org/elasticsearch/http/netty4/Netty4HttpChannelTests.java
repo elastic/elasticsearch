@@ -330,7 +330,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
             }
             httpRequest.headers().add(HttpHeaderNames.HOST, host);
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            final Netty4HttpRequest request =
+                    new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
 
             Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());

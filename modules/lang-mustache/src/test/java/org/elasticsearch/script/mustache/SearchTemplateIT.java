@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRespo
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
@@ -100,7 +101,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"size\": 1"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -121,7 +122,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"use_size\": true"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -142,7 +143,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"use_size\": true"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -197,6 +198,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
         assertNull(getResponse.getSource());
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
     public void testIndexedTemplate() throws Exception {
@@ -266,6 +268,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setScript("2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
     // Relates to #10397
@@ -310,6 +313,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
         }
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
@@ -317,7 +321,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertAcked(
                 client().admin().cluster().preparePutStoredScript()
                         .setId("4")
-                        .setContent(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes(), XContentType.JSON)
+                        .setContent(BytesReference.bytes(jsonBuilder().startObject().field("template", multiQuery).endObject()),
+                                XContentType.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
@@ -337,6 +342,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setScript("4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 5);
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
 }

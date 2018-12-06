@@ -20,7 +20,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -42,7 +41,7 @@ import java.util.stream.Stream;
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
  * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
- * referred to as the <tt>shardIndex</tt>.
+ * referred to as the {@code shardIndex}.
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection
  * distributed frequencies
  */
@@ -93,15 +92,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
                 if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                    logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "{}: Failed to execute [{}]",
-                                    shard != null ? shard.shortSummary() :
-                                            shardIt.shardId(),
-                                    request),
-                            e);
+                    logger.debug(new ParameterizedMessage(
+                        "{}: Failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                 } else if (logger.isTraceEnabled()) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
+                    logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
             onPhaseDone();
@@ -109,13 +103,9 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             final ShardRouting nextShard = shardIt.nextOrNull();
             final boolean lastShard = nextShard == null;
             // trace log this exception
-            logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "{}: Failed to execute [{}] lastShard [{}]",
-                            shard != null ? shard.shortSummary() : shardIt.shardId(),
-                            request,
-                            lastShard),
-                    e);
+            logger.trace(() -> new ParameterizedMessage(
+                "{}: Failed to execute [{}] lastShard [{}]",
+                shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
             if (!lastShard) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
@@ -123,14 +113,9 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                        logger.debug(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                        "{}: Failed to execute [{}] lastShard [{}]",
-                                        shard != null ? shard.shortSummary() :
-                                                shardIt.shardId(),
-                                        request,
-                                        lastShard),
-                                e);
+                        logger.debug(new ParameterizedMessage(
+                            "{}: Failed to execute [{}] lastShard [{}]",
+                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
             }
@@ -146,7 +131,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         if (shardsIts.size() > 0) {
             int maxConcurrentShardRequests = Math.min(this.maxConcurrentShardRequests, shardsIts.size());
             final boolean success = shardExecutionIndex.compareAndSet(0, maxConcurrentShardRequests);
-            assert success;            
+            assert success;
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (request.allowPartialSearchResults() == false) {
                 final StringBuilder missingShards = new StringBuilder();
@@ -155,7 +140,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     final SearchShardIterator shardRoutings = shardsIts.get(index);
                     if (shardRoutings.size() == 0) {
                         if(missingShards.length() >0 ){
-                            missingShards.append(", ");                            
+                            missingShards.append(", ");
                         }
                         missingShards.append(shardRoutings.shardId());
                     }
@@ -183,7 +168,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-
     private void maybeFork(final Thread thread, final Runnable runnable) {
         if (thread == Thread.currentThread()) {
             fork(runnable);
@@ -200,7 +184,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 runnable.run();
             }
 
@@ -391,5 +375,4 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         assert iterator.skip();
         successfulShardExecution(iterator);
     }
-
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,53 +64,73 @@ public abstract class RestRequest implements ToXContent.Params {
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
 
     /**
-     * Creates a new RestRequest
-     * @param xContentRegistry the xContentRegistry to use when parsing XContent
-     * @param uri the URI of the request that potentially contains request parameters
-     * @param headers a map of the headers. This map should implement a Case-Insensitive hashing for keys as HTTP header names are case
-     *                insensitive
+     * Creates a new REST request.
+     *
+     * @param xContentRegistry the content registry
+     * @param uri              the raw URI that will be parsed into the path and the parameters
+     * @param headers          a map of the header; this map should implement a case-insensitive lookup
+     * @throws BadParameterException      if the parameters can not be decoded
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
-    public RestRequest(NamedXContentRegistry xContentRegistry, String uri, Map<String, List<String>> headers) {
-        this.xContentRegistry = xContentRegistry;
+    public RestRequest(final NamedXContentRegistry xContentRegistry, final String uri, final Map<String, List<String>> headers) {
+        this(xContentRegistry, params(uri), path(uri), headers);
+    }
+
+    private static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();
-        int pathEndPos = uri.indexOf('?');
-        if (pathEndPos < 0) {
-            this.rawPath = uri;
-        } else {
-            this.rawPath = uri.substring(0, pathEndPos);
-            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
+        int index = uri.indexOf('?');
+        if (index >= 0) {
+            try {
+                RestUtils.decodeQueryString(uri, index + 1, params);
+            } catch (final IllegalArgumentException e) {
+                throw new BadParameterException(e);
+            }
         }
-        this.params = params;
-        this.headers = Collections.unmodifiableMap(headers);
-        final List<String> contentType = getAllHeaderValues("Content-Type");
-        final XContentType xContentType = parseContentType(contentType);
-        if (xContentType != null) {
-            this.xContentType.set(xContentType);
+        return params;
+    }
+
+    private static String path(final String uri) {
+        final int index = uri.indexOf('?');
+        if (index >= 0) {
+            return uri.substring(0, index);
+        } else {
+            return uri;
         }
     }
 
     /**
-     * Creates a new RestRequest
-     * @param xContentRegistry the xContentRegistry to use when parsing XContent
-     * @param params the parameters of the request
-     * @param path the path of the request. This should not contain request parameters
-     * @param headers a map of the headers. This map should implement a Case-Insensitive hashing for keys as HTTP header names are case
-     *                insensitive
+     * Creates a new REST request. In contrast to
+     * {@link RestRequest#RestRequest(NamedXContentRegistry, Map, String, Map)}, the path is not decoded so this constructor will not throw
+     * a {@link BadParameterException}.
+     *
+     * @param xContentRegistry the content registry
+     * @param params           the request parameters
+     * @param path             the raw path (which is not parsed)
+     * @param headers          a map of the header; this map should implement a case-insensitive lookup
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
-    public RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path, Map<String, List<String>> headers) {
+    public RestRequest(
+            final NamedXContentRegistry xContentRegistry,
+            final Map<String, String> params,
+            final String path,
+            final Map<String, List<String>> headers) {
+        final XContentType xContentType;
+        try {
+            xContentType = parseContentType(headers.get("Content-Type"));
+        } catch (final IllegalArgumentException e) {
+            throw new ContentTypeHeaderException(e);
+        }
+        if (xContentType != null) {
+            this.xContentType.set(xContentType);
+        }
         this.xContentRegistry = xContentRegistry;
         this.params = params;
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
-        final List<String> contentType = getAllHeaderValues("Content-Type");
-        final XContentType xContentType = parseContentType(contentType);
-        if (xContentType != null) {
-            this.xContentType.set(xContentType);
-        }
     }
 
     public enum Method {
-        GET, POST, PUT, DELETE, OPTIONS, HEAD
+        GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
     }
 
     public abstract Method method();
@@ -385,8 +406,9 @@ public abstract class RestRequest implements ToXContent.Params {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
             BytesReference content = tuple.v2();
             XContentType xContentType = tuple.v1();
-            try (XContentParser parser = xContentType.xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput())) {
+            try (InputStream stream = content.streamInput();
+                 XContentParser parser = xContentType.xContent()
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 withParser.accept(parser);
             }
         } else {
@@ -421,7 +443,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * Parses the given content type string for the media type. This method currently ignores parameters.
      */
     // TODO stop ignoring parameters such as charset...
-    private static XContentType parseContentType(List<String> header) {
+    public static XContentType parseContentType(List<String> header) {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
@@ -440,6 +462,22 @@ public abstract class RestRequest implements ToXContent.Params {
             }
         }
         throw new IllegalArgumentException("empty Content-Type header");
+    }
+
+    public static class ContentTypeHeaderException extends RuntimeException {
+
+        ContentTypeHeaderException(final IllegalArgumentException cause) {
+            super(cause);
+        }
+
+    }
+
+    public static class BadParameterException extends RuntimeException {
+
+        BadParameterException(final IllegalArgumentException cause) {
+            super(cause);
+        }
+
     }
 
 }

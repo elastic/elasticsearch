@@ -26,6 +26,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.MultiValueMode;
@@ -39,7 +40,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     private final IndexNumericFieldData indexFieldData;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
+            Nested nested) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
     }
@@ -62,11 +64,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
                 final NumericDocValues selectedValues;
                 if (nested == null) {
-                    selectedValues = sortMode.select(values, dMissingValue);
+                    selectedValues = FieldData.replaceMissing(sortMode.select(values), dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                    selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
+                    final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
+                    selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
                 }
                 return selectedValues;
             }

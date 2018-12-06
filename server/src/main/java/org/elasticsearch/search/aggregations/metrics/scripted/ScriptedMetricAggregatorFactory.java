@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -35,28 +35,36 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
-    private final SearchScript.Factory mapScript;
-    private final ExecutableScript.Factory combineScript;
+    private final ScriptedMetricAggContexts.MapScript.Factory mapScript;
+    private final Map<String, Object> mapScriptParams;
+    private final ScriptedMetricAggContexts.CombineScript.Factory combineScript;
+    private final Map<String, Object> combineScriptParams;
     private final Script reduceScript;
-    private final Map<String, Object> params;
+    private final Map<String, Object> aggParams;
     private final SearchLookup lookup;
-    private final ExecutableScript.Factory initScript;
+    private final ScriptedMetricAggContexts.InitScript.Factory initScript;
+    private final Map<String, Object> initScriptParams;
 
-    public ScriptedMetricAggregatorFactory(String name, SearchScript.Factory mapScript, ExecutableScript.Factory initScript,
-                                           ExecutableScript.Factory combineScript, Script reduceScript, Map<String, Object> params,
+    public ScriptedMetricAggregatorFactory(String name,
+                                           ScriptedMetricAggContexts.MapScript.Factory mapScript, Map<String, Object> mapScriptParams,
+                                           ScriptedMetricAggContexts.InitScript.Factory initScript, Map<String, Object> initScriptParams,
+                                           ScriptedMetricAggContexts.CombineScript.Factory combineScript,
+                                           Map<String, Object> combineScriptParams, Script reduceScript, Map<String, Object> aggParams,
                                            SearchLookup lookup, SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
+        this.mapScriptParams = mapScriptParams;
         this.initScript = initScript;
+        this.initScriptParams = initScriptParams;
         this.combineScript = combineScript;
+        this.combineScriptParams = combineScriptParams;
         this.reduceScript = reduceScript;
         this.lookup = lookup;
-        this.params = params;
+        this.aggParams = aggParams;
     }
 
     @Override
@@ -65,26 +73,40 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        Map<String, Object> params = this.params;
-        if (params != null) {
-            params = deepCopyParams(params, context);
+        Map<String, Object> aggParams = this.aggParams;
+        if (aggParams != null) {
+            aggParams = deepCopyParams(aggParams, context);
         } else {
-            params = new HashMap<>();
-        }
-        if (params.containsKey("_agg") == false) {
-            params.put("_agg", new HashMap<String, Object>());
+            aggParams = new HashMap<>();
         }
 
-        final ExecutableScript initScript = this.initScript.newInstance(params);
-        final SearchScript.LeafFactory mapScript = this.mapScript.newFactory(params, lookup);
-        final ExecutableScript combineScript = this.combineScript.newInstance(params);
+        // Add _agg to params map for backwards compatibility (redundant with context variables on the scripts created below).
+        // When this is removed, aggState (as passed to ScriptedMetricAggregator) can be changed to Map<String, Object>, since
+        // it won't be possible to completely replace it with another type as is possible when it's an entry in params.
+        Object aggState = new HashMap<String, Object>();
+        if (aggParams.containsKey("_agg") == false) {
+            // Add _agg if it wasn't added manually
+            aggParams.put("_agg", aggState);
+        } else {
+            // If it was added manually, also use it for the agg context variable to reduce the likelihood of
+            // weird behavior due to multiple different variables.
+            aggState = aggParams.get("_agg");
+        }
+
+        final ScriptedMetricAggContexts.InitScript initScript = this.initScript.newInstance(
+            mergeParams(aggParams, initScriptParams), aggState);
+        final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript = this.mapScript.newFactory(
+            mergeParams(aggParams, mapScriptParams), aggState, lookup);
+        final ScriptedMetricAggContexts.CombineScript combineScript = this.combineScript.newInstance(
+            mergeParams(aggParams, combineScriptParams), aggState);
 
         final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {
-            initScript.run();
+            initScript.execute();
+            CollectionUtils.ensureNoSelfReferences(aggState);
         }
         return new ScriptedMetricAggregator(name, mapScript,
-                combineScript, reduceScript, params, context, parent,
+                combineScript, reduceScript, aggState, context, parent,
                 pipelineAggregators, metaData);
     }
 
@@ -128,5 +150,18 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         return clone;
     }
 
+    private static Map<String, Object> mergeParams(Map<String, Object> agg, Map<String, Object> script) {
+        // Start with script params
+        Map<String, Object> combined = new HashMap<>(script);
 
+        // Add in agg params, throwing an exception if any conflicts are detected
+        for (Map.Entry<String, Object> aggEntry : agg.entrySet()) {
+            if (combined.putIfAbsent(aggEntry.getKey(), aggEntry.getValue()) != null) {
+                throw new IllegalArgumentException("Parameter name \"" + aggEntry.getKey() +
+                    "\" used in both aggregation and script parameters");
+            }
+        }
+
+        return combined;
+    }
 }

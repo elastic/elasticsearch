@@ -20,7 +20,10 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,14 +34,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -61,8 +67,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests relating to the loss of the master.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
@@ -147,8 +153,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
-        final List<String> nodes = startCluster(3, 2);
+        // 3 node cluster with unicast discovery and minimum_master_nodes set to the default of 2:
+        final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
         final String oldMasterNode = internalCluster().getMasterName();
@@ -223,7 +229,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure [{}]", source), e);
+                        logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
                     }
                 });
 
@@ -261,7 +267,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
-        List<String> nodes = startCluster(3, -1);
+        List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
@@ -447,6 +453,56 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
         // the test to fail due to unfreed resources
         ensureStableCluster(2, nonIsolatedNode);
+
+    }
+
+    @TestLogging(
+        "_root:DEBUG,"
+            + "org.elasticsearch.action.bulk:TRACE,"
+            + "org.elasticsearch.action.get:TRACE,"
+            + "org.elasticsearch.cluster.service:TRACE,"
+            + "org.elasticsearch.discovery:TRACE,"
+            + "org.elasticsearch.indices.cluster:TRACE,"
+            + "org.elasticsearch.indices.recovery:TRACE,"
+            + "org.elasticsearch.index.seqno:TRACE,"
+            + "org.elasticsearch.index.shard:TRACE")
+    public void testMappingTimeout() throws Exception {
+        startCluster(3);
+        createIndex("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+        .build());
+
+        // create one field
+        index("test", "doc", "1", "{ \"f\": 1 }");
+
+        ensureGreen();
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put("indices.mapping.dynamic_timeout", "1ms")));
+
+        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        setDisruptionScheme(disruption);
+
+        disruption.startDisrupting();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.add(client().prepareIndex("test", "doc", "2").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test", "doc", "3").setSource("{ \"g\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test", "doc", "4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        BulkResponse bulkResponse = bulk.get();
+        assertTrue(bulkResponse.hasFailures());
+
+        disruption.stopDisrupting();
+
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().get();
+            for (ShardStats shardStats : stats.getShards()) {
+                assertThat(shardStats.getShardRouting().toString(),
+                    shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(shardStats.getSeqNoStats().getLocalCheckpoint()));
+            }
+        });
 
     }
 

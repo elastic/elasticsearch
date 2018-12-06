@@ -18,22 +18,19 @@
  */
 package org.elasticsearch.index.mapper;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -69,6 +66,26 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             public void modify(MappedFieldType ft) {
                 TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
                 tft.setFielddataMinSegmentSize(1000);
+            }
+        });
+        addModifier(new Modifier("index_phrases", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType) ft;
+                tft.setIndexPhrases(true);
+            }
+        });
+        addModifier(new Modifier("index_prefixes", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                TextFieldMapper.PrefixFieldType pft = tft.getPrefixFieldType();
+                if (pft == null) {
+                    tft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft.name(), 3, 3));
+                }
+                else {
+                    tft.setPrefixFieldType(null);
+                }
             }
         });
     }

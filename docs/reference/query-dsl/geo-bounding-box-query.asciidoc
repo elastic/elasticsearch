@@ -329,3 +329,16 @@ and will not match any documents for this query. This can be useful when
 querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
+
+[float]
+==== Notes on Precision
+
+Geopoints have limited precision and are always rounded down during index time.
+During the query time, upper boundaries of the bounding boxes are rounded down,
+while lower boundaries are rounded up. As a result, the points along on the
+lower bounds (bottom and left edges of the bounding box) might not make it into
+the bounding box due to the rounding error. At the same time points alongside
+the upper bounds (top and right edges) might be selected by the query even if
+they are located slightly outside the edge. The rounding error should be less
+than 4.20e-8 degrees on the latitude and less than 8.39e-8 degrees on the
+longitude, which translates to less than 1cm error even at the equator.

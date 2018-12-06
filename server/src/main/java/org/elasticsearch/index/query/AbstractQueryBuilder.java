@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
@@ -29,14 +31,16 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +52,9 @@ import java.util.Objects;
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
 public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> implements QueryBuilder {
+
+    private static final Logger logger = LogManager.getLogger(AbstractQueryBuilder.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
     public static final float DEFAULT_BOOST = 1.0f;
@@ -158,6 +165,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @SuppressWarnings("unchecked")
     @Override
     public final QB boost(float boost) {
+        if (Float.compare(boost, 0f) < 0) {
+            deprecationLogger.deprecatedAndMaybeLog("negative boost", "setting a negative [boost] on a query " +
+                "is deprecated and will throw an error in the next version. You can use a value between 0 and 1 to deboost.");
+        }
         this.boost = boost;
         return (QB) this;
     }
@@ -194,34 +205,38 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected abstract int doHashCode();
 
     /**
-     * This helper method checks if the object passed in is a string, if so it
-     * converts it to a {@link BytesRef}.
+     * This helper method checks if the object passed in is a string or {@link CharBuffer},
+     * if so it converts it to a {@link BytesRef}.
      * @param obj the input object
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
-    static Object convertToBytesRefIfString(Object obj) {
+    static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String) {
             return BytesRefs.toBytesRef(obj);
+        } else if (obj instanceof CharBuffer) {
+            return new BytesRef((CharBuffer) obj);
         }
         return obj;
     }
 
     /**
-     * This helper method checks if the object passed in is a {@link BytesRef}, if so it
-     * converts it to a utf8 string.
+     * This helper method checks if the object passed in is a {@link BytesRef} or {@link CharBuffer},
+     * if so it converts it to a utf8 string.
      * @param obj the input object
-     * @return the same input object or a utf8 string if input was of type {@link BytesRef}
+     * @return the same input object or a utf8 string if input was of type {@link BytesRef} or {@link CharBuffer}
      */
-    static Object convertToStringIfBytesRef(Object obj) {
+    static Object maybeConvertToString(Object obj) {
         if (obj instanceof BytesRef) {
             return ((BytesRef) obj).utf8ToString();
+        } else if (obj instanceof CharBuffer) {
+            return new BytesRef((CharBuffer) obj).utf8ToString();
         }
         return obj;
     }
 
     /**
      * Helper method to convert collection of {@link QueryBuilder} instances to lucene
-     * {@link Query} instances. {@link QueryBuilder} that return <tt>null</tt> calling
+     * {@link Query} instances. {@link QueryBuilder} that return {@code null} calling
      * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
      * resulting collection.
      */
@@ -311,11 +326,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         QueryBuilder result;
         try {
             result = parser.namedObject(QueryBuilder.class, queryName, null);
-        } catch (UnknownNamedObjectException e) {
+        } catch (NamedObjectNotFoundException e) {
             // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
             // This intentionally doesn't include the causing exception because that'd change the "root_cause" of any unknown query errors
             throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
-                    "no [query] registered for [" + e.getName() + "]");
+                    "no [query] registered for [" + queryName + "]");
         }
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
@@ -359,6 +374,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final String toString() {
-        return Strings.toString(this, true, true);
+        return toString(true);
+    }
+
+    public final String toString(boolean pretty) {
+        return Strings.toString(this, pretty, true);
     }
 }

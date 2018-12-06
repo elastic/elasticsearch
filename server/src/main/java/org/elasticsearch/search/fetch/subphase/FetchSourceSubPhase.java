@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -56,6 +57,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         if (nestedHit) {
             value = getNestedSource((Map<String, Object>) value, hitContext);
         }
+
         try {
             final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
             BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
@@ -71,7 +73,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
                 builder.startObject();
                 builder.endObject();
             }
-            hitContext.hit().sourceRef(builder.bytes());
+            hitContext.hit().sourceRef(BytesReference.bytes(builder));
         } catch (IOException e) {
             throw new ElasticsearchException("Error filtering source", e);
         }
@@ -80,6 +82,9 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
     private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
         for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
             sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
+            if (sourceAsMap == null) {
+                return null;
+            }
         }
         return sourceAsMap;
     }

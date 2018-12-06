@@ -97,10 +97,11 @@ PUT /arabic_example
         }
       },
       "analyzer": {
-        "arabic": {
+        "rebuilt_arabic": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
+            "decimal_digit",
             "arabic_stop",
             "arabic_normalization",
             "arabic_keywords",
@@ -113,6 +114,8 @@ PUT /arabic_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"arabic_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: arabic_example, first: arabic, second: rebuilt_arabic}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -144,7 +147,7 @@ PUT /armenian_example
         }
       },
       "analyzer": {
-        "armenian": {
+        "rebuilt_armenian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -159,6 +162,8 @@ PUT /armenian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"armenian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: armenian_example, first: armenian, second: rebuilt_armenian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -190,7 +195,7 @@ PUT /basque_example
         }
       },
       "analyzer": {
-        "basque": {
+        "rebuilt_basque": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -205,6 +210,8 @@ PUT /basque_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"basque_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: basque_example, first: basque, second: rebuilt_basque}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -236,14 +243,15 @@ PUT /bengali_example
         }
       },
       "analyzer": {
-        "bengali": {
+        "rebuilt_bengali": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
+            "decimal_digit",
+            "bengali_keywords",
             "indic_normalization",
             "bengali_normalization",
             "bengali_stop",
-            "bengali_keywords",
             "bengali_stemmer"
           ]
         }
@@ -253,6 +261,8 @@ PUT /bengali_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"bengali_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bengali_example, first: bengali, second: rebuilt_bengali}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -284,7 +294,7 @@ PUT /brazilian_example
         }
       },
       "analyzer": {
-        "brazilian": {
+        "rebuilt_brazilian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -299,6 +309,8 @@ PUT /brazilian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"brazilian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: brazilian_example, first: brazilian, second: rebuilt_brazilian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -330,7 +342,7 @@ PUT /bulgarian_example
         }
       },
       "analyzer": {
-        "bulgarian": {
+        "rebuilt_bulgarian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -345,6 +357,8 @@ PUT /bulgarian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"bulgarian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bulgarian_example, first: bulgarian, second: rebuilt_bulgarian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -364,7 +378,8 @@ PUT /catalan_example
       "filter": {
         "catalan_elision": {
           "type":       "elision",
-          "articles":   [ "d", "l", "m", "n", "s", "t"]
+          "articles":   [ "d", "l", "m", "n", "s", "t"],
+          "articles_case": true
         },
         "catalan_stop": {
           "type":       "stop",
@@ -380,7 +395,7 @@ PUT /catalan_example
         }
       },
       "analyzer": {
-        "catalan": {
+        "rebuilt_catalan": {
           "tokenizer":  "standard",
           "filter": [
             "catalan_elision",
@@ -396,6 +411,8 @@ PUT /catalan_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"catalan_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: catalan_example, first: catalan, second: rebuilt_catalan}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -403,6 +420,9 @@ PUT /catalan_example
 
 [[cjk-analyzer]]
 ===== `cjk` analyzer
+
+NOTE: You may find that `icu_analyzer` in the ICU analysis plugin works better
+for CJK text than the `cjk` analyzer.  Experiment with your text and queries.
 
 The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 
@@ -415,11 +435,17 @@ PUT /cjk_example
       "filter": {
         "english_stop": {
           "type":       "stop",
-          "stopwords":  "_english_" <1>
+          "stopwords":  [ <1>
+            "a", "and", "are", "as", "at", "be", "but", "by", "for",
+            "if", "in", "into", "is", "it", "no", "not", "of", "on",
+            "or", "s", "such", "t", "that", "the", "their", "then",
+            "there", "these", "they", "this", "to", "was", "will",
+            "with", "www"
+          ]
         }
       },
       "analyzer": {
-        "cjk": {
+        "rebuilt_cjk": {
           "tokenizer":  "standard",
           "filter": [
             "cjk_width",
@@ -434,8 +460,12 @@ PUT /cjk_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"cjk_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: cjk_example, first: cjk, second: rebuilt_cjk}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
+    or `stopwords_path` parameters. The default stop words are
+    *almost* the same as the `_english_` set, but not exactly
+    the same.
 
 [[czech-analyzer]]
 ===== `czech` analyzer
@@ -463,7 +493,7 @@ PUT /czech_example
         }
       },
       "analyzer": {
-        "czech": {
+        "rebuilt_czech": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -478,6 +508,8 @@ PUT /czech_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"czech_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: czech_example, first: czech, second: rebuilt_czech}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -509,7 +541,7 @@ PUT /danish_example
         }
       },
       "analyzer": {
-        "danish": {
+        "rebuilt_danish": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -524,6 +556,8 @@ PUT /danish_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"danish_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: danish_example, first: danish, second: rebuilt_danish}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -564,7 +598,7 @@ PUT /dutch_example
         }
       },
       "analyzer": {
-        "dutch": {
+        "rebuilt_dutch": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -580,6 +614,8 @@ PUT /dutch_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"dutch_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: dutch_example, first: dutch, second: rebuilt_dutch}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -615,7 +651,7 @@ PUT /english_example
         }
       },
       "analyzer": {
-        "english": {
+        "rebuilt_english": {
           "tokenizer":  "standard",
           "filter": [
             "english_possessive_stemmer",
@@ -631,6 +667,8 @@ PUT /english_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"english_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: english_example, first: english, second: rebuilt_english}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -662,7 +700,7 @@ PUT /finnish_example
         }
       },
       "analyzer": {
-        "finnish": {
+        "rebuilt_finnish": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -677,6 +715,8 @@ PUT /finnish_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"finnish_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: finnish_example, first: finnish, second: rebuilt_finnish}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -717,7 +757,7 @@ PUT /french_example
         }
       },
       "analyzer": {
-        "french": {
+        "rebuilt_french": {
           "tokenizer":  "standard",
           "filter": [
             "french_elision",
@@ -733,6 +773,8 @@ PUT /french_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"french_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: french_example, first: french, second: rebuilt_french}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -764,7 +806,7 @@ PUT /galician_example
         }
       },
       "analyzer": {
-        "galician": {
+        "rebuilt_galician": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -779,6 +821,8 @@ PUT /galician_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"galician_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: galician_example, first: galician, second: rebuilt_galician}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -810,7 +854,7 @@ PUT /german_example
         }
       },
       "analyzer": {
-        "german": {
+        "rebuilt_german": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -826,6 +870,8 @@ PUT /german_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"german_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: german_example, first: german, second: rebuilt_german}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -861,7 +907,7 @@ PUT /greek_example
         }
       },
       "analyzer": {
-        "greek": {
+        "rebuilt_greek": {
           "tokenizer":  "standard",
           "filter": [
             "greek_lowercase",
@@ -876,6 +922,8 @@ PUT /greek_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"greek_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: greek_example, first: greek, second: rebuilt_greek}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -907,14 +955,15 @@ PUT /hindi_example
         }
       },
       "analyzer": {
-        "hindi": {
+        "rebuilt_hindi": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
+            "decimal_digit",
+            "hindi_keywords",
             "indic_normalization",
             "hindi_normalization",
             "hindi_stop",
-            "hindi_keywords",
             "hindi_stemmer"
           ]
         }
@@ -924,6 +973,8 @@ PUT /hindi_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"hindi_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hindi_example, first: hindi, second: rebuilt_hindi}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -955,7 +1006,7 @@ PUT /hungarian_example
         }
       },
       "analyzer": {
-        "hungarian": {
+        "rebuilt_hungarian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -970,6 +1021,8 @@ PUT /hungarian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"hungarian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hungarian_example, first: hungarian, second: rebuilt_hungarian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1002,7 +1055,7 @@ PUT /indonesian_example
         }
       },
       "analyzer": {
-        "indonesian": {
+        "rebuilt_indonesian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1017,6 +1070,8 @@ PUT /indonesian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"indonesian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: indonesian_example, first: indonesian, second: rebuilt_indonesian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1034,9 +1089,15 @@ PUT /irish_example
   "settings": {
     "analysis": {
       "filter": {
+        "irish_hyphenation": {
+          "type":       "stop",
+          "stopwords":  [ "h", "n", "t" ],
+          "ignore_case": true
+        },
         "irish_elision": {
           "type":       "elision",
-          "articles": [ "h", "n", "t" ]
+          "articles":   [ "d", "m", "b" ],
+          "articles_case": true
         },
         "irish_stop": {
           "type":       "stop",
@@ -1056,12 +1117,13 @@ PUT /irish_example
         }
       },
       "analyzer": {
-        "irish": {
+        "rebuilt_irish": {
           "tokenizer":  "standard",
           "filter": [
-            "irish_stop",
+            "irish_hyphenation",
             "irish_elision",
             "irish_lowercase",
+            "irish_stop",
             "irish_keywords",
             "irish_stemmer"
           ]
@@ -1072,6 +1134,8 @@ PUT /irish_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"irish_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: irish_example, first: irish, second: rebuilt_irish}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1096,7 +1160,8 @@ PUT /italian_example
                 "nell", "sull", "coll", "pell",
                 "gl", "agl", "dagl", "degl", "negl",
                 "sugl", "un", "m", "t", "s", "v", "d"
-          ]
+          ],
+          "articles_case": true
         },
         "italian_stop": {
           "type":       "stop",
@@ -1112,7 +1177,7 @@ PUT /italian_example
         }
       },
       "analyzer": {
-        "italian": {
+        "rebuilt_italian": {
           "tokenizer":  "standard",
           "filter": [
             "italian_elision",
@@ -1128,6 +1193,8 @@ PUT /italian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"italian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: italian_example, first: italian, second: rebuilt_italian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1159,7 +1226,7 @@ PUT /latvian_example
         }
       },
       "analyzer": {
-        "latvian": {
+        "rebuilt_latvian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1174,6 +1241,8 @@ PUT /latvian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"latvian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: latvian_example, first: latvian, second: rebuilt_latvian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1205,7 +1274,7 @@ PUT /lithuanian_example
         }
       },
       "analyzer": {
-        "lithuanian": {
+        "rebuilt_lithuanian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1220,6 +1289,8 @@ PUT /lithuanian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"lithuanian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: lithuanian_example, first: lithuanian, second: rebuilt_lithuanian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1251,7 +1322,7 @@ PUT /norwegian_example
         }
       },
       "analyzer": {
-        "norwegian": {
+        "rebuilt_norwegian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1266,6 +1337,8 @@ PUT /norwegian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"norwegian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: norwegian_example, first: norwegian, second: rebuilt_norwegian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1295,11 +1368,12 @@ PUT /persian_example
         }
       },
       "analyzer": {
-        "persian": {
+        "rebuilt_persian": {
           "tokenizer":     "standard",
           "char_filter": [ "zero_width_spaces" ],
           "filter": [
             "lowercase",
+            "decimal_digit",
             "arabic_normalization",
             "persian_normalization",
             "persian_stop"
@@ -1311,6 +1385,7 @@ PUT /persian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: persian_example, first: persian, second: rebuilt_persian}\nendyaml\n/]
 <1> Replaces zero-width non-joiners with an ASCII space.
 <2> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
@@ -1341,7 +1416,7 @@ PUT /portuguese_example
         }
       },
       "analyzer": {
-        "portuguese": {
+        "rebuilt_portuguese": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1356,6 +1431,8 @@ PUT /portuguese_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"portuguese_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: portuguese_example, first: portuguese, second: rebuilt_portuguese}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1387,7 +1464,7 @@ PUT /romanian_example
         }
       },
       "analyzer": {
-        "romanian": {
+        "rebuilt_romanian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1402,6 +1479,8 @@ PUT /romanian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"romanian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: romanian_example, first: romanian, second: rebuilt_romanian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1434,7 +1513,7 @@ PUT /russian_example
         }
       },
       "analyzer": {
-        "russian": {
+        "rebuilt_russian": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1449,6 +1528,8 @@ PUT /russian_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"russian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: russian_example, first: russian, second: rebuilt_russian}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1480,11 +1561,12 @@ PUT /sorani_example
         }
       },
       "analyzer": {
-        "sorani": {
+        "rebuilt_sorani": {
           "tokenizer":  "standard",
           "filter": [
             "sorani_normalization",
             "lowercase",
+            "decimal_digit",
             "sorani_stop",
             "sorani_keywords",
             "sorani_stemmer"
@@ -1496,6 +1578,8 @@ PUT /sorani_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"sorani_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: sorani_example, first: sorani, second: rebuilt_sorani}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1527,7 +1611,7 @@ PUT /spanish_example
         }
       },
       "analyzer": {
-        "spanish": {
+        "rebuilt_spanish": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1542,6 +1626,8 @@ PUT /spanish_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"spanish_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: spanish_example, first: spanish, second: rebuilt_spanish}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1573,7 +1659,7 @@ PUT /swedish_example
         }
       },
       "analyzer": {
-        "swedish": {
+        "rebuilt_swedish": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
@@ -1588,6 +1674,8 @@ PUT /swedish_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"swedish_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: swedish_example, first: swedish, second: rebuilt_swedish}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1623,7 +1711,7 @@ PUT /turkish_example
         }
       },
       "analyzer": {
-        "turkish": {
+        "rebuilt_turkish": {
           "tokenizer":  "standard",
           "filter": [
             "apostrophe",
@@ -1639,6 +1727,8 @@ PUT /turkish_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"turkish_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: turkish_example, first: turkish, second: rebuilt_turkish}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1662,10 +1752,11 @@ PUT /thai_example
         }
       },
       "analyzer": {
-        "thai": {
+        "rebuilt_thai": {
           "tokenizer":  "thai",
           "filter": [
             "lowercase",
+            "decimal_digit",
             "thai_stop"
           ]
         }
@@ -1675,5 +1766,7 @@ PUT /thai_example
 }
 ----------------------------------------------------
 // CONSOLE
+// TEST[s/"thai_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.

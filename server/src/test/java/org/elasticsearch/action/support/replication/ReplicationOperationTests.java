@@ -443,6 +443,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting routing;
         final long localCheckpoint;
         final long globalCheckpoint;
+        final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
         final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
@@ -452,6 +453,7 @@ public class ReplicationOperationTests extends ESTestCase {
             this.replicationGroupSupplier = replicationGroupSupplier;
             this.localCheckpoint = random().nextLong();
             this.globalCheckpoint = randomNonNegativeLong();
+            this.maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
         }
 
         @Override
@@ -516,6 +518,11 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
+        public long maxSeqNoOfUpdatesOrDeletes() {
+            return maxSeqNoOfUpdatesOrDeletes;
+        }
+
+        @Override
         public ReplicationGroup getReplicationGroup() {
             return replicationGroupSupplier.get();
         }
@@ -571,6 +578,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 final ShardRouting replica,
                 final Request request,
                 final long globalCheckpoint,
+                final long maxSeqNoOfUpdatesOrDeletes,
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             assertTrue("replica request processed twice on [" + replica + "]", request.processedOnReplicas.add(replica));
             if (opFailures.containsKey(replica)) {

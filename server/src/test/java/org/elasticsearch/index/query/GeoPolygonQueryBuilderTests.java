@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -46,8 +44,9 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
     @Override
     protected GeoPolygonQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
         List<GeoPoint> polygon = randomPolygon();
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, polygon);
         if (randomBoolean()) {
             builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
         }
@@ -253,5 +252,39 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
+    }
+
+    public void testPointValidation() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        String queryInvalidLat = "{\n" +
+            "    \"geo_polygon\":{\n" +
+            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+            "            \"points\":[\n" +
+            "                [-70, 140],\n" +
+            "                [-80, 30],\n" +
+            "                [-90, 20]\n" +
+            "            ]\n" +
+            "        }\n" +
+            "    }\n" +
+            "}\n";
+
+        QueryShardException e1 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLat).toQuery(context));
+        assertThat(e1.getMessage(), containsString("illegal latitude value [140.0] for [geo_polygon]"));
+
+        String queryInvalidLon = "{\n" +
+            "    \"geo_polygon\":{\n" +
+            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+            "            \"points\":[\n" +
+            "                [-70, 40],\n" +
+            "                [-80, 30],\n" +
+            "                [-190, 20]\n" +
+            "            ]\n" +
+            "        }\n" +
+            "    }\n" +
+            "}\n";
+
+        QueryShardException e2 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLon).toQuery(context));
+        assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));
     }
 }

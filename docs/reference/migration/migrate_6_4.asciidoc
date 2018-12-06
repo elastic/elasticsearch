@@ -1,0 +1,95 @@
+[[breaking-changes-6.4]]
+== Breaking changes in 6.4
+++++
+<titleabbrev>6.4</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.4.
+
+* <<breaking_64_api_changes>>
+* <<breaking_64_scripting_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_64_api_changes]]
+=== API changes
+
+[float]
+==== Field capabilities request format
+
+In the past, `fields` could be provided either as a parameter, or as part of the request
+body. Specifying `fields` in the request body is now deprecated, and instead they should
+always be supplied through a request parameter. In 7.0.0, the field capabilities API will
+not accept `fields` supplied in the request body.
+
+[float]
+[[copy-source-settings-on-resize]]
+==== Copying source settings during shrink/split operations
+
+In prior versions of Elasticsearch, resize operations (shrink/split) would only
+copy `index.analysis`, `index.similarity`, and `index.sort` settings from the
+source index. Elasticsearch 6.4.0 introduces a request parameter `copy_settings`
+which will copy all index settings from the source except for non-copyable index
+settings. This parameter defaults to `false` in 6.x, is immediately deprecated
+in 6.4.0, will only be able to be set to `true` in 8.x, and will be removed in
+9.0.0. Note than when this parameter is used it means that all copyable settings
+will be copied; this includes the index blocks that must be put in place for a
+resize operation, and any allocation settings put in place in preparation for
+executing the resize operation. If you use this parameter, you will either have
+to follow up the operation with a request to adjust to the desired settings on
+the target index, or send the desired value of these settings with the resize
+operation.
+
+[float]
+[[breaking_64_search_changes]]
+=== Search and query DSL changes
+
+[float]
+==== Limiting the length of regex that can be used in a Regexp Query request
+
+<<query-dsl-regexp-query,Regexp Query>> with long string made of many operators may run into a stack overflow.
+To safeguard against this, the maximum length of regex that can be used in a
+Regexp Query request has been limited to 1000. This default maximum can be changed
+for a particular index with the index setting `index.max_regex_length`.
+
+[float]
+[[breaking_64_scripting_changes]]
+=== Scripting
+
+[float]
+==== Legacy stored script formats have been deprecated
+
+Stored script formats that don't use top level `script` object have been deprecated and
+support for these formats will be removed in the next major release.
+
+This includes `template` stored scripts format and
+formats that do not encapsulate the script inside a `script` json object.
+
+[float]
+[[breaking_64_rest_client_changes]]
+=== REST Client
+
+[float]
+==== Old low level ++performRequest++s deprecated
+The versions of `performRequest` and `performRequestAsync` that were in the
+low level client in 6.3 have been deprecated in favor of
+`performRequest(Request)` and `performRequestAsync(Request, ActionListener)`.
+These will allow us to add more features to the client without adding more
+variants of `performRequest`.
+
+[float]
+==== Old high level request methods deprecated
+All request methods on the high level client have been deprecated in favor
+of a new variant that takes `RequestOptions`. This allows users of the high
+level client to customize many options on individual requests that were not
+available otherwise.
+
+[float]
+==== HostSniffer renamed to NodeSniffer and signature changed
+To provide allow the `Sniffer` to pick up more metadata we changed it from
+sniffing ++HttpHost++s to sniffing ++Node++s, a new class introduced to contain
+both connection information and metadata like the node's role or any
+attributes defined in elasticsearch.yml. These can be used by the new
+`RequestOptions#setNodeSelector`.

@@ -26,12 +26,17 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
 
  `project_id`::
 
-     Your Google project id (mandatory).
+     Your Google project id.
+     By default the project id will be derived from the instance metadata.
+
+     Note: Deriving the project id from system properties or environment variables
+     (`GOOGLE_CLOUD_PROJECT` or `GCLOUD_PROJECT`) is not supported.
 
  `zone`::
 
-     helps to retrieve instances running in a given zone (mandatory). It should be one of the
-     https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     helps to retrieve instances running in a given zone.
+     It should be one of the https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     By default the zone will be derived from the instance metadata.
      See also <<discovery-gce-usage-zones>>.
 
  `retry`::
@@ -83,10 +88,10 @@ Examples:
 --------------------------------------------------
 # get the IP address from network interface 1
 network.host: _gce:privateIp:1_
-# shortcut for _gce:privateIp:0_
-network.host: _gce_
-# Using GCE internal hostname (recommended)
+# Using GCE internal hostname
 network.host: _gce:hostname_
+# shortcut for _gce:privateIp:0_ (recommended)
+network.host: _gce_
 --------------------------------------------------
 
 [[discovery-gce-usage-short]]
@@ -227,7 +232,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      type: gce
+      zen.hosts_provider: gce
 --------------------------------------------------
 
 
@@ -341,7 +346,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      type: gce
+      zen.hosts_provider: gce
 --------------------------------------------------
 
 
@@ -377,7 +382,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      type: gce
+      zen.hosts_provider: gce
       gce:
             tags: elasticsearch, dev
 --------------------------------------------------
@@ -492,7 +497,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      type: gce
+      zen.hosts_provider: gce
 --------------------------------------------------
 
 Replaces `project_id` and `zone` with your settings.

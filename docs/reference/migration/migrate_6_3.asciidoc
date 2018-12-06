@@ -1,0 +1,149 @@
+[[breaking-changes-6.3]]
+== Breaking changes in 6.3
+++++
+<titleabbrev>6.3</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.3.
+
+* <<breaking_63_api_changes>>
+* <<breaking_63_packaging_changes>>
+* <<breaking_63_plugins_changes>>
+* <<breaking_63_settings_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_63_api_changes]]
+=== API changes
+
+[float]
+==== Suggest stats metrics deprecated
+
+The suggest stats were previously folded into the search on the indices stats
+API. As such, the `suggest` metric on the indices stats API has been a synonym
+for the `search` metric. In 6.3.0, the `suggest` metric is deprecated in favor
+of using `search`.
+
+Similarly, the `suggest` index metric on the `indices` metric on the nodes stats
+API has provided a response containing only an empty object since 5.0.0. In
+6.3.0 this metric has been deprecated.
+
+[float]
+[[breaking_63_packaging_changes]]
+=== Packaging changes
+
+Starting with version 6.3, all of the {xpack} features ship with the default 
+distribution of {es}. You no longer need to install {xpack} separately. 
+
+[float]
+==== Deprecation of the `x-pack` configuration directory
+ 
+In 6.2 and earlier releases, the 
+{stack-ov}/security-files.html[security configuration files], such as the 
+`log4j2.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles` 
+files, were located in an `x-pack` directory within the 
+<<config-files-location,config directory>>.  
+
+Starting in 6.3, the security configuration files are located directly in the 
+config directory. 
+
+IMPORTANT: If you upgraded to 6.3, your old security configuration files still 
+exist in an `x-pack` folder. That path is deprecated, however, and you should 
+move your files out of that folder. There is a known problem where the files in 
+the old path are disregarded in favor of the files in the new path: 
+{pull}/33688[#33688]. For more information, see 
+{stack-ov}/trb-security-path.html[Failures due to relocation of the configuration files].
+
+Settings such as `files.role_mapping` now default to 
+`ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations, 
+you must update the settings appropriately. See <<security-settings>>. 
+
+[float]
+[[breaking_63_plugins_changes]]
+=== Plugins changes
+
+[float]
+==== GCS Repository plugin
+
+The repository settings `application_name`, `connect_timeout` and `read_timeout`
+have been deprecated and must now be specified in the client settings instead.
+
+See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
+
+[float]
+==== Ingest Geoip Plugin
+
+In earlier versions, database files have been stored as gzip compressed files
+with the extension `.gz` to save disk space. As a consequence, database files
+had to be loaded in memory. Now the default database files that are stored
+uncompressed as `.mmdb` files which allows to memory-map them and save heap
+memory. Any custom database files must also be stored uncompressed. Consequently,
+the `database_file` property in any ingest pipelines that use the Geoip Processor
+must refer to the uncompressed database files as well.
+
+[float]
+==== Using the plugin installer without a TTY
+
+The Elasticsearch plugin installer (`elasticsearch-plugin install`) would
+previously silently accept additional security permissions required by a plugin
+if standard input was closed or there was no TTY attached (e.g., `docker exec
+<container ID> elasticsearch-plugin install`). This silent accepting of
+additional security permissions has been removed. Now, a user must deliberately
+accept these permissions either by keeping standard input open and attaching a
+TTY (i.e., using interactive mode to accept the permissions), or by passing the
+`--batch` flag.
+
+[float]
+==== Implementing custom realms with SPI instead of XPackExtension
+
+The legacy `XPackExtension` extension mechanism has been removed and replaced
+with an SPI based extension mechanism that is installed and built as an
+elasticsearch plugin. For more information about using SPI loaded security extensions in custom realms, see {stack-ov}/custom-realms.html[Integrating with other authentication systems]. 
+
+[float]
+[[breaking_63_settings_changes]]
+=== Settings changes
+
+[float]
+==== Concurrency level of analyze requests
+
+Previously, analyze requests would run on the same thread pool as indexing
+requests. The `index` thread pool has been deprecated as it is no longer needed
+since indexing requests are internally converted to bulk requests and run on the
+`bulk` thread pool. This leaves analyze requests without a home so we added a
+small thread pool called the `analyze` thread pool. This thread pool defaults to
+having one thread and a queue depth of sixteen requests. This means that
+previously analyze requests had a level of concurrency equal to the size of the
+`index` thread pool and now they have a level of concurrency of one. For most
+users we think this is fine as analyze requests are useful for debugging and so
+probably do not see high concurrency. If you are impacted by this you can
+increase the size of the thread pool by using the `thread_pool.analyze.size`
+setting.
+
+[float]
+==== Renaming the bulk thread pool
+
+The `bulk` thread pool has been renamed to the `write` thread pool. This change
+was made to reflect the fact that this thread pool is used to execute all write
+operations: single-document index/delete/update requests, as well as bulk
+requests. The settings `thread_pool.bulk.size` and `thread_pool.bulk.queue_size`
+are still supported as fallback settings although you should transition to
+`thread_pool.write.size` and `thread_pool.write.queue_size`, respectively. The
+fallback settings will be removed in 7.0.0. Additionally, this means that some
+APIs (e.g., the node stats API) will now display the name of this thread pool as
+`write`. If this change impacts you (e.g., for monitoring that you have in
+place) you can start Elasticsearch with the JVM option
+`-Des.thread_pool.write.use_bulk_as_display_name=true` to have Elasticsearch
+continue to display the name of this thread pool as `bulk`. Elasticsearch will
+stop observing this system property in 7.0.0.
+
+[float]
+==== Enabling monitoring 
+
+By default when you install {xpack}, monitoring is enabled but data collection
+is disabled. To enable data collection, use the new
+`xpack.monitoring.collection.enabled` setting. You can update this setting by
+using the <<cluster-update-settings,Cluster Update Settings API>>. For more
+information, see <<monitoring-settings>>.

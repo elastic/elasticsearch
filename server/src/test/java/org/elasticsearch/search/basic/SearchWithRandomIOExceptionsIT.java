@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +55,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
     }
 
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
-        String mapping = XContentFactory.jsonBuilder().
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject().
             startObject("type").
             startObject("properties").
@@ -63,7 +64,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             .endObject().
                 endObject().
                 endObject()
-            .endObject().string();
+            .endObject());
         final double exceptionRate;
         final double exceptionOnOpenRate;
         if (frequently()) {

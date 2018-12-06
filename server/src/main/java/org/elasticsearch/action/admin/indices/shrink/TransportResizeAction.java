@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -167,25 +167,30 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
             throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
         }
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(metaData.getSettings()) &&
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metaData.getSettings()) &&
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(targetIndexSettings) &&
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
+            throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");
+        }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";
         targetIndex.cause(cause);
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
         settingsBuilder.put("index.number_of_shards", numShards);
         targetIndex.settings(settingsBuilder);
 
-        return new CreateIndexClusterStateUpdateRequest(targetIndex,
-            cause, targetIndex.index(), targetIndexName, true)
-            // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
-            // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we miss
-            // the mappings for everything is corrupted and hard to debug
-            .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
-            .settings(targetIndex.settings())
-            .aliases(targetIndex.aliases())
-            .customs(targetIndex.customs())
-            .waitForActiveShards(targetIndex.waitForActiveShards())
-            .recoverFrom(metaData.getIndex())
-            .resizeType(resizeRequest.getResizeType());
+        return new CreateIndexClusterStateUpdateRequest(targetIndex, cause, targetIndex.index(), targetIndexName, true)
+                // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
+                // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
+                // miss the mappings for everything is corrupted and hard to debug
+                .ackTimeout(targetIndex.timeout())
+                .masterNodeTimeout(targetIndex.masterNodeTimeout())
+                .settings(targetIndex.settings())
+                .aliases(targetIndex.aliases())
+                .waitForActiveShards(targetIndex.waitForActiveShards())
+                .recoverFrom(metaData.getIndex())
+                .resizeType(resizeRequest.getResizeType())
+                .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
     }
 
     @Override

@@ -65,7 +65,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         final AtomicInteger observedStatus = new AtomicInteger();
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(() -> "testUncaughtError") {
+        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler() {
 
             @Override
             void halt(int status) {
@@ -106,7 +106,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         thread.setName(name);
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(() -> "testUncaughtException") {
+        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler() {
             @Override
             void halt(int status) {
                 fail();

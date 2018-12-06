@@ -91,11 +91,14 @@ fi
 
 @test "[$GROUP] install a sample plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
-    rm -rf /tmp/plugins.*
-    rm -rf /tmp/old_plugins.*
+    rm -rf /var/plugins.*
+    rm -rf /var/old_plugins.*
 
     rm -rf "$ESPLUGINS"
-    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    # The custom plugins directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionally means different
+    # processes can have different views of what's in these directories
+    local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"
     ln -s "$es_plugins" "$ESPLUGINS"
 
@@ -188,6 +191,10 @@ fi
     install_and_check_plugin analysis kuromoji
 }
 
+@test "[$GROUP] install nori plugin" {
+    install_and_check_plugin analysis nori
+}
+
 @test "[$GROUP] install phonetic plugin" {
     install_and_check_plugin analysis phonetic commons-codec-*.jar
 }
@@ -221,10 +228,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.17.jar so that the test does
+    # we specify the version on the poi-4.0.0.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.17.jar poi-ooxml-3.17.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -256,6 +263,10 @@ fi
 
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
+}
+
+@test "[$GROUP] install annotated-text mapper plugin" {
+    install_and_check_plugin mapper annotated-text
 }
 
 @test "[$GROUP] check reindex module" {
@@ -316,6 +327,10 @@ fi
     remove_plugin analysis-kuromoji
 }
 
+@test "[$GROUP] remove nori plugin" {
+    remove_plugin analysis-nori
+}
+
 @test "[$GROUP] remove phonetic plugin" {
     remove_plugin analysis-phonetic
 }
@@ -364,6 +379,10 @@ fi
     remove_plugin mapper-murmur3
 }
 
+@test "[$GROUP] remove annotated-text mapper plugin" {
+    remove_plugin mapper-annotated-text
+}
+
 @test "[$GROUP] remove size mapper plugin" {
     remove_plugin mapper-size
 }
@@ -408,7 +427,7 @@ fi
 
 @test "[$GROUP] install a sample plugin with different logging modes and check output" {
     local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     # exclude progress line
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     [ "$loglines" -eq "2" ] || {
@@ -419,7 +438,7 @@ fi
     remove_plugin_example
 
     local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     [ "$loglines" -gt "2" ] || {
         echo "Expected more than 2 lines excluding progress bar but the output had $loglines lines and was:"

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -78,7 +78,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  */
-public class PeerRecoveryTargetService extends AbstractComponent implements IndexEventListener {
+public class PeerRecoveryTargetService implements IndexEventListener {
+
+    private static final Logger logger = LogManager.getLogger(PeerRecoveryTargetService.class);
 
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
@@ -100,9 +102,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
-            recoverySettings, ClusterService clusterService) {
-        super(settings);
+    public PeerRecoveryTargetService(ThreadPool threadPool, TransportService transportService,
+            RecoverySettings recoverySettings, ClusterService clusterService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
@@ -115,8 +116,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 FileChunkTransportRequestHandler());
         transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest::new, ThreadPool.Names.GENERIC, new
                 CleanFilesRequestHandler());
-        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest::new,
-                ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
+            RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC,
                 new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
@@ -144,8 +145,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter, TimeValue activityTimeout) {
-        logger.trace(
-            (Supplier<?>) () -> new ParameterizedMessage(
+        logger.trace(() -> new ParameterizedMessage(
                 "will retry recovery with id [{}] in [{}]", recoveryId, retryAfter), reason);
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
@@ -196,8 +196,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                             new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
-                                public RecoveryResponse newInstance() {
-                                    return new RecoveryResponse();
+                                public RecoveryResponse read(StreamInput in) throws IOException {
+                                    RecoveryResponse recoveryResponse = new RecoveryResponse();
+                                    recoveryResponse.readFrom(in);
+                                    return recoveryResponse;
                                 }
                             }).txGet()));
             final RecoveryResponse recoveryResponse = responseHolder.get();
@@ -229,12 +231,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             logger.trace("recovery cancelled", e);
         } catch (Exception e) {
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "[{}][{}] Got exception on recovery",
-                        request.shardId().getIndex().getName(),
-                        request.shardId().id()),
-                    e);
+                logger.trace(() -> new ParameterizedMessage(
+                        "[{}][{}] Got exception on recovery", request.shardId().getIndex().getName(), request.shardId().id()), e);
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
@@ -364,7 +362,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID);
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
-            final SequenceNumbers.CommitInfo seqNoStats = store.loadSeqNoInfo(safeCommit);
+            final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
             if (logger.isTraceEnabled()) {
                 final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
                 for (IndexCommit commit : existingCommits) {
@@ -406,7 +404,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.createNewTranslog(), request.totalTranslogOps());
+                recoveryRef.target().prepareForTranslogOperations(request.isFileBasedRecovery(), request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -457,7 +455,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
-                    recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
+                    recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps(),
+                        request.maxSeenAutoIdTimestampOnPrimary(), request.maxSeqNoOfUpdatesOrDeletesOnPrimary());
                     channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
                 } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
@@ -532,12 +531,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 long currentVersion = future.get();
                 logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion, currentVersion);
             } catch (Exception e) {
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.debug(() -> new ParameterizedMessage(
                         "failed waiting for cluster state with version {} (current: {})",
-                        clusterStateVersion,
-                        clusterService.state().getVersion()),
-                    e);
+                        clusterStateVersion, clusterService.state().getVersion()), e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         }
@@ -615,16 +611,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void onFailure(Exception e) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    logger.error(() -> new ParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
                     onGoingRecoveries.failRecovery(recoveryId,
                             new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
                             true // be safe
                     );
                 } else {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                    logger.debug(() -> new ParameterizedMessage(
                             "unexpected error during recovery, but recovery id [{}] is finished", recoveryId), e);
                 }
             }

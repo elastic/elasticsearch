@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -69,12 +70,12 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testDynamicObjectCopyTo() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("foo")
                 .field("type", "text")
                 .field("copy_to", "root.top.child")
             .endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
         assertAcked(
             client().admin().indices().prepareCreate("test-idx")
                 .addMapping("_doc", mapping, XContentType.JSON)

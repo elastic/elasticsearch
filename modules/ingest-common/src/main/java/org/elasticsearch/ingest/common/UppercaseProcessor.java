@@ -34,9 +34,13 @@ public final class UppercaseProcessor extends AbstractStringProcessor {
         super(processorTag, field, ignoreMissing, targetField);
     }
 
+    public static String apply(String value) {
+        return value.toUpperCase(Locale.ROOT);
+    }
+
     @Override
     protected String process(String value) {
-        return value.toUpperCase(Locale.ROOT);
+        return apply(value);
     }
 
     @Override

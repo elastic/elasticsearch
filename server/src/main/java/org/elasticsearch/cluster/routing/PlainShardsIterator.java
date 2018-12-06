@@ -24,7 +24,7 @@ import java.util.List;
 
 /**
  * A simple {@link ShardsIterator} that iterates a list or sub-list of
- * {@link ShardRouting shard routings}.
+ * {@link ShardRouting shard indexRoutings}.
  */
 public class PlainShardsIterator implements ShardsIterator {
 

@@ -70,6 +70,10 @@ final class TermVectorsWriter {
             Terms topLevelTerms = topLevelFields.terms(field);
 
             // if no terms found, take the retrieved term vector fields for stats
+            if (fieldTermVector == null) {
+                fieldTermVector = EMPTY_TERMS;
+            }
+
             if (topLevelTerms == null) {
                 topLevelTerms = EMPTY_TERMS;
             }
@@ -133,10 +137,12 @@ final class TermVectorsWriter {
             numFieldsWritten++;
         }
         response.setTermVectorsField(output);
-        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics), flags.contains(Flag.FieldStatistics), hasScores));
+        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics),
+            flags.contains(Flag.FieldStatistics), hasScores));
     }
 
-    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics, boolean getFieldStatistics, boolean scores) throws IOException {
+    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics,
+                                       boolean getFieldStatistics, boolean scores) throws IOException {
         // now, write the information about offset of the terms in the
         // termVectors field
         BytesStreamOutput header = new BytesStreamOutput();

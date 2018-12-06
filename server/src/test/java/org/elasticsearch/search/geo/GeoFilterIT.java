@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.geo;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -33,6 +33,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -42,17 +43,14 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
 import org.locationtech.spatial4j.context.SpatialContext;
@@ -65,8 +63,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
@@ -87,8 +83,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     private static boolean intersectSupport;
@@ -202,7 +198,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         assertTrue("Disjoint relation is not supported", disjointSupport);
         assertTrue("within relation is not supported", withinSupport);
 
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("polygon")
                 .startObject("properties")
@@ -212,7 +208,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
             .addMapping("polygon", mapping, XContentType.JSON);
@@ -229,7 +225,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                                     .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())))
                 .polygon(new PolygonBuilder(
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
-        BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
+        BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -292,7 +288,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .hole(new LineStringBuilder(
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
-        data = jsonBuilder().startObject().field("area", inverse).endObject().bytes();
+        data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
         client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -326,7 +322,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         builder = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
-        data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
+        data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -335,7 +331,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
 
-        data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
+        data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -475,9 +471,8 @@ public class GeoFilterIT extends ESIntegTestCase {
             return true;
         } catch (UnsupportedSpatialOperation e) {
             final SpatialOperation finalRelation = relation;
-            ESLoggerFactory
-                .getLogger(GeoFilterIT.class.getName())
-                .info((Supplier<?>) () -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
+            LogManager.getLogger(GeoFilterIT.class)
+                .info(() -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
             return false;
         }
     }

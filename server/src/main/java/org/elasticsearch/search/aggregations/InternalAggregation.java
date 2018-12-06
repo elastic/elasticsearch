@@ -22,7 +22,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -61,7 +60,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
         /**
          * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
-         * pipeline aggregations should be applied or if specific features like <tt>minDocCount</tt> should be taken into account.
+         * pipeline aggregations should be applied or if specific features like {@code minDocCount} should be taken into account.
          * Operations that are potentially loosing information can only be applied during the final reduce phase.
          */
         public boolean isFinalReduce() {
@@ -77,7 +76,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         }
 
         /**
-         * Adds <tt>count</tt> buckets to the global count for the request and fails if this number is greater than
+         * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
          * the maximum number of buckets allowed in a response
          */
         public void consumeBucketsAndMaybeBreak(int size) {
@@ -143,6 +142,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+
+    /**
+     * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
+     * false, it should return itself if asked to lead a reduction
+     */
+    public boolean isMapped() {
+        return true;
+    }
 
     /**
      * Get the value of specified path in the aggregation.

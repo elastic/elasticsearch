@@ -157,4 +157,15 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         }
         return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
     }
+
+    /**
+     * Checks the invariant that bucket keys are always non-null, even if null keys
+     * were originally provided.
+     */
+    public void testKeyGeneration() {
+        InternalBinaryRange range = createTestInstance();
+        for (InternalBinaryRange.Bucket bucket : range.getBuckets()) {
+            assertNotNull(bucket.getKey());
+        }
+    }
 }

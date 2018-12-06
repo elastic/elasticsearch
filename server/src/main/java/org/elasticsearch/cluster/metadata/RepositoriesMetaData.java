@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -50,8 +52,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      *
      * @param repositories list of repositories
      */
-    public RepositoriesMetaData(RepositoryMetaData... repositories) {
-        this.repositories = Arrays.asList(repositories);
+    public RepositoriesMetaData(List<RepositoryMetaData> repositories) {
+        this.repositories = Collections.unmodifiableList(repositories);
     }
 
     /**
@@ -102,12 +104,17 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         return TYPE;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+
     public RepositoriesMetaData(StreamInput in) throws IOException {
         RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
         for (int i = 0; i < repository.length; i++) {
             repository[i] = new RepositoryMetaData(in);
         }
-        this.repositories = Arrays.asList(repository);
+        this.repositories = Collections.unmodifiableList(Arrays.asList(repository));
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
@@ -150,7 +157,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                             }
                             settings = Settings.fromXContent(parser);
                         } else {
-                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]", name, currentFieldName);
+                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
+                                name, currentFieldName);
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse repository [{}]", name);
@@ -164,7 +172,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
         }
-        return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
+        return new RepositoriesMetaData(repository);
     }
 
     /**

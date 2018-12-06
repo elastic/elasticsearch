@@ -19,35 +19,42 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -68,11 +75,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleQueryStringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+        return Collections.singletonList(MockAnalysisPlugin.class);
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        Settings.Builder settings = Settings.builder();
+        settings.put(indexSettings());
+        settings.put("index.analysis.analyzer.mock_snowball.tokenizer", "standard");
+        settings.put("index.analysis.analyzer.mock_snowball.filter", "mock_snowball");
+        createIndex("test", settings.build());
         indexRandom(true, false,
                 client().prepareIndex("test", "type1", "1").setSource("body", "foo"),
                 client().prepareIndex("test", "type1", "2").setSource("body", "bar"),
@@ -104,7 +115,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "4", "5");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("eggplants").analyzer("snowball")).get();
+                simpleQueryStringQuery("eggplants").analyzer("mock_snowball")).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("4"));
 
@@ -302,17 +313,17 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type1")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "text")
-                .field("analyzer", "german")
+                .field("analyzer", "standard")
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
             .addMapping("type1", mapping, XContentType.JSON);
@@ -352,7 +363,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testEmptySimpleQueryStringWithAnalysis() throws Exception {
         // https://github.com/elastic/elasticsearch/issues/18202
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type1")
                 .startObject("properties")
@@ -362,7 +373,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
@@ -527,28 +538,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
-    public void testExplicitAllFieldsRequested() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        prepareCreate("test")
-                .setSource(indexBody, XContentType.JSON)
-                // .setSettings(Settings.builder().put("index.version.created", Version.V_5_0_0.id)).get();
-                .get();
-        ensureGreen("test");
-
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
-        indexRandom(true, false, reqs);
-
-        SearchResponse resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
-        assertHitCount(resp, 0L);
-
-        resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
-    }
-
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
@@ -561,12 +550,102 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 containsString("NumberFormatException[For input string: \"foo123\"]"));
     }
 
-    private void assertHits(SearchHits hits, String... ids) {
+    public void testFieldAlias() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("value").field("f3_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+    public void testFieldAliasWithWildcardField() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("value").field("f3_*"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+
+    public void testFieldAliasOnDisallowedFieldType() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRandom(true, false, indexRequests);
+
+        // The wildcard field matches aliases for both a text and boolean field.
+        // By default, the boolean field should be ignored when building the query.
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("text").field("f*_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+    }
+
+    static void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());
         }
         assertThat(hitIds, containsInAnyOrder(ids));
+    }
+
+    public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
+
+        public final class MockSnowBall extends TokenFilter {
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+            /** Sole constructor. */
+            MockSnowBall(TokenStream in) {
+                super(in);
+            }
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (input.incrementToken()) {
+                    char[] buffer = termAtt.buffer();
+                    if (buffer[termAtt.length() - 1] == 's') {
+                        termAtt.setLength(termAtt.length() - 1);
+                    }
+                    return true;
+                } else
+                    return false;
+            }
+        }
+
+        @Override
+        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+            return singletonList(PreConfiguredTokenFilter.singleton("mock_snowball", false, MockSnowBall::new));
+        }
     }
 }

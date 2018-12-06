@@ -45,10 +45,13 @@ import static org.elasticsearch.tribe.TribeService.TRIBE_WRITE_BLOCK;
  */
 public class TribeDiscovery extends SingleNodeDiscovery implements Discovery {
 
+    private final Settings settings;
+
     @Inject
     public TribeDiscovery(Settings settings, TransportService transportService,
                           MasterService masterService, ClusterApplier clusterApplier) {
         super(settings, transportService, masterService, clusterApplier);
+        this.settings = settings;
     }
 
     @Override

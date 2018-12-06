@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UProperty;
 import com.ibm.icu.lang.UScript;
-import com.ibm.icu.text.BreakIterator;
 import com.ibm.icu.text.RuleBasedBreakIterator;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.icu.segmentation.DefaultICUTokenizerConfig;
@@ -80,7 +79,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
             if (tailored.isEmpty()) {
                 return null;
             } else {
-                final BreakIterator breakers[] = new BreakIterator[UScript.CODE_LIMIT];
+                final RuleBasedBreakIterator breakers[] = new RuleBasedBreakIterator[UScript.CODE_LIMIT];
                 for (Map.Entry<Integer, String> entry : tailored.entrySet()) {
                     int code = entry.getKey();
                     String resourcePath = entry.getValue();
@@ -89,9 +88,9 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                 // cjkAsWords nor myanmarAsWords are not configurable yet.
                 ICUTokenizerConfig config = new DefaultICUTokenizerConfig(true, true) {
                     @Override
-                    public BreakIterator getBreakIterator(int script) {
+                    public RuleBasedBreakIterator getBreakIterator(int script) {
                         if (breakers[script] != null) {
-                            return (BreakIterator) breakers[script].clone();
+                            return (RuleBasedBreakIterator) breakers[script].clone();
                         } else {
                             return super.getBreakIterator(script);
                         }
@@ -105,7 +104,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     //parse a single RBBi rule file
-    private BreakIterator parseRules(String filename, Environment env) throws IOException {
+    private RuleBasedBreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configFile().resolve(filename);
         String rules = Files.readAllLines(path)

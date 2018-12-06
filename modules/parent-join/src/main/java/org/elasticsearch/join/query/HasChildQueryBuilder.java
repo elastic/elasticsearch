@@ -57,7 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A query builder for <tt>has_child</tt> query.
+ * A query builder for {@code has_child} query.
  */
 public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
     public static final String NAME = "has_child";
@@ -167,6 +167,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
         this.innerHitBuilder = innerHit;
+        innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
         return this;
     }
 
@@ -193,7 +194,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the minimum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MAX_CHILDREN}
+     * The default is {@value #DEFAULT_MIN_CHILDREN}
      */
     public int minChildren() {
         return minChildren;
@@ -201,7 +202,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the maximum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MIN_CHILDREN}
+     * The default is {@value #DEFAULT_MAX_CHILDREN}
      */
     public int maxChildren() { return maxChildren; }
 
@@ -212,6 +213,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public HasChildQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
+        if (innerHitBuilder!= null ){
+            innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
+        }
         return this;
     }
 
@@ -291,7 +295,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         if (innerHitBuilder != null) {
             hasChildQueryBuilder.innerHit(innerHitBuilder);
-            hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         }
         return hasChildQueryBuilder;
     }

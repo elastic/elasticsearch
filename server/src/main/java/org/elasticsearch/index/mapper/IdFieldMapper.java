@@ -86,7 +86,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+                                                 ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
@@ -161,7 +162,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
-                throw new IllegalArgumentException("Fielddata access on the _uid field is disallowed");
+                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed");
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
@@ -171,7 +172,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache, breakerService, mapperService);
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
+                        breakerService, mapperService);
                     if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_beta1)) {
                         // ids were indexed as utf-8
                         return fieldData;
@@ -200,7 +202,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
+                                sortMode, nested);
                             return new SortField(getFieldName(), source, reverse);
                         }
 
@@ -287,9 +290,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {}
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {

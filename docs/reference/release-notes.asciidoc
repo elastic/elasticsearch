@@ -5,30 +5,41 @@
 --
 This section summarizes the changes in each release.
 
+* <<release-notes-6.5.2>>
+* <<release-notes-6.5.1>>
+* <<release-notes-6.5.0>>
+* <<release-notes-6.4.3>>
+* <<release-notes-6.4.2>>
+* <<release-notes-6.4.1>>
+* <<release-notes-6.4.0>>
+* <<release-notes-6.3.2>>
+* <<release-notes-6.3.1>>
+* <<release-notes-6.3.0>>
+* <<release-notes-6.2.4>>
+* <<release-notes-6.2.3>>
 * <<release-notes-6.2.2>>
 * <<release-notes-6.2.1>>
 * <<release-notes-6.2.0>>
+* <<release-notes-6.1.4>>
 * <<release-notes-6.1.3>>
 * <<release-notes-6.1.2>>
 * <<release-notes-6.1.1>>
 * <<release-notes-6.1.0>>
 * <<release-notes-6.0.1>>
 * <<release-notes-6.0.0>>
+* <<release-notes-6.0.0-rc2>>
+* <<release-notes-6.0.0-rc1>>
+* <<release-notes-6.0.0-beta2>>
+* <<release-notes-6.0.0-beta1>>
+* <<release-notes-6.0.0-alpha2>>
+* <<release-notes-6.0.0-alpha1>>
+* <<release-notes-6.0.0-alpha1-5x>>
 
 --
-include::release-notes/6.2.2.asciidoc[]
-include::release-notes/6.2.1.asciidoc[]
-include::release-notes/6.2.0.asciidoc[]
-include::release-notes/6.1.3.asciidoc[]
-include::release-notes/6.1.2.asciidoc[]
-include::release-notes/6.1.1.asciidoc[]
-include::release-notes/6.1.0.asciidoc[]
-include::release-notes/6.0.1.asciidoc[]
-include::release-notes/6.0.0.asciidoc[]
-include::release-notes/6.0.0-rc2.asciidoc[]
-include::release-notes/6.0.0-rc1.asciidoc[]
-include::release-notes/6.0.0-beta2.asciidoc[]
-include::release-notes/6.0.0-beta1.asciidoc[]
-include::release-notes/6.0.0-alpha2.asciidoc[]
-include::release-notes/6.0.0-alpha1.asciidoc[]
-include::release-notes/6.0.0-alpha1-5x.asciidoc[]
+
+include::release-notes/6.5.asciidoc[]
+include::release-notes/6.4.asciidoc[]
+include::release-notes/6.3.asciidoc[]
+include::release-notes/6.2.asciidoc[]
+include::release-notes/6.1.asciidoc[]
+include::release-notes/6.0.asciidoc[]

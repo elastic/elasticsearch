@@ -31,12 +31,22 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
-    protected boolean preserveIndicesUponCompletion() {
+    protected final boolean preserveIndicesUponCompletion() {
         return true;
     }
 
     @Override
-    protected boolean preserveReposUponCompletion() {
+    protected final boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
         return true;
     }
 
@@ -60,4 +70,3 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
             .build();
     }
 }
-

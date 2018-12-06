@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -58,7 +57,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (script == null) {
                 @SuppressWarnings("unchecked")
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
-                config.format(resolveFormat(null, valueType));
+                config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
@@ -72,7 +71,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
+            config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
             config.scriptValueType(valueType);
             return config;
@@ -84,7 +83,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
+            config.format(resolveFormat(format, valueType, timeZone));
             config.unmapped(true);
             if (valueType != null) {
                 // todo do we really need this for unmapped?
@@ -125,13 +124,16 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable DateTimeZone tz) {
         if (valueType == null) {
             return DocValueFormat.RAW; // we can't figure it out
         }
         DocValueFormat valueFormat = valueType.defaultFormat;
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
             valueFormat = new DocValueFormat.Decimal(format);
+        }
+        if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
+            valueFormat = new DocValueFormat.DateTime(Joda.forPattern(format), tz != null ? tz : DateTimeZone.UTC);
         }
         return valueFormat;
     }
@@ -263,7 +265,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
         } else if (vs instanceof ValuesSource.GeoPoint) {
             // TODO: also support the structured formats of geo points
-            final GeoPoint missing = GeoUtils.parseGeoPoint(missing().toString(), new GeoPoint());
+            final GeoPoint missing = new GeoPoint(missing().toString());
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
         } else {
             // Should not happen

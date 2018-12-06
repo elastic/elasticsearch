@@ -30,11 +30,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -42,7 +40,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -50,6 +47,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
@@ -63,11 +61,11 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -156,12 +154,16 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 indexWriter.addDocument(document);
                 document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("c")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
                 indexWriter.addDocument(document);
                 document = new Document();
                 document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("d")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -179,15 +181,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
                         Terms result = (Terms) aggregator.buildAggregation(0L);
-                        assertEquals(4, result.getBuckets().size());
-                        assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                        assertEquals(5, result.getBuckets().size());
+                        assertEquals("", result.getBuckets().get(0).getKeyAsString());
                         assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                        assertEquals("a", result.getBuckets().get(1).getKeyAsString());
                         assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                        assertEquals("c", result.getBuckets().get(2).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(2).getDocCount());
-                        assertEquals("d", result.getBuckets().get(3).getKeyAsString());
+                        assertEquals("b", result.getBuckets().get(2).getKeyAsString());
+                        assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                        assertEquals("c", result.getBuckets().get(3).getKeyAsString());
                         assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                        assertEquals("d", result.getBuckets().get(4).getKeyAsString());
+                        assertEquals(1L, result.getBuckets().get(4).getDocCount());
                     }
                 }
             }
@@ -812,12 +816,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 fieldType1.setHasDocValues(true);
 
                 MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType1.setName("another_long");
-                fieldType1.setHasDocValues(true);
+                fieldType2.setName("another_long");
+                fieldType2.setHasDocValues(true);
 
                 MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                fieldType1.setName("another_double");
-                fieldType1.setHasDocValues(true);
+                fieldType3.setName("another_double");
+                fieldType3.setHasDocValues(true);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG, ValueType.DOUBLE};
@@ -1040,26 +1044,43 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         fieldType.setHasDocValues(true);
                         fieldType.setName("nested_value");
                         try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
-                            InternalNested result = search(newSearcher(indexReader, false, true),
-                                // match root document only
-                                new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
-                            InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                            assertThat(terms.getBuckets().size(), equalTo(9));
-                            int ptr = 9;
-                            for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                                InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-                                assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
-                                if (withScore) {
-                                    assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
-                                } else {
-                                    assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
-                                }
-                                --ptr;
+                            {
+                                InternalNested result = search(newSearcher(indexReader, false, true),
+                                    // match root document only
+                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
+                                InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                                assertNestedTopHitsScore(terms, withScore);
+                            }
+
+                            {
+                                FilterAggregationBuilder filter = new FilterAggregationBuilder("filter", new MatchAllQueryBuilder())
+                                    .subAggregation(nested);
+                                InternalFilter result = search(newSearcher(indexReader, false, true),
+                                    // match root document only
+                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), filter, fieldType);
+                                InternalNested nestedResult = result.getAggregations().get("nested");
+                                InternalMultiBucketAggregation<?, ?> terms = nestedResult.getAggregations().get("terms");
+                                assertNestedTopHitsScore(terms, withScore);
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    private void assertNestedTopHitsScore(InternalMultiBucketAggregation<?, ?> terms, boolean withScore) {
+        assertThat(terms.getBuckets().size(), equalTo(9));
+        int ptr = 9;
+        for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+            InternalTopHits topHits = bucket.getAggregations().get("top_hits");
+            assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
+            if (withScore) {
+                assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
+            } else {
+                assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
+            }
+            --ptr;
         }
     }
 

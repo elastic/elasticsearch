@@ -1,0 +1,8 @@
+---
+"Test restart watcher api":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do: {xpack.watcher.restart: {}}
+  - match: { acknowledged: true }

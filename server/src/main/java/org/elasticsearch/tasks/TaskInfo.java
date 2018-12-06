@@ -26,10 +26,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -195,8 +197,11 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         if (description != null) {
             builder.field("description", description);
         }
-        builder.dateField("start_time_in_millis", "start_time", startTime);
-        builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
+        builder.timeField("start_time_in_millis", "start_time", startTime);
+        if (builder.humanReadable()) {
+            builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());
@@ -207,6 +212,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.endObject();
         return builder;
+    }
+
+    public static TaskInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
@@ -238,7 +247,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("type"));
         PARSER.declareString(constructorArg(), new ParseField("action"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("status"));
+        ObjectParserHelper<TaskInfo, Void> parserHelper = new ObjectParserHelper<>();
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
@@ -248,7 +258,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 
     // Implements equals and hashCode for testing

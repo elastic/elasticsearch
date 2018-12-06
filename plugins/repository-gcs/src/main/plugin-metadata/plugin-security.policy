@@ -18,11 +18,12 @@
  */
 
 grant {
+  // required by: com.google.api.client.json.JsonParser#parseValue
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.RuntimePermission "setFactory";
+  // required by: com.google.api.client.json.GenericJson#<init>
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  permission java.net.URLPermission "http://www.googleapis.com/*", "*";
-  permission java.net.URLPermission "https://www.googleapis.com/*", "*";
+  // required to add google certs to the gcs client trustore
+  permission java.lang.RuntimePermission "setFactory";
 
   // gcs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";

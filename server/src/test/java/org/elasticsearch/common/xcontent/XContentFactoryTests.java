@@ -21,12 +21,14 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,12 +55,25 @@ public class XContentFactoryTests extends ESTestCase {
         builder.field("field1", "value1");
         builder.endObject();
 
-        assertThat(XContentFactory.xContentType(builder.bytes()), equalTo(type));
-        assertThat(XContentFactory.xContentType(builder.bytes().streamInput()), equalTo(type));
+        final BytesReference bytes;
+        if (type == XContentType.JSON && randomBoolean()) {
+            final int length = randomIntBetween(0, 8 * XContentFactory.GUESS_HEADER_LENGTH);
+            final String content = Strings.toString(builder);
+            final StringBuilder sb = new StringBuilder(length + content.length());
+            final char[] chars = new char[length];
+            Arrays.fill(chars, ' ');
+            sb.append(new String(chars)).append(content);
+            bytes = new BytesArray(sb.toString());
+        } else {
+            bytes = BytesReference.bytes(builder);
+        }
+
+        assertThat(XContentHelper.xContentType(bytes), equalTo(type));
+        assertThat(XContentFactory.xContentType(bytes.streamInput()), equalTo(type));
 
         // CBOR is binary, cannot use String
         if (type != XContentType.CBOR && type != XContentType.SMILE) {
-            assertThat(XContentFactory.xContentType(builder.string()), equalTo(type));
+            assertThat(XContentFactory.xContentType(Strings.toString(builder)), equalTo(type));
         }
     }
 

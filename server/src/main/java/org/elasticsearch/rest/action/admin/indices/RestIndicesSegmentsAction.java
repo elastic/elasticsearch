@@ -19,25 +19,19 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestIndicesSegmentsAction extends BaseRestHandler {
     public RestIndicesSegmentsAction(Settings settings, RestController controller) {
@@ -57,16 +51,6 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
                 Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.verbose(request.paramAsBoolean("verbose", false));
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        return channel ->
-            client.admin().indices().segments(indicesSegmentsRequest, new RestBuilderListener<IndicesSegmentResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(IndicesSegmentResponse response, XContentBuilder builder) throws Exception {
-                    builder.startObject();
-                    buildBroadcastShardsHeader(builder, request, response);
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                    return new BytesRestResponse(OK, builder);
-                }
-            });
+        return channel -> client.admin().indices().segments(indicesSegmentsRequest, new RestToXContentListener<>(channel));
     }
 }

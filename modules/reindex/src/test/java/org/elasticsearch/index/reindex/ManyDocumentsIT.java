@@ -19,19 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.hasEntry;
 
 /**
@@ -50,48 +44,69 @@ public class ManyDocumentsIT extends ESRestTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        Request request = new Request("POST", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
     }
 
     public void testReindex() throws IOException {
-        Map<String, Object> response = toMap(client().performRequest("POST", "/_reindex", emptyMap(), new StringEntity(
-                "{\"source\":{\"index\":\"test\"}, \"dest\":{\"index\":\"des\"}}",
-                ContentType.APPLICATION_JSON)));
+        Request request = new Request("POST", "/_reindex");
+        request.setJsonEntity(
+                "{\n" +
+                "  \"source\":{\n" +
+                "    \"index\":\"test\"\n" +
+                "  },\n" +
+                "  \"dest\":{\n" +
+                "    \"index\":\"des\"\n" +
+                "  }\n" +
+                "}");
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
     }
 
     public void testReindexFromRemote() throws IOException {
-        Map<?, ?> nodesInfo = toMap(client().performRequest("GET", "/_nodes/http"));
+        Map<?, ?> nodesInfo = entityAsMap(client().performRequest(new Request("GET", "/_nodes/http")));
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
         String remote = "http://"+ http.get("publish_address");
-        Map<String, Object> response = toMap(client().performRequest("POST", "/_reindex", emptyMap(), new StringEntity(
-                "{\"source\":{\"index\":\"test\",\"remote\":{\"host\":\"" + remote + "\"}}, \"dest\":{\"index\":\"des\"}}",
-                ContentType.APPLICATION_JSON)));
+        Request request = new Request("POST", "/_reindex");
+        request.setJsonEntity(
+                "{\n" +
+                "  \"source\":{\n" +
+                "    \"index\":\"test\",\n" +
+                "    \"remote\":{\n" +
+                "      \"host\":\"" + remote + "\"\n" +
+                "    }\n" +
+                "  }\n," +
+                "  \"dest\":{\n" +
+                "    \"index\":\"des\"\n" +
+                "  }\n" +
+                "}");
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
     }
 
 
     public void testUpdateByQuery() throws IOException {
-        Map<String, Object> response = toMap(client().performRequest("POST", "/test/_update_by_query"));
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("POST", "/test/_update_by_query")));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("updated", count));
     }
 
     public void testDeleteByQuery() throws IOException {
-        Map<String, Object> response = toMap(client().performRequest("POST", "/test/_delete_by_query", emptyMap(), new StringEntity(
-                "{\"query\":{\"match_all\":{}}}",
-                ContentType.APPLICATION_JSON)));
+        Request request = new Request("POST", "/test/_delete_by_query");
+        request.setJsonEntity(
+                "{\n" +
+                "  \"query\":{\n" +
+                "    \"match_all\": {}\n" +
+                "  }\n" +
+                "}");
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("deleted", count));
     }
-
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
-    }
-
 }

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -27,13 +29,11 @@ import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
 
 /** Provider of scripted similarities. */
-public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
+final class ScriptedSimilarityProvider implements TriFunction<Settings, Version, ScriptService, Similarity> {
 
-    private final ScriptedSimilarity scriptedSimilarity;
-
-    public ScriptedSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
-        super(name);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
+    @Override
+    public Similarity apply(Settings settings, Version indexCreatedVersion, ScriptService scriptService) {
+        boolean discountOverlaps = settings.getAsBoolean(SimilarityProviders.DISCOUNT_OVERLAPS, true);
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
         SimilarityScript.Factory scriptFactory = scriptService.compile(script, SimilarityScript.CONTEXT);
@@ -44,15 +44,10 @@ public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
             weightScript = Script.parse(weightScriptSettings);
             weightScriptFactory = scriptService.compile(weightScript, SimilarityWeightScript.CONTEXT);
         }
-        scriptedSimilarity = new ScriptedSimilarity(
+        return new ScriptedSimilarity(
                 weightScript == null ? null : weightScript.toString(),
                         weightScriptFactory == null ? null : weightScriptFactory::newInstance,
                                 script.toString(), scriptFactory::newInstance, discountOverlaps);
-    }
-
-    @Override
-    public Similarity get() {
-        return scriptedSimilarity;
     }
 
 }

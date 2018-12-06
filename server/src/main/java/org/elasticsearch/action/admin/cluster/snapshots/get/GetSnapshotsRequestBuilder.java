@@ -26,7 +26,8 @@ import org.elasticsearch.common.util.ArrayUtils;
 /**
  * Get snapshots request builder
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest, GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
+public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest,
+        GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
 
     /**
      * Constructs the new get snapshot request

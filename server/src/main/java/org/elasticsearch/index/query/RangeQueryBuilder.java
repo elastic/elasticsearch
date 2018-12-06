@@ -30,10 +30,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -151,6 +151,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     /**
      * Get the field name for this query.
      */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -162,7 +163,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
     public RangeQueryBuilder from(Object from, boolean includeLower) {
-        this.from = convertToBytesRefIfString(from);
+        this.from = maybeConvertToBytesRef(from);
         this.includeLower = includeLower;
         return this;
     }
@@ -178,7 +179,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * Gets the lower range value for this query.
      */
     public Object from() {
-        return convertToStringIfBytesRef(this.from);
+        return maybeConvertToString(this.from);
     }
 
     /**
@@ -199,7 +200,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder to(Object to, boolean includeUpper) {
-        this.to = convertToBytesRefIfString(to);
+        this.to = maybeConvertToBytesRef(to);
         this.includeUpper = includeUpper;
         return this;
     }
@@ -218,7 +219,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
     public Object to() {
-        return convertToStringIfBytesRef(this.to);
+        return maybeConvertToString(this.to);
     }
 
     /**
@@ -236,7 +237,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     /**
-     * Should the lower bound be included or not. Defaults to <tt>true</tt>.
+     * Should the lower bound be included or not. Defaults to {@code true}.
      */
     public RangeQueryBuilder includeLower(boolean includeLower) {
         this.includeLower = includeLower;
@@ -251,7 +252,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     /**
-     * Should the upper bound be included or not. Defaults to <tt>true</tt>.
+     * Should the upper bound be included or not. Defaults to {@code true}.
      */
     public RangeQueryBuilder includeUpper(boolean includeUpper) {
         this.includeUpper = includeUpper;
@@ -307,7 +308,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     DateMathParser getForceDateParser() { // pkg private for testing
         if (this.format != null) {
-            return new DateMathParser(this.format);
+            return this.format.toDateMathParser();
         }
         return null;
     }
@@ -334,8 +335,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(FROM_FIELD.getPreferredName(), convertToStringIfBytesRef(this.from));
-        builder.field(TO_FIELD.getPreferredName(), convertToStringIfBytesRef(this.to));
+        builder.field(FROM_FIELD.getPreferredName(), maybeConvertToString(this.from));
+        builder.field(TO_FIELD.getPreferredName(), maybeConvertToString(this.to));
         builder.field(INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
         builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         if (timeZone != null) {
@@ -377,9 +378,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         currentFieldName = parser.currentName();
                     } else {
                         if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = parser.objectBytes();
+                            from = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = parser.objectBytes();
+                            to = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (INCLUDE_LOWER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             includeLower = parser.booleanValue();
                         } else if (INCLUDE_UPPER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -387,16 +388,16 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (GT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = parser.objectBytes();
+                            from = maybeConvertToBytesRef(parser.objectBytes());
                             includeLower = false;
                         } else if (GTE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = parser.objectBytes();
+                            from = maybeConvertToBytesRef(parser.objectBytes());
                             includeLower = true;
                         } else if (LT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = parser.objectBytes();
+                            to = maybeConvertToBytesRef(parser.objectBytes());
                             includeUpper = false;
                         } else if (LTE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = parser.objectBytes();
+                            to = maybeConvertToBytesRef(parser.objectBytes());
                             includeUpper = true;
                         } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             timeZone = parser.text();
@@ -463,6 +464,16 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // Percolator queries get rewritten and pre-processed at index time.
+        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
+        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
+        if (queryRewriteContext.convertNowRangeToMatchAll()) {
+            if ((from() != null && from().toString().contains("now")) ||
+                (to() != null && to().toString().contains("now"))) {
+                return new MatchAllQueryBuilder();
+            }
+        }
+
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:

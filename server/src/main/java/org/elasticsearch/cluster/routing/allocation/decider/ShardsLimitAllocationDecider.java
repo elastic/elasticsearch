@@ -34,12 +34,12 @@ import java.util.function.BiPredicate;
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index or node-wide basis. The allocator prevents a single node to hold more
- * than <tt>index.routing.allocation.total_shards_per_node</tt> per index and
- * <tt>cluster.routing.allocation.total_shards_per_node</tt> globally during the allocation
+ * than {@code index.routing.allocation.total_shards_per_node} per index and
+ * {@code cluster.routing.allocation.total_shards_per_node} globally during the allocation
  * process. The limits of this decider can be changed in real-time via a the
  * index settings API.
  * <p>
- * If <tt>index.routing.allocation.total_shards_per_node</tt> is reset to a negative value shards
+ * If {@code index.routing.allocation.total_shards_per_node} is reset to a negative value shards
  * per index are unlimited per node. Shards currently in the
  * {@link ShardRoutingState#RELOCATING relocating} state are ignored by this
  * {@link AllocationDecider} until the shard changed its state to either
@@ -73,8 +73,10 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
             Property.Dynamic, Property.NodeScope);
 
+    private final Settings settings;
+
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
+        this.settings = settings;
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }

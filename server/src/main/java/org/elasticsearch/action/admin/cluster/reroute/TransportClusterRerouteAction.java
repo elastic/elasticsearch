@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -44,9 +43,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private final AllocationService allocationService;
 
     @Inject
-    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         AllocationService allocationService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterRerouteRequest::new);
+    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                         ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, ClusterRerouteRequest::new);
         this.allocationService = allocationService;
     }
 
@@ -67,7 +68,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) {
+    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state,
+                                   final ActionListener<ClusterRerouteResponse> listener) {
         ActionListener<ClusterRerouteResponse> logWrapper = ActionListener.wrap(
             response -> {
                 if (request.dryRun() == false) {
@@ -112,7 +114,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
             super.onFailure(source, e);
         }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
-import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
@@ -29,12 +28,11 @@ import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -65,14 +63,14 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("_doc",
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
             INTEGER_RANGE_FIELD_NAME, "type=integer_range",
             LONG_RANGE_FIELD_NAME, "type=long_range",
             FLOAT_RANGE_FIELD_NAME, "type=float_range",
             DOUBLE_RANGE_FIELD_NAME, "type=double_range",
             DATE_RANGE_FIELD_NAME, "type=date_range",
             IP_RANGE_FIELD_NAME, "type=ip_range"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ))), MapperService.MergeReason.MAPPING_UPDATE, false);
 
     }
 

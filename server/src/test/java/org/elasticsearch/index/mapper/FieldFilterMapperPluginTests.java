@@ -35,9 +35,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -90,20 +93,26 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldCapabilities() {
+        List<String> allFields = new ArrayList<>(ALL_FLAT_FIELDS);
+        allFields.addAll(ALL_OBJECT_FIELDS);
         FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
-        assertFieldCaps(index1, ALL_FLAT_FIELDS);
+        assertFieldCaps(index1, allFields);
         FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
-        assertFieldCaps(filtered, FILTERED_FLAT_FIELDS);
+        List<String> filteredFields = new ArrayList<>(FILTERED_FLAT_FIELDS);
+        filteredFields.addAll(ALL_OBJECT_FIELDS);
+        assertFieldCaps(filtered, filteredFields);
         //double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         //as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
         ImmutableOpenMap<String, MappingMetaData> filteredMapping = getMappingsResponse.getMappings().get("filtered");
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filteredMapping.get("_doc").getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
-        assertFieldCaps(test, FILTERED_FLAT_FIELDS);
+        // properties.value is an object field in the new mapping
+        filteredFields.add("properties.value");
+        assertFieldCaps(test, filteredFields);
     }
 
-    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, String[] expectedFields) {
+    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
         Map<String, Map<String, FieldCapabilities>> responseMap = fieldCapabilitiesResponse.get();
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
         for (String field : builtInMetaDataFields) {
@@ -118,7 +127,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     private static void assertFieldMappings(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,
-                                            String[] expectedFields) {
+                                            Collection<String> expectedFields) {
         assertEquals(1, mappings.size());
         Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("_doc"));
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
@@ -245,14 +254,18 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         }
     }
 
-    private static final String[] ALL_FLAT_FIELDS = new String[]{
+    private static final Collection<String> ALL_FLAT_FIELDS = Arrays.asList(
         "name.first", "name.last_visible", "birth", "age_visible", "address.street", "address.location", "address.area_visible",
         "properties.key_visible", "properties.key_visible.keyword", "properties.value", "properties.value.keyword_visible"
-    };
+    );
 
-    private static final String[] FILTERED_FLAT_FIELDS = new String[]{
-            "name.last_visible", "age_visible", "address.area_visible", "properties.key_visible", "properties.value.keyword_visible"
-    };
+    private static final Collection<String> ALL_OBJECT_FIELDS = Arrays.asList(
+        "name", "address", "properties"
+    );
+
+    private static final Collection<String> FILTERED_FLAT_FIELDS = Arrays.asList(
+        "name.last_visible", "age_visible", "address.area_visible", "properties.key_visible", "properties.value.keyword_visible"
+    );
 
     private static final String TEST_ITEM = "{\n" +
             "  \"_doc\": {\n" +

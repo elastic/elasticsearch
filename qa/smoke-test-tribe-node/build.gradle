@@ -26,11 +26,13 @@ apply plugin: 'elasticsearch.rest-test'
 
 
 ClusterConfiguration configOne = new ClusterConfiguration(project)
+configOne.distribution = 'oss-zip'
 configOne.clusterName = 'one'
 configOne.setting('node.name', 'one')
 List<NodeInfo> oneNodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, configOne)
 
 ClusterConfiguration configTwo = new ClusterConfiguration(project)
+configTwo.distribution = 'oss-zip'
 configTwo.clusterName = 'two'
 configTwo.setting('node.name', 'two')
 List<NodeInfo> twoNodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, configTwo)
@@ -42,6 +44,7 @@ integTestCluster {
   setting 'http.port', '40200-40249'
   setting 'transport.tcp.port', '40300-40349'
   setting 'node.name', 'quest'
+  setting 'node.attr.role', 'client'
   setting 'tribe.one.cluster.name', 'one'
   setting 'tribe.one.discovery.zen.ping.unicast.hosts', "'${-> oneNodes.get(0).transportUri()}'"
   setting 'tribe.one.http.enabled', 'true'
@@ -52,6 +55,13 @@ integTestCluster {
   setting 'tribe.two.http.enabled', 'true'
   setting 'tribe.two.http.port', '40250-40299'
   setting 'tribe.two.transport.tcp.port', '40250-40399'
+  if ('zip'.equals(distribution)) {
+    /*
+     * The default distribution requires a setting for `on_conflict` when
+     * you use tribe.
+     */
+    setting 'tribe.on_conflict', 'prefer_tribe.one'
+  }
 
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

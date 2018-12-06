@@ -1,0 +1,24 @@
+{
+  "xpack.watcher.deactivate_watch": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_xpack/watcher/watch/{watch_id}/_deactivate",
+      "paths": [ "/_xpack/watcher/watch/{watch_id}/_deactivate" ],
+      "parts": {
+        "watch_id": {
+          "type" : "string",
+          "description" : "Watch ID",
+          "required" : true
+        }
+      },
+      "params": {
+        "master_timeout": {
+          "type": "time",
+          "description": "Explicit operation timeout for connection to master node"
+        }
+      }
+    },
+    "body": null
+  }
+}

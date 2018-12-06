@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -72,7 +74,12 @@ public class TransportClusterSearchShardsAction extends
 
     @Override
     protected ClusterSearchShardsResponse newResponse() {
-        return new ClusterSearchShardsResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected ClusterSearchShardsResponse read(StreamInput in) throws IOException {
+        return new ClusterSearchShardsResponse(in);
     }
 
     @Override
@@ -90,8 +97,8 @@ public class TransportClusterSearchShardsAction extends
         }
 
         Set<String> nodeIds = new HashSet<>();
-        GroupShardsIterator<ShardIterator> groupShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices,
-                routingMap, request.preference());
+        GroupShardsIterator<ShardIterator> groupShardsIterator = clusterService.operationRouting()
+            .searchShards(clusterState, concreteIndices, routingMap, request.preference());
         ShardRouting shard;
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];
         int currentGroup = 0;

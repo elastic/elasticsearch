@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -209,7 +212,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             this.index = index;
             this.type = type;
-            this.doc = doc.bytes();
+            this.doc = BytesReference.bytes(doc);
             this.xContentType = doc.contentType();
         }
 
@@ -222,9 +225,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = XContentType.readFrom(in);
+                    xContentType = in.readEnum(XContentType.class);
                 } else {
-                    xContentType = XContentFactory.xContentType(doc);
+                    xContentType = XContentHelper.xContentType(doc);
                 }
             } else {
                 id = in.readString();
@@ -244,7 +247,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (doc != null) {
                 out.writeGenericValue(doc);
                 if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType.writeTo(out);
+                    out.writeEnum(xContentType);
                 }
             } else {
                 out.writeString(id);
@@ -374,7 +377,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
-                        item.doc = jsonBuilder().copyCurrentStructure(parser).bytes();
+                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
                         item.xContentType = XContentType.JSON;
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_ARRAY) {
@@ -425,7 +428,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 builder.field(ID.getPreferredName(), this.id);
             }
             if (this.doc != null) {
-                builder.rawField(DOC.getPreferredName(), this.doc, xContentType);
+                try (InputStream stream = this.doc.streamInput()) {
+                    builder.rawField(DOC.getPreferredName(), stream, xContentType);
+                }
             }
             if (this.fields != null) {
                 builder.array(FIELDS.getPreferredName(), this.fields);
@@ -451,7 +456,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
                 toXContent(builder, EMPTY_PARAMS);
-                return builder.string();
+                return Strings.toString(builder);
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
@@ -592,7 +597,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the maximum number of query terms that will be included in any generated query.
-     * Defaults to <tt>25</tt>.
+     * Defaults to {@code 25}.
      */
     public MoreLikeThisQueryBuilder maxQueryTerms(int maxQueryTerms) {
         this.maxQueryTerms = maxQueryTerms;
@@ -605,7 +610,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * The frequency below which terms will be ignored in the source doc. The default
-     * frequency is <tt>2</tt>.
+     * frequency is {@code 2}.
      */
     public MoreLikeThisQueryBuilder minTermFreq(int minTermFreq) {
         this.minTermFreq = minTermFreq;
@@ -618,7 +623,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the frequency at which words will be ignored which do not occur in at least this
-     * many docs. Defaults to <tt>5</tt>.
+     * many docs. Defaults to {@code 5}.
      */
     public MoreLikeThisQueryBuilder minDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
@@ -644,7 +649,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the minimum word length below which words will be ignored. Defaults
-     * to <tt>0</tt>.
+     * to {@code 0}.
      */
     public MoreLikeThisQueryBuilder minWordLength(int minWordLength) {
         this.minWordLength = minWordLength;
@@ -657,7 +662,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the maximum word length above which words will be ignored. Defaults to
-     * unbounded (<tt>0</tt>).
+     * unbounded ({@code 0}).
      */
     public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
         this.maxWordLength = maxWordLength;
@@ -706,7 +711,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     * common syntax for minimum should match. Defaults to {@code 30%}.
      *
      * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
@@ -723,7 +728,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Sets the boost factor to use when boosting terms. Defaults to <tt>0</tt> (deactivated).
+     * Sets the boost factor to use when boosting terms. Defaults to {@code 0} (deactivated).
      */
     public MoreLikeThisQueryBuilder boostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
@@ -735,7 +740,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Whether to include the input documents. Defaults to <tt>false</tt>
+     * Whether to include the input documents. Defaults to {@code false}
      */
     public MoreLikeThisQueryBuilder include(boolean include) {
         this.include = include;
@@ -1117,6 +1122,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         for (MultiTermVectorsItemResponse response : responses) {
             if (response.isFailed()) {
+                checkRoutingMissingException(response);
                 continue;
             }
             TermVectorsResponse getResponse = response.getResponse();
@@ -1126,6 +1132,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             likeFields.add(getResponse.getFields());
         }
         return likeFields.toArray(Fields.EMPTY_ARRAY);
+    }
+
+    private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
+        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
+        if (cause != null) {
+            throw ((RoutingMissingException) cause);
+        }
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {

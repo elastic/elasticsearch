@@ -19,8 +19,9 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -52,6 +54,8 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  * A fault detection of multiple nodes.
  */
 public class NodesFaultDetection extends FaultDetection {
+
+    private static final Logger logger = LogManager.getLogger(NodesFaultDetection.class);
 
     public static final String PING_ACTION_NAME = "internal:discovery/zen/fd/ping";
 
@@ -67,12 +71,15 @@ public class NodesFaultDetection extends FaultDetection {
 
     private final ConcurrentMap<DiscoveryNode, NodeFD> nodesFD = newConcurrentMap();
 
-    private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
+    private final Supplier<ClusterState> clusterStateSupplier;
 
     private volatile DiscoveryNode localNode;
 
-    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
+                               Supplier<ClusterState> clusterStateSupplier, ClusterName clusterName) {
         super(settings, threadPool, transportService, clusterName);
+
+        this.clusterStateSupplier = clusterStateSupplier;
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
             pingRetryCount);
@@ -177,12 +184,8 @@ public class NodesFaultDetection extends FaultDetection {
                 }
             });
         } catch (EsRejectedExecutionException ex) {
-            logger.trace(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down",
-                    node,
-                    reason),
-                ex);
+            logger.trace(() -> new ParameterizedMessage(
+                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down", node, reason), ex);
         }
     }
 
@@ -213,18 +216,21 @@ public class NodesFaultDetection extends FaultDetection {
             return NodeFD.this.equals(nodesFD.get(node));
         }
 
+        private PingRequest newPingRequest() {
+            return new PingRequest(node, clusterName, localNode, clusterStateSupplier.get().version());
+        }
+
         @Override
         public void run() {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node, clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
                 .withTimeout(pingRetryTimeout).build();
-            transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new TransportResponseHandler<PingResponse>() {
+            transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
                         @Override
-                        public PingResponse newInstance() {
-                            return new PingResponse();
+                        public PingResponse read(StreamInput in) throws IOException {
+                            return new PingResponse(in);
                         }
 
                         @Override
@@ -247,13 +253,8 @@ public class NodesFaultDetection extends FaultDetection {
                             }
 
                             retryCount++;
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "[node  ] failed to ping [{}], retry [{}] out of [{}]",
-                                    node,
-                                    retryCount,
-                                    pingRetryCount),
-                                exp);
+                            logger.trace( () -> new ParameterizedMessage(
+                                    "[node  ] failed to ping [{}], retry [{}] out of [{}]", node, retryCount, pingRetryCount), exp);
                             if (retryCount >= pingRetryCount) {
                                 logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node,
                                     pingRetryCount, pingRetryTimeout);
@@ -264,7 +265,7 @@ public class NodesFaultDetection extends FaultDetection {
                                 }
                             } else {
                                 // resend the request, not reschedule, rely on send timeout
-                                transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, this);
+                                transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, this);
                             }
                         }
 
@@ -361,14 +362,8 @@ public class NodesFaultDetection extends FaultDetection {
         private PingResponse() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        private PingResponse(StreamInput in) throws IOException {
+            super(in);
         }
     }
 }

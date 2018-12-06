@@ -21,10 +21,12 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
@@ -71,9 +73,10 @@ public class IndexGraveyardTests extends ESTestCase {
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
             assertThat(Strings.toString(graveyard, false, true),
-                containsString(XContentBuilder.DEFAULT_DATE_PRINTER.print(graveyard.getTombstones().get(0).getDeleteDateInMillis())));
+                containsString(XContentElasticsearchExtension.DEFAULT_DATE_PRINTER
+                        .print(graveyard.getTombstones().get(0).getDeleteDateInMillis())));
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken(); // the beginning of the parser
         assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
     }

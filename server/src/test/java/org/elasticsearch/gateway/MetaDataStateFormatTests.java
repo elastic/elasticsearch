@@ -39,9 +39,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -93,7 +91,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Files.copy(resource, dst);
         MetaData read = format.read(xContentRegistry(), dst);
         assertThat(read, notNullValue());
-        assertThat(read.clusterUUID(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
+        assertThat(read.clusterUUID(), equalTo("y9XcwLJGTROoOEfixlRwfQ"));
         // indices are empty since they are serialized separately
     }
 
@@ -104,7 +102,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
@@ -120,7 +119,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(read, equalTo(state));
         }
         final int version2 = between(version, Integer.MAX_VALUE);
-        DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         format.write(state2, dirs);
 
         for (Path file : dirs) {
@@ -146,7 +146,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
 
         Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
@@ -170,7 +171,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
@@ -213,7 +215,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 byte newValue = (byte) ~oldValue;
                 bb.put(0, newValue);
                 raf.write(bb, filePointer);
-                logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(), filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue));
+                logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(),
+                    filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue));
             }
         long checksumAfterCorruption;
         long actualChecksumAfterCorruption;
@@ -227,7 +230,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
         msg.append(" after: [").append(checksumAfterCorruption).append("]");
         msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-        msg.append(" file: ").append(fileToCorrupt.getFileName().toString()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
+        msg.append(" file: ").append(fileToCorrupt.getFileName().toString()).append(" length: ")
+            .append(dir.fileLength(fileToCorrupt.getFileName().toString()));
         logger.debug("{}", msg.toString());
         assumeTrue("Checksum collision - " + msg.toString(),
                 checksumAfterCorruption != checksumBeforeCorruption // collision
@@ -238,7 +242,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
     public void testLoadState() throws IOException {
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
-        int numLegacy = randomIntBetween(0, numStates);
         List<MetaData> meta = new ArrayList<>();
         for (int i = 0; i < numStates; i++) {
             meta.add(randomMeta());
@@ -248,22 +251,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
-            for (int j = 0; j < numLegacy; j++) {
-                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {
-                    Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-"+j);
-                    Files.createFile(file); // randomly create 0-byte files -- there is extra logic to skip them
-                } else {
-                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaDataStateFormat.FORMAT,
-                        Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
-                        xcontentBuilder.startObject();
-                        MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, ToXContent.EMPTY_PARAMS);
-                        xcontentBuilder.endObject();
-                    }
-                }
-            }
-            for (int j = numLegacy; j < numStates; j++) {
+            for (int j = 0; j < numStates; j++) {
                 format.write(meta.get(j), dirs[i]);
-                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
+                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily
+                                                                                            // need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);
                     MetaDataStateFormatTests.corruptFile(file, logger);
@@ -283,6 +274,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
             IndexMetaData deserialized = indices.get(original.getIndex().getName());
             assertThat(deserialized, notNullValue());
             assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
+            assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
+            assertThat(deserialized.getSettingsVersion(), equalTo(original.getSettingsVersion()));
             assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
@@ -291,20 +284,18 @@ public class MetaDataStateFormatTests extends ESTestCase {
         assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
 
         // now corrupt all the latest ones and make sure we fail to load the state
-        if (numStates > numLegacy) {
-            for (int i = 0; i < dirs.length; i++) {
-                Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (numStates-1) + ".st");
-                if (corruptedFiles.contains(file)) {
-                    continue;
-                }
-                MetaDataStateFormatTests.corruptFile(file, logger);
+        for (int i = 0; i < dirs.length; i++) {
+            Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (numStates-1) + ".st");
+            if (corruptedFiles.contains(file)) {
+                continue;
             }
-            try {
-                format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
-                fail("latest version can not be read");
-            } catch (ElasticsearchException ex) {
-                assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
-            }
+            MetaDataStateFormatTests.corruptFile(file, logger);
+        }
+        try {
+            format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
+            fail("latest version can not be read");
+        } catch (ElasticsearchException ex) {
+            assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
         }
     }
 
@@ -340,7 +331,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     private IndexMetaData.Builder indexBuilder(String index) throws IOException {
         return IndexMetaData.builder(index)
-                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
+                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
     }
 
 
@@ -491,7 +483,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 } else {
                    realId = Math.max(realId, id);
                 }
-                try (OutputStream stream = Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetaDataStateFormat.STATE_FILE_EXTENSION))) {
+                try (OutputStream stream =
+                         Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetaDataStateFormat.STATE_FILE_EXTENSION))) {
                     stream.write(0);
                 }
             }

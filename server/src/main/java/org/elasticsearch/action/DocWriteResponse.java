@@ -75,7 +75,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
         Result(int op) {
             this.op = (byte) op;
-            this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
+            this.lowercase = this.name().toLowerCase(Locale.ROOT);
         }
 
         public byte getOp() {

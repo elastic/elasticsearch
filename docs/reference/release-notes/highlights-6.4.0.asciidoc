@@ -1,0 +1,32 @@
+[[release-highlights-6.4.0]]
+== 6.4.0 release highlights
+++++
+<titleabbrev>6.4.0</titleabbrev>
+++++
+
+See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>. 
+
+[float]
+=== Analysis
+
+* Option to index phrases on text fields - A new `index_phrases` option has been added to `text` fields. When enabled this option will index 2-shingles of the field in a separate Lucene field to allow faster, more efficient, phrase searches on that field with the trade-off of consuming more disk space in the index. For more information, see <<text, text field type>>.
+* Korean analysis tools - A new plugin has been added which provides analysis tools for the Korean language. The new `nori` analyzer can be used to analyze Korean text "out of the box" and custom analyzers can use a tokenizer, part of speech token filter and a Hanja reading form token filter. For more information, see {plugins}/analysis-nori.html[Nori Plugin].
+* Add multiplexing token filter - This new token filter allows you to run tokens through multiple different tokenfilters and stack the results. For example, you can now easily index the original form of a token, its lowercase form and a stemmed form all at the same position, allowing you to search for stemmed and unstemmed tokens in the same field. For more information, see <<analysis-multiplexer-tokenfilter,Multiplexer token filter>>.
+
+[float]
+=== Mappings
+
+* `alias` field type - A new field type can now be added in the mappings. An `alias` field allows a field to be defined in the mappings which is an alias of another field meaning that the alias name can be used when referring to the field. For example the mapping in an index may have a `hostname` field and the mapping might define a alias field `host_name` so that when a user searches using thee field `host_name` it actually searches the `hostname` field. This can be useful for helping migrate between schemas where field names have been changed an for searching across multiple indexes which may have different field names for the same information. For more information, see <<alias, Alias field type>>
+* `_ignored` meta field - A new meta field has been added to documents. The `_ignored` field will contain the field names of any fields that were ignored at index time due to the `ignore_malformed` option. This means that malformed documents can be more easily discovered by using `exists` or `term` queries on this new meta field. For more information, see <<mapping-ignored-field,_ignored field>>.
+
+[float]
+=== Rank Eval API
+
+* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics in the Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at positions less than K as well. For more information see <<search-rank-eval, Rank Evaluation API>>
+
+[float]
+=== Search
+
+* Cross Cluster Search will no longer use dedicated master nodes as gateway nodes - Previously the gateway node on a remote cluster used by Cross Cluster search was selected based only on the node's version and node attributes set in the `search.remote.node.attr` setting. This meant that unless carefully configured any node in the cluster could potentially be used as a gateway node for a cross cluster search. This may cause problems when running with dedicated master nodes as it is undesirable for master eligible nodes to be used for any search activity. Starting from 6.4.0 cross cluster search will no longer consider dedicated master eligible nodes as potential gateway nodes providing a better out of the box default for running cross cluster searches.
+* Format option for doc_value fields - `doc_value` fields in the Search API can now specify a `format` field to control the format of the value in the response. For more information, see <<search-request-docvalue-fields, doc_value fields>>.
+* Support second level of field collapse -  This extends the field collapsing feature to allow the top item for two fields to be retrieved. For example retrieving top scored tweets by country, and for each country, top scored tweets for each user. This can be an alternative to using multiple levels of terms aggregations along with top hits. For more information, see <<search-request-collapse,Field Collapsing>>.

@@ -42,7 +42,7 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 
 set HOSTNAME=%COMPUTERNAME%
 
@@ -53,6 +53,9 @@ if not defined ES_PATH_CONF (
 rem now make ES_PATH_CONF absolute
 for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
+set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
+set ES_DISTRIBUTION_TYPE=${es.distribution.type}
+
 if not defined ES_TMPDIR (
-  set ES_TMPDIR=!TMP!\elasticsearch
+  for /f "tokens=* usebackq" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory""`) do set ES_TMPDIR=%%a
 )

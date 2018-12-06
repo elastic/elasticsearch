@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -35,7 +36,7 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder>
     @Override
     protected RangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        RangeAggregationBuilder factory = new RangeAggregationBuilder("foo");
+        RangeAggregationBuilder factory = new RangeAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -74,8 +75,9 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder>
                 "]\n" +
             "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
-        ParsingException ex = expectThrows(ParsingException.class, () -> RangeAggregationBuilder.parse("aggregationName", parser));
-        assertThat(ex.getDetailedMessage(), containsString("badField"));
+        XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> RangeAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ExceptionsHelper.detailedMessage(ex), containsString("badField"));
     }
 
     /**

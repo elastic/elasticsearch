@@ -1,5 +1,9 @@
 ---
 "Shrink index via API":
+  - skip:
+      version: " - 6.3.99"
+      reason: expects warnings that pre-6.4.0 will not send
+      features: "warnings"
   # creates an index with one document solely allocated on the master node
   # and shrinks it into a new index with a single shard
   # we don't do the relocation to a single node after the index is created
@@ -62,6 +66,8 @@
         body:
           settings:
             index.number_of_replicas: 0
+      warnings:
+        - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"
 
   - do:
       cluster.health:

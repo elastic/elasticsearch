@@ -25,6 +25,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,13 +39,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class MeanReciprocalRankTests extends ESTestCase {
+
+    private static final int IRRELEVANT_RATING_0 = 0;
+    private static final int RELEVANT_RATING_1 = 1;
 
     public void testParseFromXContent() throws IOException {
         String xContent = "{ }";
@@ -84,22 +87,22 @@ public class MeanReciprocalRankTests extends ESTestCase {
         int relevantAt = randomIntBetween(0, searchHits);
         for (int i = 0; i <= searchHits; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), RELEVANT_RATING_1));
             } else {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), IRRELEVANT_RATING_0));
             }
         }
 
         int rankAtFirstRelevant = relevantAt + 1;
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
-        assertEquals(rankAtFirstRelevant, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(1.0 / rankAtFirstRelevant, evaluation.metricScore(), Double.MIN_VALUE);
+        assertEquals(rankAtFirstRelevant, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
 
         // check that if we have fewer search hits than relevant doc position,
-        // we don't find any result and get 0.0 quality level
+        // we don't find any result and get 0.0 score
         reciprocalRank = new MeanReciprocalRank();
         evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt), ratedDocs);
-        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
     }
 
     public void testEvaluationOneRelevantInResults() {
@@ -110,15 +113,15 @@ public class MeanReciprocalRankTests extends ESTestCase {
         int relevantAt = randomIntBetween(0, 9);
         for (int i = 0; i <= 20; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), RELEVANT_RATING_1));
             } else {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), IRRELEVANT_RATING_0));
             }
         }
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
-        assertEquals(relevantAt + 1, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(1.0 / (relevantAt + 1), evaluation.metricScore(), Double.MIN_VALUE);
+        assertEquals(relevantAt + 1, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     /**
@@ -137,13 +140,13 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank(2, 10);
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
-        assertEquals((double) 1 / 3, evaluation.getQualityLevel(), 0.00001);
-        assertEquals(3, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals((double) 1 / 3, evaluation.metricScore(), 0.00001);
+        assertEquals(3, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     public void testCombine() {
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
-        Vector<EvalQueryQuality> partialResults = new Vector<>(3);
+        List<EvalQueryQuality> partialResults = new ArrayList<>(3);
         partialResults.add(new EvalQueryQuality("id1", 0.5));
         partialResults.add(new EvalQueryQuality("id2", 1.0));
         partialResults.add(new EvalQueryQuality("id3", 0.75));
@@ -155,7 +158,14 @@ public class MeanReciprocalRankTests extends ESTestCase {
         SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
+    }
+
+    public void testNoResults() throws Exception {
+        SearchHit[] hits = new SearchHit[0];
+        EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", hits, Collections.emptyList());
+        assertEquals(0.0d, evaluated.metricScore(), 0.00001);
+        assertEquals(-1, ((MeanReciprocalRank.Detail) evaluated.getMetricDetails()).getFirstRelevantRank());
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -180,9 +190,9 @@ public class MeanReciprocalRankTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            XContentParseException exception = expectThrows(XContentParseException.class,
                     () -> MeanReciprocalRank.fromXContent(parser));
-            assertThat(exception.getMessage(), startsWith("[reciprocal_rank] unknown field"));
+            assertThat(exception.getMessage(), containsString("[reciprocal_rank] unknown field"));
         }
     }
 

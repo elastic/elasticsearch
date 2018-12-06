@@ -19,16 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -133,7 +129,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     /**
      * Sets the values that indicates which composite bucket this request should "aggregate after".
-     * Defaults to <tt>null</tt>.
+     * Defaults to {@code null}.
      */
     public CompositeAggregationBuilder aggregateAfter(Map<String, Object> afterKey) {
         this.after = afterKey;
@@ -141,7 +137,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     /**
-     * The number of composite buckets to return. Defaults to <tt>10</tt>.
+     * The number of composite buckets to return. Defaults to {@code 10}.
      */
     public CompositeAggregationBuilder size(int size) {
         this.size = size;
@@ -154,16 +150,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         if (parent != null) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation");
         }
-        final QueryShardContext shardContext = context.getQueryShardContext();
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
-        SortField[] sortFields = new SortField[configs.length];
-        IndexSortConfig indexSortConfig = shardContext.getIndexSettings().getIndexSortConfig();
-        if (indexSortConfig.hasIndexSort()) {
-            Sort sort = indexSortConfig.buildIndexSort(shardContext::fieldMapper, shardContext::getForField);
-            System.arraycopy(sort.getSort(), 0, sortFields, 0, sortFields.length);
-        }
         for (int i = 0; i < configs.length; i++) {
-            configs[i] = sources.get(i).build(context, i, configs.length, sortFields[i]);
+            configs[i] = sources.get(i).build(context);
             if (configs[i].valuesSource().needsScores()) {
                 throw new IllegalArgumentException("[sources] cannot access _score");
             }
@@ -181,7 +170,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                     throw new IllegalArgumentException("Missing value for [after." + sources.get(i).name() + "]");
                 }
                 Object obj = after.get(sourceName);
-                if (obj instanceof Comparable) {
+                if (configs[i].missingBucket() && obj == null) {
+                    values[i] = null;
+                } else if (obj instanceof Comparable) {
                     values[i] = (Comparable<?>) obj;
                 } else {
                     throw new IllegalArgumentException("Invalid value for [after." + sources.get(i).name() +
@@ -202,11 +193,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         builder.field(SIZE_FIELD_NAME.getPreferredName(), size);
         builder.startArray(SOURCES_FIELD_NAME.getPreferredName());
         for (CompositeValuesSourceBuilder<?> source: sources) {
-            builder.startObject();
-            builder.startObject(source.name());
-            source.toXContent(builder, params);
-            builder.endObject();
-            builder.endObject();
+            CompositeValuesSourceParserHelper.toXContent(source, builder, params);
         }
         builder.endArray();
         if (after != null) {

@@ -19,6 +19,12 @@ setup:
 
 ---
 "Get all aliases via /_alias":
+  - skip:
+      version: " - 5.99.99"
+      reason: 5.x doesn't return indices without aliases (at transport)
+  - do:
+      indices.create:
+        index: test_index_3
 
   - do:
       indices.get_alias: {}
@@ -27,7 +33,47 @@ setup:
   - match: {test_index.aliases.test_blias: {}}
   - match: {test_index_2.aliases.test_alias: {}}
   - match: {test_index_2.aliases.test_blias: {}}
+  - match: {test_index_3.aliases: {}}
 
+---
+"Get aliases via /_alias/_all":
+  - skip:
+      version: " - 5.99.99"
+      reason:  5.x returns indices that have no aliases
+
+  - do:
+      indices.create:
+        index: test_index_3
+
+  - do:
+      indices.get_alias:
+        name: _all
+
+  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index_2.aliases.test_blias: {}}
+  - is_false: test_index_3
+
+---
+"Get aliases via /_alias/*":
+  - skip:
+      version: " - 5.99.99"
+      reason:  5.x returns indices that have no aliases
+
+  - do:
+      indices.create:
+        index: test_index_3
+
+  - do:
+      indices.get_alias:
+        name: _all
+
+  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index_2.aliases.test_blias: {}}
+  - is_false: test_index_3
 
 ---
 "Get all aliases via /{index}/_alias/":

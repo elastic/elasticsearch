@@ -258,4 +258,27 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             assertEquals(1, values.nextValue());
         }
     }
+
+
+    public void testFieldAlias() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "field", "type=keyword", "alias", "type=alias,path=field");
+        client().prepareIndex("index", "type", "1")
+            .setSource("field", "value")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+            ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
+                context, ValueType.STRING, "alias", null, null, null, null);
+            ValuesSource.Bytes valuesSource = config.toValuesSource(context);
+
+            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("value"), values.nextValue());
+        }
+    }
 }

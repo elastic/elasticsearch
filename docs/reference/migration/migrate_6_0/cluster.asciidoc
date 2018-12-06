@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_cluster_changes]]
 === Cluster changes
 
+[float]
 ==== Cluster name no longer allowed in path.data
 
 Previously the cluster name could be used in the `path.data` setting with a

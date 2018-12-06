@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,6 +49,11 @@ import java.util.Map;
 public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContentFragment {
 
     /**
+     * Standard deprecation logger for used to deprecate allowance of empty templates.
+     */
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(ScriptMetaData.class));
+
+    /**
      * A builder used to modify the currently stored scripts data held within
      * the {@link ClusterState}.  Scripts can be added or deleted, then built
      * to generate a new {@link Map} of scripts that will be used to update
@@ -61,7 +68,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
          *                 is no existing {@link ScriptMetaData}.
          */
         public Builder(ScriptMetaData previous) {
-            this.scripts = previous == null ? new HashMap<>() :new HashMap<>(previous.scripts);
+            this.scripts = previous == null ? new HashMap<>() : new HashMap<>(previous.scripts);
         }
 
         /**
@@ -161,8 +168,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      *
      * {@code
      * {
-     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
-     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
      *     ...
      * }
      * }
@@ -209,6 +216,14 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                         lang = id.substring(0, split);
                         id = id.substring(split + 1);
                         source = new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
+
+                        if (source.getSource().isEmpty()) {
+                            if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
+                                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
+                            } else {
+                                DEPRECATION_LOGGER.deprecated("empty scripts should no longer be used");
+                            }
+                        }
                     }
 
                     exists = scripts.get(id);
@@ -231,7 +246,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     }
 
                     exists = scripts.get(id);
-                    source = StoredScriptSource.fromXContent(parser);
+                    source = StoredScriptSource.fromXContent(parser, true);
 
                     if (exists == null) {
                         scripts.put(id, source);
@@ -369,8 +384,20 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+
+    @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
+    }
+
+    /**
+     * Returns the map of stored scripts.
+     */
+    Map<String, StoredScriptSource> getStoredScripts() {
+        return scripts;
     }
 
     /**

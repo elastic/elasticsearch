@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -157,11 +158,19 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** The decrypted secret data. See {@link #decrypt(char[])}. */
     private final SetOnce<Map<String, Entry>> entries = new SetOnce<>();
+    private volatile boolean closed;
 
     private KeyStoreWrapper(int formatVersion, boolean hasPassword, byte[] dataBytes) {
         this.formatVersion = formatVersion;
         this.hasPassword = hasPassword;
         this.dataBytes = dataBytes;
+    }
+
+    /**
+     * Get the metadata format version for the keystore
+     **/
+    public int getFormatVersion() {
+        return formatVersion;
     }
 
     /** Returns a path representing the ES keystore in the given config dir. */
@@ -306,7 +315,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
         if (formatVersion <= 2) {
             decryptLegacyEntries();
-            assert password.length == 0;
+            if (password.length != 0) {
+                throw new IllegalArgumentException("Keystore format does not accept non-empty passwords");
+            }
             return;
         }
 
@@ -317,26 +328,24 @@ public class KeyStoreWrapper implements SecureSettings {
              DataInputStream input = new DataInputStream(bytesStream)) {
             int saltLen = input.readInt();
             salt = new byte[saltLen];
-            if (input.read(salt) != saltLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(salt);
             int ivLen = input.readInt();
             iv = new byte[ivLen];
-            if (input.read(iv) != ivLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(iv);
             int encryptedLen = input.readInt();
             encryptedBytes = new byte[encryptedLen];
-            if (input.read(encryptedBytes) != encryptedLen) {
+            input.readFully(encryptedBytes);
+            if (input.read() != -1) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
+        } catch (EOFException e) {
+            throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
 
         Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv);
         try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
              CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
              DataInputStream input = new DataInputStream(cipherStream)) {
-
             entries.set(new HashMap<>());
             int numEntries = input.readInt();
             while (numEntries-- > 0) {
@@ -344,11 +353,14 @@ public class KeyStoreWrapper implements SecureSettings {
                 EntryType entryType = EntryType.valueOf(input.readUTF());
                 int entrySize = input.readInt();
                 byte[] entryBytes = new byte[entrySize];
-                if (input.read(entryBytes) != entrySize) {
-                    throw new SecurityException("Keystore has been corrupted or tampered with");
-                }
+                input.readFully(entryBytes);
                 entries.get().put(setting, new Entry(entryType, entryBytes));
             }
+            if (input.read() != -1) {
+                throw new SecurityException("Keystore has been corrupted or tampered with");
+            }
+        } catch (IOException e) {
+            throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
 
@@ -360,7 +372,6 @@ public class KeyStoreWrapper implements SecureSettings {
         Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv);
         try (CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
              DataOutputStream output = new DataOutputStream(cipherStream)) {
-
             output.writeInt(entries.get().size());
             for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
                 output.writeUTF(mapEntry.getKey());
@@ -370,7 +381,6 @@ public class KeyStoreWrapper implements SecureSettings {
                 output.write(entry.bytes);
             }
         }
-
         return bytes.toByteArray();
     }
 
@@ -448,8 +458,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Write the keystore to the given config directory. */
-    public void save(Path configDir, char[] password) throws Exception {
-        assert isLoaded();
+    public synchronized void save(Path configDir, char[] password) throws Exception {
+        ensureOpen();
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         // write to tmp file first, then overwrite
@@ -500,16 +510,22 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
+    /**
+     * It is possible to retrieve the setting names even if the keystore is closed.
+     * This allows {@link SecureSetting} to correctly determine that a entry exists even though it cannot be read. Thus attempting to
+     * read a secure setting after the keystore is closed will generate a "keystore is closed" exception rather than using the fallback
+     * setting.
+     */
     @Override
     public Set<String> getSettingNames() {
-        assert isLoaded();
+        assert entries.get() != null : "Keystore is not loaded";
         return entries.get().keySet();
     }
 
     // TODO: make settings accessible only to code that registered the setting
     @Override
-    public SecureString getString(String setting) {
-        assert isLoaded();
+    public synchronized SecureString getString(String setting) {
+        ensureOpen();
         Entry entry = entries.get().get(setting);
         if (entry == null || entry.type != EntryType.STRING) {
             throw new IllegalArgumentException("Secret setting " + setting + " is not a string");
@@ -520,13 +536,12 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     @Override
-    public InputStream getFile(String setting) {
-        assert isLoaded();
+    public synchronized InputStream getFile(String setting) {
+        ensureOpen();
         Entry entry = entries.get().get(setting);
         if (entry == null || entry.type != EntryType.FILE) {
             throw new IllegalArgumentException("Secret setting " + setting + " is not a file");
         }
-
         return new ByteArrayInputStream(entry.bytes);
     }
 
@@ -543,8 +558,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Set a string setting. */
-    void setString(String setting, char[] value) {
-        assert isLoaded();
+    synchronized void setString(String setting, char[] value) {
+        ensureOpen();
         validateSettingName(setting);
 
         ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(value));
@@ -556,8 +571,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Set a file setting. */
-    void setFile(String setting, byte[] bytes) {
-        assert isLoaded();
+    synchronized void setFile(String setting, byte[] bytes) {
+        ensureOpen();
         validateSettingName(setting);
 
         Entry oldEntry = entries.get().put(setting, new Entry(EntryType.FILE, Arrays.copyOf(bytes, bytes.length)));
@@ -568,17 +583,27 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Remove the given setting from the keystore. */
     void remove(String setting) {
-        assert isLoaded();
+        ensureOpen();
         Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {
             Arrays.fill(oldEntry.bytes, (byte)0);
         }
     }
 
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("Keystore is closed");
+        }
+        assert isLoaded() : "Keystore is not loaded";
+    }
+
     @Override
-    public void close() {
-        for (Entry entry : entries.get().values()) {
-            Arrays.fill(entry.bytes, (byte)0);
+    public synchronized void close() {
+        this.closed = true;
+        if (null != entries.get() && entries.get().isEmpty() == false) {
+            for (Entry entry : entries.get().values()) {
+                Arrays.fill(entry.bytes, (byte) 0);
+            }
         }
     }
 }

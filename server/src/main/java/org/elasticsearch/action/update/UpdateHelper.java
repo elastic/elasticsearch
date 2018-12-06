@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -28,11 +29,9 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,10 +43,9 @@ import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -59,11 +57,13 @@ import java.util.function.LongSupplier;
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
-public class UpdateHelper extends AbstractComponent {
+public class UpdateHelper {
+
+    private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
+
     private final ScriptService scriptService;
 
-    public UpdateHelper(Settings settings, ScriptService scriptService) {
-        super(settings);
+    public UpdateHelper(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 
@@ -71,9 +71,8 @@ public class UpdateHelper extends AbstractComponent {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
-                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME},
-                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
+        final GetResult getResult = indexShard.getService().getForUpdate(request.type(), request.id(), request.version(),
+            request.versionType());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -299,10 +298,9 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
-                ExecutableScript executableScript = factory.newInstance(script.getParams());
-                executableScript.setNextVar(ContextFields.CTX, ctx);
-                executableScript.run();
+                UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);
+                executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);
@@ -356,7 +354,7 @@ public class UpdateHelper extends AbstractComponent {
                     BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                     try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                         builder.value(value);
-                        sourceFilteredAsBytes = builder.bytes();
+                        sourceFilteredAsBytes = BytesReference.bytes(builder);
                     }
                 } catch (IOException e) {
                     throw new ElasticsearchException("Error filtering source", e);

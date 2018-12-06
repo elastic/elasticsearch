@@ -20,7 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -230,7 +230,7 @@ public final class Settings implements ToXContentFragment {
      * Returns the setting value associated with the setting key.
      *
      * @param setting The setting key
-     * @return The setting value, <tt>null</tt> if it does not exists.
+     * @return The setting value, {@code null} if it does not exists.
      */
     public String get(String setting) {
         return toString(settings.get(setting));
@@ -243,6 +243,30 @@ public final class Settings implements ToXContentFragment {
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
+    }
+
+    /**
+     * Returns the setting value associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    String get(String setting, String defaultValue, boolean isList) {
+        Object value = settings.get(setting);
+        if (value != null) {
+            if (value instanceof List) {
+                if (isList == false) {
+                    throw new IllegalArgumentException(
+                        "Found list type value for setting [" + setting + "] but but did not expect a list for it."
+                    );
+                }
+            } else if (isList) {
+                throw new IllegalArgumentException(
+                    "Expected list type value for setting [" + setting + "] but found [" + value.getClass() + ']'
+                );
+            }
+            return toString(value);
+        } else {
+            return defaultValue;
+        }
     }
 
     /**
@@ -322,7 +346,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
     }
 
     /**
@@ -769,8 +793,8 @@ public final class Settings implements ToXContentFragment {
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
 
     /**
-     * Returns <tt>true</tt> if this settings object contains no settings
-     * @return <tt>true</tt> if this settings object contains no settings
+     * Returns {@code true} if this settings object contains no settings
+     * @return {@code true} if this settings object contains no settings
      */
     public boolean isEmpty() {
         return this.settings.isEmpty() && (secureSettings == null || secureSettings.getSettingNames().isEmpty());
@@ -1206,7 +1230,7 @@ public final class Settings implements ToXContentFragment {
 
         /**
          * Runs across all the settings set on this builder and
-         * replaces <tt>${...}</tt> elements in each setting with
+         * replaces {@code ${...}} elements in each setting with
          * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
@@ -1472,7 +1496,7 @@ public final class Settings implements ToXContentFragment {
             builder.startObject();
             toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

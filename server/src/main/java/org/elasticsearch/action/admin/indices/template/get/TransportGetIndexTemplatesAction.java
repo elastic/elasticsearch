@@ -42,8 +42,10 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
 
     @Inject
     public TransportGetIndexTemplatesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetIndexTemplatesRequest::new);
+                                            ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, GetIndexTemplatesRequest::new);
     }
 
     @Override
@@ -62,7 +64,8 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
     }
 
     @Override
-    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) {
+    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state,
+                                   ActionListener<GetIndexTemplatesResponse> listener) {
         List<IndexTemplateMetaData> results;
 
         // If we did not ask for a specific name, then we return all templates

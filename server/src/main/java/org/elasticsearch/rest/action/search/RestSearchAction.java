@@ -43,6 +43,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -54,7 +55,13 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+    public static final String TOTAL_HIT_AS_INT_PARAM = "rest_total_hits_as_int";
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HIT_AS_INT_PARAM));
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
 
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
@@ -109,7 +116,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            searchRequest.source().parseXContent(requestContentParser);
+            searchRequest.source().parseXContent(requestContentParser, true);
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
@@ -128,7 +135,7 @@ public class RestSearchAction extends BaseRestHandler {
             // only set if we have the parameter passed to override the cluster-level default
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
-        
+
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
@@ -201,7 +208,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
                 for (String field : sFields) {
-                    searchSourceBuilder.docValueField(field);
+                    searchSourceBuilder.docValueField(field, null);
                 }
             }
         }

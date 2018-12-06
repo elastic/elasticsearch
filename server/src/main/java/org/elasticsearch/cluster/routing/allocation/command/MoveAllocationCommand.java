@@ -102,7 +102,20 @@ public class MoveAllocationCommand implements AllocationCommand {
         Decision decision = null;
 
         boolean found = false;
-        for (ShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.getId())) {
+        RoutingNode fromRoutingNode = allocation.routingNodes().node(fromDiscoNode.getId());
+        if (fromRoutingNode == null && !fromDiscoNode.isDataNode()) {
+            throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
+                + fromDiscoNode + " to " + toDiscoNode + ": source [" +  fromDiscoNode.getName()
+                + "] is not a data node.");
+        }
+        RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
+        if (toRoutingNode == null && !toDiscoNode.isDataNode()) {
+            throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
+                + fromDiscoNode + " to " + toDiscoNode + ": source [" +  toDiscoNode.getName()
+                + "] is not a data node.");
+        }
+
+        for (ShardRouting shardRouting : fromRoutingNode) {
             if (!shardRouting.shardId().getIndexName().equals(index)) {
                 continue;
             }
@@ -121,18 +134,19 @@ public class MoveAllocationCommand implements AllocationCommand {
                         ", shard is not started (state = " + shardRouting.state() + "]");
             }
 
-            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
             decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
             if (decision.type() == Decision.Type.NO) {
                 if (explain) {
                     return new RerouteExplanation(this, decision);
                 }
-                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " + decision);
+                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " +
+                    toDiscoNode + ", since its not allowed, reason: " + decision);
             }
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
-            allocation.routingNodes().relocateShard(shardRouting, toRoutingNode.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+            allocation.routingNodes().relocateShard(shardRouting, toRoutingNode.nodeId(),
+                allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
         }
 
         if (!found) {

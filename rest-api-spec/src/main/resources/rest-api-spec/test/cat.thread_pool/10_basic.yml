@@ -1,5 +1,8 @@
 ---
 "Test cat thread_pool output":
+  - skip:
+      version: " - 6.2.99"
+      reason: the write thread pool was renamed from bulk in 6.3.0
 
   - do:
       cat.thread_pool: {}
@@ -29,30 +32,30 @@
 
   - do:
       cat.thread_pool:
-          thread_pool_patterns: bulk,management,flush,index,generic,force_merge
+          thread_pool_patterns: write,management,flush,index,generic,force_merge
           h: id,name,active
           v: true
 
   - match:
       $body: |
                /^  id \s+ name        \s+ active \n
-                  (\S+\s+ bulk        \s+ \d+    \n
-                   \S+\s+ flush       \s+ \d+    \n
+                  (\S+\s+ flush       \s+ \d+    \n
                    \S+\s+ force_merge \s+ \d+    \n
                    \S+\s+ generic     \s+ \d+    \n
                    \S+\s+ index       \s+ \d+    \n
-                   \S+\s+ management  \s+ \d+    \n)+  $/
+                   \S+\s+ management  \s+ \d+    \n
+                   \S+\s+ write       \s+ \d+    \n)+  $/
 
   - do:
       cat.thread_pool:
-          thread_pool_patterns: bulk
+          thread_pool_patterns: write
           h: id,name,type,active,size,queue,queue_size,rejected,largest,completed,min,max,keep_alive
           v: true
 
   - match:
       $body: |
-               /^  id  \s+ name \s+ type  \s+ active \s+ size \s+ queue \s+ queue_size \s+ rejected \s+ largest \s+ completed \s+ min \s+ max \s+ keep_alive \n
-                  (\S+ \s+ bulk \s+ fixed \s+ \d+    \s+ \d+  \s+ \d+   \s+ (-1|\d+)   \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
+               /^  id  \s+ name  \s+ type  \s+ active \s+ size \s+ queue \s+ queue_size \s+ rejected \s+ largest \s+ completed \s+ min \s+ max \s+ keep_alive \n
+                  (\S+ \s+ write \s+ fixed \s+ \d+    \s+ \d+  \s+ \d+   \s+ (-1|\d+)   \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -68,12 +71,12 @@
 
   - do:
       cat.thread_pool:
-          thread_pool_patterns: bulk,index,search
+          thread_pool_patterns: write,index,search
           size: ""
 
   - match:
       $body: |
                /  #node_name     name       active     queue     rejected
-               ^  (\S+       \s+ bulk   \s+ \d+    \s+ \d+   \s+ \d+      \n
-                   \S+       \s+ index  \s+ \d+    \s+ \d+   \s+ \d+      \n
-                   \S+       \s+ search \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
+               ^  (\S+       \s+ index  \s+ \d+    \s+ \d+   \s+ \d+      \n
+                   \S+       \s+ search \s+ \d+    \s+ \d+   \s+ \d+      \n
+                   \S+       \s+ write  \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/

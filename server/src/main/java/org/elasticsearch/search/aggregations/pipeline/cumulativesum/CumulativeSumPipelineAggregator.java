@@ -79,11 +79,17 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         double sum = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
-            sum += thisBucketValue;
-            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
-                return (InternalAggregation) p;
-            }).collect(Collectors.toList());
-            aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<PipelineAggregator>(), metaData()));
+
+            // Only increment the sum if it's a finite value, otherwise "increment by zero" is correct
+            if (thisBucketValue != null && thisBucketValue.isInfinite() == false && thisBucketValue.isNaN() == false) {
+                sum += thisBucketValue;
+            }
+
+            List<InternalAggregation> aggs = StreamSupport
+                .stream(bucket.getAggregations().spliterator(), false)
+                .map((p) -> (InternalAggregation) p)
+                .collect(Collectors.toList());
+            aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<>(), metaData()));
             Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
             newBuckets.add(newBucket);
         }

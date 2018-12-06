@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -37,6 +38,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
@@ -51,7 +54,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
-            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
+        CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache,
+        CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
@@ -74,6 +78,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                                                List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
         return new ClusterStatsResponse(
             System.currentTimeMillis(),
+            clusterService.state().metaData().clusterUUID(),
             clusterService.getClusterName(),
             responses,
             failures);
@@ -99,13 +104,23 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             for (IndexShard indexShard : indexService) {
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
+                    CommitStats commitStats;
+                    SeqNoStats seqNoStats;
+                    try {
+                        commitStats = indexShard.commitStats();
+                        seqNoStats = indexShard.seqNoStats();
+                    } catch (AlreadyClosedException e) {
+                        // shard is closed - no stats is fine
+                        commitStats = null;
+                        seqNoStats = null;
+                    }
                     shardsStats.add(
                         new ShardStats(
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
                             new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
-                            indexShard.commitStats(),
-                            indexShard.seqNoStats()));
+                            commitStats,
+                            seqNoStats));
                 }
             }
         }
@@ -115,7 +130,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));
+        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats,
+            shardsStats.toArray(new ShardStats[shardsStats.size()]));
 
     }
 

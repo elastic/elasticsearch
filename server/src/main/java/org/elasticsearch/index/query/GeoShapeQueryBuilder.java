@@ -29,6 +29,7 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -77,6 +78,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private static final ParseField SHAPE_TYPE_FIELD = new ParseField("type");
     private static final ParseField SHAPE_INDEX_FIELD = new ParseField("index");
     private static final ParseField SHAPE_PATH_FIELD = new ParseField("path");
+    private static final ParseField SHAPE_ROUTING_FIELD = new ParseField("routing");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String fieldName;
@@ -89,8 +91,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private final String indexedShapeId;
     private final String indexedShapeType;
 
+
     private String indexedShapeIndex = DEFAULT_SHAPE_INDEX_NAME;
     private String indexedShapePath = DEFAULT_SHAPE_FIELD_NAME;
+    private String indexedShapeRouting;
 
     private ShapeRelation relation = DEFAULT_SHAPE_RELATION;
 
@@ -166,6 +170,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             indexedShapeType = in.readOptionalString();
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+                indexedShapeRouting = in.readOptionalString();
+            } else {
+                indexedShapeRouting = null;
+            }
         }
         relation = ShapeRelation.readFromStream(in);
         strategy = in.readOptionalWriteable(SpatialStrategy::readFromStream);
@@ -188,6 +197,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             out.writeOptionalString(indexedShapeType);
             out.writeOptionalString(indexedShapeIndex);
             out.writeOptionalString(indexedShapePath);
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                out.writeOptionalString(indexedShapeRouting);
+            } else if (indexedShapeRouting != null) {
+                throw new IllegalStateException("indexed shape routing cannot be serialized to older nodes");
+            }
         }
         relation.writeTo(out);
         out.writeOptionalWriteable(strategy);
@@ -283,6 +297,26 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      */
     public String indexedShapePath() {
         return indexedShapePath;
+    }
+
+    /**
+     * Sets the optional routing to the indexed Shape that will be used in the query
+     *
+     * @param indexedShapeRouting indexed shape routing
+     * @return this
+     */
+    public GeoShapeQueryBuilder indexedShapeRouting(String indexedShapeRouting) {
+        this.indexedShapeRouting = indexedShapeRouting;
+        return this;
+    }
+
+
+    /**
+     * @return the optional routing to the indexed Shape that will be used in the
+     *         Query
+     */
+    public String indexedShapeRouting() {
+        return indexedShapeRouting;
     }
 
     /**
@@ -473,6 +507,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             if (indexedShapePath != null) {
                 builder.field(SHAPE_PATH_FIELD.getPreferredName(), indexedShapePath);
             }
+            if (indexedShapeRouting != null) {
+                builder.field(SHAPE_ROUTING_FIELD.getPreferredName(), indexedShapeRouting);
+            }
             builder.endObject();
         }
 
@@ -498,6 +535,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         String type = null;
         String index = null;
         String shapePath = null;
+        String shapeRouting = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -544,6 +582,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                                         index = parser.text();
                                     } else if (SHAPE_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         shapePath = parser.text();
+                                    } else if (SHAPE_ROUTING_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                        shapeRouting = parser.text();
                                     }
                                 } else {
                                     throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
@@ -581,6 +621,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (shapePath != null) {
             builder.indexedShapePath(shapePath);
         }
+        if (shapeRouting != null) {
+            builder.indexedShapeRouting(shapeRouting);
+        }
         if (shapeRelation != null) {
             builder.relation(shapeRelation);
         }
@@ -602,6 +645,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                 && Objects.equals(indexedShapeIndex, other.indexedShapeIndex)
                 && Objects.equals(indexedShapePath, other.indexedShapePath)
                 && Objects.equals(indexedShapeType, other.indexedShapeType)
+                && Objects.equals(indexedShapeRouting, other.indexedShapeRouting)
                 && Objects.equals(relation, other.relation)
                 && Objects.equals(shape, other.shape)
                 && Objects.equals(supplier, other.supplier)
@@ -612,7 +656,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, indexedShapeId, indexedShapeIndex,
-                indexedShapePath, indexedShapeType, relation, shape, strategy, ignoreUnmapped, supplier);
+                indexedShapePath, indexedShapeType, indexedShapeRouting, relation, shape, strategy, ignoreUnmapped, supplier);
     }
 
     @Override
@@ -629,6 +673,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             SetOnce<ShapeBuilder> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
                 GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
+                getRequest.routing(indexedShapeRouting);
                 fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder-> {
                     supplier.set(builder);
                     listener.onResponse(null);

@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -80,9 +81,9 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("source", "bar");
         configMap.put("lang", "mockscript");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        Exception exception = expectThrows(Exception.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
-        assertThat(exception.getMessage(), is("Only one of [id] or [source] may be configured"));
+        assertThat(exception.getMessage(), containsString("Only one of [id] or [source] may be configured"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {

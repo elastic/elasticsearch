@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -50,8 +49,9 @@ public final class HttpTransportSettings {
         new Setting<>("http.cors.allow-headers", "X-Requested-With,Content-Type,Content-Length", (value) -> value, Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
+    // In 7.0 pipelining support will always be enabled and this setting will be removed.
     public static final Setting<Boolean> SETTING_PIPELINING =
-        Setting.boolSetting("http.pipelining", true, Property.NodeScope);
+        Setting.boolSetting("http.pipelining", true, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
@@ -88,6 +88,10 @@ public final class HttpTransportSettings {
         Setting.byteSizeSetting("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE =
         Setting.byteSizeSetting("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT =
+        Setting.intSetting("http.max_warning_header_count", -1, -1, Property.NodeScope);
+    public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE =
+        Setting.byteSizeSetting("http.max_warning_header_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH =
         Setting.byteSizeSetting("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB), Property.NodeScope);
     // don't reset cookies by default, since I don't think we really need to

@@ -77,7 +77,7 @@ public class GroupShardsIteratorTests extends ESTestCase {
 
     public ShardRouting newRouting(Index index, int id, boolean started) {
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, id), true,
-            RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         shardRouting = ShardRoutingHelper.initialize(shardRouting, "some node");
         if (started) {
             shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,7 +43,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -50,6 +51,9 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  */
 public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     public static final String NAME = "bool";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(BoolQueryBuilder.class)
+    );
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
 
@@ -112,7 +116,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents and will
-     * contribute to scoring. No <tt>null</tt> value allowed.
+     * contribute to scoring. No {@code null} value allowed.
      */
     public BoolQueryBuilder must(QueryBuilder queryBuilder) {
         if (queryBuilder == null) {
@@ -131,7 +135,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents but will
-     * not contribute to scoring. No <tt>null</tt> value allowed.
+     * not contribute to scoring. No {@code null} value allowed.
      */
     public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
         if (queryBuilder == null) {
@@ -150,7 +154,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     /**
      * Adds a query that <b>must not</b> appear in the matching documents.
-     * No <tt>null</tt> value allowed.
+     * No {@code null} value allowed.
      */
     public BoolQueryBuilder mustNot(QueryBuilder queryBuilder) {
         if (queryBuilder == null) {
@@ -169,8 +173,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     /**
      * Adds a clause that <i>should</i> be matched by the returned documents. For a boolean query with no
-     * <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
-     * for the BooleanQuery to match. No <tt>null</tt> value allowed.
+     * {@code MUST} clauses one or more <code>SHOULD</code> clauses must match a document
+     * for the BooleanQuery to match. No {@code null} value allowed.
      *
      * @see #minimumShouldMatch(int)
      */
@@ -387,6 +391,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
         final String minimumShouldMatch;
         if (context.isFilter() && this.minimumShouldMatch == null && shouldClauses.size() > 0) {
+            if (mustClauses.size() > 0 || mustNotClauses.size() > 0 || filterClauses.size() > 0) {
+                deprecationLogger.deprecatedAndMaybeLog("filter_context_min_should_match",
+                    "Should clauses in the filter context will no longer automatically set the minimum should " +
+                        "match to 1 in the next major version. You should group them in a [filter] clause or explicitly set " +
+                        "[minimum_should_match] to 1 to restore this behavior in the next major version." );
+            }
             minimumShouldMatch = "1";
         } else {
             minimumShouldMatch = this.minimumShouldMatch;

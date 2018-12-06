@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -226,10 +228,13 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 }
             }
         }
-
         for (DocumentField field : metaFields) {
-            Object value = field.getValue();
-            builder.field(field.getName(), value);
+            // TODO: can we avoid having an exception here?
+            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+                builder.field(field.getName(), field.getValues());
+            } else {
+                builder.field(field.getName(), field.<Object>getValue());
+            }
         }
 
         builder.field(FOUND, exists);
@@ -304,7 +309,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                         //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
                         //it all depends on the current builder settings
                         builder.copyCurrentStructure(parser);
-                        source = builder.bytes();
+                        source = BytesReference.bytes(builder);
                     }
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -315,7 +320,11 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                     parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                parser.skipChildren(); // skip potential inner arrays for forward compatibility
+                if (IgnoredFieldMapper.NAME.equals(currentFieldName)) {
+                    fields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
+                } else {
+                    parser.skipChildren(); // skip potential inner arrays for forward compatibility
+                }
             }
         }
         return new GetResult(index, type, id, version, found, source, fields);
@@ -399,7 +408,12 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, version, exists, fields, sourceAsMap());
+        return Objects.hash(version, exists, index, type, id, fields, sourceAsMap());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }
 

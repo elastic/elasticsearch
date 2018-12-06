@@ -37,7 +37,7 @@ the `percolator` query before it gets indexed into a temporary index.
 The `query` field is used for indexing the query documents. It will hold a
 json object that represents an actual Elasticsearch query. The `query` field
 has been configured to use the <<percolator,percolator field type>>. This field
-type understands the query dsl and stored the query in such a way that it can be
+type understands the query dsl and stores the query in such a way that it can be
 used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
@@ -117,6 +117,10 @@ The above request will yield the following response:
 <1> The query with id `1` matches our document.
 <2> The `_percolator_document_slot` field indicates which document has matched with this query.
     Useful when percolating multiple document simultaneously.
+
+TIP: To provide a simple example, this documentation uses one index `my-index` for both the percolate queries and documents.
+This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
+to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
 
 [float]
 ==== Parameters
@@ -643,6 +647,7 @@ The above search request returns a response similar to this:
     query with `_name` parameter set to `query1`.
 
 [float]
+[[how-it-works]]
 ==== How it Works Under the Hood
 
 When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
@@ -679,3 +684,11 @@ GET /_search
 
 NOTE: The above example assumes that there is a `query` field of type
 `percolator` in the mappings.
+
+Given the design of percolation, it often makes sense to use separate indices for the percolate queries and documents
+being percolated, as opposed to a single index as we do in examples. There are a few benefits to this approach:
+
+- Because percolate queries contain a different set of fields from the percolated documents, using two separate indices
+allows for fields to be stored in a denser, more efficient way.
+- Percolate queries do not scale in the same way as other queries, so percolation performance may benefit from using
+a different index configuration, like the number of primary shards.

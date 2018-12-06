@@ -1,77 +1,8 @@
 ---
-"Index data and search on the mixed cluster":
- - do:
-     cluster.health:
-        wait_for_status: yellow
-        wait_for_nodes: 2
-
- - do:
-     search:
-        type: doc
-        index: test_index
-
- - match: { hits.total: 5 } # no new indexed data, so expect the original 5 documents from the old cluster
-
- - do:
-     search:
-       index: index_with_replicas
-
- - match: { hits.total: 5 } # just check we recovered fine
-
- - do:
-     bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v1_mixed", "f2": 5}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v2_mixed", "f2": 6}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v3_mixed", "f2": 7}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v4_mixed", "f2": 8}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v5_mixed", "f2": 9}'
-
- - do:
-     index:
-       index: test_index
-       type: doc
-       id: d10
-       body: {"f1": "v6_mixed", "f2": 10}
-
- - do:
-     indices.flush:
-        index: test_index
-
- - do:
-     search:
-        type: doc
-        index: test_index
-
- - match: { hits.total: 11 } # 5 docs from old cluster, 6 docs from mixed cluster
-
- - do:
-     delete:
-       index: test_index
-       type: doc
-       id: d10
-
- - do:
-     indices.flush:
-        index: test_index
-
- - do:
-     search:
-        type: doc
-        index: test_index
-
- - match: { hits.total: 10 }
-
----
 "Verify that we can still find things with the template":
   - do:
       search_template:
+        index: test_search_template
         body:
           id: test_search_template
           params:
@@ -97,51 +28,32 @@
     reason:  multiple types are not supported from 6.0 and beyond
 
  - do:
-     bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-          - '{"f1": "v1_mixed", "f2": 5}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-          - '{"f1": "v2_mixed", "f2": 6}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-          - '{"f1": "v3_mixed", "f2": 7}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-          - '{"f1": "v4_mixed", "f2": 8}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-          - '{"f1": "v5_mixed", "f2": 9}'
-
- - do:
      index:
-       index: test_index
+       index: multi_type_index
        type: test_type
        id: d10
        body: {"f1": "v6_mixed", "f2": 10}
 
  - do:
      indices.flush:
-        index: test_index
+        index: multi_type_index
 
  - do:
      search:
-        index: test_index
-        type: test_type
-
- - match: { hits.total: 6 }
+        index: multi_type_index
+ - match: { hits.total: 3 }
 
  - do:
      delete:
        refresh: true
-       index: test_index
+       index: multi_type_index
        type: test_type
        id: d10
 
  - do:
      search:
-        index: test_index
-        type: test_type
-
- - match: { hits.total: 5 }
+        index: multi_type_index
+ - match: { hits.total: 2 }
 
 ---
 "Use the percolate query in mixed cluster":

@@ -65,6 +65,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public QuerySearchResult() {
     }
 
+    public QuerySearchResult(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
         this.requestId = id;
         setSearchShardTarget(shardTarget);

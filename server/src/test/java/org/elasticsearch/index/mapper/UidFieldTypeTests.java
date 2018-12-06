@@ -27,13 +27,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.mockito.Mockito;
 
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.mockito.Matchers.any;
 
 public class UidFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -131,5 +133,36 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
         query = ft.termQuery("type2#id", context);
         assertEquals(new TermInSetQuery("_id"), query);
+    }
+
+    public void testIsAggregatable() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
+        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
+        assertTrue(ft.isAggregatable());
+    }
+
+    public void testFieldDataDeprecation() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
+        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
+        IndexFieldData.Builder builder = ft.fielddataBuilder("");
+        MapperService mockMapper = Mockito.mock(MapperService.class);
+        Mockito.when(mockMapper.fullName(any())).thenReturn(new IdFieldMapper.IdFieldType());
+        Mockito.when(mockMapper.types()).thenReturn(Collections.singleton("doc"));
+        builder.build(mockSettings, ft, null, new NoneCircuitBreakerService(), mockMapper);
+        assertWarnings("Fielddata access on the _uid field is deprecated, use _id instead");
     }
 }

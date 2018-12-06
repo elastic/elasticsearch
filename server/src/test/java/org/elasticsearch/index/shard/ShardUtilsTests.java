@@ -26,9 +26,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.BaseDirectoryWrapper;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -63,9 +62,5 @@ public class ShardUtilsTests extends ESTestCase {
             }
         }
         IOUtils.close(writer, dir);
-    }
-
-    public static Engine getShardEngine(IndexShard shard) {
-        return shard.getEngine();
     }
 }

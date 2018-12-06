@@ -42,7 +42,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
 
     @Override
     protected final TopHitsAggregationBuilder createTestAggregatorBuilder() {
-        TopHitsAggregationBuilder factory = new TopHitsAggregationBuilder("foo");
+        TopHitsAggregationBuilder factory = new TopHitsAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             factory.from(randomIntBetween(0, 10000));
         }
@@ -81,7 +81,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                factory.fieldDataField(randomAlphaOfLengthBetween(5, 50));
+                factory.docValueField(randomAlphaOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {

@@ -1,0 +1,136 @@
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.ClusterFormationTasks
+import org.elasticsearch.gradle.test.NodeInfo
+
+apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: ':modules:tribe', configuration: 'runtime')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+}
+
+namingConventions.skipIntegTestInDisguise = true
+
+compileTestJava.options.compilerArgs << "-Xlint:-try"
+
+String xpackPath = project(xpackModule('core')).projectDir.toPath().resolve('src/test/resources').toString()
+sourceSets {
+    test {
+        resources {
+            srcDirs += [xpackPath]
+        }
+    }
+}
+
+forbiddenPatterns {
+    exclude '**/*.key'
+    exclude '**/*.p12'
+    exclude '**/*.der'
+    exclude '**/*.zip'
+}
+
+task setupClusterOne {}
+ClusterConfiguration configOne = new ClusterConfiguration(project)
+configOne.clusterName = 'cluster1'
+configOne.setting('node.name', 'cluster1-node1')
+configOne.setting('xpack.monitoring.enabled', false)
+configOne.setting('xpack.ml.enabled', false)
+configOne.setting('xpack.license.self_generated.type', 'trial')
+configOne.setting('xpack.security.enabled', 'true')
+configOne.setupCommand('setupDummyUser',
+        'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
+configOne.waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'x-pack-test-password',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+}
+List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', setupClusterOne, configOne)
+
+task setupClusterTwo {}
+ClusterConfiguration configTwo = new ClusterConfiguration(project)
+configTwo.clusterName = 'cluster2'
+configTwo.setting('node.name', 'cluster2-node1')
+configTwo.setting('xpack.monitoring.enabled', false)
+configTwo.setting('xpack.ml.enabled', false)
+configTwo.setting('xpack.license.self_generated.type', 'trial')
+configTwo.setting('xpack.security.enabled', 'true')
+configTwo.setupCommand('setupDummyUser',
+        'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
+configTwo.waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'x-pack-test-password',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+    }
+List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', setupClusterTwo, configTwo)
+
+integTestCluster {
+    dependsOn setupClusterOne, setupClusterTwo
+    nodeStartupWaitSeconds 45
+    setupCommand 'setupDummyUser',
+            'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+    setting 'xpack.monitoring.enabled', false
+    setting 'xpack.ml.enabled', false
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    setting 'node.name', 'tribe-node'
+    setting 'tribe.on_conflict', 'prefer_cluster1'
+    setting 'tribe.cluster1.cluster.name', 'cluster1'
+    setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
+    setting 'tribe.cluster1.http.enabled', 'true'
+    setting 'tribe.cluster1.http.port', '0'
+    setting 'tribe.cluster1.transport.tcp.port', '0'
+    setting 'tribe.cluster1.xpack.security.enabled', 'true'
+    setting 'tribe.cluster1.xpack.ml.enabled', 'false'
+    setting 'tribe.cluster2.cluster.name', 'cluster2'
+    setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
+    setting 'tribe.cluster2.http.enabled', 'true'
+    setting 'tribe.cluster2.http.port', '0'
+    setting 'tribe.cluster2.transport.tcp.port', '0'
+    setting 'tribe.cluster2.xpack.security.enabled', 'true'
+    setting 'tribe.cluster2.xpack.ml.enabled', 'false'
+    keystoreSetting 'bootstrap.password', 'x-pack-test-password'
+    waitCondition = { node, ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow&timeout=60s",
+                dest: tmpFile.toString(),
+                username: 'test_user',
+                password: 'x-pack-test-password',
+                ignoreerrors: true,
+                retries: 10)
+        return tmpFile.exists()
+    }
+}
+
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+    include '**/*Tests.class'
+}
+
+integTestRunner {
+    systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
+    systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
+    systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"
+    finalizedBy 'clusterOne#stop'
+    finalizedBy 'clusterTwo#stop'
+}

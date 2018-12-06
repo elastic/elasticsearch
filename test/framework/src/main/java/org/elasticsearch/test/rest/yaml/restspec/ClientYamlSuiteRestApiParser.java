@@ -64,8 +64,7 @@ public class ClientYamlSuiteRestApiParser {
 
                 if ("url".equals(parser.currentName())) {
                     String currentFieldName = "url";
-                    int innerLevel = -1;
-                    while(parser.nextToken() != XContentParser.Token.END_OBJECT || innerLevel >= 0) {
+                    while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         }
@@ -107,13 +106,6 @@ public class ClientYamlSuiteRestApiParser {
                                 }
                                 restApi.addParam(param, PARAMETER_PARSER.parse(parser, null).isRequired());
                             }
-                        }
-
-                        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                            innerLevel++;
-                        }
-                        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-                            innerLevel--;
                         }
                     }
                 }

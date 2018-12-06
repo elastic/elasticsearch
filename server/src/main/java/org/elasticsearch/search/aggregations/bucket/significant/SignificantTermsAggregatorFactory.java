@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
@@ -31,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -60,7 +60,8 @@ import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
         implements Releasable {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SignificantTermsAggregatorFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            LogManager.getLogger(SignificantTermsAggregatorFactory.class));
 
     private final IncludeExclude includeExclude;
     private final String executionHint;
@@ -85,6 +86,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              AggregatorFactories.Builder subFactoriesBuilder,
                                              Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
+
+        if (!config.unmapped()) {
+            this.fieldType = config.fieldContext().fieldType();
+            this.indexedFieldName = fieldType.name();
+        }
+
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.filter = filterBuilder == null
@@ -98,15 +105,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-        setFieldInfo(context);
-
-    }
-
-    private void setFieldInfo(SearchContext context) {
-        if (!config.unmapped()) {
-            this.indexedFieldName = config.fieldContext().field();
-            fieldType = context.smartNameFieldType(indexedFieldName);
-        }
     }
 
     /**
@@ -153,12 +151,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
-        String value = config.format().format(termBytes);
+        String value = config.format().format(termBytes).toString();
         return getBackgroundFrequency(value);
     }
 
     public long getBackgroundFrequency(long termNum) throws IOException {
-        String value = config.format().format(termNum);
+        String value = config.format().format(termNum).toString();
         return getBackgroundFrequency(value);
     }
 
@@ -198,7 +196,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards()));
+                    context.numberOfShards() == 1));
         }
 
         if (valuesSource instanceof ValuesSource.Bytes) {

@@ -21,10 +21,13 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -32,7 +35,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -51,7 +53,7 @@ import java.util.Set;
 
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexTemplateMetaData.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(IndexTemplateMetaData.class));
 
     private final String name;
 
@@ -86,13 +88,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
-    private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
-
     public IndexTemplateMetaData(String name, int order, Integer version,
                                  List<String> patterns, Settings settings,
                                  ImmutableOpenMap<String, CompressedXContent> mappings,
-                                 ImmutableOpenMap<String, AliasMetaData> aliases,
-                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+                                 ImmutableOpenMap<String, AliasMetaData> aliases) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
         }
@@ -103,7 +102,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
-        this.customs = customs;
     }
 
     public String name() {
@@ -164,19 +162,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return this.aliases;
     }
 
-    public ImmutableOpenMap<String, IndexMetaData.Custom> customs() {
-        return this.customs;
-    }
-
-    public ImmutableOpenMap<String, IndexMetaData.Custom> getCustoms() {
-        return this.customs;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends IndexMetaData.Custom> T custom(String type) {
-        return (T) customs.get(type);
-    }
-
     public static Builder builder(String name) {
         return new Builder(name);
     }
@@ -226,11 +211,13 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             AliasMetaData aliasMd = new AliasMetaData(in);
             builder.putAlias(aliasMd);
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            // Previously we allowed custom metadata
+            int customSize = in.readVInt();
+            assert customSize == 0 : "expected no custom metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         if (in.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
             builder.version(in.readOptionalVInt());
@@ -261,10 +248,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        if (out.getVersion().before(Version.V_6_5_0)) {
+            out.writeVInt(0);
         }
         if (out.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
             out.writeOptionalVInt(version);
@@ -273,10 +258,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings", "index_patterns");
-        static {
-            VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
-        }
+        private static final Set<String> VALID_FIELDS = Sets.newHashSet(
+            "template", "order", "mappings", "settings", "index_patterns", "aliases", "version");
 
         private String name;
 
@@ -292,13 +275,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
-
         public Builder(String name) {
             this.name = name;
             mappings = ImmutableOpenMap.builder();
             aliases = ImmutableOpenMap.builder();
-            customs = ImmutableOpenMap.builder();
         }
 
         public Builder(IndexTemplateMetaData indexTemplateMetaData) {
@@ -310,7 +290,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
             mappings = ImmutableOpenMap.builder(indexTemplateMetaData.mappings());
             aliases = ImmutableOpenMap.builder(indexTemplateMetaData.aliases());
-            customs = ImmutableOpenMap.builder(indexTemplateMetaData.customs());
         }
 
         public Builder order(int order) {
@@ -364,23 +343,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public Builder putCustom(String type, IndexMetaData.Custom customIndexMetaData) {
-            this.customs.put(type, customIndexMetaData);
-            return this;
-        }
-
-        public Builder removeCustom(String type) {
-            this.customs.remove(type);
-            return this;
-        }
-
-        public IndexMetaData.Custom getCustom(String type) {
-            return this.customs.get(type);
-        }
-
         public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(),
-                aliases.build(), customs.build());
+            return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
         }
 
         @SuppressWarnings("unchecked")
@@ -428,12 +392,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.endArray();
             }
 
-            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
-                builder.endObject();
-            }
-
             builder.startObject("aliases");
             for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
@@ -463,7 +421,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                 String mappingType = currentFieldName;
                                 Map<String, Object> mappingSource =
                                     MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
-                                builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).string());
+                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
@@ -471,15 +429,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {
-                        // check if its a custom index metadata
-                        IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(currentFieldName);
-                        if (proto == null) {
-                            //TODO warn
-                            parser.skipChildren();
-                        } else {
-                            IndexMetaData.Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
-                        }
+                        throw new ElasticsearchParseException("unknown key [{}] for index template", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
@@ -487,7 +437,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             Map<String, Object> mapping = parser.mapOrdered();
                             if (mapping.size() == 1) {
                                 String mappingType = mapping.keySet().iterator().next();
-                                String mappingSource = XContentFactory.jsonBuilder().map(mapping).string();
+                                String mappingSource = Strings.toString(XContentFactory.jsonBuilder().map(mapping));
 
                                 if (mappingSource == null) {
                                     // crap, no mapping source, warn?

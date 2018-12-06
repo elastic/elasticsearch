@@ -24,7 +24,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHost;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -36,7 +35,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.KeyFactory;
 import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
@@ -46,8 +51,6 @@ import static org.junit.Assert.fail;
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static HttpsServer httpsServer;
@@ -60,8 +63,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         httpsServer.start();
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange httpExchange) throws IOException {
@@ -77,11 +78,14 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
+        assumeFalse("Due to bug inside jdk, this test can't momentarily run with java 11. " +
+                "See: https://github.com/elastic/elasticsearch/issues/31940",
+            System.getProperty("java.version").contains("11"));
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
                 try {
-                    client.performRequest("GET", "/");
+                    client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
                     assertThat(e.getMessage(), containsString("General SSLEngine problem"));
@@ -90,7 +94,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
-                Response response = client.performRequest("GET", "/");
+                Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
             }
         } finally {
@@ -105,12 +109,20 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static SSLContext getSslContext() throws Exception {
         SSLContext sslContext = SSLContext.getInstance("TLS");
-        try (InputStream in = RestClientBuilderIntegTests.class.getResourceAsStream("/testks.jks")) {
-            KeyStore keyStore = KeyStore.getInstance("JKS");
-            keyStore.load(in, "password".toCharArray());
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        try (InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt")) {
+            // Build a keystore of default type programmatically since we can't use JKS keystores to
+            // init a KeyManagerFactory in FIPS 140 JVMs.
+            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null, "password".toCharArray());
+            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class
+                .getResource("/test.der").toURI())));
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            keyStore.setKeyEntry("mykey", keyFactory.generatePrivate(privateKeySpec), "password".toCharArray(),
+                new Certificate[]{certFactory.generateCertificate(certFile)});
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, "password".toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(keyStore);
             sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         }

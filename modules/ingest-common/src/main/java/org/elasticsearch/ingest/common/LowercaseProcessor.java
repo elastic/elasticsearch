@@ -35,9 +35,13 @@ public final class LowercaseProcessor extends AbstractStringProcessor {
         super(processorTag, field, ignoreMissing, targetField);
     }
 
+    public static String apply(String value) {
+        return value.toLowerCase(Locale.ROOT);
+    }
+
     @Override
     protected String process(String value) {
-        return value.toLowerCase(Locale.ROOT);
+        return apply(value);
     }
 
     @Override

@@ -160,6 +160,15 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     }
 
     @Override
+    public int numDimensions() {
+        if (shapes == null || shapes.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "GeometryCollection has not yet been initialized");
+        }
+        return shapes.get(0).numDimensions();
+    }
+
+    @Override
     public Shape build() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());

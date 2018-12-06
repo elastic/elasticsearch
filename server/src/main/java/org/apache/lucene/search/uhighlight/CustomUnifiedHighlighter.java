@@ -35,12 +35,9 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
@@ -71,7 +68,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final BreakIterator breakIterator;
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
-    private final int maxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -86,7 +82,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *                    If null {@link BreakIterator#getSentenceInstance(Locale)} is used.
      * @param fieldValue the original field values delimited by MULTIVAL_SEP_CHAR.
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
-     * @param maxAnalyzedOffset The maximum number of characters that will be analyzed for highlighting.
      */
     public CustomUnifiedHighlighter(IndexSearcher searcher,
                                     Analyzer analyzer,
@@ -95,8 +90,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     @Nullable Locale breakIteratorLocale,
                                     @Nullable BreakIterator breakIterator,
                                     String fieldValue,
-                                    int noMatchSize,
-                                    int maxAnalyzedOffset) {
+                                    int noMatchSize) {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
@@ -104,7 +98,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.passageFormatter = passageFormatter;
         this.fieldValue = fieldValue;
         this.noMatchSize = noMatchSize;
-        this.maxAnalyzedOffset = maxAnalyzedOffset;
     }
 
     /**
@@ -128,24 +121,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     @Override
     protected List<CharSequence[]> loadFieldValues(String[] fields, DocIdSetIterator docIter,
                                                    int cacheCharsThreshold) throws IOException {
-        // Issue deprecation warning if maxAnalyzedOffset is not set, and field length > default setting for 7.0
-        final int defaultMaxAnalyzedOffset7 = 10000;
-        if ((offsetSource == OffsetSource.ANALYSIS) &&  (maxAnalyzedOffset == -1) && (fieldValue.length() > defaultMaxAnalyzedOffset7)) {
-            DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(CustomUnifiedHighlighter.class));
-            deprecationLogger.deprecated(
-                "The length of text to be analyzed for highlighting [" + fieldValue.length() +
-                    "] exceeded the allowed maximum of [" + defaultMaxAnalyzedOffset7 + "] set for the next major Elastic version. " +
-                    "For large texts, indexing with offsets or term vectors is recommended!");
-        }
-        // Throw an error if maxAnalyzedOffset is explicitly set by the user, and field length > maxAnalyzedOffset
-        if ((offsetSource == OffsetSource.ANALYSIS) &&  (maxAnalyzedOffset > 0) && (fieldValue.length() > maxAnalyzedOffset)) {
-            // maxAnalyzedOffset is not set by user
-            throw new IllegalArgumentException(
-                "The length of text to be analyzed for highlighting [" + fieldValue.length() +
-                    "] exceeded the allowed maximum of [" + maxAnalyzedOffset + "]. This maximum can be set by changing the [" +
-                    IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] index level setting. " +
-                    "For large texts, indexing with offsets or term vectors is recommended!");
-        }
         // we only highlight one field, one document at a time
         return Collections.singletonList(new String[]{fieldValue});
     }
@@ -169,8 +144,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         OffsetSource offsetSource = getOptimizedOffsetSource(field, terms, phraseHelper, automata);
         BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
             UnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        UHComponents components = new UHComponents(field, getFieldMatcher(field), query, terms, phraseHelper, automata, highlightFlags);
         FieldOffsetStrategy strategy =
-            getOffsetStrategy(offsetSource, field, terms, phraseHelper, automata, highlightFlags);
+            getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
             getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize, fieldValue);
     }

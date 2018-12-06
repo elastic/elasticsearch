@@ -50,8 +50,10 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
 
     @Inject
     public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetRepositoriesRequest::new);
+                                          ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, GetRepositoriesRequest::new);
     }
 
     @Override
@@ -70,14 +72,15 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) {
+    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state,
+                                   final ActionListener<GetRepositoriesResponse> listener) {
         MetaData metaData = state.metaData();
         RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
             if (repositories != null) {
-                listener.onResponse(new GetRepositoriesResponse(repositories.repositories()));
+                listener.onResponse(new GetRepositoriesResponse(repositories));
             } else {
-                listener.onResponse(new GetRepositoriesResponse(Collections.<RepositoryMetaData>emptyList()));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(Collections.emptyList())));
             }
         } else {
             if (repositories != null) {
@@ -102,7 +105,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     }
                     repositoryListBuilder.add(repositoryMetaData);
                 }
-                listener.onResponse(new GetRepositoriesResponse(Collections.unmodifiableList(repositoryListBuilder)));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(repositoryListBuilder)));
             } else {
                 listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
             }

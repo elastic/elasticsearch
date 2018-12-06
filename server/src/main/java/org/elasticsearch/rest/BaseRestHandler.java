@@ -59,7 +59,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     private final LongAdder usageCount = new LongAdder();
 
     protected BaseRestHandler(Settings settings) {
-        super(settings);
+        // TODO drop settings from ctor
     }
 
     public final long getUsageCount() {

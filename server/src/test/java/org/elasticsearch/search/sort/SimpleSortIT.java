@@ -23,6 +23,7 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -85,7 +86,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 return ((ScriptDocValues.Strings) doc.get("id")).getValue();
             });
 
-            scripts.put("doc['id'].values[0]", vars -> {
+            scripts.put("doc['id'][0]", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 return ((ScriptDocValues.Strings) doc.get("id")).getValues().get(0);
             });
@@ -224,7 +225,7 @@ public class SimpleSortIT extends ESIntegTestCase {
     }
 
     public void testSortMinValueScript() throws IOException {
-        String mapping = jsonBuilder()
+        String mapping = Strings.toString(jsonBuilder()
                 .startObject()
                     .startObject("type1")
                         .startObject("properties")
@@ -242,7 +243,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject().string();
+                .endObject());
 
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
         ensureGreen();
@@ -343,7 +344,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // TODO: sort shouldn't fail when sort field is mapped dynamically
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
-        String mapping = jsonBuilder()
+        String mapping = Strings.toString(jsonBuilder()
                 .startObject()
                     .startObject("type1")
                         .startObject("properties")
@@ -355,7 +356,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject().string();
+                .endObject());
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
         ensureGreen();
 
@@ -400,7 +401,7 @@ public class SimpleSortIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].values[0]", Collections.emptyMap()))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'][0]", Collections.emptyMap()))
                 .addSort("svalue", SortOrder.ASC)
                 .get();
 

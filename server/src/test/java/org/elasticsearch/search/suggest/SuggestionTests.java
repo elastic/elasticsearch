@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -180,8 +180,8 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-            ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals("Unknown Suggestion [unknownType]", e.getMessage());
+            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
+            assertEquals("[1:31] unable to parse Suggestion with name [unknownType]: parser not found", e.getMessage());
         }
     }
 
@@ -247,7 +247,7 @@ public class SuggestionTests extends ESTestCase {
                     + "}", xContent.utf8ToString());
         }
         {
-            Map<String, Set<CharSequence>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
+            Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
             CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
             CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);

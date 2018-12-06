@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 
 import java.util.function.Supplier;
 
@@ -38,11 +37,29 @@ public interface ClusterApplier {
      * @param clusterStateSupplier the cluster state supplier which provides the latest cluster state to apply
      * @param listener callback that is invoked after cluster state is applied
      */
-    void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterStateTaskListener listener);
+    void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener);
 
     /**
      * Creates a new cluster state builder that is initialized with the cluster name and all initial cluster state customs.
      */
     ClusterState.Builder newClusterStateBuilder();
 
+    /**
+     * Listener for results of cluster state application
+     */
+    interface ClusterApplyListener {
+        /**
+         * Called on successful cluster state application
+         * @param source information where the cluster state came from
+         */
+        default void onSuccess(String source) {
+        }
+
+        /**
+         * Called on failure during cluster state application
+         * @param source information where the cluster state came from
+         * @param e exception that occurred
+         */
+        void onFailure(String source, Exception e);
+    }
 }

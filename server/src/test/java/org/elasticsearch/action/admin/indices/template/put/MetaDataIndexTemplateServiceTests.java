@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -110,9 +111,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-            .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
-            .endObject().endObject().endObject().string());
+        request.putMapping("type1", Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+                        .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
+                        .endObject().endObject().endObject()));
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -177,9 +178,13 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                null, null, null, xContentRegistry);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
-                new AliasValidator(Settings.EMPTY), null,
+                null,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                null,
+                xContentRegistry,
+                true);
+        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(null, createIndexService,
+                new AliasValidator(), null,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -201,17 +206,18 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
-            Settings.EMPTY,
-            clusterService,
-            indicesService,
-            null,
-            null,
-            null,
-            null,
-            null,
-            xContentRegistry());
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                null,
+                null,
+                null,
+                null,
+                xContentRegistry(),
+                true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-                Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
+                clusterService, createIndexService, new AliasValidator(), indicesService,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
 
         final List<Throwable> throwables = new ArrayList<>();

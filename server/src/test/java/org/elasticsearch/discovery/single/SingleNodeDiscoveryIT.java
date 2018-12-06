@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.single;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -82,7 +82,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     internalCluster().getInstance(TransportService.class);
             // try to ping the single node directly
             final UnicastHostsProvider provider =
-                    () -> Collections.singletonList(nodeTransport.getLocalNode());
+                hostsResolver -> Collections.singletonList(nodeTransport.getLocalNode().getAddress());
             final CountDownLatch latch = new CountDownLatch(1);
             final DiscoveryNodes nodes = DiscoveryNodes.builder()
                     .add(nodeTransport.getLocalNode())

@@ -20,11 +20,11 @@ package org.elasticsearch.join.query;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -54,6 +54,12 @@ public class LegacyChildQuerySearchIT extends ChildQuerySearchIT {
         return true;
     }
 
+    public void testSelfReferentialIsForbidden() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            prepareCreate("test").addMapping("type", "_parent", "type=type").get());
+        assertThat(e.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
+    }
+
     public void testIndexChildDocWithNoParentMapping() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("parent")
@@ -81,7 +87,7 @@ public class LegacyChildQuerySearchIT extends ChildQuerySearchIT {
         createIndex("test");
         ensureGreen();
 
-        PutMappingResponse putMappingResponse = client().admin().indices()
+        AcknowledgedResponse putMappingResponse = client().admin().indices()
             .preparePutMapping("test").setType("child").setSource("number", "type=integer")
             .get();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));

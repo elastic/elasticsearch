@@ -27,10 +27,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -38,7 +35,6 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NStringEntity;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -53,8 +49,17 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.indexlifecycle.AllocateAction;
+import org.elasticsearch.client.indexlifecycle.DeleteAction;
+import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.client.indexlifecycle.LifecycleAction;
+import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -63,6 +68,7 @@ import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
 import org.elasticsearch.index.rankeval.EvaluationMetric;
+import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
 import org.elasticsearch.index.rankeval.MeanReciprocalRank;
 import org.elasticsearch.index.rankeval.MetricDetail;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -75,32 +81,34 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregation
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
-import org.mockito.internal.matchers.ArrayEquals;
-import org.mockito.internal.matchers.VarargMatcher;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.client.RestClientTestUtil.randomHeaders;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.anyVararg;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNotNull;
-import static org.mockito.Matchers.isNull;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -108,6 +116,8 @@ import static org.mockito.Mockito.when;
 
 public class RestHighLevelClientTests extends ESTestCase {
 
+    private static final String SUBMIT_TASK_PREFIX = "submit_";
+    private static final String SUBMIT_TASK_SUFFIX = "_task";
     private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
     private static final RequestLine REQUEST_LINE = new BasicRequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
 
@@ -130,84 +140,62 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testPingSuccessful() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.OK));
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenReturn(response);
-        assertTrue(restHighLevelClient.ping(headers));
-        verify(restClient).performRequest(eq(HttpHead.METHOD_NAME), eq("/"), eq(Collections.emptyMap()),
-                isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
+        when(restClient.performRequest(any(Request.class))).thenReturn(response);
+        assertTrue(restHighLevelClient.ping(RequestOptions.DEFAULT));
     }
 
     public void testPing404NotFound() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.NOT_FOUND));
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenReturn(response);
-        assertFalse(restHighLevelClient.ping(headers));
-        verify(restClient).performRequest(eq(HttpHead.METHOD_NAME), eq("/"), eq(Collections.emptyMap()),
-                isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
+        when(restClient.performRequest(any(Request.class))).thenReturn(response);
+        assertFalse(restHighLevelClient.ping(RequestOptions.DEFAULT));
     }
 
     public void testPingSocketTimeout() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(new SocketTimeoutException());
-        expectThrows(SocketTimeoutException.class, () -> restHighLevelClient.ping(headers));
-        verify(restClient).performRequest(eq(HttpHead.METHOD_NAME), eq("/"), eq(Collections.emptyMap()),
-                isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
+        when(restClient.performRequest(any(Request.class))).thenThrow(new SocketTimeoutException());
+        expectThrows(SocketTimeoutException.class, () -> restHighLevelClient.ping(RequestOptions.DEFAULT));
     }
 
     public void testInfo() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
                 Build.CURRENT, true);
         mockResponse(testInfo);
-        MainResponse receivedInfo = restHighLevelClient.info(headers);
+        MainResponse receivedInfo = restHighLevelClient.info(RequestOptions.DEFAULT);
         assertEquals(testInfo, receivedInfo);
-        verify(restClient).performRequest(eq(HttpGet.METHOD_NAME), eq("/"), eq(Collections.emptyMap()),
-                isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 
     public void testSearchScroll() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
                 null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         mockResponse(mockSearchResponse);
-        SearchResponse searchResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)),
-                headers);
+        SearchResponse searchResponse = restHighLevelClient.scroll(
+                new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)), RequestOptions.DEFAULT);
         assertEquals(mockSearchResponse.getScrollId(), searchResponse.getScrollId());
         assertEquals(0, searchResponse.getHits().totalHits);
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(100, searchResponse.getTook().getMillis());
-        verify(restClient).performRequest(eq(HttpPost.METHOD_NAME), eq("/_search/scroll"), eq(Collections.emptyMap()),
-                isNotNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 
     public void testClearScroll() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         ClearScrollResponse mockClearScrollResponse = new ClearScrollResponse(randomBoolean(), randomIntBetween(0, Integer.MAX_VALUE));
         mockResponse(mockClearScrollResponse);
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
-        ClearScrollResponse clearScrollResponse = restHighLevelClient.clearScroll(clearScrollRequest, headers);
+        ClearScrollResponse clearScrollResponse = restHighLevelClient.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
         assertEquals(mockClearScrollResponse.isSucceeded(), clearScrollResponse.isSucceeded());
         assertEquals(mockClearScrollResponse.getNumFreed(), clearScrollResponse.getNumFreed());
-        verify(restClient).performRequest(eq(HttpDelete.METHOD_NAME), eq("/_search/scroll"), eq(Collections.emptyMap()),
-                isNotNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 
     private void mockResponse(ToXContent toXContent) throws IOException {
         Response response = mock(Response.class);
-        ContentType contentType = ContentType.parse(Request.REQUEST_BODY_CONTENT_TYPE.mediaType());
-        String requestBody = toXContent(toXContent, Request.REQUEST_BODY_CONTENT_TYPE, false).utf8ToString();
+        ContentType contentType = ContentType.parse(RequestConverters.REQUEST_BODY_CONTENT_TYPE.mediaType());
+        String requestBody = toXContent(toXContent, RequestConverters.REQUEST_BODY_CONTENT_TYPE, false).utf8ToString();
         when(response.getEntity()).thenReturn(new NStringEntity(requestBody, contentType));
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenReturn(response);
+        when(restClient.performRequest(any(Request.class))).thenReturn(response);
     }
 
     public void testRequestValidation() {
@@ -222,12 +210,12 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         {
             ActionRequestValidationException actualException = expectThrows(ActionRequestValidationException.class,
-                    () -> restHighLevelClient.performRequest(request, null, null, null));
+                    () -> restHighLevelClient.performRequest(request, null, RequestOptions.DEFAULT, null, null));
             assertSame(validationException, actualException);
         }
         {
             TrackingActionListener trackingActionListener = new TrackingActionListener();
-            restHighLevelClient.performRequestAsync(request, null, null, trackingActionListener, null);
+            restHighLevelClient.performRequestAsync(request, null, RequestOptions.DEFAULT, null, trackingActionListener, null);
             assertSame(validationException, trackingActionListener.exception.get());
         }
     }
@@ -272,7 +260,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             builder.startObject();
             builder.field("field", "value");
             builder.endObject();
-            return new ByteArrayEntity(builder.bytes().toBytesRef().bytes, contentType);
+            return new ByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
         }
     }
 
@@ -335,21 +323,19 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnSuccess() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenReturn(mockResponse);
+        when(restClient.performRequest(any(Request.class))).thenReturn(mockResponse);
         {
-            Integer result = restHighLevelClient.performRequest(mainRequest, requestConverter,
+            Integer result = restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                     response -> response.getStatusLine().getStatusCode(), Collections.emptySet());
             assertEquals(restStatus.getStatus(), result.intValue());
         }
         {
             IOException ioe = expectThrows(IOException.class, () -> restHighLevelClient.performRequest(mainRequest,
-                    requestConverter, response -> {throw new IllegalStateException();}, Collections.emptySet()));
+                    requestConverter, RequestOptions.DEFAULT, response -> {throw new IllegalStateException();}, Collections.emptySet()));
             assertEquals("Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
                     "response=http/1.1 " + restStatus.getStatus() + " " + restStatus.name() + "}", ioe.getMessage());
         }
@@ -357,16 +343,14 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnResponseExceptionWithoutEntity() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -375,18 +359,16 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnResponseExceptionWithEntity() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
         httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                 ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -395,17 +377,15 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnResponseExceptionWithBrokenEntity() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
         httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals("Unable to parse response body", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -415,17 +395,15 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnResponseExceptionWithBrokenEntity2() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
         httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals("Unable to parse response body", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -435,29 +413,25 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnResponseExceptionWithIgnores() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         //although we got an exception, we turn it into a successful response because the status code was provided among ignores
-        assertEquals(Integer.valueOf(404), restHighLevelClient.performRequest(mainRequest, requestConverter,
+        assertEquals(Integer.valueOf(404), restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                 response -> response.getStatusLine().getStatusCode(), Collections.singleton(404)));
     }
 
     public void testPerformRequestOnResponseExceptionWithIgnoresErrorNoBody() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> {throw new IllegalStateException();}, Collections.singleton(404)));
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
@@ -466,17 +440,15 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testPerformRequestOnResponseExceptionWithIgnoresErrorValidBody() throws IOException {
         MainRequest mainRequest = new MainRequest();
-        CheckedFunction<MainRequest, Request, IOException> requestConverter = request ->
-                new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
         httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}",
                 ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
-        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
-                anyObject(), anyVararg())).thenThrow(responseException);
+        when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> {throw new IllegalStateException();}, Collections.singleton(404)));
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getSuppressed()[0]);
@@ -657,7 +629,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(7, namedXContents.size());
+        assertEquals(17, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -667,17 +639,247 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals(3, categories.size());
-        assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
+        assertEquals("Had: " + categories, 4, categories.size());
+        assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(EvaluationMetric.class));
+        assertEquals(Integer.valueOf(4), categories.get(EvaluationMetric.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(2), categories.get(MetricDetail.class));
+        assertTrue(names.contains(ExpectedReciprocalRank.NAME));
+        assertEquals(Integer.valueOf(4), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
+        assertTrue(names.contains(DiscountedCumulativeGain.NAME));
+        assertTrue(names.contains(ExpectedReciprocalRank.NAME));
+        assertEquals(Integer.valueOf(6), categories.get(LifecycleAction.class));
+        assertTrue(names.contains(AllocateAction.NAME));
+        assertTrue(names.contains(DeleteAction.NAME));
+        assertTrue(names.contains(ForceMergeAction.NAME));
+        assertTrue(names.contains(ReadOnlyAction.NAME));
+        assertTrue(names.contains(RolloverAction.NAME));
+        assertTrue(names.contains(ShrinkAction.NAME));
+    }
+
+    public void testMethodWithHeadersArgumentAreDeprecated() {
+        Map<String, Method> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
+            .filter(method -> method.getDeclaringClass().equals(RestHighLevelClient.class)
+                && method.getParameterCount() > 0
+                && method.getParameterTypes()[method.getParameterCount() - 1].equals(Header[].class))
+            .map(method -> Tuple.tuple(toSnakeCase(method.getName()), method))
+            .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
+                ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple))
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+
+        for (Method method : methods.values()) {
+            assertTrue(method.isAnnotationPresent(Deprecated.class));
+        }
+    }
+
+    public void testApiNamingConventions() throws Exception {
+        //this list should be empty once the high-level client is feature complete
+        String[] notYetSupportedApi = new String[]{
+            "cluster.remote_info",
+            "create",
+            "get_source",
+            "indices.delete_alias",
+            "indices.delete_template",
+            "indices.exists_template",
+            "indices.exists_type",
+            "indices.get_upgrade",
+            "indices.put_alias",
+            "render_search_template",
+            "scripts_painless_execute"
+        };
+        //These API are not required for high-level client feature completeness
+        String[] notRequiredApi = new String[] {
+            "cluster.allocation_explain",
+            "cluster.pending_tasks",
+            "cluster.reroute",
+            "cluster.state",
+            "cluster.stats",
+            "indices.shard_stores",
+            "indices.upgrade",
+            "indices.recovery",
+            "indices.segments",
+            "indices.stats",
+            "ingest.processor_grok",
+            "nodes.info",
+            "nodes.stats",
+            "nodes.hot_threads",
+            "nodes.usage",
+            "nodes.reload_secure_settings",
+            "search_shards",
+        };
+        Set<String> deprecatedMethods = new HashSet<>();
+        deprecatedMethods.add("indices.force_merge");
+        deprecatedMethods.add("multi_get");
+        deprecatedMethods.add("multi_search");
+        deprecatedMethods.add("search_scroll");
+
+        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
+        Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
+
+        Set<String> topLevelMethodsExclusions = new HashSet<>();
+        topLevelMethodsExclusions.add("getLowLevelClient");
+        topLevelMethodsExclusions.add("close");
+
+        Map<String, Method> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
+                .filter(method -> method.getDeclaringClass().equals(RestHighLevelClient.class)
+                        && topLevelMethodsExclusions.contains(method.getName()) == false
+                        && (method.getParameterCount() == 0
+                            || method.getParameterTypes()[method.getParameterCount() - 1].equals(Header[].class) == false))
+                .map(method -> Tuple.tuple(toSnakeCase(method.getName()), method))
+                .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
+                        ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple))
+                .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+
+        Set<String> apiNotFound = new HashSet<>();
+
+        for (Map.Entry<String, Method> entry : methods.entrySet()) {
+            Method method = entry.getValue();
+            String apiName = entry.getKey();
+
+            assertTrue("method [" + apiName + "] is not final",
+                    Modifier.isFinal(method.getClass().getModifiers()) || Modifier.isFinal(method.getModifiers()));
+            assertTrue("method [" + method + "] should be public", Modifier.isPublic(method.getModifiers()));
+
+            //we convert all the method names to snake case, hence we need to look for the '_async' suffix rather than 'Async'
+            if (apiName.endsWith("_async")) {
+                assertAsyncMethod(methods, method, apiName);
+            } else if (isSubmitTaskMethod(apiName)) {
+                assertSubmitTaskMethod(methods, method, apiName, restSpec);
+            } else {
+                assertSyncMethod(method, apiName);
+                boolean remove = apiSpec.remove(apiName);
+                if (remove == false) {
+                    if (deprecatedMethods.contains(apiName)) {
+                        assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
+                            method.isAnnotationPresent(Deprecated.class));
+                    } else {
+                        //TODO xpack api are currently ignored, we need to load xpack yaml spec too
+                        if (apiName.startsWith("xpack.") == false &&
+                            apiName.startsWith("license.") == false &&
+                            apiName.startsWith("machine_learning.") == false &&
+                            apiName.startsWith("rollup.") == false &&
+                            apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("graph.") == false &&
+                            apiName.startsWith("migration.") == false &&
+                            apiName.startsWith("security.") == false &&
+                            apiName.startsWith("index_lifecycle.") == false &&
+                            apiName.startsWith("ccr.") == false &&
+                            apiName.endsWith("freeze") == false) {
+                            apiNotFound.add(apiName);
+                        }
+                    }
+                }
+            }
+        }
+        assertThat("Some client method doesn't match a corresponding API defined in the REST spec: " + apiNotFound,
+            apiNotFound.size(), equalTo(0));
+
+        //we decided not to support cat API in the high-level REST client, they are supposed to be used from a low-level client
+        apiSpec.removeIf(api -> api.startsWith("cat."));
+        Stream.concat(Arrays.stream(notYetSupportedApi), Arrays.stream(notRequiredApi)).forEach(
+            api -> assertTrue(api + " API is either not defined in the spec or already supported by the high-level client",
+                apiSpec.remove(api)));
+        assertThat("Some API are not supported but they should be: " + apiSpec, apiSpec.size(), equalTo(0));
+    }
+
+    private static void assertSyncMethod(Method method, String apiName) {
+        //A few methods return a boolean rather than a response object
+        if (apiName.equals("ping") || apiName.contains("exist")) {
+            assertThat("the return type for method [" + method + "] is incorrect",
+                method.getReturnType().getSimpleName(), equalTo("boolean"));
+        } else {
+            // It's acceptable for 404s to be represented as empty Optionals
+            if (!method.getReturnType().isAssignableFrom(Optional.class)) {
+                assertThat("the return type for method [" + method + "] is incorrect",
+                    method.getReturnType().getSimpleName(), endsWith("Response"));
+            }
+        }
+
+        assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
+        //a few methods don't accept a request object as argument
+        if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")
+            || apiName.equals("security.authenticate") || apiName.equals("license.get_trial_status")
+            || apiName.equals("license.get_basic_status")) {
+            assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
+            assertThat("the parameter to method [" + method + "] is the wrong type",
+                method.getParameterTypes()[0], equalTo(RequestOptions.class));
+        } else {
+            assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
+            assertThat("the first parameter to method [" + method + "] is the wrong type",
+                method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+            assertThat("the second parameter to method [" + method + "] is the wrong type",
+                method.getParameterTypes()[1], equalTo(RequestOptions.class));
+        }
+    }
+
+    private static void assertAsyncMethod(Map<String, Method> methods, Method method, String apiName) {
+        assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
+                methods.containsKey(apiName.substring(0, apiName.length() - 6)));
+        assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
+        assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
+        if (apiName.equals("security.authenticate_async") || apiName.equals("security.get_ssl_certificates_async")) {
+            assertEquals(2, method.getParameterTypes().length);
+            assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
+            assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
+        } else {
+            assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
+            assertThat("the first parameter to async method [" + method + "] should be a request type",
+                method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+            assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            assertThat("the third parameter to async method [" + method + "] is the wrong type",
+                method.getParameterTypes()[2], equalTo(ActionListener.class));
+        }
+    }
+
+    private static void assertSubmitTaskMethod(Map<String, Method> methods, Method method, String apiName,
+                                               ClientYamlSuiteRestSpec restSpec) {
+        String methodName = extractMethodName(apiName);
+        assertTrue("submit task method [" + method.getName() + "] doesn't have corresponding sync method",
+            methods.containsKey(methodName));
+        assertEquals("submit task method [" + method + "] has the wrong number of arguments", 2, method.getParameterTypes().length);
+        assertThat("the first parameter to submit task method [" + method + "] is the wrong type",
+            method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+        assertThat("the second parameter to submit task method [" + method + "] is the wrong type",
+            method.getParameterTypes()[1], equalTo(RequestOptions.class));
+
+        assertThat("submit task method [" + method + "] must have wait_for_completion parameter in rest spec",
+            restSpec.getApi(methodName).getParams(), Matchers.hasKey("wait_for_completion"));
+    }
+
+    private static String extractMethodName(String apiName) {
+        return apiName.substring(SUBMIT_TASK_PREFIX.length(), apiName.length() - SUBMIT_TASK_SUFFIX.length());
+    }
+
+    private static boolean isSubmitTaskMethod(String apiName) {
+        return apiName.startsWith(SUBMIT_TASK_PREFIX) && apiName.endsWith(SUBMIT_TASK_SUFFIX);
+    }
+
+    private static Stream<Tuple<String, Method>> getSubClientMethods(String namespace, Class<?> clientClass) {
+        return Arrays.stream(clientClass.getMethods()).filter(method -> method.getDeclaringClass().equals(clientClass)
+                && (method.getParameterCount() == 0
+                    || method.getParameterTypes()[method.getParameterCount() - 1].equals(Header[].class) == false))
+                .map(method -> Tuple.tuple(namespace + "." + toSnakeCase(method.getName()), method))
+                .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
+                    ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple));
+    }
+
+    private static String toSnakeCase(String camelCase) {
+        StringBuilder snakeCaseString = new StringBuilder();
+        for (Character aChar : camelCase.toCharArray()) {
+            if (Character.isUpperCase(aChar)) {
+                snakeCaseString.append('_');
+                snakeCaseString.append(Character.toLowerCase(aChar));
+            } else {
+                snakeCaseString.append(aChar);
+            }
+        }
+        return snakeCaseString.toString();
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {
@@ -692,23 +894,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         @Override
         public void onFailure(Exception e) {
             assertTrue(exception.compareAndSet(null, e));
-        }
-    }
-
-    private static class HeadersVarargMatcher extends ArgumentMatcher<Header[]> implements VarargMatcher {
-        private Header[] expectedHeaders;
-
-        HeadersVarargMatcher(Header... expectedHeaders) {
-            this.expectedHeaders = expectedHeaders;
-        }
-
-        @Override
-        public boolean matches(Object varargArgument) {
-            if (varargArgument instanceof Header[]) {
-                Header[] actualHeaders = (Header[]) varargArgument;
-                return new ArrayEquals(expectedHeaders).matches(actualHeaders);
-            }
-            return false;
         }
     }
 

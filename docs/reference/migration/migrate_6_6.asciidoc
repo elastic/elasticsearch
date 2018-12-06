@@ -1,0 +1,81 @@
+[[breaking-changes-6.6]]
+== Breaking changes in 6.6
+++++
+<titleabbrev>6.6</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.6.
+
+* <<breaking_66_search_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_66_search_changes]]
+=== Search changes
+
+[float]
+==== `query_string`, `multi_match` and `simple_query_string` query
+
+Using automatically expanded fields for the "all fields" mode ("default_field": "*")
+for the `query_string`, `multi_match` and `simple_query_string` now raises a warning and
+a deprecation notice to be logged for queries beyond a certain number of fields. This limit
+will be enforced with a hard error starting in 7.0 and is determined by the
+`indices.query.bool.max_clause_count` setting which defaults to 1024.
+
+[float]
+==== Deprecate `_source_exclude` and `_source_include` URL Parameters
+
+`_source_exclude` and `_source_include` are deprecated in favor of
+`_source_excludes` and `_source_includes` because those line up better with the
+rest of Elasticsearc's APIs and Elasticsearch will raise a deprecation warning
+if those are used on any APIs. We plan to drop support for `_source_exclude` and
+`_source_include` in 7.0.
+
+[float]
+==== Deprecate boosts on inner span queries.
+
+Setting `boost` on inner span queries is deprecated. In the next major version 
+setting `boost` on inner span queries will throw a parsing exception.
+
+[float]
+==== Deprecate `.values` and `.getValues()` on doc values in scripts
+
+In scripts `.values` and `.getValues()` hasn't been needed for a long, long
+time because the doc values objects themselves are Lists. So instead of:
+
+[source,js]
+--------------------------------------------------
+GET /stackoverflow/_search
+{
+  "script_fields": {
+    "tags_count": {
+      "script" : {
+        "source": "doc['tags'].values.size()"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:stackoverflow]
+// TEST[warning:Deprecated getValues used, the field is a list and should be accessed directly. For example, use doc['foo'] instead of doc['foo'].values.]
+
+do 
+
+[source,js]
+--------------------------------------------------
+GET /stackoverflow/_search
+{
+  "script_fields": {
+    "tags_count": {
+      "script" : {
+        "source": "doc['tags'].size()"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:stackoverflow]

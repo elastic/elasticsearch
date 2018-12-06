@@ -43,7 +43,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
         int end = start + match.length();
         passage1.setStartOffset(0);
         passage1.setEndOffset(end + 2); //lets include the whitespace at the end to make sure we trim it
-        passage1.addMatch(start, end, matchBytesRef);
+        passage1.addMatch(start, end, matchBytesRef, 1);
         passages[0] = passage1;
 
         Passage passage2 = new Passage();
@@ -51,7 +51,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
         end = start + match.length();
         passage2.setStartOffset(passage1.getEndOffset());
         passage2.setEndOffset(end + 26);
-        passage2.addMatch(start, end, matchBytesRef);
+        passage2.addMatch(start, end, matchBytesRef, 1);
         passages[1] = passage2;
 
         Passage passage3 = new Passage();
@@ -84,7 +84,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
         int end = start + match.length();
         passage1.setStartOffset(0);
         passage1.setEndOffset(end + 6); //lets include the whitespace at the end to make sure we trim it
-        passage1.addMatch(start, end, matchBytesRef);
+        passage1.addMatch(start, end, matchBytesRef, 1);
         passages[0] = passage1;
 
         Passage passage2 = new Passage();
@@ -92,7 +92,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
         end = start + match.length();
         passage2.setStartOffset(passage1.getEndOffset());
         passage2.setEndOffset(content.length());
-        passage2.addMatch(start, end, matchBytesRef);
+        passage2.addMatch(start, end, matchBytesRef, 1);
         passages[1] = passage2;
 
         Snippet[] fragments = passageFormatter.format(passages, content);

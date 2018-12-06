@@ -36,6 +36,8 @@ GET my_index/_search
 // CONSOLE
 // TESTSETUP
 
+NOTE: You can also store ip ranges in a single field using an <<range,ip_range datatype>>.
+
 [[ip-params]]
 ==== Parameters for `ip` fields
 

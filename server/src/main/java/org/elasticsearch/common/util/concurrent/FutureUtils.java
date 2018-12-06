@@ -19,18 +19,87 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class FutureUtils {
 
+    /**
+     * Cancel execution of this future without interrupting a running thread. See {@link Future#cancel(boolean)} for details.
+     *
+     * @param toCancel the future to cancel
+     * @return false if the future could not be cancelled, otherwise true
+     */
     @SuppressForbidden(reason = "Future#cancel()")
-    public static boolean cancel(Future<?> toCancel) {
+    public static boolean cancel(@Nullable final Future<?> toCancel) {
         if (toCancel != null) {
             return toCancel.cancel(false); // this method is a forbidden API since it interrupts threads
         }
         return false;
+    }
+
+    /**
+     * Calls {@link Future#get()} without the checked exceptions.
+     *
+     * @param future to dereference
+     * @param <T> the type returned
+     * @return the value of the future
+     */
+    public static <T> T get(Future<T> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
+        } catch (ExecutionException e) {
+            throw rethrowExecutionException(e);
+        }
+    }
+
+    /**
+     * Calls {@link Future#get(long, TimeUnit)} without the checked exceptions.
+     *
+     * @param future to dereference
+     * @param timeout to wait
+     * @param unit for timeout
+     * @param <T> the type returned
+     * @return the value of the future
+     */
+    public static  <T> T get(Future<T> future, long timeout, TimeUnit unit) {
+        try {
+            return future.get(timeout, unit);
+        } catch (TimeoutException e) {
+            throw new ElasticsearchTimeoutException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
+        } catch (ExecutionException e) {
+            throw FutureUtils.rethrowExecutionException(e);
+        }
+    }
+
+    static RuntimeException rethrowExecutionException(ExecutionException e) {
+        if (e.getCause() instanceof ElasticsearchException) {
+            ElasticsearchException esEx = (ElasticsearchException) e.getCause();
+            Throwable root = esEx.unwrapCause();
+            if (root instanceof ElasticsearchException) {
+                return (ElasticsearchException) root;
+            } else if (root instanceof RuntimeException) {
+                return (RuntimeException) root;
+            }
+            return new UncategorizedExecutionException("Failed execution", root);
+        } else if (e.getCause() instanceof RuntimeException) {
+            return (RuntimeException) e.getCause();
+        } else {
+            return new UncategorizedExecutionException("Failed execution", e);
+        }
     }
 
 }

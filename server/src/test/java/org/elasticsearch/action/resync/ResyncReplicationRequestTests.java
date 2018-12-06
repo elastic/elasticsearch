@@ -37,9 +37,10 @@ public class ResyncReplicationRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
-        final Translog.Index index = new Translog.Index("type", "id", 0, Versions.MATCH_ANY, VersionType.INTERNAL, bytes, null, null, -1);
+        final Translog.Index index = new Translog.Index("type", "id", 0, randomNonNegativeLong(),
+            Versions.MATCH_ANY, VersionType.INTERNAL, bytes, null, null, -1);
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
-        final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, new Translog.Operation[]{index});
+        final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, 42L, 100, new Translog.Operation[]{index});
 
         final BytesStreamOutput out = new BytesStreamOutput();
         before.writeTo(out);

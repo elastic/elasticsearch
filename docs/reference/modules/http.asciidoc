@@ -20,7 +20,7 @@ http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 
 The settings in the table below can be configured for HTTP. Note that none of
 them are dynamically updatable so for them to take effect they should be set in
-`elasticsearch.yml`.
+the Elasticsearch <<settings, configuration file>>.
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -98,7 +98,13 @@ simple message will be returned. Defaults to `true`
 
 |`http.pipelining` |Enable or disable HTTP pipelining, defaults to `true`.
 
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
+
+|`http.max_warning_header_count` |The maximum number of warning headers in
+ client HTTP responses, defaults to unbounded.
+
+|`http.max_warning_header_size` |The maximum total size of warning headers in
+client HTTP responses, defaults to unbounded.
 
 |=======================================================================
 

@@ -46,77 +46,31 @@ import java.util.function.LongSupplier;
 public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final EngineConfig.OpenMode openMode;
+    private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final IndexCommit startingCommit;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
 
-    CombinedDeletionPolicy(EngineConfig.OpenMode openMode, Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) {
-        this.openMode = openMode;
+    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
+                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
+        this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.startingCommit = startingCommit;
         this.snapshottedCommits = new ObjectIntHashMap<>();
     }
 
     @Override
     public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
-        switch (openMode) {
-            case CREATE_INDEX_AND_TRANSLOG:
-                assert startingCommit == null : "CREATE_INDEX_AND_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
-                break;
-            case OPEN_INDEX_CREATE_TRANSLOG:
-            case OPEN_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
-                    + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
-                keepOnlyStartingCommitOnInit(commits);
-                // OPEN_INDEX_CREATE_TRANSLOG can open an index commit from other shard with a different translog history,
-                // We therefore should not use that index commit to update the translog deletion policy.
-                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-                    updateTranslogDeletionPolicy();
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
+        assert commits.isEmpty() == false : "index is opened, but we have no commits";
+        onCommit(commits);
+        if (safeCommit != commits.get(commits.size() - 1)) {
+            throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
+                + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
+                + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + "], "
+                + "seqNos in safe commit [" + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet()) + "]");
         }
-    }
-
-    /**
-     * Keeping existing unsafe commits when opening an engine can be problematic because these commits are not safe
-     * at the recovering time but they can suddenly become safe in the future.
-     * The following issues can happen if unsafe commits are kept oninit.
-     * <p>
-     * 1. Replica can use unsafe commit in peer-recovery. This happens when a replica with a safe commit c1(max_seqno=1)
-     * and an unsafe commit c2(max_seqno=2) recovers from a primary with c1(max_seqno=1). If a new document(seqno=2)
-     * is added without flushing, the global checkpoint is advanced to 2; and the replica recovers again, it will use
-     * the unsafe commit c2(max_seqno=2 at most gcp=2) as the starting commit for sequenced-based recovery even the
-     * commit c2 contains a stale operation and the document(with seqno=2) will not be replicated to the replica.
-     * <p>
-     * 2. Min translog gen for recovery can go backwards in peer-recovery. This happens when are replica with a safe commit
-     * c1(local_checkpoint=1, recovery_translog_gen=1) and an unsafe commit c2(local_checkpoint=2, recovery_translog_gen=2).
-     * The replica recovers from a primary, and keeps c2 as the last commit, then sets last_translog_gen to 2. Flushing a new
-     * commit on the replica will cause exception as the new last commit c3 will have recovery_translog_gen=1. The recovery
-     * translog generation of a commit is calculated based on the current local checkpoint. The local checkpoint of c3 is 1
-     * while the local checkpoint of c2 is 2.
-     * <p>
-     * 3. Commit without translog can be used in recovery. An old index, which was created before multiple-commits is introduced
-     * (v6.2), may not have a safe commit. If that index has a snapshotted commit without translog and an unsafe commit,
-     * the policy can consider the snapshotted commit as a safe commit for recovery even the commit does not have translog.
-     */
-    private void keepOnlyStartingCommitOnInit(List<? extends IndexCommit> commits) throws IOException {
-        for (IndexCommit commit : commits) {
-            if (startingCommit.equals(commit) == false) {
-                this.deleteCommit(commit);
-            }
-        }
-        assert startingCommit.isDeleted() == false : "Starting commit must not be deleted";
-        lastCommit = startingCommit;
-        safeCommit = startingCommit;
     }
 
     @Override
@@ -129,7 +83,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 deleteCommit(commits.get(i));
             }
         }
-        updateTranslogDeletionPolicy();
+        updateRetentionPolicy();
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -139,7 +93,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
     }
 
-    private void updateTranslogDeletionPolicy() throws IOException {
+    private void updateRetentionPolicy() throws IOException {
         assert Thread.holdsLock(this);
         logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
@@ -150,6 +104,9 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
+
+        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
+            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
     }
 
     /**

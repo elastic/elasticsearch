@@ -20,8 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -88,14 +86,14 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
             try {
-                GetResult getResult = indexShard.getService().get(item.type(), item.id(), item.storedFields(), request.realtime(), item.version(),
-                    item.versionType(), item.fetchSourceContext());
+                GetResult getResult = indexShard.getService().get(item.type(), item.id(), item.storedFields(), request.realtime(),
+                    item.version(), item.versionType(), item.fetchSourceContext());
                 response.add(request.locations.get(i), new GetResponse(getResult));
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {
-                    throw (ElasticsearchException) e;
+                    throw e;
                 } else {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute multi_get for [{}]/[{}]", shardId,
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]/[{}]", shardId,
                         item.type(), item.id()), e);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), e));
                 }
@@ -103,5 +101,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
 
         return response;
+    }
+
+    @Override
+    protected String getExecutor(MultiGetShardRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

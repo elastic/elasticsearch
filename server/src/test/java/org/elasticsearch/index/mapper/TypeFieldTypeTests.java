@@ -34,14 +34,15 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.VersionUtils;
@@ -51,15 +52,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new TypeFieldMapper.TypeFieldType();
     }
 
-    public void testTermsQueryWhenTypesAreDisabled() throws Exception {
+    private QueryShardContext createMockContext(Version versionFrom, Version versionTo) {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), versionFrom, versionTo);
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -69,6 +72,12 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
         Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
+
+        return context;
+    }
+
+    public void testTermsQueryWhenTypesAreDisabled() throws Exception {
+        QueryShardContext context = createMockContext(Version.V_6_0_0, Version.CURRENT);
 
         MapperService mapperService = Mockito.mock(MapperService.class);
         Set<String> types = Collections.emptySet();
@@ -100,16 +109,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         IndexReader reader = openReaderWithNewType("my_type", w);
 
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0) // to allow for multiple types
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
-        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
-        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
-        Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
+        QueryShardContext context = createMockContext(Version.V_5_6_0, Version.V_5_6_0); // to allow for multiple types
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
         ft.setName(TypeFieldMapper.NAME);
@@ -164,6 +164,43 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, rewritten);
 
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testRangeWhenTypesAreDisabled() throws Exception {
+        QueryShardContext context = createMockContext(Version.V_6_0_0, Version.CURRENT);
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Set<String> types = Collections.emptySet();
+        Mockito.when(mapperService.types()).thenReturn(types);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        Query query = ft.rangeQuery("a_type", "z_type", randomBoolean(), randomBoolean(), context);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        types = Collections.singleton("my_type");
+        Mockito.when(mapperService.types()).thenReturn(types);
+        query = ft.rangeQuery("a_type", "z_type", randomBoolean(), randomBoolean(), context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        query = ft.rangeQuery("n_type", "z_type", randomBoolean(), randomBoolean(), context);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        query = ft.rangeQuery("a_type", "l_type", randomBoolean(), randomBoolean(), context);
+        assertEquals(new MatchNoDocsQuery(), query);
+        assertWarnings("Running [range] query on [_type] field for an index with a single type. As types are deprecated, this "
+                + "functionality will be removed in future releases.");
+    }
+
+    public void testRangeWhenTypesEnabled() throws Exception {
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        String lowerTerm = randomBoolean() ? "a_type" : null;
+        String upperTerm = randomBoolean() ? "z_type" : null;
+        QueryShardContext context = createMockContext(Version.V_5_6_0, Version.V_5_6_0); // to allow for multiple types
+        Query query = ft.rangeQuery(lowerTerm, upperTerm, randomBoolean(), randomBoolean(), context);
+        assertThat(query, instanceOf(TermRangeQuery.class));
     }
 
     static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {

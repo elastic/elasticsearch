@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,7 +51,7 @@ public class Strings {
     public static final String[] EMPTY_ARRAY = new String[0];
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
+        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 for (int i = 0; i < spaces; i++) {
@@ -756,6 +756,14 @@ public class Strings {
     }
 
     /**
+     * Returns a string representation of the builder (only applicable for text based xcontent).
+     * @param xContentBuilder builder containing an object to converted to a string
+     */
+    public static String toString(XContentBuilder xContentBuilder) {
+        return BytesReference.bytes(xContentBuilder).utf8ToString();
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. Allows to control whether the outputted
      * json needs to be pretty printed and human readable.
@@ -771,7 +779,7 @@ public class Strings {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
-            return builder.string();
+            return toString(builder);
         } catch (IOException e) {
             try {
                 XContentBuilder builder = createBuilder(pretty, human);
@@ -779,7 +787,7 @@ public class Strings {
                 builder.field("error", "error building toString out of XContent: " + e.getMessage());
                 builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
                 builder.endObject();
-                return builder.string();
+                return toString(builder);
             } catch (IOException e2) {
                 throw new ElasticsearchException("cannot generate error message for deserialization", e);
             }
@@ -845,5 +853,4 @@ public class Strings {
             return sb.toString();
         }
     }
-
 }

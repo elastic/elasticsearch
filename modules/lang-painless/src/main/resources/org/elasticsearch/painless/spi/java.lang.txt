@@ -148,7 +148,7 @@ class java.lang.Character {
   int MAX_RADIX
   char MAX_SURROGATE
   char MAX_VALUE
-  char MIN_CODE_POINT
+  int MIN_CODE_POINT
   char MIN_HIGH_SURROGATE
   char MIN_LOW_SURROGATE
   int MIN_RADIX

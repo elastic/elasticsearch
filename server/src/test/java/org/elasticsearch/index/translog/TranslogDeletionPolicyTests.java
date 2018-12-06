@@ -20,7 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
@@ -171,7 +171,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             }
             writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
                 tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, 1L, 1L, () -> 1L,
-                () -> 1L);
+                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder());
             writer = Mockito.spy(writer);
             Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();
 

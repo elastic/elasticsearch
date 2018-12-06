@@ -224,51 +224,16 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             IOException writeBlobException = expectThrows(IOException.class, () -> {
                 BlobContainer wrapper = new BlobContainerWrapper(blobContainer) {
                     @Override
-                    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-                        throw new IOException("Exception thrown in writeBlob() for " + blobName);
+                    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+                        throws IOException {
+                        throw new IOException("Exception thrown in writeBlobAtomic() for " + blobName);
                     }
                 };
                 checksumFormat.writeAtomic(blobObj, wrapper, name);
             });
 
-            assertEquals("Exception thrown in writeBlob() for pending-" + name, writeBlobException.getMessage());
+            assertEquals("Exception thrown in writeBlobAtomic() for " + name, writeBlobException.getMessage());
             assertEquals(0, writeBlobException.getSuppressed().length);
-        }
-        {
-            IOException moveException = expectThrows(IOException.class, () -> {
-                BlobContainer wrapper = new BlobContainerWrapper(blobContainer) {
-                    @Override
-                    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-                        throw new IOException("Exception thrown in move() for " + sourceBlobName);
-                    }
-                };
-                checksumFormat.writeAtomic(blobObj, wrapper, name);
-            });
-            assertEquals("Exception thrown in move() for pending-" + name, moveException.getMessage());
-            assertEquals(0, moveException.getSuppressed().length);
-        }
-        {
-            IOException moveThenDeleteException = expectThrows(IOException.class, () -> {
-                BlobContainer wrapper = new BlobContainerWrapper(blobContainer) {
-                    @Override
-                    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-                        throw new IOException("Exception thrown in move() for " + sourceBlobName);
-                    }
-
-                    @Override
-                    public void deleteBlob(String blobName) throws IOException {
-                        throw new IOException("Exception thrown in deleteBlob() for " + blobName);
-                    }
-                };
-                checksumFormat.writeAtomic(blobObj, wrapper, name);
-            });
-
-            assertEquals("Exception thrown in move() for pending-" + name, moveThenDeleteException.getMessage());
-            assertEquals(1, moveThenDeleteException.getSuppressed().length);
-
-            final Throwable suppressedThrowable = moveThenDeleteException.getSuppressed()[0];
-            assertTrue(suppressedThrowable instanceof IOException);
-            assertEquals("Exception thrown in deleteBlob() for pending-" + name, suppressedThrowable.getMessage());
         }
     }
 
@@ -287,10 +252,9 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             int location = randomIntBetween(0, buffer.length - 1);
             buffer[location] = (byte) (buffer[location] ^ 42);
         } while (originalChecksum == checksum(buffer));
-        blobContainer.deleteBlob(blobName); // delete original before writing new blob
         BytesArray bytesArray = new BytesArray(buffer);
         try (StreamInput stream = bytesArray.streamInput()) {
-            blobContainer.writeBlob(blobName, stream, bytesArray.length());
+            blobContainer.writeBlob(blobName, stream, bytesArray.length(), false);
         }
     }
 

@@ -184,8 +184,6 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-minimum_should_match
-
 A different
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 can be applied for low and high frequency terms with the additional

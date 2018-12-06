@@ -121,6 +121,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 }
             }
         }
+        if (randomBoolean()) {
+            result.ignoreUnmapped(result.ignoreUnmapped() == false);
+        }
         return result;
     }
 
@@ -154,7 +157,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected GeoDistanceSortBuilder mutate(GeoDistanceSortBuilder original) throws IOException {
         GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(original);
-        int parameter = randomIntBetween(0, 7);
+        int parameter = randomIntBetween(0, 8);
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
@@ -193,6 +196,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             break;
         case 7:
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
+            break;
+        case 8:
+            result.ignoreUnmapped(result.ignoreUnmapped() == false);
             break;
         }
         return result;
@@ -436,7 +442,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     /**
-     * Test that the sort builder order gets transfered correctly to the SortField
+     * Test that the sort builder order gets transferred correctly to the SortField
      */
     public void testBuildSortFieldOrder() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
@@ -451,7 +457,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     /**
-     * Test that the sort builder mode gets transfered correctly to the SortField
+     * Test that the sort builder mode gets transferred correctly to the SortField
      */
     public void testMultiValueMode() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();

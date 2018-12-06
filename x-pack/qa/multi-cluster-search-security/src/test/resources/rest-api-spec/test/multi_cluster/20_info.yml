@@ -1,0 +1,90 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      xpack.security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "x_cluster_role" ]
+            }
+  - do:
+      xpack.security.put_role:
+        name: "x_cluster_role"
+        body:  >
+            {
+              "cluster": ["monitor"]
+            }
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "monitor_role"
+        ignore: 404
+---
+"Fetch remote cluster info for existing cluster":
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      cluster.remote_info: {}
+  - match: { my_remote_cluster.connected: true }
+  - match: { my_remote_cluster.num_nodes_connected: 1}
+  - match: { my_remote_cluster.max_connections_per_cluster: 1}
+  - match: { my_remote_cluster.initial_connect_timeout: "30s" }
+  - is_true: my_remote_cluster.http_addresses.0
+
+
+---
+"Add transient remote cluster based on the preset cluster and check remote info":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
+
+  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+
+  # we do another search here since this will enforce the connection to be established
+  # otherwise the cluster might not have been connected yet.
+  - do:
+      search:
+        index: test_remote_cluster:test_index
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      cluster.remote_info: {}
+  - set: { my_remote_cluster.http_addresses.0: remote_http }
+  - match: { test_remote_cluster.http_addresses.0: $remote_http }
+
+  - match: { test_remote_cluster.connected: true }
+  - match: { my_remote_cluster.connected: true }
+
+  - match: { test_remote_cluster.seeds.0: $remote_ip }
+  - match: { my_remote_cluster.seeds.0: $remote_ip }
+
+  - match: { my_remote_cluster.max_connections_per_cluster: 1}
+  - match: { test_remote_cluster.max_connections_per_cluster: 1}
+
+  - match: { my_remote_cluster.num_nodes_connected: 1}
+  - match: { test_remote_cluster.num_nodes_connected: 1}
+
+  - match: { my_remote_cluster.initial_connect_timeout: "30s" }
+  - match: { test_remote_cluster.initial_connect_timeout: "30s" }
+

@@ -76,7 +76,7 @@ public class ShardStateIT extends ESIntegTestCase {
             if (indexService != null) {
                 for (IndexShard shard : indexService) {
                     assertThat("term mismatch for shard " + shard.shardId(),
-                        shard.getPrimaryTerm(), equalTo(metaData.primaryTerm(shard.shardId().id())));
+                        shard.getPendingPrimaryTerm(), equalTo(metaData.primaryTerm(shard.shardId().id())));
                 }
             }
         }

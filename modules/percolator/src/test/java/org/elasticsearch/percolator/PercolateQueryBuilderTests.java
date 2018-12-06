@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -74,7 +75,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()
     };
 
-    private static String queryField;
+    private static String queryField = "field";
+    private static String aliasField = "alias";
     private static String docType;
 
     private String indexedDocumentIndex;
@@ -95,13 +97,23 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
+
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 queryField, "type=percolator"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+
+        // Field aliases are only supported on indexes with a single type.
+        if (mapperService.getIndexSettings().isSingleType()) {
+            aliasField = randomAlphaOfLength(4);
+            mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+                 aliasField, "type=alias,path=" + queryField
+            ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+        }
+
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ))), MapperService.MergeReason.MAPPING_UPDATE, false);
         if (mapperService.getIndexSettings().isSingleType() == false) {
             PercolateQueryBuilderTests.docType = docType;
         }
@@ -243,7 +255,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testFromJsonNoDocumentType() throws IOException {
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder queryBuilder = parseQuery("{\"percolate\" : { \"document\": {}, \"field\":\"" + queryField + "\"}}");
-        if (indexVersionCreated.before(Version.V_6_0_0_alpha1)) {
+        if (indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
             assertThat(e.getMessage(), equalTo("[percolate] query is missing required [document_type] parameter"));
@@ -339,7 +351,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
             XContentBuilder xContent = XContentFactory.jsonBuilder();
             xContent.map(source);
-            return xContent.bytes();
+            return BytesReference.bytes(xContent);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -362,5 +374,25 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         builder = rewriteAndFetch(builder, createShardContext());
         builder.writeTo(new BytesStreamOutput(10));
+    }
+
+    public void testFieldAlias() throws IOException {
+        assumeTrue("Test only runs on indexes that enforce a single mapping type.", isSingleType());
+
+        QueryShardContext shardContext = createShardContext();
+
+        PercolateQueryBuilder builder = doCreateTestQueryBuilder(false);
+        QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
+        PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
+
+        PercolateQueryBuilder aliasBuilder = new PercolateQueryBuilder(aliasField,
+            builder.getDocumentType(),
+            builder.getDocuments(),
+            builder.getXContentType());
+        QueryBuilder rewrittenAliasBuilder = rewriteAndFetch(aliasBuilder, shardContext);
+        PercolateQuery aliasQuery = (PercolateQuery) rewrittenAliasBuilder.toQuery(shardContext);
+
+        assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
+        assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
     }
 }

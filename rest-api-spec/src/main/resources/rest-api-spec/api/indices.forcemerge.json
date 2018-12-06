@@ -37,10 +37,6 @@
         "only_expunge_deletes": {
           "type" : "boolean",
           "description" : "Specify whether the operation should only expunge deleted documents"
-        },
-        "wait_for_merge": {
-          "type" : "boolean",
-          "description" : "Specify whether the request should block until the merge process is finished (default: true)"
         }
       }
     },

@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -113,6 +112,12 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                if (token != XContentParser.Token.START_ARRAY) {
+                    throw new AssertionError("Impossible token received: " + token.name());
+                }
+                throw new ParsingException(parser.getTokenLocation(),
+                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead.");
             }
         }
 

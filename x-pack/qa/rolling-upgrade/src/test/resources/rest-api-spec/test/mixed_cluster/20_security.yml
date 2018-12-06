@@ -1,0 +1,33 @@
+---
+"Verify user and role in mixed cluster":
+  - do:
+      xpack.security.get_user:
+        username: "native_user"
+  - match: { native_user.username:  "native_user" }
+  - match: { native_user.roles.0:  "native_role" }
+
+  - do:
+      xpack.security.get_role:
+        name: "native_role"
+  - match: { native_role.cluster.0:  "all" }
+  - match: { native_role.indices.0.names.0: "test_index" }
+  - match: { native_role.indices.0.privileges.0:  "all" }
+
+  - do:
+      xpack.security.clear_cached_roles:
+        name: "native_role"
+
+  - do:
+      xpack.security.clear_cached_realms:
+        realms: "_all"
+
+---
+"verify users for default password migration in mixed cluster":
+  - skip:
+      version: " - 5.1.1"
+      reason: "the rest enabled action used by the old cluster test trips an assertion. see https://github.com/elastic/x-pack/pull/4443"
+  - do:
+      xpack.security.get_user:
+        username: "kibana,logstash_system"
+  - match: { kibana.enabled: false }
+  - match: { logstash_system.enabled: true }

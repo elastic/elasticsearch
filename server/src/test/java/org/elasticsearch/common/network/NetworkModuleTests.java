@@ -22,8 +22,8 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -56,7 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class NetworkModuleTests extends ModuleTestCase {
+public class NetworkModuleTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Override
@@ -151,6 +152,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         assertSame(custom, module.getTransportSupplier());
         assertTrue(module.isTransportClient());
         assertFalse(module.isHttpEnabled());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testRegisterHttpTransport() {
@@ -181,6 +183,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         assertFalse(newModule.isTransportClient());
         assertFalse(newModule.isHttpEnabled());
         expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testOverrideDefault() {
@@ -306,7 +309,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             });
         });
         assertEquals("interceptor must not be null", nullPointerException.getMessage());
-
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {

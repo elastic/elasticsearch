@@ -40,8 +40,10 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
 
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, TypesExistsRequest::new);
+                                      ThreadPool threadPool, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            TypesExistsRequest::new);
     }
 
     @Override
@@ -57,11 +59,13 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
 
     @Override
     protected ClusterBlockException checkBlock(TypesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) {
+    protected void masterOperation(final TypesExistsRequest request, final ClusterState state,
+                                   final ActionListener<TypesExistsResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));

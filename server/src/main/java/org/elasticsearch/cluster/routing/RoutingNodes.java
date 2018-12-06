@@ -957,12 +957,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
 
             /**
-             * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore(AllocationStatus, RoutingChangesObserver)} or
+             * Unsupported operation, just there for the interface. Use
+             * {@link #removeAndIgnore(AllocationStatus, RoutingChangesObserver)} or
              * {@link #initialize(String, String, long, RoutingChangesObserver)}.
              */
             @Override
             public void remove() {
-                throw new UnsupportedOperationException("remove is not supported in unassigned iterator, use removeAndIgnore or initialize");
+                throw new UnsupportedOperationException("remove is not supported in unassigned iterator," +
+                    " use removeAndIgnore or initialize");
             }
 
             private void innerRemove() {
@@ -1106,14 +1108,19 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
 
         assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries() :
-                "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" + routingNodes.unassigned().getNumPrimaries() + "]";
+                "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" +
+                    routingNodes.unassigned().getNumPrimaries() + "]";
         assert unassignedIgnoredPrimaryCount == routingNodes.unassignedShards.getNumIgnoredPrimaries() :
-                "Unassigned ignored primaries is [" + unassignedIgnoredPrimaryCount + "] but RoutingNodes returned unassigned ignored primaries [" + routingNodes.unassigned().getNumIgnoredPrimaries() + "]";
+                "Unassigned ignored primaries is [" + unassignedIgnoredPrimaryCount +
+                    "] but RoutingNodes returned unassigned ignored primaries [" + routingNodes.unassigned().getNumIgnoredPrimaries() + "]";
         assert inactivePrimaryCount == routingNodes.inactivePrimaryCount :
-                "Inactive Primary count [" + inactivePrimaryCount + "] but RoutingNodes returned inactive primaries [" + routingNodes.inactivePrimaryCount + "]";
+                "Inactive Primary count [" + inactivePrimaryCount + "] but RoutingNodes returned inactive primaries [" +
+                    routingNodes.inactivePrimaryCount + "]";
         assert inactiveShardCount == routingNodes.inactiveShardCount :
-                "Inactive Shard count [" + inactiveShardCount + "] but RoutingNodes returned inactive shards [" + routingNodes.inactiveShardCount + "]";
-        assert routingNodes.getRelocatingShardCount() == relocating : "Relocating shards mismatch [" + routingNodes.getRelocatingShardCount() + "] but expected [" + relocating + "]";
+                "Inactive Shard count [" + inactiveShardCount + "] but RoutingNodes returned inactive shards [" +
+                    routingNodes.inactiveShardCount + "]";
+        assert routingNodes.getRelocatingShardCount() == relocating : "Relocating shards mismatch [" +
+            routingNodes.getRelocatingShardCount() + "] but expected [" + relocating + "]";
 
         return true;
     }

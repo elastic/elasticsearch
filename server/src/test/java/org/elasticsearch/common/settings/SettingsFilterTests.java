@@ -20,6 +20,8 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +41,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class SettingsFilterTests extends ESTestCase {
     public void testAddingAndRemovingFilters() {
         HashSet<String> hashSet = new HashSet<>(Arrays.asList("foo", "bar", "baz"));
-        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY, hashSet);
+        SettingsFilter settingsFilter = new SettingsFilter(hashSet);
         assertEquals(settingsFilter.getPatterns(), hashSet);
     }
 
@@ -131,7 +133,7 @@ public class SettingsFilterTests extends ESTestCase {
 
     private void assertExpectedLogMessages(Consumer<Logger> consumer,
                                            MockLogAppender.LoggingExpectation ... expectations) throws IllegalAccessException {
-        Logger testLogger = Loggers.getLogger("org.elasticsearch.test");
+        Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
         Loggers.addAppender(testLogger, appender);
         try {
@@ -145,7 +147,7 @@ public class SettingsFilterTests extends ESTestCase {
     }
 
     private void testFiltering(Settings source, Settings filtered, String... patterns) throws IOException {
-        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY, Arrays.asList(patterns));
+        SettingsFilter settingsFilter = new SettingsFilter(Arrays.asList(patterns));
 
         // Test using direct filtering
         Settings filteredSettings = settingsFilter.filter(source);
@@ -158,7 +160,7 @@ public class SettingsFilterTests extends ESTestCase {
         xContentBuilder.startObject();
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
-        String filteredSettingsString = xContentBuilder.string();
+        String filteredSettingsString = Strings.toString(xContentBuilder);
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings, equalTo(filtered));
     }

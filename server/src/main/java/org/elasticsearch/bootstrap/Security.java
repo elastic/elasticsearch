@@ -163,16 +163,8 @@ final class Security {
         Map<String,Policy> map = new HashMap<>();
         // collect up set of plugins and modules by listing directories.
         Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsFile()));
+        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesFile()));
 
-        if (Files.exists(environment.modulesFile())) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
-                for (Path module : stream) {
-                    if (pluginsAndModules.add(module) == false) {
-                        throw new IllegalStateException("duplicate module: " + module);
-                    }
-                }
-            }
-        }
         // now process each one
         for (Path plugin : pluginsAndModules) {
             Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);

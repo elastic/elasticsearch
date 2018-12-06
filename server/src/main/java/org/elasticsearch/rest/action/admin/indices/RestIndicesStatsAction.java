@@ -19,19 +19,18 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,10 +42,11 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestIndicesStatsAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestIndicesStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_stats", this);
@@ -108,6 +108,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             for (final String metric : metrics) {
                 final Consumer<IndicesStatsRequest> consumer = METRICS.get(metric);
                 if (consumer != null) {
+                    if ("suggest".equals(metric)) {
+                        deprecationLogger.deprecated("the suggest metric is deprecated on the indices stats API [" + request.uri() + "]");
+                    }
                     consumer.accept(indicesStatsRequest);
                 } else {
                     invalidMetrics.add(metric);
@@ -141,16 +144,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
         }
 
-        return channel -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        return channel -> client.admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

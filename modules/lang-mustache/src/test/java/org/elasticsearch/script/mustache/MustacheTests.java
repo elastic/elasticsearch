@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.github.mustachejava.MustacheException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptEngine;
@@ -248,7 +249,7 @@ public class MustacheTests extends ESTestCase {
                     .endObject();
 
         Map<String, Object> ctx =
-            singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
+            singletonMap("ctx", XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2());
 
         assertScript("{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}", ctx,
                 equalTo("{\"index\":\"index-1\",\"id\":1,\"type\":\"type-1\"}{\"index\":\"index-2\",\"id\":2,\"type\":\"type-2\"}"));
@@ -290,7 +291,7 @@ public class MustacheTests extends ESTestCase {
                                                 .endObject();
 
         Map<String, Object> ctx =
-            singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
+            singletonMap("ctx", XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2());
 
         assertScript("{{#join}}ctx.people.0.emails{{/join}}", ctx,
                 equalTo("john@smith.com,john.smith@email.com,jsmith@email.com"));

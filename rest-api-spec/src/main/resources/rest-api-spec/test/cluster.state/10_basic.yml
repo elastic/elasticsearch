@@ -2,7 +2,7 @@
 "get cluster state":
   - do:
       cluster.state: {}
-  
+
   - is_true: master_node
 
 ---
@@ -15,6 +15,21 @@
       cluster.state:
         human: true
 
+  - is_true: master_node
+  - gte: { compressed_size_in_bytes: 50 }
+  - is_true: compressed_size
+
+---
+"get cluster state returns cluster_uuid at the top level":
+  - skip:
+      version:  " - 6.3.99"
+      reason:   "cluster state including cluster_uuid at the top level is new in v6.4.0 and higher"
+
+  - do:
+      cluster.state:
+        human: true
+
+  - is_true: cluster_uuid
   - is_true: master_node
   - gte: { compressed_size_in_bytes: 50 }
   - is_true: compressed_size

@@ -35,9 +35,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.io.FastCharArrayReader;
+import org.elasticsearch.core.internal.io.IOUtils;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,9 +46,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.lang.Math.log10;
+import static java.lang.Math.min;
 import static java.lang.Math.max;
 import static java.lang.Math.round;
+import static java.lang.Math.log10;
 
 public final class DirectCandidateGenerator extends CandidateGenerator {
 
@@ -187,12 +188,14 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return errorScore * (((double)frequency + 1) / ((double)dictionarySize +1));
     }
 
-    protected long thresholdFrequency(long termFrequency, long dictionarySize) {
+    // package protected for tests
+    long thresholdFrequency(long termFrequency, long dictionarySize) {
         if (termFrequency > 0) {
-            return max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(LOG_BASE))) + 1));
+            return min(
+                max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(LOG_BASE))) + 1)), Integer.MAX_VALUE
+            );
         }
         return 0;
-
     }
 
     public abstract static class TokenConsumer {
@@ -314,7 +317,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         spare.copyUTF8Bytes(toAnalyze);
         CharsRef charsRef = spare.get();
         try (TokenStream ts = analyzer.tokenStream(
-                                  field, new FastCharArrayReader(charsRef.chars, charsRef.offset, charsRef.length))) {
+                                  field, new CharArrayReader(charsRef.chars, charsRef.offset, charsRef.length))) {
              return analyze(ts, consumer);
         }
     }

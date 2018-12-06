@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -223,11 +223,6 @@ public enum GeoShapeType {
             // verify coordinate bounds, correct if necessary
             Coordinate uL = coordinates.children.get(0).coordinate;
             Coordinate lR = coordinates.children.get(1).coordinate;
-            if (((lR.x < uL.x) || (uL.y < lR.y))) {
-                Coordinate uLtmp = uL;
-                uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
-                lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
-            }
             return new EnvelopeBuilder(uL, lR);
         }
 

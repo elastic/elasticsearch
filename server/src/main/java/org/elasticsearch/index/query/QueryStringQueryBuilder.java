@@ -80,7 +80,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
     private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
     private static final ParseField AUTO_GENERATE_PHRASE_QUERIES_FIELD = new ParseField("auto_generate_phrase_queries")
-            .withAllDeprecated("This setting is ignored, use [type=phrase] instead");
+            .withAllDeprecated("This setting is ignored, use [type=phrase] instead to make phrase queries out of all text that " +
+                "is within query operators, or use explicitly quoted strings if you need finer-grained control");
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
     private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
             .withAllDeprecated("Decision is now made by the analyzer");
@@ -358,8 +359,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /**
      * @param type Sets how multiple fields should be combined to build textual part queries.
      */
-    public void type(MultiMatchQueryBuilder.Type type) {
+    public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
+        return this;
     }
 
     /**
@@ -387,7 +389,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this;
     }
 
-    public float tieBreaker() {
+    public Float tieBreaker() {
         return this.tieBreaker;
     }
 
@@ -417,6 +419,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
+    }
+
+    /**
+     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String analyzer() {
+        return analyzer;
+    }
+
+    /**
+     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String quoteAnalyzer() {
+        return quoteAnalyzer;
     }
 
     /**
@@ -457,7 +475,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Should leading wildcards be allowed or not. Defaults to <tt>true</tt>.
+     * Should leading wildcards be allowed or not. Defaults to {@code true}.
      */
     public QueryStringQueryBuilder allowLeadingWildcard(Boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
@@ -469,8 +487,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable position increments in result query. Defaults to
-     * <tt>true</tt>.
+     * Set to {@code true} to enable position increments in result query. Defaults to
+     * {@code true}.
      * <p>
      * When set, result phrase and multi-phrase queries will be aware of position increments.
      * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
@@ -545,7 +563,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable analysis on wildcard and prefix queries.
+     * Set to {@code true} to enable analysis on wildcard and prefix queries.
      */
     public QueryStringQueryBuilder analyzeWildcard(Boolean analyzeWildcard) {
         this.analyzeWildcard = analyzeWildcard;
@@ -616,7 +634,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable escaping of the query string
+     * Set to {@code true} to enable escaping of the query string
      */
     public QueryStringQueryBuilder escape(boolean escape) {
         this.escape = escape;
@@ -650,7 +668,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;
@@ -926,8 +944,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(lenient, other.lenient) &&
-                timeZone == null ? other.timeZone == null : other.timeZone != null &&
-                Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
+                Objects.equals(
+                        timeZone == null ? null : timeZone.getID(),
+                        other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&

@@ -1,0 +1,47 @@
+valid_role:
+  cluster:
+    - ALL
+  indices:
+    - names: idx
+      privileges:
+        - ALL
+
+"fóóbár":
+  cluster: all
+
+# invalid role deifnition
+role1: cluster: ALL indices: '*': ALL
+
+# invalid role cluster privilege
+role2:
+  cluster: blkjdlkd
+  indices:
+    '*': ALL
+
+# invalid role indices deifnition
+role3:
+  cluster: ALL
+  indices: '*': ALL
+
+# invalid role indices privileges
+role4:
+  cluster: ALL
+  indices:
+    '*': al;kjdlkj;lkj
+
+#dadfad
+# role won't be available since empty privileges...
+role5:
+  cluster:
+  indices:
+    - names:
+      #adfldkkd
+      - idx2
+      privileges:
+    - names:
+        - ''
+      privileges:
+        - READ
+    - names:
+        - 'idx1'
+      privileges: []

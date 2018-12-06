@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source "`dirname "$0"`"/elasticsearch-env
+
+IFS=';' read -r -a additional_sources <<< "$ES_ADDITIONAL_SOURCES"
+for additional_source in "${additional_sources[@]}"
+do
+  source "`dirname "$0"`"/$additional_source
+done
+
+IFS=';' read -r -a additional_classpath_directories <<< "$ES_ADDITIONAL_CLASSPATH_DIRECTORIES"
+for additional_classpath_directory in "${additional_classpath_directories[@]}"
+do
+  ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/$additional_classpath_directory/*"
+done
+
+exec \
+  "$JAVA" \
+  $ES_JAVA_OPTS \
+  -Des.path.home="$ES_HOME" \
+  -Des.path.conf="$ES_PATH_CONF" \
+  -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
+  -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+  -cp "$ES_CLASSPATH" \
+  "$ES_MAIN_CLASS" \
+  "$@"

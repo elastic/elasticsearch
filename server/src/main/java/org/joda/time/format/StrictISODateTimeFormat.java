@@ -27,7 +27,7 @@ import java.util.Set;
  * class is named ISODatetimeFormat
  *
  * However there has been done one huge modification in several methods, which forces the date
- * year to be at least n digits, so that a year like "5" is invalid and must be "0005"
+ * year to be exactly n digits, so that a year like "5" is invalid and must be "0005"
  *
  * All methods have been marked with an "// ES change" commentary
  *

@@ -28,13 +28,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -61,7 +58,6 @@ import java.util.Optional;
  */
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
-
     private String clusterAlias;
     private ShardId shardId;
     private int numberOfShards;
@@ -74,17 +70,18 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private Boolean requestCache;
     private long nowInMillis;
     private boolean allowPartialSearchResults;
-
+    private String[] indexRoutings = Strings.EMPTY_ARRAY;
+    private String preference;
     private boolean profile;
 
     ShardSearchLocalRequest() {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
+                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias, String[] indexRoutings) {
         this(shardId, numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost, 
-                searchRequest.allowPartialSearchResults());
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
+                searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -102,7 +99,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-            Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults) {
+                                   Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults,
+                                   String[] indexRoutings, String preference) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -112,6 +110,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.indexRoutings = indexRoutings;
+        this.preference = preference;
     }
 
 
@@ -169,16 +169,26 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     public Boolean requestCache() {
         return requestCache;
     }
-    
+
     @Override
     public Boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
-    
+
 
     @Override
     public Scroll scroll() {
         return scroll;
+    }
+
+    @Override
+    public String[] indexRoutings() {
+        return indexRoutings;
+    }
+
+    @Override
+    public String preference() {
+        return preference;
     }
 
     @Override
@@ -225,6 +235,13 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            indexRoutings = in.readStringArray();
+            preference = in.readOptionalString();
+        } else {
+            indexRoutings = Strings.EMPTY_ARRAY;
+            preference = null;
+        }
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -240,7 +257,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeFloat(indexBoost);
         }
-        if (!asKey) {
+        if (asKey == false) {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
@@ -250,7 +267,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
-        
+        if (asKey == false) {
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                out.writeStringArray(indexRoutings);
+                out.writeOptionalString(preference);
+            }
+        }
     }
 
     @Override

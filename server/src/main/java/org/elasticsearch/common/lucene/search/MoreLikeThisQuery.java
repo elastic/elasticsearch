@@ -35,10 +35,10 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -166,7 +166,7 @@ public class MoreLikeThisQuery extends Query {
         if (this.likeText != null) {
             Reader[] readers = new Reader[likeText.length];
             for (int i = 0; i < readers.length; i++) {
-                readers[i] = new FastStringReader(likeText[i]);
+                readers[i] = new StringReader(likeText[i]);
             }
             //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
             Query mltQuery = mlt.like(moreLikeFields[0], readers);
@@ -287,7 +287,7 @@ public class MoreLikeThisQuery extends Query {
 
     /**
      * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     * common syntax for minimum should match. Defaults to {@code 30%}.
      *
      * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */

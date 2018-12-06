@@ -124,7 +124,7 @@ The `other_bucket` parameter can be set to add a bucket to the response which wi
 not match any of the given filters. The value of this parameter can be as follows:
 
 `false`::         Does not compute the `other` bucket
-`true`::          Returns the `other` bucket bucket either in a bucket (named `_other_` by default) if named filters are being used, 
+`true`::          Returns the `other` bucket either in a bucket (named `_other_` by default) if named filters are being used, 
                   or as the last bucket if anonymous filters are being used
 
 The `other_bucket_key` parameter can be used to set the key for the `other` bucket to a value other than the default `_other_`. Setting 

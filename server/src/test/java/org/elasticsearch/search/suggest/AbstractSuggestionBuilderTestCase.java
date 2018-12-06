@@ -159,7 +159,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     indexSettings);
             MapperService mapperService = mock(MapperService.class);
             ScriptService scriptService = mock(ScriptService.class);
-            MappedFieldType fieldType = mockFieldType();
+            MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
             boolean fieldTypeSearchAnalyzerSet = randomBoolean();
             if (fieldTypeSearchAnalyzerSet) {
                 NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
@@ -210,8 +210,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected abstract void assertSuggestionContext(SB builder, SuggestionContext context) throws IOException;
 
-    protected MappedFieldType mockFieldType() {
-        return mock(MappedFieldType.class);
+    protected MappedFieldType mockFieldType(String fieldName) {
+        MappedFieldType fieldType = mock(MappedFieldType.class);
+        when(fieldType.name()).thenReturn(fieldName);
+        return fieldType;
     }
 
     /**

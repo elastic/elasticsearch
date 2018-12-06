@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -103,6 +104,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     /** Returns the field name used in this query. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -239,6 +241,14 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
+        final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (value.length() > maxAllowedRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["  + value.length() +  "] used in the Regexp Query request has exceeded " +
+                    "the allowed maximum of [" + maxAllowedRegexLength + "]. " +
+                    "This maximum can be set by changing the [" +
+                    IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() + "] index level setting.");
+        }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         Query query = null;

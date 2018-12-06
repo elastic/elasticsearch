@@ -52,6 +52,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
 
 /**
  * Instances of this class execute a collection of search intents (read: user
@@ -67,16 +68,16 @@ import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
  * averaged precision at n.
  */
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
-    private Client client;
-    private ScriptService scriptService;
-    private NamedXContentRegistry namedXContentRegistry;
+    private final Client client;
+    private final ScriptService scriptService;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
             ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                RankEvalRequest::new);
+        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, RankEvalRequest::new,
+                indexNameExpressionResolver);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
@@ -85,7 +86,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Override
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
-        List<String> indices = evaluationSpecification.getIndices();
         EvaluationMetric metric = evaluationSpecification.getMetric();
 
         List<RatedRequest> ratedRequests = evaluationSpecification.getRatedRequests();
@@ -100,15 +100,17 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         msearchRequest.maxConcurrentSearchRequests(evaluationSpecification.getMaxConcurrentSearches());
         List<RatedRequest> ratedRequestsInSearch = new ArrayList<>();
         for (RatedRequest ratedRequest : ratedRequests) {
-            SearchSourceBuilder ratedSearchSource = ratedRequest.getTestRequest();
-            if (ratedSearchSource == null) {
+            SearchSourceBuilder evaluationRequest = ratedRequest.getEvaluationRequest();
+            if (evaluationRequest == null) {
                 Map<String, Object> params = ratedRequest.getParams();
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
                 String resolvedRequest = templateScript.newInstance(params).execute();
                 try (XContentParser subParser = createParser(namedXContentRegistry,
                     LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
-                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser);
+                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                    // check for parts that should not be part of a ranking evaluation request
+                    validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {
                     // if we fail parsing, put the exception into the errors map and continue
                     errors.put(ratedRequest.getId(), e);
@@ -117,17 +119,18 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
 
             if (metric.forcedSearchSize().isPresent()) {
-                ratedSearchSource.size(metric.forcedSearchSize().get());
+                evaluationRequest.size(metric.forcedSearchSize().get());
             }
 
             ratedRequestsInSearch.add(ratedRequest);
             List<String> summaryFields = ratedRequest.getSummaryFields();
             if (summaryFields.isEmpty()) {
-                ratedSearchSource.fetchSource(false);
+                evaluationRequest.fetchSource(false);
             } else {
-                ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                evaluationRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
-            SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[indices.size()]), ratedSearchSource);
+            SearchRequest searchRequest = new SearchRequest(request.indices(), evaluationRequest);
+            searchRequest.indicesOptions(request.indicesOptions());
             msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();

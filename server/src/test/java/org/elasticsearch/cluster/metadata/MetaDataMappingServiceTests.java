@@ -16,38 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
-import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
-
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+    protected boolean forbidPrivateIndexSettings() {
+        // to force the index version in the _parent test
+        return false;
     }
 
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddChildTypePointingToAlreadyExistingType() throws Exception {
-        createIndex("test", Settings.EMPTY, "type", "field", "type=keyword");
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build(),
+            "type", "field", "type=keyword");
 
         // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin()
@@ -60,30 +62,11 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
                 equalTo("can't add a _parent field that points to an already existing type, that isn't already a parent"));
     }
 
-    // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
-    public void testAddExtraChildTypePointingToAlreadyParentExistingType() throws Exception {
-        IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("parent")
-                .addMapping("child1", "_parent", "type=parent")
-        );
-
-        // adding the extra child type that points to an already existing parent type is allowed:
-        client().admin()
-                .indices()
-                .preparePutMapping("test")
-                .setType("child2")
-                .setSource("_parent", "type=parent")
-                .get();
-
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper("child2");
-        assertThat(documentMapper.parentFieldMapper().type(), equalTo("parent"));
-        assertThat(documentMapper.parentFieldMapper().active(), is(true));
-    }
-
     public void testParentIsAString() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
         // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
         Exception e = expectThrows(MapperParsingException.class, () -> client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version))
                 .addMapping("parent", "{\"properties\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"_parent\": \"parent\",\"properties\":{}}", XContentType.JSON)
                 .get());
@@ -98,8 +81,18 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         // TODO - it will be nice to get a random mapping generator
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
-        request.source("{ \"properties\" { \"field\": { \"type\": \"text\" }}}");
-        mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        request.indices(new Index[] {indexService.index()});
+        request.source("{ \"properties\": { \"field\": { \"type\": \"text\" }}}");
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        // the task completed successfully
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        // the task really was a mapping update
+        assertThat(
+                indexService.mapperService().documentMapper("type").mappingSource(),
+                not(equalTo(result.resultingState.metaData().index("test").mapping("type").source())));
+        // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
     }
 
@@ -120,4 +113,35 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
 
         assertSame(result, result2);
     }
+
+    public void testMappingVersion() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final long previousVersion = indexService.getMetaData().getMappingVersion();
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.indices(new Index[] {indexService.index()});
+        request.source("{ \"properties\": { \"field\": { \"type\": \"text\" }}}");
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+    }
+
+    public void testMappingVersionUnchanged() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final long previousVersion = indexService.getMetaData().getMappingVersion();
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.indices(new Index[] {indexService.index()});
+        request.source("{ \"properties\": {}}");
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(previousVersion));
+    }
+
 }

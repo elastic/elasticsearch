@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+
+SCRIPT=$0
+DEPRECATED_DIRECTORY=`dirname "$SCRIPT"`
+DEPRECATED_PATH=$DEPRECATED_DIRECTORY/migrate
+ELASTICSEARCH_PATH="`dirname "$DEPRECATED_DIRECTORY"`"/elasticsearch-migrate
+echo "$DEPRECATED_PATH is deprecated, use $ELASTICSEARCH_PATH"
+
+$ELASTICSEARCH_PATH

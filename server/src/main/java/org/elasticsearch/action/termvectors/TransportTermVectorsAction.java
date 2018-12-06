@@ -75,7 +75,8 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
+        request.request().routing(state.metaData()
+            .resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
@@ -92,5 +93,12 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected TermVectorsResponse newResponse() {
         return new TermVectorsResponse();
+    }
+
+    @Override
+    protected String getExecutor(TermVectorsRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

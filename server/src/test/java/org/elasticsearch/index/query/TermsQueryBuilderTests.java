@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,9 +77,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // terms query or lookup query
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
-            String fieldName;
-            fieldName = randomValueOtherThanMany(choice -> choice.equals(GEO_POINT_FIELD_NAME) || choice.equals(GEO_SHAPE_FIELD_NAME)
-                    || choice.equals(INT_RANGE_FIELD_NAME) || choice.equals(DATE_RANGE_FIELD_NAME), () -> getRandomFieldName());
+            String fieldName = randomValueOtherThanMany(choice ->
+                    choice.equals(GEO_POINT_FIELD_NAME) ||
+                    choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
+                    choice.equals(GEO_SHAPE_FIELD_NAME) ||
+                    choice.equals(INT_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_RANGE_FIELD_NAME),
+                () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -128,7 +133,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 terms = queryBuilder.values();
             }
 
-            TermInSetQuery expected = new TermInSetQuery(queryBuilder.fieldName(),
+            String fieldName = expectedFieldName(queryBuilder.fieldName());
+            TermInSetQuery expected = new TermInSetQuery(fieldName,
                     terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             assertEquals(expected, query);
         }
@@ -191,7 +197,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             builder.startObject();
             builder.array(termsPath, randomTerms.toArray(new Object[randomTerms.size()]));
             builder.endObject();
-            json = builder.string();
+            json = Strings.toString(builder);
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
@@ -226,9 +232,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testTermsQueryWithMultipleFields() throws IOException {
-        String query = XContentFactory.jsonBuilder().startObject()
+        String query = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("terms").array("foo", 123).array("bar", 456).endObject()
-                .endObject().string();
+                .endObject());
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields", e.getMessage());
     }

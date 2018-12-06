@@ -13,15 +13,18 @@ defined per index.
 [float]
 == Index time analysis
 
-For instance at index time, the built-in <<english-analyzer,`english`>> _analyzer_ would
-convert this sentence:
+For instance, at index time the built-in <<english-analyzer,`english`>> _analyzer_ 
+will first convert the sentence:
 
 [source,text]
 ------
 "The QUICK brown foxes jumped over the lazy dog!"
 ------
 
-into these terms, which would be added to the inverted index.
+into distinct tokens. It will then lowercase each token, remove frequent
+stopwords ("the") and reduce the terms to their word stems (foxes -> fox,
+jumped -> jump, lazy -> lazi). In the end, the following terms will be added
+to the inverted index:
 
 [source,text]
 ------

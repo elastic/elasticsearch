@@ -156,7 +156,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
         builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
         builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
@@ -234,7 +234,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescore window smaller than number of hits:
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
         builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
         builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
@@ -306,7 +306,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescorer that penalizes the scores:
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
         builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
         builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");

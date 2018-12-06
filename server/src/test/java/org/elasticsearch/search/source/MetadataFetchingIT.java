@@ -18,17 +18,36 @@
  */
 package org.elasticsearch.search.source;
 
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Collections;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataFetchingIT extends ESIntegTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // needed to create an index with multiple types
+        return false;
+    }
+
     public void testSimple() {
         assertAcked(prepareCreate("test"));
         ensureGreen();
@@ -52,6 +71,56 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getType(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+    }
+
+    public void testInnerHits() {
+        assertAcked(prepareCreate("test_with_types")
+            .addMapping("type1", "nested", "type=nested")
+            .addMapping("type2", "nested", "type=nested")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumCompatibilityVersion())));
+        assertAcked(prepareCreate("test").addMapping("_doc", "nested", "type=nested"));
+        ensureGreen();
+        client().prepareIndex("test", "_doc", "1")
+            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).execute().actionGet();
+        client().prepareIndex("test_with_types", "type1", "1")
+            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).execute().actionGet();
+        refresh();
+
+        SearchResponse response = client()
+            .prepareSearch("test")
+            .storedFields("_none_")
+            .setFetchSource(false)
+            .setQuery(
+                new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total)
+                    .innerHit(new InnerHitBuilder()
+                        .setStoredFieldNames(Collections.singletonList("_none_"))
+                        .setFetchSourceContext(new FetchSourceContext(false)))
+            )
+            .get();
+        assertThat(response.getHits().totalHits, equalTo(1L));
+        assertThat(response.getHits().getAt(0).getId(), nullValue());
+        assertThat(response.getHits().getAt(0).getType(), equalTo(null));
+        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
+        assertThat(hits.totalHits, equalTo(1L));
+        assertThat(hits.getAt(0).getId(), nullValue());
+        assertThat(hits.getAt(0).getType(), equalTo("_doc"));
+        assertThat(hits.getAt(0).getSourceAsString(), nullValue());
+
+        ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> client()
+            .prepareSearch("test_with_types")
+            .storedFields("_none_")
+            .setFetchSource(false)
+            .setAllowPartialSearchResults(false)
+            .setQuery(
+                new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total)
+                    .innerHit(new InnerHitBuilder()
+                        .setStoredFieldNames(Collections.singletonList("_none_"))
+                        .setFetchSourceContext(new FetchSourceContext(false)))
+            )
+            .get());
+        assertThat(exc.getDetailedMessage(), containsString("It is not allowed to disable stored fields"));
     }
 
     public void testWithRouting() {

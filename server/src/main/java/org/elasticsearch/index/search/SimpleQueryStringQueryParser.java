@@ -74,6 +74,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         this.queryBuilder = new MultiMatchQuery(context);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
+        this.queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
         }
@@ -358,7 +359,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
         /**
          * Whether phrase queries should be automatically generated for multi terms synonyms.
-         * Defaults to <tt>true</tt>.
+         * Defaults to {@code true}.
          */
         public boolean autoGenerateSynonymsPhraseQuery() {
             return autoGenerateSynonymsPhraseQuery;
@@ -407,9 +408,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
                 Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
-                Objects.equals(fuzzyPrefixLength, fuzzyPrefixLength) &&
-                Objects.equals(fuzzyMaxExpansions, fuzzyMaxExpansions) &&
-                Objects.equals(fuzzyTranspositions, fuzzyTranspositions);
+                Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &&
+                Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
+                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
         }
     }
 }

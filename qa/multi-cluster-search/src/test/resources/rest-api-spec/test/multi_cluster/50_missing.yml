@@ -1,7 +1,7 @@
 ---
 "Search with missing remote index pattern":
   - do:
-      catch: "request"
+      catch: "missing"
       search:
         index: "my_remote_cluster:foo"
 
@@ -34,7 +34,7 @@
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }
 
   - do:
-      catch: "request"
+      catch: "missing"
       search:
         index: "my_remote_cluster:test_index,my_remote_cluster:foo"
         body:

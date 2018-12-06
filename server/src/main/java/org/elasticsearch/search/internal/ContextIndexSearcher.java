@@ -52,7 +52,7 @@ import java.util.Set;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
-    /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of <tt>super</tt> is that
+    /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of {@code super} is that
      *  this instance may have more assertions, for example if it comes from MockInternalEngine which wraps the IndexSearcher into an
      *  AssertingIndexSearcher. */
     private final IndexSearcher in;
@@ -230,5 +230,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public DirectoryReader getDirectoryReader() {
         return engineSearcher.getDirectoryReader();
+    }
+
+    public Engine.Searcher getEngineSearcher() {
+        return engineSearcher;
     }
 }

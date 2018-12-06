@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -72,7 +73,7 @@ public class SimpleModel extends MovAvgModel {
     }
 
     @Override
-    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+    protected double[] doPredict(Collection<Double> values, int numPredictions) {
         double[] predictions = new double[numPredictions];
 
         // Simple just emits the same final prediction repeatedly.
@@ -82,12 +83,8 @@ public class SimpleModel extends MovAvgModel {
     }
 
     @Override
-    public <T extends Number> double next(Collection<T> values) {
-        double avg = 0;
-        for (T v : values) {
-            avg += v.doubleValue();
-        }
-        return avg / values.size();
+    public double next(Collection<Double> values) {
+        return MovingFunctions.unweightedAvg(values.stream().mapToDouble(Double::doubleValue).toArray());
     }
 
     @Override

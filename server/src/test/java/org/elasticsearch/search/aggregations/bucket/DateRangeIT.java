@@ -65,8 +65,8 @@ public class DateRangeIT extends ESIntegTestCase {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
-                .field("date", date(month, day))
-                .startArray("dates").value(date(month, day)).value(date(month + 1, day + 1)).endArray()
+                .timeField("date", date(month, day))
+                .startArray("dates").timeValue(date(month, day)).timeValue(date(month + 1, day + 1)).endArray()
                 .endObject());
     }
 
@@ -889,9 +889,9 @@ public class DateRangeIT extends ESIntegTestCase {
                 .get());
         indexRandom(true,
                 client().prepareIndex("cache_test_idx", "type", "1")
-                        .setSource(jsonBuilder().startObject().field("date", date(1, 1)).endObject()),
+                        .setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
                 client().prepareIndex("cache_test_idx", "type", "2")
-                        .setSource(jsonBuilder().startObject().field("date", date(2, 1)).endObject()));
+                        .setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject()));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

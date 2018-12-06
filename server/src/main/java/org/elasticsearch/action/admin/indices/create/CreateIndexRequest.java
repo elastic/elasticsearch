@@ -29,8 +29,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -84,8 +85,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private boolean updateAllTypes = false;
 
@@ -182,11 +181,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Allows to set the settings using a json builder.
      */
     public CreateIndexRequest settings(XContentBuilder builder) {
-        try {
-            settings(builder.string(), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate json settings from builder", e);
-        }
+        settings(Strings.toString(builder), builder.contentType());
         return this;
     }
 
@@ -198,7 +193,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string(), XContentType.JSON);
+            settings(Strings.toString(builder), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -251,7 +246,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, source.bytes(), source.contentType());
+        return mapping(type, BytesReference.bytes(source), source.contentType());
     }
 
     /**
@@ -295,7 +290,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(builder.bytes());
+            return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -305,7 +300,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(XContentBuilder source) {
-        return aliases(source.bytes());
+        return aliases(BytesReference.bytes(source));
     }
 
     /**
@@ -352,7 +347,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        return source(source.bytes(), source.contentType());
+        return source(BytesReference.bytes(source), source.contentType());
     }
 
     /**
@@ -398,17 +393,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (ALIASES.match(name, deprecationHandler)) {
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
-            } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    found = true;
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-                    }
-                }
             }
         }
         if (!found) {
@@ -424,18 +408,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     public Set<Alias> aliases() {
         return this.aliases;
-    }
-
-    /**
-     * Adds custom metadata to the index to be created.
-     */
-    public CreateIndexRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
-        return this;
-    }
-
-    public Map<String, IndexMetaData.Custom> customs() {
-        return this.customs;
     }
 
     /** True if all fields that span multiple types should be updated, false otherwise */
@@ -500,11 +472,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             }
             mappings.put(type, source);
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            // This used to be the size of custom metadata classes
+            int customSize = in.readVInt();
+            assert customSize == 0 : "unexpected custom metadata when none is supported";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -525,10 +499,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+        if (out.getVersion().before(Version.V_6_5_0)) {
+            // Size of custom index metadata, which is removed
+            out.writeVInt(0);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -553,7 +526,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
         builder.startObject(MAPPINGS.getPreferredName());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            builder.rawField(entry.getKey(), new BytesArray(entry.getValue()), XContentType.JSON);
+            try (InputStream stream = new BytesArray(entry.getValue()).streamInput()) {
+                builder.rawField(entry.getKey(), stream, XContentType.JSON);
+            }
         }
         builder.endObject();
 
@@ -562,10 +537,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.toXContent(builder, params);
         }
         builder.endObject();
-
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue(), params);
-        }
         return builder;
     }
 }

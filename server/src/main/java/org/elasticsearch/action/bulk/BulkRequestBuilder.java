@@ -41,6 +41,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder>
         implements WriteRequestBuilder<BulkRequestBuilder> {
 
+    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
+        super(client, action, new BulkRequest(globalIndex, globalType));
+    }
+
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
         super(client, action, new BulkRequest());
     }
@@ -132,7 +136,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
@@ -140,7 +144,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
@@ -152,5 +156,15 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public int numberOfActions() {
         return request.numberOfActions();
+    }
+
+    public BulkRequestBuilder pipeline(String globalPipeline) {
+        request.pipeline(globalPipeline);
+        return this;
+    }
+
+    public BulkRequestBuilder routing(String globalRouting) {
+        request.routing(globalRouting);
+        return this;
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
+import java.util.Objects;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -40,10 +41,82 @@ public class Build {
      */
     public static final Build CURRENT;
 
+    public enum Flavor {
+
+        DEFAULT("default"),
+        OSS("oss"),
+        UNKNOWN("unknown");
+
+        final String displayName;
+
+        Flavor(final String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String displayName() {
+            return displayName;
+        }
+
+        public static Flavor fromDisplayName(final String displayName) {
+            switch (displayName) {
+                case "default":
+                    return Flavor.DEFAULT;
+                case "oss":
+                    return Flavor.OSS;
+                case "unknown":
+                    return Flavor.UNKNOWN;
+                default:
+                    throw new IllegalStateException("unexpected distribution flavor [" + displayName + "]; your distribution is broken");
+            }
+        }
+
+    }
+
+    public enum Type {
+
+        DEB("deb"),
+        RPM("rpm"),
+        TAR("tar"),
+        ZIP("zip"),
+        UNKNOWN("unknown");
+
+        final String displayName;
+
+        public String displayName() {
+            return displayName;
+        }
+
+        Type(final String displayName) {
+            this.displayName = displayName;
+        }
+
+        public static Type fromDisplayName(final String displayName) {
+            switch (displayName) {
+                case "deb":
+                    return Type.DEB;
+                case "rpm":
+                    return Type.RPM;
+                case "tar":
+                    return Type.TAR;
+                case "zip":
+                    return Type.ZIP;
+                case "unknown":
+                    return Type.UNKNOWN;
+                default:
+                    throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+            }
+        }
+    }
+
     static {
+        final Flavor flavor;
+        final Type type;
         final String shortHash;
         final String date;
         final boolean isSnapshot;
+
+        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"));
+        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"));
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();
@@ -76,14 +149,14 @@ public class Build {
         }
         if (shortHash == null) {
             throw new IllegalStateException("Error finding the build shortHash. " +
-                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
         if (date == null) {
             throw new IllegalStateException("Error finding the build date. " +
-                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(shortHash, date, isSnapshot);
+        CURRENT = new Build(flavor, type, shortHash, date, isSnapshot);
     }
 
     private final boolean isSnapshot;
@@ -98,10 +171,14 @@ public class Build {
         return codeSource == null ? null : codeSource.getLocation();
     }
 
+    private final Flavor flavor;
+    private final Type type;
     private final String shortHash;
     private final String date;
 
-    public Build(String shortHash, String date, boolean isSnapshot) {
+    public Build(final Flavor flavor, final Type type, final String shortHash, final String date, boolean isSnapshot) {
+        this.flavor = flavor;
+        this.type = type;
         this.shortHash = shortHash;
         this.date = date;
         this.isSnapshot = isSnapshot;
@@ -116,16 +193,42 @@ public class Build {
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
+        final Flavor flavor;
+        final Type type;
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            flavor = Flavor.fromDisplayName(in.readString());
+        } else {
+            flavor = Flavor.OSS;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            type = Type.fromDisplayName(in.readString());
+        } else {
+            type = Type.UNKNOWN;
+        }
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
-        return new Build(hash, date, snapshot);
+        return new Build(flavor, type, hash, date, snapshot);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeString(build.flavor().displayName());
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeString(build.type().displayName());
+        }
         out.writeString(build.shortHash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
+    }
+
+    public Flavor flavor() {
+        return flavor;
+    }
+
+    public Type type() {
+        return type;
     }
 
     public boolean isSnapshot() {
@@ -134,7 +237,7 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + shortHash + "][" + date + "]";
+        return "[" + flavor.displayName() + "][" + type.displayName + "][" + shortHash + "][" + date + "]";
     }
 
     @Override
@@ -148,6 +251,14 @@ public class Build {
 
         Build build = (Build) o;
 
+        if (!flavor.equals(build.flavor)) {
+            return false;
+        }
+
+        if (!type.equals(build.type)) {
+            return false;
+        }
+
         if (isSnapshot != build.isSnapshot) {
             return false;
         }
@@ -160,9 +271,7 @@ public class Build {
 
     @Override
     public int hashCode() {
-        int result = (isSnapshot ? 1 : 0);
-        result = 31 * result + shortHash.hashCode();
-        result = 31 * result + date.hashCode();
-        return result;
+        return Objects.hash(flavor, type, isSnapshot, shortHash, date);
     }
+
 }

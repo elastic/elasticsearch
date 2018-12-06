@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -35,8 +35,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -56,24 +54,21 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
  * are directly added to the cluster state or are accumulated during master election.
  */
-public class NodeJoinController extends AbstractComponent {
+public class NodeJoinController {
+
+    private static final Logger logger = LogManager.getLogger(NodeJoinController.class);
 
     private final MasterService masterService;
-    private final AllocationService allocationService;
-    private final ElectMasterService electMaster;
-    private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
+    private final JoinTaskExecutor joinTaskExecutor;
 
     // this is set while trying to become a master
     // mutation should be done under lock
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster,
-                              Settings settings) {
-        super(settings);
+    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster) {
         this.masterService = masterService;
-        this.allocationService = allocationService;
-        this.electMaster = electMaster;
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, electMaster, logger);
     }
 
     /**
@@ -364,7 +359,7 @@ public class NodeJoinController extends AbstractComponent {
                 try {
                     callback.onFailure(e);
                 } catch (Exception inner) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("error handling task failure [{}]", e), inner);
+                    logger.error(() -> new ParameterizedMessage("error handling task failure [{}]", e), inner);
                 }
             }
         }
@@ -375,7 +370,7 @@ public class NodeJoinController extends AbstractComponent {
                 try {
                     callback.onSuccess();
                 } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error during [{}]", source), e);
+                    logger.error(() -> new ParameterizedMessage("unexpected error during [{}]", source), e);
                 }
             }
         }
@@ -384,7 +379,7 @@ public class NodeJoinController extends AbstractComponent {
     /**
      * a task indicated that the current node should become master, if no current master is known
      */
-    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
+    public static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
         new TransportAddress(TransportAddress.META_ADDRESS, 0),
         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
         @Override
@@ -397,7 +392,7 @@ public class NodeJoinController extends AbstractComponent {
      * a task that is used to signal the election is stopped and we should process pending joins.
      * it may be use in combination with {@link #BECOME_MASTER_TASK}
      */
-    private static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
+    public static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
         new TransportAddress(TransportAddress.META_ADDRESS, 0), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
             @Override
             public String toString() {
@@ -405,7 +400,20 @@ public class NodeJoinController extends AbstractComponent {
             }
     };
 
-    class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
+    // visible for testing
+    public static class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
+
+        private final AllocationService allocationService;
+
+        private final ElectMasterService electMasterService;
+
+        private final Logger logger;
+
+        public JoinTaskExecutor(AllocationService allocationService, ElectMasterService electMasterService, Logger logger) {
+            this.allocationService = allocationService;
+            this.electMasterService = electMasterService;
+            this.logger = logger;
+        }
 
         @Override
         public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
@@ -513,7 +521,7 @@ public class NodeJoinController extends AbstractComponent {
 
         @Override
         public void clusterStatePublished(ClusterChangedEvent event) {
-            NodeJoinController.this.electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
+            electMasterService.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
         }
     }
 }

@@ -19,28 +19,28 @@
 
 package org.elasticsearch.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestFieldCapabilitiesAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestFieldCapabilitiesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_field_caps", this);
@@ -57,11 +57,16 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request,
                                               final NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() && request.hasParam("fields")) {
-            throw new IllegalArgumentException("can't specify a request body and [fields]" +
-                " request parameter, either specify a request body or the" +
-                " [fields] request parameter");
+        if (request.hasContentOrSourceParam()) {
+            deprecationLogger.deprecated("Specifying a request body is deprecated -- the" +
+                " [fields] request parameter should be used instead.");
+            if (request.hasParam("fields")) {
+                throw new IllegalArgumentException("can't specify a request body and [fields]" +
+                    " request parameter, either specify a request body or the" +
+                    " [fields] request parameter");
+            }
         }
+
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final FieldCapabilitiesRequest fieldRequest;
         if (request.hasContentOrSourceParam()) {
@@ -76,17 +81,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         fieldRequest.indicesOptions(
             IndicesOptions.fromRequest(request, fieldRequest.indicesOptions())
         );
-        return channel -> client.fieldCaps(fieldRequest,
-            new RestBuilderListener<FieldCapabilitiesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(FieldCapabilitiesResponse response,
-                                              XContentBuilder builder) throws Exception {
-                RestStatus status = OK;
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 }

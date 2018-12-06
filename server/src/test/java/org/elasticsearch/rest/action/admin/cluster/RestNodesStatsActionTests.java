@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -31,7 +32,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -44,9 +48,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        UsageService usageService = new UsageService(Settings.EMPTY);
+        UsageService usageService = new UsageService();
         action = new RestNodesStatsAction(Settings.EMPTY,
-                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
+                new RestController(Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testUnrecognizedMetric() throws IOException {
@@ -142,6 +146,16 @@ public class RestNodesStatsActionTests extends ESTestCase {
             e,
             hasToString(
                 containsString("request [/_nodes/stats] contains index metrics [" + indexMetric + "] but all stats requested")));
+    }
+
+    public void testSuggestIsDeprecated() throws IOException {
+        final Map<String, String> params =
+                Stream.of(Tuple.tuple("metric", "indices"), Tuple.tuple("index_metric", "suggest"))
+                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+        final RestRequest request =
+                new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+        assertWarnings("the suggest index metric is deprecated on the nodes stats API [/_nodes/stats]" );
     }
 
 }

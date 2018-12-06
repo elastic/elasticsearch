@@ -29,8 +29,6 @@ java.util.concurrent.Executors#privilegedThreadFactory()
 java.lang.Character#codePointBefore(char[],int) @ Implicit start offset is error-prone when the char[] is a buffer and the first chars are random chars
 java.lang.Character#codePointAt(char[],int) @ Implicit end offset is error-prone when the char[] is a buffer and the last chars are random chars
 
-java.io.StringReader#<init>(java.lang.String) @ Use FastStringReader instead
-
 @defaultMessage Reference management is tricky, leave it to SearcherManager
 org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
@@ -135,3 +133,17 @@ java.time.OffsetDateTime#withYear(int)
 java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
 java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
 java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
+
+@defaultMessage Use logger methods with non-Object parameter
+org.apache.logging.log4j.Logger#trace(java.lang.Object)
+org.apache.logging.log4j.Logger#trace(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#debug(java.lang.Object)
+org.apache.logging.log4j.Logger#debug(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#info(java.lang.Object)
+org.apache.logging.log4j.Logger#info(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#warn(java.lang.Object)
+org.apache.logging.log4j.Logger#warn(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#error(java.lang.Object)
+org.apache.logging.log4j.Logger#error(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#fatal(java.lang.Object)
+org.apache.logging.log4j.Logger#fatal(java.lang.Object, java.lang.Throwable)

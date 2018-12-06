@@ -21,14 +21,13 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -60,13 +59,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         final boolean shard2 = randomBoolean();
 
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
-                                     ActionListener<CanMatchResponse> listener) {
-                new Thread(() -> listener.onResponse(new CanMatchResponse(request.shardId().id() == 0 ? shard1 :
+                                     ActionListener<SearchService.CanMatchResponse> listener) {
+                new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(request.shardId().id() == 0 ? shard1 :
                     shard2))).start();
             }
         };
@@ -74,16 +71,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2, randomBoolean(), primaryNode, replicaNode);
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
-        
+
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
             searchRequest, null, shardsIter, timeProvider, 0, null,
             (iter) -> new SearchPhase("test") {
                     @Override
@@ -111,8 +108,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     public void testOldNodesTriggerException() {
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null);
+        SearchTransportService searchTransportService = new SearchTransportService(null, null);
         DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), VersionUtils.randomVersionBetween(random(),
             VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_6_0)));
         SearchAsyncActionTests.MockConnection mockConnection = new SearchAsyncActionTests.MockConnection(node);
@@ -130,19 +126,17 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
-                                     ActionListener<CanMatchResponse> listener) {
+                                     ActionListener<SearchService.CanMatchResponse> listener) {
                 boolean throwException = request.shardId().id() != 0;
                 if (throwException && randomBoolean()) {
                     throw new IllegalArgumentException("boom");
                 } else {
                     new Thread(() -> {
                         if (throwException == false) {
-                            listener.onResponse(new CanMatchResponse(shard1));
+                            listener.onResponse(new SearchService.CanMatchResponse(shard1));
                         } else {
                             listener.onFailure(new NullPointerException());
                         }
@@ -154,17 +148,17 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2, randomBoolean(), primaryNode, replicaNode);
 
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
-        
+
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
             searchRequest, null, shardsIter, timeProvider, 0, null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -198,19 +192,19 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
 
         final SearchTransportService searchTransportService =
-                new SearchTransportService(Settings.builder().put("search.remote.connect", false).build(), null, null) {
+                new SearchTransportService(null, null) {
                     @Override
                     public void sendCanMatch(
                             Transport.Connection connection,
                             ShardSearchTransportRequest request,
                             SearchTask task,
-                            ActionListener<CanMatchResponse> listener) {
-                        listener.onResponse(new CanMatchResponse(randomBoolean()));
+                            ActionListener<SearchService.CanMatchResponse> listener) {
+                        listener.onResponse(new SearchService.CanMatchResponse(randomBoolean()));
                     }
                 };
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed());
+        final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
         final GroupShardsIterator<SearchShardIterator> shardsIter =
                 SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
@@ -221,6 +215,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.emptyMap(),
                 Collections.emptyMap(),
                 EsExecutors.newDirectExecutorService(),
                 searchRequest,

@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -56,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
- * @see PutMappingResponse
+ * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
@@ -184,10 +186,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type the mapping type
-     * @param source consisting of field/properties pairs (e.g. "field1",
-     *            "type=string,store=true"). If the number of arguments is not
-     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @param type
+     *            the mapping type
+     * @param source
+     *            consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true")
+     * @throws IllegalArgumentException
+     *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
@@ -250,11 +255,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        try {
-            return source(mappingBuilder.string(), mappingBuilder.contentType());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
-        }
+        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
@@ -265,7 +266,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string(), XContentType.JSON);
+            return source(Strings.toString(builder), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -335,7 +336,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(new BytesArray(source).streamInput(), XContentType.JSON);
+            try (InputStream stream = new BytesArray(source).streamInput()) {
+                builder.rawValue(stream, XContentType.JSON);
+            }
         } else {
             builder.startObject().endObject();
         }

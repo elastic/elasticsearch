@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -142,10 +143,13 @@ public class CollectorResult implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder = builder.startObject()
-                .field(NAME.getPreferredName(), getName())
-                .field(REASON.getPreferredName(), getReason())
-                .timeValueField(TIME_NANOS.getPreferredName(), TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS);
+        builder = builder.startObject();
+        builder.field(NAME.getPreferredName(), getName());
+        builder.field(REASON.getPreferredName(), getReason());
+        if (builder.humanReadable()) {
+            builder.field(TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field(TIME_NANOS.getPreferredName(), getTime());
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());

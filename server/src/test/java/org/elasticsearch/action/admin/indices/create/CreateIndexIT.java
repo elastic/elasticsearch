@@ -24,10 +24,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -207,9 +207,9 @@ public class CreateIndexIT extends ESIntegTestCase {
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
         }
-        client().admin().indices().prepareDelete("test").execute(new ActionListener<DeleteIndexResponse>() { // this happens async!!!
+        client().admin().indices().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
                 @Override
-                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
+                public void onResponse(AcknowledgedResponse deleteIndexResponse) {
                     Thread thread = new Thread() {
                      @Override
                     public void run() {
@@ -262,25 +262,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
         logger.info("total: {}", expected.getHits().getTotalHits());
-    }
-
-    /**
-     * Asserts that the root cause of mapping conflicts is readable.
-     */
-    public void testMappingConflictRootCause() throws Exception {
-        CreateIndexRequestBuilder b = prepareCreate("test");
-        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                    .field("analyzer", "standard")
-                    .field("search_analyzer", "whitespace")
-                .endObject().endObject().endObject());
-        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                .endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
-        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

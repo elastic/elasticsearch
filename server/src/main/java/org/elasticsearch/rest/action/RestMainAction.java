@@ -69,4 +69,9 @@ public class RestMainAction extends BaseRestHandler {
         response.toXContent(builder, request);
         return new BytesRestResponse(status, builder);
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

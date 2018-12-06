@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,7 +50,9 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
             if (randomBoolean()) {
                 options.put(Script.CONTENT_TYPE_OPTION, xContentType.mediaType());
             }
-            return StoredScriptSource.parse(template.bytes(), xContentType);
+            StoredScriptSource source = StoredScriptSource.parse(BytesReference.bytes(template), xContentType);
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
+            return source;
         } catch (IOException e) {
             throw new AssertionError("Failed to create test instance", e);
         }
@@ -56,7 +60,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
     @Override
     protected StoredScriptSource doParseInstance(XContentParser parser) {
-        return StoredScriptSource.fromXContent(parser);
+        return StoredScriptSource.fromXContent(parser, false);
     }
 
     @Override
@@ -82,7 +86,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
         switch (between(0, 3)) {
         case 0:
-            source = newTemplate.string();
+            source = Strings.toString(newTemplate);
             break;
         case 1:
             lang = randomAlphaOfLengthBetween(1, 20);
@@ -93,7 +97,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
             break;
         case 3:
         default:
-            return new StoredScriptSource(newTemplate.string());
+            return new StoredScriptSource(Strings.toString(newTemplate));
         }
         return new StoredScriptSource(lang, source, options);
     }

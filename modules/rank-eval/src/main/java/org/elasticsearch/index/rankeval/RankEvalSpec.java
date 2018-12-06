@@ -57,9 +57,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     /** Default max number of requests. */
     private static final int MAX_CONCURRENT_SEARCHES = 10;
     /** optional: Templates to base test requests on */
-    private Map<String, Script> templates = new HashMap<>();
-    /** the indices this ranking evaluation targets */
-    private final List<String> indices;
+    private final Map<String, Script> templates = new HashMap<>();
 
     public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric, Collection<ScriptWithId> templates) {
         this.metric = Objects.requireNonNull(metric, "Cannot evaluate ranking if no evaluation metric is provided.");
@@ -70,8 +68,8 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         this.ratedRequests = ratedRequests;
         if (templates == null || templates.isEmpty()) {
             for (RatedRequest request : ratedRequests) {
-                if (request.getTestRequest() == null) {
-                    throw new IllegalStateException("Cannot evaluate ranking if neither template nor test request is "
+                if (request.getEvaluationRequest() == null) {
+                    throw new IllegalStateException("Cannot evaluate ranking if neither template nor evaluation request is "
                             + "provided. Seen for request id: " + request.getId());
                 }
             }
@@ -81,7 +79,6 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
                 this.templates.put(idScript.id, idScript.script);
             }
         }
-        this.indices = new ArrayList<>();
     }
 
     public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric) {
@@ -102,11 +99,6 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             this.templates.put(key, value);
         }
         maxConcurrentSearches = in.readVInt();
-        int indicesSize = in.readInt();
-        indices = new ArrayList<>(indicesSize);
-        for (int i = 0; i < indicesSize; i++) {
-            this.indices.add(in.readString());
-        }
     }
 
     @Override
@@ -122,10 +114,6 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             entry.getValue().writeTo(out);
         }
         out.writeVInt(maxConcurrentSearches);
-        out.writeInt(indices.size());
-        for (String index : indices) {
-            out.writeString(index);
-        }
     }
 
     /** Returns the metric to use for quality evaluation.*/
@@ -151,14 +139,6 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     /** Set the max concurrent searches allowed. */
     public void setMaxConcurrentSearches(int maxConcurrentSearches) {
         this.maxConcurrentSearches = maxConcurrentSearches;
-    }
-
-    public void addIndices(List<String> indices) {
-        this.indices.addAll(indices);
-    }
-
-    public List<String> getIndices() {
-        return Collections.unmodifiableList(indices);
     }
 
     private static final ParseField TEMPLATES_FIELD = new ParseField("templates");
@@ -262,12 +242,11 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         return Objects.equals(ratedRequests, other.ratedRequests) &&
                 Objects.equals(metric, other.metric) &&
                 Objects.equals(maxConcurrentSearches, other.maxConcurrentSearches) &&
-                Objects.equals(templates, other.templates) &&
-                Objects.equals(indices, other.indices);
+                Objects.equals(templates, other.templates);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches, indices);
+        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches);
     }
 }

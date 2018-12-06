@@ -148,7 +148,8 @@ public enum Recyclers {
     }
 
     /**
-     * Create a concurrent implementation that can support concurrent access from <code>concurrencyLevel</code> threads with little contention.
+     * Create a concurrent implementation that can support concurrent access from
+     * <code>concurrencyLevel</code> threads with little contention.
      */
     public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory, final int concurrencyLevel) {
         if (concurrencyLevel < 1) {

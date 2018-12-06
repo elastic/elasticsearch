@@ -124,7 +124,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         for (Object value : values) {
             // this call doesn't really need to support writing any kind of object.
             // Stored fields values are converted using MappedFieldType#valueForDisplay.
-            // As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's
+            // As a result they can either be Strings, Numbers, or Booleans, that's
             // all.
             builder.value(value);
         }

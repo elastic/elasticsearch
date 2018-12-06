@@ -251,7 +251,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.min_index_buffer_size", "-6mb").build()));
-        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.min_index_buffer_size] must be >= 0b", e.getMessage());
+        assertEquals("failed to parse value [-6mb] for setting [indices.memory.min_index_buffer_size], must be >= [0]", e.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[0],
                 "Values less than -1 bytes are deprecated and will not be supported in the next major version: [-6mb]");
     }
@@ -260,7 +260,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.interval", "-42s").build()));
-        assertEquals("Failed to parse value [-42s] for setting [indices.memory.interval] must be >= 0s", e.getMessage());
+        assertEquals("failed to parse value [-42s] for setting [indices.memory.interval], must be >= [0ms]", e.getMessage());
 
     }
 
@@ -268,7 +268,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.shard_inactive_time", "-42s").build()));
-        assertEquals("Failed to parse value [-42s] for setting [indices.memory.shard_inactive_time] must be >= 0s", e.getMessage());
+        assertEquals("failed to parse value [-42s] for setting [indices.memory.shard_inactive_time], must be >= [0ms]", e.getMessage());
 
     }
 
@@ -276,7 +276,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.max_index_buffer_size", "-6mb").build()));
-        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.max_index_buffer_size] must be >= -1b", e.getMessage());
+        assertEquals("failed to parse value [-6mb] for setting [indices.memory.max_index_buffer_size], must be >= [-1]", e.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[0],
                 "Values less than -1 bytes are deprecated and will not be supported in the next major version: [-6mb]");
     }
@@ -316,7 +316,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
 
-        // Now we are still writing 3 MB (shard0), and using 5 MB index buffers, so we should now 1) be writing shard1, and 2) be throttling shard1:
+        // Now we are still writing 3 MB (shard0), and using 5 MB index buffers, so we should now 1) be writing shard1,
+        // and 2) be throttling shard1:
         controller.assertWriting(shard0, 3);
         controller.assertWriting(shard1, 4);
         controller.assertBuffer(shard0, 1);

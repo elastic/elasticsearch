@@ -20,25 +20,21 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.singletonList;
-import static java.util.Collections.unmodifiableList;
+import java.util.stream.Stream;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
+
     /**
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions
@@ -50,73 +46,65 @@ public class VersionUtils {
      * guarantees in v1 and versions without the guranteees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
-        List<Version> versions = Version.getDeclaredVersions(versionClass);
+        // group versions into major version
+        Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass).stream()
+            .collect(Collectors.groupingBy(v -> (int)v.major));
+        // this breaks b/c 5.x is still in version list but master doesn't care about it!
+        //assert majorVersions.size() == 2;
+        // TODO: remove oldVersions, we should only ever have 2 majors in Version
+        List<Version> oldVersions = majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList());
+        List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
+        List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
-        Version last = versions.remove(versions.size() - 1);
-        assert last.equals(current) : "The highest version must be the current one "
-            + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
-
-        if (current.revision != 0) {
-            /* If we are in a stable branch there should be no unreleased version constants
-             * because we don't expect to release any new versions in older branches. If there
-             * are extra constants then gradle will yell about it. */
-            return new Tuple<>(unmodifiableList(versions), singletonList(current));
+        List<Version> unreleasedVersions = new ArrayList<>();
+        final List<List<Version>> stableVersions;
+        if (currentMajor.size() == 1) {
+            // on master branch
+            stableVersions = previousMajor;
+            // remove current
+            moveLastToUnreleased(currentMajor, unreleasedVersions);
+        } else {
+            // on a stable or release branch, ie N.x
+            stableVersions = currentMajor;
+            // remove the next maintenance bugfix
+            moveLastToUnreleased(previousMajor, unreleasedVersions);
         }
 
-        /* If we are on a patch release then we know that at least the version before the
-         * current one is unreleased. If it is released then gradle would be complaining. */
-        int unreleasedIndex = versions.size() - 1;
-        while (true) {
-            if (unreleasedIndex < 0) {
-                throw new IllegalArgumentException("Couldn't find first non-alpha release");
+        // remove next minor
+        Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+        if (lastMinor.revision == 0) {
+            if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                // a minor is being staged, which is also unreleased
+                moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
-            /* We don't support backwards compatibility for alphas, betas, and rcs. But
-             * they were released so we add them to the released list. Usually this doesn't
-             * matter to consumers, but consumers that do care should filter non-release
-             * versions. */
-            if (versions.get(unreleasedIndex).isRelease()) {
-                break;
-            }
-            unreleasedIndex--;
+            // remove the next bugfix
+            moveLastToUnreleased(stableVersions, unreleasedVersions);
         }
 
-        Version unreleased = versions.remove(unreleasedIndex);
-        if (unreleased.revision == 0) {
-            /*
-             * If the last unreleased version is itself a patch release then Gradle enforces that there is yet another unreleased version
-             * before that. However, we have to skip alpha/betas/RCs too (e.g., consider when the version constants are ..., 5.6.3, 5.6.4,
-             * 6.0.0-alpha1, ..., 6.0.0-rc1, 6.0.0-rc2, 6.0.0, 6.1.0 on the 6.x branch. In this case, we will have pruned 6.0.0 and 6.1.0 as
-             * unreleased versions, but we also need to prune 5.6.4. At this point though, unreleasedIndex will be pointing to 6.0.0-rc2, so
-             * we have to skip backwards until we find a non-alpha/beta/RC again. Then we can prune that version as an unreleased version
-             * too.
-             */
-            do {
-                unreleasedIndex--;
-            } while (versions.get(unreleasedIndex).isRelease() == false);
-            Version earlierUnreleased = versions.remove(unreleasedIndex);
+        List<Version> releasedVersions = Stream.concat(oldVersions.stream(),
+            Stream.concat(previousMajor.stream(), currentMajor.stream()).flatMap(List::stream))
+            .collect(Collectors.toList());
+        Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
+        return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
+    }
 
-            // This earlierUnreleased is either the snapshot on the minor branch lower, or its possible its a staged release. If it is a
-            // staged release, remove it and return it in unreleased as well.
-            if (earlierUnreleased.revision == 0) {
-                unreleasedIndex--;
-                Version actualUnreleasedPreviousMinor = versions.remove(unreleasedIndex);
-                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(actualUnreleasedPreviousMinor,
-                    earlierUnreleased, unreleased, current)));
-            }
+    // split the given versions into sub lists grouped by minor version
+    private static List<List<Version>> splitByMinor(List<Version> versions) {
+        Map<Integer, List<Version>> byMinor = versions.stream().collect(Collectors.groupingBy(v -> (int)v.minor));
+        return byMinor.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList());
+    }
 
-            return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
-        } else if (unreleased.major == current.major) {
-            // need to remove one more of the last major's minor set
-            do {
-                unreleasedIndex--;
-            } while (unreleasedIndex > 0 && versions.get(unreleasedIndex).major == current.major);
-            if (unreleasedIndex > 0) {
-                // some of the test cases return very small lists, so its possible this is just the end of the list, if so, dont include it
-                Version earlierMajorsMinor = versions.remove(unreleasedIndex);
-                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierMajorsMinor, unreleased, current)));
-            }
+    // move the last version of the last minor in versions to the unreleased versions
+    private static Version moveLastToUnreleased(List<List<Version>> versions, List<Version> unreleasedVersions) {
+        List<Version> lastMinor = new ArrayList<>(versions.get(versions.size() - 1));
+        Version lastVersion = lastMinor.remove(lastMinor.size() - 1);
+        if (lastMinor.isEmpty()) {
+            versions.remove(versions.size() - 1);
+        } else {
+            versions.set(versions.size() - 1, lastMinor);
         }
-        return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(unreleased, current)));
+        unreleasedVersions.add(lastVersion);
+        return lastVersion;
     }
 
     private static final List<Version> RELEASED_VERSIONS;
@@ -131,7 +119,7 @@ public class VersionUtils {
         allVersions.addAll(RELEASED_VERSIONS);
         allVersions.addAll(UNRELEASED_VERSIONS);
         Collections.sort(allVersions);
-        ALL_VERSIONS = unmodifiableList(allVersions);
+        ALL_VERSIONS = Collections.unmodifiableList(allVersions);
     }
 
     /**
@@ -237,6 +225,13 @@ public class VersionUtils {
         return opt.get();
     }
 
+    /** returns the first future compatible version */
+    public static Version compatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
+        assert opt.isPresent() : "no future compatible version for " + version;
+        return opt.get();
+    }
+
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
         final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
@@ -244,5 +239,4 @@ public class VersionUtils {
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
     }
-
 }

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -85,7 +85,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
             }
         }
         Arrays.sort(percentiles);
-        Loggers.getLogger(HDRPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
+        LogManager.getLogger(HDRPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
         return percentiles;
     }
 
@@ -419,7 +419,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
 
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")

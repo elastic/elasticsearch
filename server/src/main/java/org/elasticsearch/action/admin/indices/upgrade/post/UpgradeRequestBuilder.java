@@ -24,7 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A request to upgrade one or more indices. In order to optimize on all the indices, pass an empty array or
- * <tt>null</tt> for the indices.
+ * {@code null} for the indices.
  */
 public class UpgradeRequestBuilder extends BroadcastOperationRequestBuilder<UpgradeRequest, UpgradeResponse, UpgradeRequestBuilder> {
 

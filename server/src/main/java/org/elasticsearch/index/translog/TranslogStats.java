@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -84,12 +85,12 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         return numberOfOperations;
     }
 
-    /** the size of the generations in the translog that weren't yet to comitted to lucene */
+    /** the size of the generations in the translog that weren't yet to committed to lucene */
     public long getUncommittedSizeInBytes() {
         return uncommittedSizeInBytes;
     }
 
-    /** the number of operations in generations of the translog that weren't yet to comitted to lucene */
+    /** the number of operations in generations of the translog that weren't yet to committed to lucene */
     public int getUncommittedOperations() {
         return uncommittedOperations;
     }
@@ -100,9 +101,9 @@ public class TranslogStats implements Streamable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("translog");
         builder.field("operations", numberOfOperations);
-        builder.byteSizeField("size_in_bytes", "size", translogSizeInBytes);
+        builder.humanReadableField("size_in_bytes", "size", new ByteSizeValue(translogSizeInBytes));
         builder.field("uncommitted_operations", uncommittedOperations);
-        builder.byteSizeField("uncommitted_size_in_bytes", "uncommitted_size", uncommittedSizeInBytes);
+        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", new ByteSizeValue(uncommittedSizeInBytes));
         builder.field("earliest_last_modified_age", earliestLastModifiedAge);
         builder.endObject();
         return builder;

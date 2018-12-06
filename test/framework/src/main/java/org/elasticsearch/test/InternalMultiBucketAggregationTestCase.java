@@ -149,7 +149,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
         Class<? extends ParsedMultiBucketAggregation> parsedClass = implementationClass();
         assertNotNull("Parsed aggregation class must not be null", parsedClass);
-        assertTrue(parsedClass.isInstance(actual));
+        assertTrue("Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
+                parsedClass.isInstance(actual));
 
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());

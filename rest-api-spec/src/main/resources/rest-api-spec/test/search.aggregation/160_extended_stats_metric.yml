@@ -281,7 +281,7 @@ setup:
                 sigma: -1
 
   - do:
-      catch: /parsing_exception/
+      catch: /(x_content_)?pars(e|ing)_exception/
       search:
         body:
           aggs:

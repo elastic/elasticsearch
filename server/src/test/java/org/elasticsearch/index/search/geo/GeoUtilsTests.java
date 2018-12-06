@@ -89,8 +89,10 @@ public class GeoUtilsTests extends ESTestCase {
         double equatorialDistance = 2 * Math.PI * 6378137.0;
         double polarDistance = Math.PI * 6356752.314245;
         assertThat(GeoUtils.geoHashCellSize(0), equalTo(Math.sqrt(Math.pow(polarDistance, 2) + Math.pow(equatorialDistance, 2))));
-        assertThat(GeoUtils.geoHashCellSize(1), equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 8, 2))));
-        assertThat(GeoUtils.geoHashCellSize(2), equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
+        assertThat(GeoUtils.geoHashCellSize(1),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 8, 2))));
+        assertThat(GeoUtils.geoHashCellSize(2),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
         assertThat(GeoUtils.geoHashCellSize(3),
                 equalTo(Math.sqrt(Math.pow(polarDistance / 128, 2) + Math.pow(equatorialDistance / 256, 2))));
         assertThat(GeoUtils.geoHashCellSize(4),
@@ -167,13 +169,20 @@ public class GeoUtilsTests extends ESTestCase {
     public void testQuadTreeCellSize() {
         double equatorialDistance = 2 * Math.PI * 6378137.0;
         double polarDistance = Math.PI * 6356752.314245;
-        assertThat(GeoUtils.quadTreeCellSize(0), equalTo(Math.sqrt(Math.pow(polarDistance, 2) + Math.pow(equatorialDistance, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(1), equalTo(Math.sqrt(Math.pow(polarDistance / 2, 2) + Math.pow(equatorialDistance / 2, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(2), equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 4, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(3), equalTo(Math.sqrt(Math.pow(polarDistance / 8, 2) + Math.pow(equatorialDistance / 8, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(4), equalTo(Math.sqrt(Math.pow(polarDistance / 16, 2) + Math.pow(equatorialDistance / 16, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(5), equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(6), equalTo(Math.sqrt(Math.pow(polarDistance / 64, 2) + Math.pow(equatorialDistance / 64, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(0),
+            equalTo(Math.sqrt(Math.pow(polarDistance, 2) + Math.pow(equatorialDistance, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(1),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 2, 2) + Math.pow(equatorialDistance / 2, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(2),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 4, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(3),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 8, 2) + Math.pow(equatorialDistance / 8, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(4),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 16, 2) + Math.pow(equatorialDistance / 16, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(5),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(6),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 64, 2) + Math.pow(equatorialDistance / 64, 2))));
         assertThat(GeoUtils.quadTreeCellSize(7),
                 equalTo(Math.sqrt(Math.pow(polarDistance / 128, 2) + Math.pow(equatorialDistance / 128, 2))));
         assertThat(GeoUtils.quadTreeCellSize(8),
@@ -410,6 +419,19 @@ public class GeoUtilsTests extends ESTestCase {
         }
     }
 
+    public void testParseGeoPointStringZValueError() throws IOException {
+        double lat = randomDouble() * 180 - 90 + randomIntBetween(-1000, 1000) * 180;
+        double lon = randomDouble() * 360 - 180 + randomIntBetween(-1000, 1000) * 360;
+        double alt = randomDouble() * 1000;
+        XContentBuilder json = jsonBuilder().startObject().field("foo", lat + "," + lon + "," + alt).endObject();
+        XContentParser parser = createParser(json);
+        while (parser.currentToken() != Token.VALUE_STRING) {
+            parser.nextToken();
+        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
+        assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
+    }
+
     public void testParseGeoPointGeohash() throws IOException {
         for (int i = 0; i < 100; i++) {
             int geoHashLength = randomIntBetween(1, GeoHashUtils.PRECISION);
@@ -509,7 +531,21 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
         }
         Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-        assertThat(e.getMessage(), is("only two values allowed"));
+        assertThat(e.getMessage(), is("Exception parsing coordinates: found Z value [0.0] but [ignore_z_value] parameter is [false]"));
+    }
+
+    public void testParseGeoPointArray3D() throws IOException {
+        double lat = 90.0;
+        double lon = -180.0;
+        double elev = 0.0;
+        XContentBuilder json = jsonBuilder().startObject().startArray("foo").value(lon).value(lat).value(elev).endArray().endObject();
+        XContentParser parser = createParser(json);
+        while (parser.currentToken() != Token.START_ARRAY) {
+            parser.nextToken();
+        }
+        GeoPoint point = GeoUtils.parseGeoPoint(parser, new GeoPoint(), true);
+        assertThat(point.lat(), equalTo(lat));
+        assertThat(point.lon(), equalTo(lon));
     }
 
     public void testParseGeoPointArrayWrongType() throws IOException {
@@ -554,7 +590,8 @@ public class GeoUtilsTests extends ESTestCase {
             assertThat(GeoUtils.quadTreeCellHeight(level), lessThanOrEqualTo(height));
             assertThat(GeoUtils.geoHashLevelsForPrecision(size), equalTo(geohashPrefixTree.getLevelForDistance(degrees)));
 
-            assertThat("width at level " + i, gNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
+            assertThat("width at level " + i,
+                gNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
             assertThat("height at level " + i, gNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 
@@ -575,7 +612,8 @@ public class GeoUtilsTests extends ESTestCase {
             assertThat(GeoUtils.quadTreeCellHeight(level), lessThanOrEqualTo(height));
             assertThat(GeoUtils.quadTreeLevelsForPrecision(size), equalTo(quadPrefixTree.getLevelForDistance(degrees)));
 
-            assertThat("width at level " + i, qNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
+            assertThat("width at level " + i,
+                qNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
             assertThat("height at level " + i, qNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 

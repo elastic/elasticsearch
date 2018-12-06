@@ -10,7 +10,7 @@ Example:
 PUT /museums
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "location": {
                     "type": "geo_point"
@@ -20,7 +20,7 @@ PUT /museums
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_doc/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "city": "Amsterdam", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -36,7 +36,8 @@ import java.util.Collections;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestPutIndexTemplateAction.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            LogManager.getLogger(RestPutIndexTemplateAction.class));
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);

@@ -102,7 +102,7 @@ PUT _xpack/watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }} <1>
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }} <1>
   }
 }
 --------------------------------------------------
@@ -181,12 +181,12 @@ PUT _xpack/watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
   },
   "actions" : {
     "log_error" : {
       "logging" : {
-        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
+        "text" : "Found {{ctx.payload.hits.total.value}} errors in the logs"
       }
     }
   }

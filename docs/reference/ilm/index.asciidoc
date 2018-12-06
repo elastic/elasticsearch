@@ -10,7 +10,7 @@
 --
 beta[]
 
-WARNING: {Ilm} is not supported by
+WARNING: {Ilm} is currently not supported by
 {stack-ov}/ccr-getting-started.html#ccr-getting-started-leader-index[leader indices] and
 {stack-ov}/ccr-getting-started.html#ccr-getting-started-follower-index[follower indices].
 

@@ -8,7 +8,7 @@
 
 beta[]
 
-WARNING: {ccr} is not supported by indices being managed by
+WARNING: {ccr} is currently not supported by indices being managed by
 {ref}/index-lifecycle-management.html[Index Lifecycle Management].
 
 The {ccr} (CCR) feature enables replication of indices in remote clusters to a 

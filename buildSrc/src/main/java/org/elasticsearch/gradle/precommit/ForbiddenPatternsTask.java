@@ -24,6 +24,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -92,7 +93,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @TaskAction
     public void checkInvalidPatterns() throws IOException {
-        Pattern allPatterns = Pattern.compile("(" + String.join(")|(", patterns.values()) + ")");
+        Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<String> failures = new ArrayList<>();
         for (File f : files()) {
             List<String> lines = Files.lines(f.toPath(), StandardCharsets.UTF_8).collect(Collectors.toList());
@@ -122,6 +123,11 @@ public class ForbiddenPatternsTask extends DefaultTask {
     @OutputFile
     public File getOutputMarker() {
         return new File(getProject().getBuildDir(), "markers/" + getName());
+    }
+
+    @Input
+    public Map<String, String> getPatterns() {
+        return patterns;
     }
 
     public void exclude(String... excludes) {

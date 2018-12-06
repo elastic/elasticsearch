@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -52,15 +51,14 @@ public class BoolQueryTests extends ESTestCase {
 
     public void testAddNestedField() {
         Query q = boolQueryWithoutNestedChildren();
-        assertSame(q, q.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT,
-                randomBoolean()));
+        assertSame(q, q.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), null, randomBoolean()));
 
         String path = randomAlphaOfLength(5);
         String field = randomAlphaOfLength(5);
         q = boolQueryWithNestedChildren(path, field);
         String newField = randomAlphaOfLength(5);
         boolean hasDocValues = randomBoolean();
-        Query rewritten = q.addNestedField(path, newField, DocValueFieldsContext.USE_DEFAULT_FORMAT, hasDocValues);
+        Query rewritten = q.addNestedField(path, newField, null, hasDocValues);
         assertNotSame(q, rewritten);
         assertTrue(rewritten.containsNestedField(path, newField));
     }
@@ -86,7 +84,7 @@ public class BoolQueryTests extends ESTestCase {
 
     private Query boolQueryWithNestedChildren(String path, String field) {
         NestedQuery match = new NestedQuery(LocationTests.randomLocation(), path,
-                singletonMap(field, new SimpleImmutableEntry<>(randomBoolean(), DocValueFieldsContext.USE_DEFAULT_FORMAT)),
+                singletonMap(field, new SimpleImmutableEntry<>(randomBoolean(), null)),
                 new MatchAll(LocationTests.randomLocation()));
         Query matchAll = new MatchAll(LocationTests.randomLocation());
         Query left;

@@ -319,7 +319,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .subAggregation(extendedStats("stats").field("num")))
                 .get();
         assertAllSuccessful(resp);
-        assertEquals(numDocs, resp.getHits().getTotalHits());
+        assertEquals(numDocs, resp.getHits().getTotalHits().value);
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
@@ -449,7 +449,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                 .subAggregation(percentiles("pcts").field("double_value")))
                 .get();
         assertAllSuccessful(response);
-        assertEquals(numDocs, response.getHits().getTotalHits());
+        assertEquals(numDocs, response.getHits().getTotalHits().value);
     }
 
     // https://github.com/elastic/elasticsearch/issues/6435

@@ -128,7 +128,7 @@ public class CombiIT extends ESIntegTestCase {
                                 .collectMode(aggCollectionMode )))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getBuckets().isEmpty(), is(true));

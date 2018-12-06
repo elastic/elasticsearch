@@ -847,7 +847,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .subAggregation(dateRange("date_range").field("value").addRange("0-1", 0, 1)))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -942,7 +942,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("00:16:40", "00:50:00").addRange("00:50:00", "01:06:40"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         List<Range.Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "00:16:40-00:50:00", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "00:50:00-01:06:40", 3000000L, 4000000L);
@@ -952,7 +952,7 @@ public class DateRangeIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch(indexName).setSize(0).addAggregation(
                 dateRange("date_range").field("date").addRange("00.16.40", "00.50.00").addRange("00.50.00", "01.06.40").format("HH.mm.ss"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "00.16.40-00.50.00", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "00.50.00-01.06.40", 3000000L, 4000000L);
@@ -963,7 +963,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(
                         dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000).format("epoch_millis"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
@@ -992,7 +992,7 @@ public class DateRangeIT extends ESIntegTestCase {
         // mapping
         SearchResponse searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1000, 3000).addRange(3000, 4000)).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         List<Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1000,7 +1000,7 @@ public class DateRangeIT extends ESIntegTestCase {
         // using no format should also work when and to/from are string values
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("1000", "3000").addRange("3000", "4000")).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1008,7 +1008,7 @@ public class DateRangeIT extends ESIntegTestCase {
         // also e-notation should work, fractional parts should be truncated
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1.0e3, 3000.8123).addRange(3000.8123, 4.0e3)).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1016,14 +1016,14 @@ public class DateRangeIT extends ESIntegTestCase {
         // also e-notation and floats provided as string also be truncated (see: #14641)
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1033,7 +1033,7 @@ public class DateRangeIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch(indexName).setSize(0).addAggregation(
                 dateRange("date_range").field("date").addRange("00.16.40", "00.50.00").addRange("00.50.00", "01.06.40").format("HH.mm.ss"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "00.16.40-00.50.00", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "00.50.00-01.06.40", 3000000L, 4000000L);
@@ -1044,7 +1044,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(
                         dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000).format("epoch_millis"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);

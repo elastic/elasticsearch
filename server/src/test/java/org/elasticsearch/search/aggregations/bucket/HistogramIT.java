@@ -901,7 +901,7 @@ public class HistogramIT extends ESIntegTestCase {
                         .subAggregation(histogram("sub_histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L)))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Bucket> buckets = histo.getBuckets();

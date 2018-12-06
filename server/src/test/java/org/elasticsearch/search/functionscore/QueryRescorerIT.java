@@ -125,7 +125,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         new QueryRescorerBuilder(matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f))
                                 .setRescoreQueryWeight(2), 5).get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
@@ -361,7 +361,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
+        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
@@ -720,7 +720,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setTrackScores(true)
             .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50)
             .get();
-        assertThat(resp.getHits().totalHits, equalTo(5L));
+        assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
         assertThat(resp.getHits().getHits().length, equalTo(5));
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));

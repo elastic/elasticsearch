@@ -238,7 +238,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("Captain", "full_name_phrase", "first_name_phrase", "last_name_phrase",
                         "category_phrase")
                         .operator(Operator.OR).type(MatchQuery.Type.PHRASE))).get();
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(1L));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase",
@@ -288,8 +288,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     .addSort("_score", SortOrder.DESC)
                     .addSort("_id", SortOrder.ASC)
                     .setQuery(matchQueryBuilder).get();
-            assertThat("field: " + field + " query: " + builder.toString(), multiMatchResp.getHits().getTotalHits(),
-                    equalTo(matchResp.getHits().getTotalHits()));
+            assertThat("field: " + field + " query: " + builder.toString(), multiMatchResp.getHits().getTotalHits().value,
+                    equalTo(matchResp.getHits().getTotalHits().value));
             SearchHits hits = multiMatchResp.getHits();
             if (field.startsWith("missing")) {
                 assertEquals(0, hits.getHits().length);
@@ -304,7 +304,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
         final long numDocs = client().prepareSearch("test").setSize(0)
-                .setQuery(matchAllQuery()).get().getHits().getTotalHits();
+                .setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
         Float cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -326,13 +326,13 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .operator(Operator.OR).useDisMax(false).cutoffFrequency(cutoffFrequency).type(type))).get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
-        long size = searchResponse.getHits().getTotalHits();
+        long size = searchResponse.getHits().getTotalHits().value;
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
                         .operator(Operator.OR).useDisMax(false).type(type))).get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
-        assertThat("common terms expected to be a way smaller result set", size, lessThan(searchResponse.getHits().getTotalHits()));
+        assertThat("common terms expected to be a way smaller result set", size, lessThan(searchResponse.getHits().getTotalHits().value));
 
         cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         searchResponse = client().prepareSearch("test")
@@ -365,7 +365,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     public void testEquivalence() {
 
         final int numDocs = (int) client().prepareSearch("test").setSize(0)
-                .setQuery(matchAllQuery()).get().getHits().getTotalHits();
+                .setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {
@@ -565,14 +565,14 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .analyzer("category")
                         .operator(Operator.OR))).get();
         assertFirstHit(searchResponse, anyOf(hasId("theother"), hasId("theone")));
-        long numResults = searchResponse.getHits().getTotalHits();
+        long numResults = searchResponse.getHits().getTotalHits().value;
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
                         .operator(Operator.OR))).get();
-        assertThat(numResults, lessThan(searchResponse.getHits().getTotalHits()));
+        assertThat(numResults, lessThan(searchResponse.getHits().getTotalHits().value));
         assertFirstHit(searchResponse, hasId("theone"));
 
 
@@ -717,7 +717,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();
         SearchHits rightHits = right.getHits();
-        assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
+        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();

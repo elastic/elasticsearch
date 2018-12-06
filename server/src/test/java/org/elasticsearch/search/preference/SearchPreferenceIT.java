@@ -114,13 +114,13 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {

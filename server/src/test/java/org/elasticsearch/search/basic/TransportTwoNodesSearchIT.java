@@ -139,7 +139,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -178,7 +178,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -214,7 +214,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .setSize(60).setExplain(true).addSort("nid", SortOrder.DESC).setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -243,7 +243,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH))
                 .actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
@@ -251,7 +251,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         }
         searchResponse = client().search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(40));
         for (int i = 0; i < 40; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
@@ -268,7 +268,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .addSort("age", SortOrder.ASC).setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -297,7 +297,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
 
         Global global = searchResponse.getAggregations().get("global");
         Filter all = global.getAggregations().get("all");

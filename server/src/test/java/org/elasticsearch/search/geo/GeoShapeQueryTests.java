@@ -111,7 +111,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
@@ -120,7 +120,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
@@ -157,7 +157,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("blakely"));
     }
@@ -190,7 +190,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
@@ -199,7 +199,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
@@ -372,7 +372,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setPostFilter(filter).get();
         assertSearchResponse(response);
 
-        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
+        assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
     }
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
@@ -475,7 +475,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setQuery(geoIntersectionQuery("location", shape))
                 .get();
 
-        assertEquals(1, response.getHits().getTotalHits());
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
 
     public void testPointsOnlyExplicit() throws Exception {
@@ -509,7 +509,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .setQuery(matchAllQuery())
             .get();
 
-        assertEquals(2, response.getHits().getTotalHits());
+        assertEquals(2, response.getHits().getTotalHits().value);
     }
 
     public void testFieldAlias() throws IOException {
@@ -538,7 +538,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         SearchResponse response = client().prepareSearch("test")
             .setQuery(geoShapeQuery("alias", shape))
             .get();
-        assertEquals(1, response.getHits().getTotalHits());
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
 
     // Test for issue #34418
@@ -605,7 +605,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         SearchResponse response = client().prepareSearch("test")
             .setQuery(querySupplier.get())
             .get();
-        assertEquals(2, response.getHits().getTotalHits());
+        assertEquals(2, response.getHits().getTotalHits().value);
         assertNotEquals("1", response.getHits().getAt(0).getId());
         assertNotEquals("1", response.getHits().getAt(1).getId());
     }

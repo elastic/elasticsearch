@@ -65,7 +65,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(min("min").field("value")))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -84,7 +84,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("value"))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());

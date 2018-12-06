@@ -50,6 +50,7 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test_search_template
         body:
           id: test_search_template
@@ -120,6 +121,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           query:
@@ -132,6 +134,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id
@@ -147,6 +150,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id

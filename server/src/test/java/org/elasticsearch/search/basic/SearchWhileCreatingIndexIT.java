@@ -83,17 +83,17 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
             Client client = client();
             searchResponse = client.prepareSearch("test").setPreference(preference + Integer.toString(counter++))
                     .setQuery(QueryBuilders.termQuery("field", "test")).get();
-            if (searchResponse.getHits().getTotalHits() != 1) {
+            if (searchResponse.getHits().getTotalHits().value != 1) {
                 refresh();
                 SearchResponse searchResponseAfterRefresh = client.prepareSearch("test").setPreference(preference)
                         .setQuery(QueryBuilders.termQuery("field", "test")).get();
                 logger.info("hits count mismatch on any shard search failed, post explicit refresh hits are {}",
-                        searchResponseAfterRefresh.getHits().getTotalHits());
+                        searchResponseAfterRefresh.getHits().getTotalHits().value);
                 ensureGreen();
                 SearchResponse searchResponseAfterGreen = client.prepareSearch("test").setPreference(preference)
                         .setQuery(QueryBuilders.termQuery("field", "test")).get();
                 logger.info("hits count mismatch on any shard search failed, post explicit wait for green hits are {}",
-                        searchResponseAfterGreen.getHits().getTotalHits());
+                        searchResponseAfterGreen.getHits().getTotalHits().value);
                 assertHitCount(searchResponse, 1);
             }
             assertHitCount(searchResponse, 1);

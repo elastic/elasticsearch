@@ -282,7 +282,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .setTrackTotalHits(false)
                 .addSort("rank", SortOrder.ASC)
                 .setSize(i).get();
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(-1L));
+            assertNull(searchResponse.getHits().getTotalHits());
             for (int j = 0; j < i; j++) {
                 assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(),
                     equalTo((long) j));

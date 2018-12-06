@@ -41,6 +41,7 @@ public class SuiteScopeClusterIT extends ESIntegTestCase {
     @Test
     @SuppressForbidden(reason = "repeat is a feature here")
     @Repeat(iterations = 10, useConstantSeed = true)
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36202")
     public void testReproducible() throws IOException {
         if (ITER++ == 0) {
             CLUSTER_SEED = cluster().seed();

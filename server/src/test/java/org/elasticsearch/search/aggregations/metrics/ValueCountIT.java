@@ -82,7 +82,7 @@ public class ValueCountIT extends ESIntegTestCase {
                 .addAggregation(count("count").field("value"))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());

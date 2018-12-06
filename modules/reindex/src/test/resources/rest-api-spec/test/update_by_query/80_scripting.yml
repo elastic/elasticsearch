@@ -22,6 +22,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -50,6 +51,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -87,6 +89,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -96,6 +99,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -215,6 +219,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -224,6 +229,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -287,6 +293,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -296,6 +303,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -305,6 +313,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -397,6 +406,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -406,6 +416,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -415,6 +426,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:

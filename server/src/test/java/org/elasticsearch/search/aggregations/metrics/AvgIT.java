@@ -70,7 +70,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(avg("avg").field("value")))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -89,7 +89,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("value"))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());

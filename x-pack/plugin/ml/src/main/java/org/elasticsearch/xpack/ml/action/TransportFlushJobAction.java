@@ -9,15 +9,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
-
-import java.io.IOException;
 
 public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobAction.Request, FlushJobAction.Response> {
 
@@ -27,13 +24,6 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
         super(FlushJobAction.NAME, clusterService, transportService, actionFilters,
             FlushJobAction.Request::new, FlushJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
-    }
-
-    @Override
-    protected FlushJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        FlushJobAction.Response response = new FlushJobAction.Response();
-        response.readFrom(in);
-        return response;
     }
 
     @Override

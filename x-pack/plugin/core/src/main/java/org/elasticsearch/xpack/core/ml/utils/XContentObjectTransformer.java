@@ -46,7 +46,8 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     public static XContentObjectTransformer<AggregatorFactories.Builder> aggregatorTransformer() {
         return new XContentObjectTransformer<>(searchRegistry, (p) -> {
             // Serializing a map creates an object, need to skip the start object for the aggregation parser
-            assert(XContentParser.Token.START_OBJECT.equals(p.nextToken()));
+            XContentParser.Token token = p.nextToken();
+            assert(XContentParser.Token.START_OBJECT.equals(token));
             return AggregatorFactories.parseAggregators(p);
         });
     }

@@ -54,12 +54,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.rest.action.RestActionTestCase;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -68,12 +71,13 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link RestIndicesAction}
  */
-public class RestIndicesActionTests extends RestActionTestCase {
+public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestIndicesAction action = new RestIndicesAction(settings, controller(),
-            new IndexNameExpressionResolver());
+        UsageService usageService = new UsageService();
+        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
+        final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver());
 
         // build a (semi-)random table
         final int numIndices = randomIntBetween(0, 5);

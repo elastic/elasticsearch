@@ -21,15 +21,17 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.action.RestActionTestCase;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
-public class RestIndexActionTests extends RestActionTestCase {
+public class RestIndexActionTests extends ESTestCase {
 
-    public void testCreateOpTypeValidation() {
+    public void testCreateOpTypeValidation() throws Exception {
         Settings settings = settings(Version.CURRENT).build();
-        RestIndexAction.CreateHandler create = new RestIndexAction(settings, controller()).new CreateHandler(settings);
+        RestIndexAction.CreateHandler create = new RestIndexAction(settings, mock(RestController.class)).new CreateHandler(settings);
 
         String opType = randomFrom("CREATE", null);
         create.validateOpType(opType);

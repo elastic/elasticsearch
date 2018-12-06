@@ -28,8 +28,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.action.RestActionTestCase;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -39,13 +41,15 @@ import static java.util.Collections.emptySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestNodesActionTests extends RestActionTestCase {
+public class RestNodesActionTests extends ESTestCase {
 
     private RestNodesAction action;
 
     @Before
     public void setUpAction() {
-        action = new RestNodesAction(Settings.EMPTY, controller());
+        UsageService usageService = new UsageService();
+        action = new RestNodesAction(Settings.EMPTY,
+                new RestController(Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {

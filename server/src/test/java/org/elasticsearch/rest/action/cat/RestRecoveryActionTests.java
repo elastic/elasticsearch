@@ -32,9 +32,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.rest.action.RestActionTestCase;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -44,11 +47,13 @@ import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class RestRecoveryActionTests extends RestActionTestCase {
+public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        final RestRecoveryAction action = new RestRecoveryAction(settings, controller());
+        UsageService usageService = new UsageService();
+        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
+        final RestRecoveryAction action = new RestRecoveryAction(settings, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;

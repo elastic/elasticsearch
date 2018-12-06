@@ -201,7 +201,7 @@ public class DatafeedConfigProvider {
                         response -> {
                             Set<String> datafeedIds = new HashSet<>();
                             // There cannot be more than one datafeed per job
-                            assert response.getHits().totalHits <= jobIds.size();
+                            assert response.getHits().getTotalHits().value <= jobIds.size();
                             SearchHit[] hits = response.getHits().getHits();
 
                             for (SearchHit hit : hits) {

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Base class that redirects a request to a node where the job task is running.
@@ -37,10 +36,10 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
 
     TransportJobTaskAction(String actionName, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
-                           Supplier<Request> requestSupplier,
-                           Supplier<Response> responseSupplier, String nodeExecutor, AutodetectProcessManager processManager) {
+                           Writeable.Reader<Request> requestReader, Writeable.Reader<Response> responseReader,
+                           String nodeExecutor, AutodetectProcessManager processManager) {
         super(actionName, clusterService, transportService, actionFilters,
-            requestSupplier, responseSupplier, nodeExecutor);
+            requestReader, responseReader, responseReader, nodeExecutor);
         this.processManager = processManager;
     }
 

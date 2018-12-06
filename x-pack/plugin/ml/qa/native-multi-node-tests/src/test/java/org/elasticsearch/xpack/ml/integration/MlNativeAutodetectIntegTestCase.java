@@ -393,7 +393,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                         .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId)))
                 .execute().actionGet();
-        return searchResponse.getHits().getTotalHits();
+        return searchResponse.getHits().getTotalHits().value;
     }
 
     protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) {

@@ -46,6 +46,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -138,6 +139,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                 return;
             }
             Request searchWatchesRequest = new Request("GET", ".watches/_search");
+            searchWatchesRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
             searchWatchesRequest.addParameter("size", "1000");
             Response response = adminClient().performRequest(searchWatchesRequest);
             ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
@@ -180,7 +182,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                         return acknowledged != null && (Boolean) acknowledged;
                     },
                     () -> "Exception when enabling monitoring");
-            awaitCallApi("search", singletonMap("index", ".monitoring-*"), emptyList(),
+            Map<String, String> searchParams = new HashMap<>();
+            searchParams.put("index", ".monitoring-*");
+            searchParams.put(TOTAL_HIT_AS_INT_PARAM, "true");
+            awaitCallApi("search", searchParams, emptyList(),
                     response -> ((Number) response.evaluate("hits.total")).intValue() > 0,
                     () -> "Exception when waiting for monitoring documents to be indexed");
         }

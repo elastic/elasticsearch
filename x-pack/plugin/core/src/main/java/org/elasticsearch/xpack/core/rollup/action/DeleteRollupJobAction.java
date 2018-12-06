@@ -40,7 +40,12 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
@@ -52,6 +57,11 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+        }
+
         @Override
         public boolean match(Task task) {
             return task.getDescription().equals(RollupField.NAME + "_" + id);
@@ -59,12 +69,6 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
         public String getId() {
             return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
         }
 
         @Override
@@ -110,12 +114,7 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean acknowledged;
-
-        public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
-            readFrom(in);
-        }
+        private final boolean acknowledged;
 
         public Response(boolean acknowledged, List<TaskOperationFailure> taskFailures, List<FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
@@ -127,18 +126,8 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
             this.acknowledged = acknowledged;
         }
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-            this.acknowledged = false;
-        }
-
-        public boolean isDeleted() {
-            return acknowledged;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             acknowledged = in.readBoolean();
         }
 
@@ -146,6 +135,10 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(acknowledged);
+        }
+
+        public boolean isDeleted() {
+            return acknowledged;
         }
 
         @Override

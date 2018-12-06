@@ -46,7 +46,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     public void testEmptyToString() {
         assertEquals("{\n" +
                 "  \"tasks\" : [ ]\n" +
-                "}", new ListTasksResponse().toString());
+                "}", new ListTasksResponse(null, null, null).toString());
     }
 
     public void testNonEmptyToString() {

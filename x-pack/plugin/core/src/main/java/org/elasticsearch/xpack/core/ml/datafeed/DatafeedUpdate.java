@@ -295,10 +295,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setTypes(types);
         }
         if (query != null) {
-            builder.setQuery(query);
+            builder.setParsedQuery(query);
         }
         if (aggregations != null) {
-            builder.setAggregations(aggregations);
+            DatafeedConfig.validateAggregations(aggregations);
+            builder.setParsedAggregations(aggregations);
         }
         if (scriptFields != null) {
             builder.setScriptFields(scriptFields);
@@ -371,9 +372,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
                 && (indices == null || Objects.equals(indices, datafeed.getIndices()))
                 && (types == null || Objects.equals(types, datafeed.getTypes()))
-                && (query == null || Objects.equals(query, datafeed.getQuery()))
+                && (query == null || Objects.equals(query, datafeed.getParsedQuery()))
                 && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
-                && (aggregations == null || Objects.equals(aggregations, datafeed.getAggregations()))
+                && (aggregations == null || Objects.equals(aggregations, datafeed.getParsedAggregations()))
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
                 && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))
                 && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));

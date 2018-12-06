@@ -313,7 +313,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         // if we do not have any hits, we can drop the index and then skip the DBQ and alias deletion
         ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
                 searchResponse -> {
-                    if (searchResponse == null || searchResponse.getHits().totalHits > 0) {
+                    if (searchResponse == null || searchResponse.getHits().getTotalHits().value > 0) {
                         deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                     } else {
                         logger.info("Running DELETE Index on [" + indexName.get() + "] for job [" + jobId + "]");

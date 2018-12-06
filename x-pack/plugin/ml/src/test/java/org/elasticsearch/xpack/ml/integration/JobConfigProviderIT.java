@@ -514,7 +514,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         HistogramAggregationBuilder histogram =
                 AggregationBuilders.histogram("time").interval(1800.0).field("time").subAggregation(maxTime);
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
+        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
         DatafeedConfig badConfig = builder.build();
 
         blockingCall(listener -> jobConfigProvider.validateDatafeedJob(badConfig, listener), responseHolder, exceptionHolder);

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
@@ -51,13 +49,6 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
-    }
-
-    @Override
-    protected ForecastJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        ForecastJobAction.Response response = new ForecastJobAction.Response();
-        response.readFrom(in);
-        return response;
     }
 
     @Override

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -295,7 +296,7 @@ public class MockClientBuilder {
         }
 
         SearchResponse response = mock(SearchResponse.class);
-        SearchHits searchHits = new SearchHits(hits, hits.length, 0.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
         when(response.getHits()).thenReturn(searchHits);
 
         doAnswer(new Answer<Void>() {
@@ -332,7 +333,7 @@ public class MockClientBuilder {
         }
 
         SearchResponse response = mock(SearchResponse.class);
-        SearchHits searchHits = new SearchHits(hits, hits.length, 0.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
         when(response.getHits()).thenReturn(searchHits);
 
         doAnswer(new Answer<Void>() {

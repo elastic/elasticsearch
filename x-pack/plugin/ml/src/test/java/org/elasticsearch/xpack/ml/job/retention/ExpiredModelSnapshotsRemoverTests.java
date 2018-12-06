@@ -208,6 +208,20 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         return new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId).build();
     }
 
+//    private static SearchResponse createSearchResponse(List<ModelSnapshot> modelSnapshots) throws IOException {
+//        SearchHit[] hitsArray = new SearchHit[modelSnapshots.size()];
+//        for (int i = 0; i < modelSnapshots.size(); i++) {
+//            hitsArray[i] = new SearchHit(randomInt());
+//            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
+//            modelSnapshots.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+//            hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));
+//        }
+//        SearchHits hits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), 1.0f);
+//        SearchResponse searchResponse = mock(SearchResponse.class);
+//        when(searchResponse.getHits()).thenReturn(hits);
+//        return searchResponse;
+//    }
+
     private void givenClientRequestsSucceed() {
         givenClientRequests(true, true);
     }

@@ -304,7 +304,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("value").field("f3_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -320,7 +320,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("f3_alias:value AND f2:three"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -336,7 +336,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("value").field("f3_*"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -352,7 +352,7 @@ public class QueryStringIT extends ESIntegTestCase {
         // By default, the geo_point field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -360,7 +360,7 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

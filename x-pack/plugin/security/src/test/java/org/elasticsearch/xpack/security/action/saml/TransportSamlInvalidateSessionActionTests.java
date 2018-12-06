@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -154,7 +155,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
                     final SearchResponse response = new SearchResponse(
-                            new SearchResponseSections(new SearchHits(hits, hits.length, 0f),
+                            new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
                                     null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
                     listener.onResponse((Response) response);
                 } else if (ClearScrollAction.NAME.equals(action.name())) {

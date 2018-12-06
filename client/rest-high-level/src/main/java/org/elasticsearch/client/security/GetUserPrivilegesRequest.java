@@ -25,7 +25,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Validatable;
 
 /**
- * A request object for the {@link org.elasticsearch.client.SecurityClient#getUserPrivileges(GetUserPrivilegesRequest, RequestOptions)} API.
+ * A request object for the {@link org.elasticsearch.client.SecurityClient#getUserPrivileges(RequestOptions)} API.
  * This request takes no parameters, and has a singleton {@link #INSTANCE}.
  */
 public class GetUserPrivilegesRequest implements Validatable {

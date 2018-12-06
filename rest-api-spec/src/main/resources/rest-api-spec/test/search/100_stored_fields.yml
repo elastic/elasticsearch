@@ -16,6 +16,7 @@ setup:
 "Stored fields":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
 
   - is_true: hits.hits.0._id
@@ -24,6 +25,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           stored_fields: []
@@ -34,6 +36,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           stored_fields: "_none_"

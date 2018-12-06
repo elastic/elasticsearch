@@ -194,7 +194,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                                 .should(QueryBuilders.termQuery("field1", "value"))
                 )
                 .get();
-        assertThat(actual.getHits().getTotalHits(), equalTo(expected.getHits().getTotalHits()));
+        assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
         assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
         for (int i = 0; i < actual.getHits().getHits().length; i++) {
             assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
@@ -215,7 +215,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                                 .should(QueryBuilders.termQuery("field2", "value"))
                 )
                 .get();
-        assertThat(actual.getHits().getTotalHits(), equalTo(expected.getHits().getTotalHits()));
+        assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
         assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
         for (int i = 0; i < actual.getHits().getHits().length; i++) {
             assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
@@ -236,7 +236,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                                 .should(QueryBuilders.termQuery("field3", "value"))
                 )
                 .get();
-        assertThat(actual.getHits().getTotalHits(), equalTo(expected.getHits().getTotalHits()));
+        assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
         assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
         for (int i = 0; i < actual.getHits().getHits().length; i++) {
             assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));

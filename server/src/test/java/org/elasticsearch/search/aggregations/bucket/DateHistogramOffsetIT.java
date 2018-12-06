@@ -85,7 +85,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(5L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -107,7 +107,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(5L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -134,7 +134,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(24L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(24L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();

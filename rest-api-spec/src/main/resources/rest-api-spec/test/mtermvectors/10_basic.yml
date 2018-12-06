@@ -24,9 +24,7 @@ setup:
 
 ---
 "Basic tests for multi termvector get":
-  - skip:
-      version: "all"
-      reason:  "Test fails in ci see https://github.com/elastic/elasticsearch/issues/36281"
+
   - do:
         mtermvectors:
           "term_statistics" : true

@@ -42,11 +42,6 @@ This will yield the following result:
             "description":"score(freq=1.0), product of:",
             "details":[
                {
-                  "value":2.2,
-                  "description":"boost",
-                  "details":[]
-               },
-               {
                   "value":1.3862944,
                   "description":"idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
                   "details":[

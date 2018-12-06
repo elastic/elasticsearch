@@ -270,17 +270,22 @@ Response not included in text but tested for completeness sake.
 {
   ...,
   "hits": {
+<<<<<<< HEAD
     "total" : {
         "value": 1,
         "relation": "eq"
     },
     "max_score": 1.0444684,
+=======
+    "total": 1,
+    "max_score": 0.47475836,
+>>>>>>> update scores in docs
     "hits": [
       {
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.0444684,
+        "_score": 0.47475836,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
@@ -289,7 +294,7 @@ Response not included in text but tested for completeness sake.
                 "value": 1,
                 "relation": "eq"
               },
-              "max_score": 1.0444684,
+              "max_score": 0.47475836,
               "hits": [
                 {
                   "_index": "test",
@@ -299,7 +304,7 @@ Response not included in text but tested for completeness sake.
                     "field": "comments",
                     "offset": 1
                   },
-                  "_score": 1.0444684,
+                  "_score": 0.47475836,
                   "fields": {
                     "comments.text.keyword": [
                       "words words words"
@@ -391,26 +396,36 @@ Which would look like:
 {
   ...,
   "hits": {
+<<<<<<< HEAD
     "total" : {
         "value": 1,
         "relation": "eq"
     },
     "max_score": 0.6931472,
+=======
+    "total": 1,
+    "max_score": 0.3150669,
+>>>>>>> update scores in docs
     "hits": [
       {
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.6931472,
+        "_score": 0.3150669,
         "_source": ...,
         "inner_hits": {
           "comments.votes": { <1>
             "hits": {
+<<<<<<< HEAD
               "total" : {
                   "value": 1,
                   "relation": "eq"
               },
               "max_score": 0.6931472,
+=======
+              "total": 1,
+              "max_score": 0.3150669,
+>>>>>>> update scores in docs
               "hits": [
                 {
                   "_index": "test",
@@ -424,7 +439,7 @@ Which would look like:
                       "offset": 0
                     }
                   },
-                  "_score": 0.6931472,
+                  "_score": 0.3150669,
                   "_source": {
                     "value": 1,
                     "voter": "kimchy"

@@ -860,17 +860,22 @@ Response:
 {
     ...
     "hits": {
+<<<<<<< HEAD
         "total" : {
             "value": 1,
             "relation": "eq"
         },
         "max_score": 1.601195,
+=======
+        "total": 1,
+        "max_score": 0.72781587,
+>>>>>>> update scores in docs
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
-                "_score": 1.601195,
+                "_score": 0.72781587,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",
@@ -923,13 +928,13 @@ Response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.601195,
+        "max_score": 0.72781587,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
-                "_score": 1.601195,
+                "_score": 0.72781587,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",

@@ -76,13 +76,13 @@ Response:
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.87546873,
+    "max_score": 0.39794034,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "2",
-        "_score": 0.87546873,
+        "_score": 0.39794034,
         "_source": {
           "codes": ["def", "ghi"],
           "required_matches": 2

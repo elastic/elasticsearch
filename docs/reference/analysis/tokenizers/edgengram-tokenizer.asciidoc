@@ -304,13 +304,13 @@ GET my_index/_search
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.5753642,
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my_index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "title": "Quick Foxes"
         }

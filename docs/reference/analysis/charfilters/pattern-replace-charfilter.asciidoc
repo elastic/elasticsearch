@@ -245,13 +245,13 @@ The output from the above is:
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.2876821,
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "my_index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "text": "The fooBarBaz method"
         },

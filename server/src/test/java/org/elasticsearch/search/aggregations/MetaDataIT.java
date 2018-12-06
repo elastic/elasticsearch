@@ -78,7 +78,7 @@ public class MetaDataIT extends ESIntegTestCase {
                             )
                 )
                 .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetaData(metaData))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 

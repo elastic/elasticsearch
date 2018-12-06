@@ -65,7 +65,7 @@ public class MaxIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(max("max").field("value")))
-                .get();
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -84,7 +84,7 @@ public class MaxIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(max("max").field("value"))
-                .get();
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
@@ -99,7 +99,7 @@ public class MaxIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(max("max").field("value"))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -111,7 +111,7 @@ public class MaxIT extends AbstractNumericTestCase {
 
     public void testSingleValuedFieldWithFormatter() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(max("max").format("0000.0").field("value")).get();
+                .addAggregation(max("max").format("0000.0").field("value")).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -125,7 +125,7 @@ public class MaxIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(max("max").field("value"))).get();
+                .addAggregation(global("global").subAggregation(max("max").field("value"))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -151,7 +151,7 @@ public class MaxIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(max("max").field("value"))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -169,7 +169,7 @@ public class MaxIT extends AbstractNumericTestCase {
                         max("max")
                                 .field("value")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -204,7 +204,7 @@ public class MaxIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(max("max").field("values"))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -259,7 +259,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap())))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -402,7 +402,7 @@ public class MaxIT extends AbstractNumericTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(max("max").field("values"))
             .addAggregation(count("count").field("values"))
-            .get();
+            .execute().actionGet();
 
         Max max = searchResponse.getAggregations().get("max");
         assertThat(max, notNullValue());

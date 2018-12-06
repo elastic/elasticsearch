@@ -83,13 +83,13 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                                 .field("type", "text").field("term_vector", "yes")
                                 .endObject()
                                 .endObject()
-                                .endObject().endObject()).get();
+                                .endObject().endObject()).execute().actionGet();
 
         client().index(
                 indexRequest("test").type("type1").id("1")
                         .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())).actionGet();
 
-        client().admin().indices().prepareRefresh().get();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
          SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
                  .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();

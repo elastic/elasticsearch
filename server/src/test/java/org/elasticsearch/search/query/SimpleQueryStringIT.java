@@ -327,7 +327,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
             .addMapping("type1", mapping, XContentType.JSON);
-        mappingRequest.get();
+        mappingRequest.execute().actionGet();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("location", "Köln"));
         refresh();
 
@@ -378,7 +378,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
                 .addMapping("type1", mapping, XContentType.JSON);
-        mappingRequest.get();
+        mappingRequest.execute().actionGet();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("body", "Some Text"));
         refresh();
 
@@ -563,7 +563,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(simpleQueryStringQuery("value").field("f3_alias"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -583,7 +583,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(simpleQueryStringQuery("value").field("f3_*"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -604,7 +604,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         // By default, the boolean field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 1);

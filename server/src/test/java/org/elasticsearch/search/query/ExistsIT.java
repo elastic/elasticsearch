@@ -48,10 +48,9 @@ public class ExistsIT extends ESIntegTestCase {
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).get();
+        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).execute().actionGet();
         assertSearchResponse(resp);
-        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo")))
-                .get();
+        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).execute().actionGet();
         assertSearchResponse(resp);
     }
 
@@ -127,20 +126,17 @@ public class ExistsIT extends ESIntegTestCase {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
-            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
+            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).execute().actionGet();
             assertSearchResponse(resp);
             try {
-                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count,
-                        Strings.toString(mapping), resp), count, resp.getHits().getTotalHits());
+                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, Strings.toString(mapping), resp), count, resp.getHits().getTotalHits());
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();
                     final String type = searchHit.getType();
                     final String id = searchHit.getId();
-                    final ExplainResponse explanation = client().prepareExplain(index, type, id)
-                            .setQuery(QueryBuilders.existsQuery(fieldName)).get();
-                    logger.info("Explanation for [{}] / [{}] / [{}]: [{}]", fieldName, id, searchHit.getSourceAsString(),
-                            explanation.getExplanation());
+                    final ExplainResponse explanation = client().prepareExplain(index, type, id).setQuery(QueryBuilders.existsQuery(fieldName)).get();
+                    logger.info("Explanation for [{}] / [{}] / [{}]: [{}]", fieldName, id, searchHit.getSourceAsString(), explanation.getExplanation());
                 }
                 throw e;
             }

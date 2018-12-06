@@ -29,10 +29,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
-            B extends InternalMultiBucketAggregation.InternalBucket>
+public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
-
     public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
     }

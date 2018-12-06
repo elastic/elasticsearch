@@ -428,7 +428,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     public void testBasicsGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(topHits("hits"))).get();
+                .addAggregation(global("global").subAggregation(topHits("hits"))).execute().actionGet();
 
         assertSearchResponse(searchResponse);
 

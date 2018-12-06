@@ -64,7 +64,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
         while (response.getHits().getHits().length > 0) {
             response = client().prepareSearchScroll(response.getScrollId())
                     .setScroll(TimeValue.timeValueMinutes(1))
-                    .get();
+                    .execute().actionGet();
             assertSearchResponse(response);
             assertNull(response.getAggregations());
             total += response.getHits().getHits().length;

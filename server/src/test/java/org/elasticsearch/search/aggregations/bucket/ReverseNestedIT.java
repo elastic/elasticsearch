@@ -614,8 +614,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                                                 nested("nested_1", "sku").subAggregation(
                                                         filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
                                                                 nested("nested_2", "sku.colors").subAggregation(
-                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red"))
-                                                                        .subAggregation(
+                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
                                                                                 reverseNested("reverse_to_sku").path("sku").subAggregation(
                                                                                         count("sku_count").field("sku.sku_type")
                                                                                 )

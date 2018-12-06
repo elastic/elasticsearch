@@ -65,7 +65,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(min("min").field("value")))
-                .get();
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -84,7 +84,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("value"))
-                .get();
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
@@ -99,7 +99,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("value"))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -111,7 +111,7 @@ public class MinIT extends AbstractNumericTestCase {
 
     public void testSingleValuedFieldWithFormatter() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(min("min").format("0000.0").field("value")).get();
+                .addAggregation(min("min").format("0000.0").field("value")).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -126,7 +126,7 @@ public class MinIT extends AbstractNumericTestCase {
     public void testSingleValuedFieldGetProperty() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(min("min").field("value"))).get();
+                .addAggregation(global("global").subAggregation(min("min").field("value"))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -152,7 +152,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("value"))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -205,7 +205,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("values"))
-                .get();
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -414,7 +414,7 @@ public class MinIT extends AbstractNumericTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(min("min").field("values"))
             .addAggregation(count("count").field("values"))
-            .get();
+            .execute().actionGet();
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());

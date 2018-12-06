@@ -1727,7 +1727,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(new HighlightBuilder().field("text")).get();
+            .highlighter(new HighlightBuilder().field("text")).execute().actionGet();
         // Mock tokenizer will throw an exception if it is resetted twice
         assertHitCount(response, 1L);
     }

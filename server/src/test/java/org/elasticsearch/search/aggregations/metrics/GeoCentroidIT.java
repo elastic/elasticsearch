@@ -50,7 +50,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -65,7 +65,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -79,7 +79,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -95,7 +95,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -111,7 +111,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(response);
 
         Global global = response.getAggregations().get("global");
@@ -141,7 +141,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(MULTI_VALUED_FIELD_NAME))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(searchResponse);
 
         GeoCentroid geoCentroid = searchResponse.getAggregations().get(aggName);
@@ -157,7 +157,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
                 .addAggregation(geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
                 .subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
-                .get();
+                .execute().actionGet();
         assertSearchResponse(response);
 
         GeoHashGrid grid = response.getAggregations().get("geoGrid");

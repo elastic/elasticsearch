@@ -78,7 +78,7 @@ public class FilterIT extends ESIntegTestCase {
                 builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             }
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
@@ -92,7 +92,7 @@ public class FilterIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("tag1", termQuery("tag", "tag1")))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -107,7 +107,7 @@ public class FilterIT extends ESIntegTestCase {
     // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
-        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -120,7 +120,7 @@ public class FilterIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("tag1", termQuery("tag", "tag1"))
                         .subAggregation(avg("avg_value").field("value")))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -167,7 +167,7 @@ public class FilterIT extends ESIntegTestCase {
             client().prepareSearch("idx")
                     .addAggregation(filter("tag1", termQuery("tag", "tag1"))
                             .subAggregation(avg("avg_value")))
-                    .get();
+                    .execute().actionGet();
 
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
                     "context which the sub-aggregation can inherit");
@@ -182,7 +182,7 @@ public class FilterIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(filter("filter", matchAllQuery())))
-                .get();
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");

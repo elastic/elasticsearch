@@ -271,7 +271,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .minDocCount(randomInt(1))
                         .size(0))
-                        .get());
+                        .execute().actionGet());
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
@@ -286,7 +286,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
         SearchResponse allResponse = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values()))).get();
+                .addAggregation(terms("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
         assertSearchResponse(allResponse);
         Terms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -301,7 +301,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                     .addAggregation(
                             terms("terms").field(field).includeExclude(new IncludeExclude(partition, numPartitions))
                                     .collectMode(randomFrom(SubAggCollectionMode.values())))
-                    .get();
+                    .execute().actionGet();
             assertSearchResponse(response);
             terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
@@ -473,7 +473,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -498,7 +498,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .format("0000"))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -609,7 +609,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .subAggregation(filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
                         filter("filter2", QueryBuilders.matchAllQuery())
                                         .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
-                ).get();
+                ).execute().actionGet();
 
 
         assertSearchResponse(response);
@@ -661,7 +661,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("avg_i", true))
-                        ).get();
+                        ).execute().actionGet();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
@@ -681,7 +681,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                                 .order(BucketOrder.aggregation("num_tags", true))
                                 .subAggregation(terms("num_tags").field("num_tags")
                                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                        ).get();
+                        ).execute().actionGet();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
@@ -700,7 +700,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("stats.foo", true))
                                 .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                        ).get();
+                        ).execute().actionGet();
 
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "with an unknown specified metric to order by");
@@ -720,7 +720,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("stats", true))
                                 .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                        ).get();
+                        ).execute().actionGet();
 
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "where the metric name is not specified");
@@ -739,7 +739,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(BucketOrder.aggregation("stats.avg", asc))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                ).get();
+                ).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -769,7 +769,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(BucketOrder.aggregation("stats.avg", asc))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                ).get();
+                ).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -799,7 +799,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(BucketOrder.aggregation("stats.variance", asc))
                         .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                ).get();
+                ).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -866,7 +866,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .order(BucketOrder.compound(order))
                         .subAggregation(avg("avg_l").field("l"))
                         .subAggregation(sum("sum_d").field("d"))
-                ).get();
+                ).execute().actionGet();
 
         assertSearchResponse(response);
 

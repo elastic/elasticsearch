@@ -25,11 +25,12 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-
-
+import java.util.Set;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * The portion of an HTTP request to Elasticsearch that can be
@@ -37,18 +38,20 @@ import java.util.ArrayList;
  */
 public final class RequestOptions {
     public static final RequestOptions DEFAULT = new Builder(
-            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT).build();
+            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null).build();
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
+    private final Set<String> expectedWarnings;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
+        this.expectedWarnings = builder.expectedWarnings;
     }
 
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory);
+        return new Builder(headers, httpAsyncResponseConsumerFactory, expectedWarnings);
     }
 
     /**
@@ -67,6 +70,14 @@ public final class RequestOptions {
     public HttpAsyncResponseConsumerFactory getHttpAsyncResponseConsumerFactory() {
         return httpAsyncResponseConsumerFactory;
     }
+    
+    /**
+     * Defines the warnings that are expected in responses from this request.
+     * Useful for tests to assert behaviour.
+     */
+    public Set<String> getExpectedWarnings() {
+        return expectedWarnings;
+    }    
 
     @Override
     public String toString() {
@@ -84,6 +95,9 @@ public final class RequestOptions {
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
             b.append(", consumerFactory=").append(httpAsyncResponseConsumerFactory);
         }
+        if (expectedWarnings != null) {
+            b.append(", expectedWarnings=").append(expectedWarnings);
+        }        
         return b.append('}').toString();
     }
 
@@ -98,21 +112,25 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
-                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
+                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
+                && Objects.equals(expectedWarnings, other.expectedWarnings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(headers, httpAsyncResponseConsumerFactory);
+        return Objects.hash(headers, httpAsyncResponseConsumerFactory, expectedWarnings);
     }
 
     public static class Builder {
+        private Set<String> expectedWarnings;
         private final List<Header> headers;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
 
-        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
+        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                Set<String> expectedWarnings) {
             this.headers = new ArrayList<>(headers);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
+            this.expectedWarnings = expectedWarnings;
         }
 
         /**
@@ -141,6 +159,15 @@ public final class RequestOptions {
             this.httpAsyncResponseConsumerFactory =
                     Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
         }
+        
+        /**
+         * Set the expected set of warnings. Expected warnings that are found will not trigger errors in strict mode.
+         * Expected warnings that are not found will trigger errors in strict mode.
+         * Calling this method in non-strict deprecation mode will cause an error.
+         */
+        public void setExpectedWarnings(String... expectedWarnings) {
+            this.expectedWarnings = new HashSet<>(Arrays.asList(expectedWarnings));
+        }        
     }
 
     /**

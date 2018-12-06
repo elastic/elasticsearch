@@ -29,6 +29,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -805,6 +806,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         return responseEntity;
     }
 
+    protected static RequestOptions expectWarnings(String... expectedWarnings) {
+        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.setExpectedWarnings(expectedWarnings);
+        return builder.build();
+    }    
+    
     /**
      * Is this template one that is automatically created by xpack?
      */

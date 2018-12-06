@@ -223,6 +223,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(searchHit.getSourceAsMap().containsKey("num2"));
         }
     }
+    
+    public void testSearchNoQueryDeprecated() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.types("foo");
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                expectWarnings("[types removal] Specifying types in search requests is deprecated."));
+    }        
 
     public void testSearchMatchQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");

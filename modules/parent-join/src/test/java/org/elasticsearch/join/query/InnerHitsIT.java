@@ -126,7 +126,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(2L));
+        assertThat(innerHits.getTotalHits().value, equalTo(2L));
 
         assertThat(innerHits.getAt(0).getId(), equalTo("c1"));
         assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
@@ -143,7 +143,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(3L));
+        assertThat(innerHits.getTotalHits().value, equalTo(3L));
 
         assertThat(innerHits.getAt(0).getId(), equalTo("c4"));
         assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
@@ -233,7 +233,7 @@ public class InnerHitsIT extends ParentChildTestCase {
             assertThat(searchHit.getShard(), notNullValue());
 
             SearchHits inner = searchHit.getInnerHits().get("a");
-            assertThat(inner.getTotalHits(), equalTo((long) child1InnerObjects[parent]));
+            assertThat(inner.getTotalHits().value, equalTo((long) child1InnerObjects[parent]));
             for (int child = 0; child < child1InnerObjects[parent] && child < size; child++) {
                 SearchHit innerHit =  inner.getAt(child);
                 assertThat(innerHit.getType(), equalTo("doc"));
@@ -244,7 +244,7 @@ public class InnerHitsIT extends ParentChildTestCase {
             offset1 += child1InnerObjects[parent];
 
             inner = searchHit.getInnerHits().get("b");
-            assertThat(inner.getTotalHits(), equalTo((long) child2InnerObjects[parent]));
+            assertThat(inner.getTotalHits().value, equalTo((long) child2InnerObjects[parent]));
             for (int child = 0; child < child2InnerObjects[parent] && child < size; child++) {
                 SearchHit innerHit = inner.getAt(child);
                 assertThat(innerHit.getType(), equalTo("doc"));
@@ -283,14 +283,14 @@ public class InnerHitsIT extends ParentChildTestCase {
         SearchHit searchHit = response.getHits().getAt(0);
         assertThat(searchHit.getId(), equalTo("3"));
         assertThat(searchHit.getType(), equalTo("doc"));
-        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1L));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("doc"));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("1"));
 
         searchHit = response.getHits().getAt(1);
         assertThat(searchHit.getId(), equalTo("4"));
         assertThat(searchHit.getType(), equalTo("doc"));
-        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1L));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("doc"));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("2"));
     }
@@ -322,12 +322,12 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("3"));
         assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
 
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("5"));
         assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
 
@@ -343,12 +343,12 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("4"));
         assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
 
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("6"));
         assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
     }
@@ -391,34 +391,34 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
 
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("earls");
-        assertThat(innerHits.getTotalHits(), equalTo(4L));
+        assertThat(innerHits.getTotalHits().value, equalTo(4L));
         assertThat(innerHits.getAt(0).getId(), equalTo("earl1"));
         assertThat(innerHits.getAt(1).getId(), equalTo("earl2"));
         assertThat(innerHits.getAt(2).getId(), equalTo("earl3"));
         assertThat(innerHits.getAt(3).getId(), equalTo("earl4"));
 
         SearchHits innerInnerHits = innerHits.getAt(0).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron1"));
 
         innerInnerHits = innerHits.getAt(1).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron2"));
 
         innerInnerHits = innerHits.getAt(2).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron3"));
 
         innerInnerHits = innerHits.getAt(3).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron4"));
 
         innerHits = response.getHits().getAt(0).getInnerHits().get("princes");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("prince"));
 
         innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
     }
 
@@ -440,12 +440,12 @@ public class InnerHitsIT extends ParentChildTestCase {
             .get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
@@ -457,7 +457,7 @@ public class InnerHitsIT extends ParentChildTestCase {
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
     }

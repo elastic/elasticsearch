@@ -348,6 +348,15 @@ public class JobManager {
             return;
         }
 
+        // and that the new job's groups are not job Ids
+        for (String group : job.getGroups()) {
+            if (currentMlMetadata.getJobs().containsKey(group)) {
+                actionListener.onFailure(new
+                        ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, group)));
+                return;
+            }
+        }
+
         ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {

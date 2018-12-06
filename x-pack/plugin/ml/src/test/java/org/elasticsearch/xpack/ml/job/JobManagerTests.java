@@ -653,7 +653,6 @@ public class JobManagerTests extends ESTestCase {
         MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJobFoo());
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job-with-group-foo");
@@ -662,6 +661,8 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
 
+        // job id cannot be a group
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJobFoo());
         jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
@@ -672,6 +673,26 @@ public class JobManagerTests extends ESTestCase {
             public void onFailure(Exception e) {
                 assertTrue(e instanceof ResourceAlreadyExistsException);
                 assertEquals("job and group names must be unique but job [foo] and group [foo] have the same name", e.getMessage());
+            }
+        });
+
+        // the job's groups cannot be job Ids
+        jobBuilder = buildJobBuilder("job-with-clashing-group-name");
+        jobBuilder.setCreateTime(null);
+        jobBuilder.setGroups(Collections.singletonList("job-with-group-foo"));
+        putJobRequest = new PutJobAction.Request(jobBuilder);
+
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                fail("should have got an error");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof ResourceAlreadyExistsException);
+                assertEquals("job and group names must be unique but job [job-with-group-foo] and " +
+                        "group [job-with-group-foo] have the same name", e.getMessage());
             }
         });
     }

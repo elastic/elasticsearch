@@ -111,12 +111,12 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         incrementalWrite = false;
     }
 
-    public PersistedState getPersistedState(Settings settings, ClusterApplierService clusterApplier) {
+    public PersistedState getPersistedState(Settings settings, ClusterApplierService clusterApplierService) {
         applyClusterStateUpdaters();
         if (DiscoveryNode.isMasterNode(settings) == false) {
             // use Zen1 way of writing cluster state for non-master-eligible nodes
             // this avoids concurrent manipulating of IndexMetadata with IndicesStore
-            clusterApplier.addLowPriorityApplier(this);
+            clusterApplierService.addLowPriorityApplier(this);
             return new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState());
         }
         return this;

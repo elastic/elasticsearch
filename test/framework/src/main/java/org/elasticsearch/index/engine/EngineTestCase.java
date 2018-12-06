@@ -634,11 +634,12 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Engine.Index replicaIndexForDoc(ParsedDocument doc, long version, long seqNo,
                                             boolean isRetry) {
         return new Engine.Index(newUid(doc), doc, seqNo, primaryTerm.get(), version, null, Engine.Operation.Origin.REPLICA,
-            System.nanoTime(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry);
+            System.nanoTime(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
 
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
-        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, null, Engine.Operation.Origin.REPLICA, startTime);
+        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, null, Engine.Operation.Origin.REPLICA, startTime,
+            SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -689,8 +690,8 @@ public abstract class EngineTestCase extends ESTestCase {
                     version,
                     forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis(), -1, false
-                );
+                    System.currentTimeMillis(), -1, false,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             } else {
                 op = new Engine.Delete("test", docId, id,
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -698,7 +699,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     version,
                     forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis());
+                    System.currentTimeMillis(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             }
             ops.add(op);
         }
@@ -714,10 +715,10 @@ public abstract class EngineTestCase extends ESTestCase {
             if (randomBoolean()) {
                 operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
                     i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(),
-                    -1, true));
+                    -1, true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             } else if (randomBoolean()) {
                 operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             } else {
                 operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA,
                     threadPool.relativeTimeInMillis(), "test-" + i));

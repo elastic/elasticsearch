@@ -148,21 +148,15 @@ public class JobManager {
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, false, ActionListener.wrap(
-                jobFound -> {
-                    if (jobFound) {
-                        listener.onResponse(Boolean.TRUE);
-                    } else {
-                        // Look in the clusterstate for the job config
-                        if (MlMetadata.getMlMetadata(clusterService.state()).getJobs().containsKey(jobId)) {
-                            listener.onResponse(Boolean.TRUE);
-                        } else {
-                            listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                        }
-                    }
-                },
-                listener::onFailure
-        ));
+        if (MlMetadata.getMlMetadata(clusterService.state()).getJobs().containsKey(jobId)) {
+            listener.onResponse(Boolean.TRUE);
+        } else {
+            // check the index
+            jobConfigProvider.jobExists(jobId, true, ActionListener.wrap(
+                    jobFound -> listener.onResponse(jobFound),
+                    listener::onFailure
+            ));
+        }
     }
 
     /**
@@ -173,33 +167,14 @@ public class JobManager {
      *                    a ResourceNotFoundException is returned
      */
     public void getJob(String jobId, ActionListener<Job> jobListener) {
-        jobConfigProvider.getJob(jobId, ActionListener.wrap(
-                r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
-                e -> {
-                    if (e instanceof ResourceNotFoundException) {
-                        // Try to get the job from the cluster state
-                        getJobFromClusterState(jobId, jobListener);
-                    } else {
-                        jobListener.onFailure(e);
-                    }
-                }
-        ));
-    }
-
-    /**
-     * Read a job from the cluster state.
-     * The job is returned on the same thread even though a listener is used.
-     *
-     * @param jobId the jobId
-     * @param jobListener the Job listener. If no job matches {@code jobId}
-     *                    a ResourceNotFoundException is returned
-     */
-    private void getJobFromClusterState(String jobId, ActionListener<Job> jobListener) {
         Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(jobId);
-        if (job == null) {
-            jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
-        } else {
+        if (job != null) {
             jobListener.onResponse(job);
+        } else {
+            jobConfigProvider.getJob(jobId, ActionListener.wrap(
+                    r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
+                    jobListener::onFailure
+            ));
         }
     }
 
@@ -363,6 +338,13 @@ public class JobManager {
         MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
         if (ClusterStateJobUpdate.jobIsInMlMetadata(currentMlMetadata, job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+            return;
+        }
+
+        // Check the job id is not the same as a group Id
+        if (currentMlMetadata.isGroupOrJob(job.getId())) {
+            actionListener.onFailure(new
+                    ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, job.getId())));
             return;
         }
 

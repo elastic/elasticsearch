@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -497,7 +498,7 @@ public class JobManagerTests extends ESTestCase {
         MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJobFoo());
 
         doAnswer(invocation -> {
             AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
@@ -544,7 +545,7 @@ public class JobManagerTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(false);
+            listener.onFailure(ExceptionsHelper.missingJobException("non-job"));
             return null;
         }).when(jobConfigProvider).jobExists(anyString(), anyBoolean(), any());
 
@@ -579,11 +580,6 @@ public class JobManagerTests extends ESTestCase {
                 Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        doAnswer(invocationOnMock -> {
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(false);
-            return null;
-        }).when(jobConfigProvider).jobExists(anyString(), anyBoolean(), any());
 
         JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
                 auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
@@ -597,13 +593,43 @@ public class JobManagerTests extends ESTestCase {
 
         assertTrue(jobExistsHolder.get());
         assertNull(exceptionHolder.get());
+        verify(jobConfigProvider, never()).jobExists(anyString(), anyBoolean(), any());
+    }
+
+    public void testJobExists_GivenJobIsInIndex() {
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
+                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(true);
+            return null;
+        }).when(jobConfigProvider).jobExists(eq("index-job"), anyBoolean(), any());
+
+        JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
+
+        AtomicBoolean jobExistsHolder = new AtomicBoolean();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.jobExists("index-job", ActionListener.wrap(
+                jobExistsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertTrue(jobExistsHolder.get());
+        assertNull(exceptionHolder.get());
     }
 
     public void testPutJob_ThrowsIfJobExistsInClusterState() throws IOException {
         MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJobFoo());
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("foo").build(), false);
@@ -619,6 +645,33 @@ public class JobManagerTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof ResourceAlreadyExistsException);
+            }
+        });
+    }
+
+    public void testPutJob_ThrowsIfIdIsTheSameAsAGroup() throws IOException {
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJobFoo());
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        Job.Builder jobBuilder = buildJobBuilder("job-with-group-foo");
+        jobBuilder.setGroups(Collections.singletonList("foo"));
+        mlMetadata.putJob(jobBuilder.build(), false);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
+
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                fail("should have got an error");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof ResourceAlreadyExistsException);
+                assertEquals("job and group names must be unique but job [foo] and group [foo] have the same name", e.getMessage());
             }
         });
     }
@@ -900,7 +953,7 @@ public class JobManagerTests extends ESTestCase {
         verify(jobConfigProvider, never()).updateJob(any(), any(), any(), any());
     }
 
-    private Job.Builder createJob() {
+    private Job.Builder createJobFoo() {
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("client");
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d1.build()));

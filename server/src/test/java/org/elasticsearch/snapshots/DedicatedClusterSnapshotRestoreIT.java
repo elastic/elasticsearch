@@ -1153,6 +1153,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36283")
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
         logger.info("-->  starting a master node and two data nodes");
         internalCluster().startMasterOnlyNode();

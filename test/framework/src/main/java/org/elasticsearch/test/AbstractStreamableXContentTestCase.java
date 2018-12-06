@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -34,9 +35,18 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createXContextTestInstance, supportsUnknownFields(),
                 getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, true, getToXContentParams());
+    }
+
+    /**
+     * Creates a random instance to use in the xcontent tests.
+     * Overrides this method if the random instance that you build
+     * should be aware of the {@link XContentType} used in the test.
+     */
+    protected T createXContextTestInstance(XContentType xContentType) {
+        return createTestInstance();
     }
 
     /**

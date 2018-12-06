@@ -176,27 +176,6 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
     }
 
     public static <T extends ToXContent> void testFromXContent(
-        int numberOfTestRuns,
-        Function<XContentType, T> instanceSupplier,
-        boolean supportsUnknownFields,
-        String[] shuffleFieldsExceptions,
-        Predicate<String> randomFieldsExcludeFilter,
-        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction,
-        CheckedFunction<XContentParser, T, IOException> fromXContent,
-        BiConsumer<T, T> assertEqualsConsumer,
-        boolean assertToXContentEquivalence,
-        ToXContent.Params toXContentParams) throws IOException {
-        xContentTester(createParserFunction, instanceSupplier, toXContentParams, fromXContent)
-            .numberOfTestRuns(numberOfTestRuns)
-            .supportsUnknownFields(supportsUnknownFields)
-            .shuffleFieldsExceptions(shuffleFieldsExceptions)
-            .randomFieldsExcludeFilter(randomFieldsExcludeFilter)
-            .assertEqualsConsumer(assertEqualsConsumer)
-            .assertToXContentEquivalence(assertToXContentEquivalence)
-            .test();
-    }
-
-    public static <T extends ToXContent> void testFromXContent(
             int numberOfTestRuns,
             Supplier<T> instanceSupplier,
             boolean supportsUnknownFields,

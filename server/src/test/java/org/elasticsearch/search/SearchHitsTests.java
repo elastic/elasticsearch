@@ -22,27 +22,17 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHits> {
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {

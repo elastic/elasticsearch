@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+
 public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & Streamable> extends AbstractStreamableTestCase<T> {
 
     /**
@@ -35,9 +37,14 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createXContextTestInstance, supportsUnknownFields(),
-                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, true, getToXContentParams());
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(true)
+            .test();
     }
 
     /**

@@ -873,7 +873,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     @Override
     public int hashCode() {
         return Objects.hash(id, type, nestedIdentity, version, source, fields, getHighlightFields(), Arrays.hashCode(matchedQueries),
-            explanation, shard, innerHits, index, clusterAlias);
+                explanation, shard, innerHits, index, clusterAlias);
     }
 
     /**

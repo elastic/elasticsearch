@@ -34,12 +34,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: empty_bucket_idx
 
   - match: {hits.total: 2}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: empty_bucket_idx
         body: {"aggs": {"histo": {"histogram": {"field": "val1", "interval": 1, "min_doc_count": 0}, "aggs": { "mfs" : { "matrix_stats": {"fields": ["value", "val1"]} } } } } }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -216,7 +217,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             for (String value : values) {
                 hits.add(new SearchHitBuilder(randomInt()).setSource(value).build());
             }
-            return new SearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits, 1.0f);
+            return new SearchHits(hits.toArray(new SearchHit[hits.size()]), new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1.0f);
         }
     }
 

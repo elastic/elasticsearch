@@ -135,12 +135,12 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     );
                     infos.getTcpPorts()
                         .forEach((container, host) -> consumer.accept(
-                            "test.fixtures." + fixtureProject.getName() + "." + service + ".tcp." + container,
+                            "test.fixtures." + service + ".tcp." + container,
                             host
                         ));
                     infos.getUdpPorts()
                         .forEach((container, host) -> consumer.accept(
-                            "test.fixtures." + fixtureProject.getName() + "." + service + ".udp." + container,
+                            "test.fixtures." + service + ".udp." + container,
                             host
                         ));
                 })

@@ -154,9 +154,9 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     }
 
     private static String getFromProperty(String port) {
-        String key = "test.fixtures.smb-fixture.fixture.tcp." + port;
+        String key = "test.fixtures.smb-fixture.tcp." + port;
         final String value = System.getProperty(key);
-        assertNotNull("Expected the actual value for " + port + " to be in system property " + key, value);
+        assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
         return value;
     }
 }

@@ -587,19 +587,19 @@ public class UnicastZenPing implements ZenPing {
 
     }
 
-    static class UnicastPingRequest extends TransportRequest {
+    public static class UnicastPingRequest extends TransportRequest {
 
-        final int id;
-        final TimeValue timeout;
-        final PingResponse pingResponse;
+        public final int id;
+        public final TimeValue timeout;
+        public final PingResponse pingResponse;
 
-        UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {
+        public UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {
             this.id = id;
             this.timeout = timeout;
             this.pingResponse = pingResponse;
         }
 
-        UnicastPingRequest(StreamInput in) throws IOException {
+        public UnicastPingRequest(StreamInput in) throws IOException {
             super(in);
             id = in.readInt();
             timeout = in.readTimeValue();
@@ -625,18 +625,18 @@ public class UnicastZenPing implements ZenPing {
         return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterState);
     }
 
-    static class UnicastPingResponse extends TransportResponse {
+    public static class UnicastPingResponse extends TransportResponse {
 
         final int id;
 
-        final PingResponse[] pingResponses;
+        public final PingResponse[] pingResponses;
 
-        UnicastPingResponse(int id, PingResponse[] pingResponses) {
+        public UnicastPingResponse(int id, PingResponse[] pingResponses) {
             this.id = id;
             this.pingResponses = pingResponses;
         }
 
-        UnicastPingResponse(StreamInput in) throws IOException {
+        public UnicastPingResponse(StreamInput in) throws IOException {
             id = in.readInt();
             pingResponses = new PingResponse[in.readVInt()];
             for (int i = 0; i < pingResponses.length; i++) {

@@ -33,6 +33,10 @@ import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 
+/**
+ * A common base class for Rest*ActionTests. Provides access to a {@link RestController}
+ * that can be used to register individual REST actions, and test request handling.
+ */
 public abstract class RestActionTestCase extends ESTestCase {
     private RestController controller;
 
@@ -44,10 +48,17 @@ public abstract class RestActionTestCase extends ESTestCase {
             new UsageService());
     }
 
+    /**
+     * A test {@link RestController}. This controller can be used to register and delegate
+     * to handlers, but uses a mock client and cannot carry out the full request.
+     */
     protected RestController controller() {
         return controller;
     }
 
+    /**
+     * Sends the given request to the test controller in {@link #controller()}.
+     */
     protected void dispatchRequest(RestRequest request) {
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

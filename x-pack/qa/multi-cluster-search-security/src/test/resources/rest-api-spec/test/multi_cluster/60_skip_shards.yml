@@ -66,6 +66,7 @@ teardown:
   - do:
      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
      search:
+       rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
@@ -82,6 +83,7 @@ teardown:
   - do:
      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
      search:
+       rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2015-02-01", "lt": "2016-02-01"} } } }

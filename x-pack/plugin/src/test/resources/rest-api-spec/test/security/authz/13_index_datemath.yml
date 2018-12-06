@@ -72,6 +72,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: "write-*"
   - match: { hits.total: 3 }
 
@@ -109,6 +110,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: "read-*"
   - match: { hits.total: 0 }
 
@@ -133,6 +135,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: write-*
         body: { "query": { "term": { "_id": "8" } } }
   - match: { hits.total: 1 }

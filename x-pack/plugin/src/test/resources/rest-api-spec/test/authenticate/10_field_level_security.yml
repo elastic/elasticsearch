@@ -108,6 +108,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
       search:
+        rest_total_hits_as_int: true
         index: the_alias
         size: 0
         from: 0
@@ -128,6 +129,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
+        rest_total_hits_as_int: true
         index: the_alias
         size: 0
         from: 0
@@ -146,6 +148,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
+        rest_total_hits_as_int: true
         index: the_*
         size: 0
         from: 0
@@ -164,6 +167,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
+        rest_total_hits_as_int: true
         index: test_*
         size: 0
         from: 0

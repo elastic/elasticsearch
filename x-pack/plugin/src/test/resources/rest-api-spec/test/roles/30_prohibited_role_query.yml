@@ -66,6 +66,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
+        rest_total_hits_as_int: true
         index: index
         body: { "query" : { "match_all" : {} } }
 

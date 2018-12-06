@@ -114,6 +114,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -124,6 +125,7 @@ teardown:
       headers:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -182,6 +184,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -192,6 +195,7 @@ teardown:
       headers:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}

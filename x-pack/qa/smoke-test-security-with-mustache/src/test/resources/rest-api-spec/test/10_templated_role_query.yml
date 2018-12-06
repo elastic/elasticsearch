@@ -161,6 +161,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -172,6 +173,7 @@ teardown:
       headers:
         Authorization: "Basic c3RvcmVkX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -183,6 +185,7 @@ teardown:
       headers:
         Authorization: "Basic dGVybXNfdGVtcGxhdGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}

@@ -137,8 +137,10 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                     }
                     result[i] = new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
-                                    Lucene.EMPTY_SCORE_DOCS), Float.NaN);
+                        new TopDocs(
+                            new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
+                            Lucene.EMPTY_SCORE_DOCS
+                        ), Float.NaN);
                 } else {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;

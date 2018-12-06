@@ -149,12 +149,14 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
 
   - match: { hits.total: 3 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: everything
 
   - match: { hits.total: 3 }
@@ -226,11 +228,13 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_read
   - match: { hits.total: 0 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
   - match: { hits.total: 0 }
 
@@ -252,6 +256,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
         body: { "query": { "term": { "_id": "14" } } }
   - match: { hits.total: 1 }

@@ -133,6 +133,7 @@ integTestRunner {
 
 if (project.rootProject.vagrantSupported == false) {
     integTest.enabled = false
+    testingConventions.enabled = false
 } else {
     project.sourceSets.test.output.dir(generatedResources)
     integTestCluster.dependsOn krb5AddPrincipals, krb5kdcFixture, copyKeytabToGeneratedResources

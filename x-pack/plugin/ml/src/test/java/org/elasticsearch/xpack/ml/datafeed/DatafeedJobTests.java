@@ -87,7 +87,7 @@ public class DatafeedJobTests extends ESTestCase {
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
-        flushJobResponse = new FlushJobAction.Response();
+        flushJobResponse = new FlushJobAction.Response(true, new Date());
         delayedDataDetector = mock(DelayedDataDetector.class);
         when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
         currentTime = 0;

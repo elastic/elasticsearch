@@ -42,6 +42,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: "*:foo-*"
 
   - match: { _shards.total: 0 }
@@ -50,6 +51,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: "my_remote_cluster:foo-*"
 
   - match: { _shards.total: 0 }
@@ -59,10 +61,12 @@ teardown:
       catch: "forbidden"
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: "*:foo-bar"
 
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: "my_remote_cluster:foo-bar"

@@ -99,7 +99,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new WordDelimiterGraphFilter(tokenStream, charTypeTable, flags, protoWords);
+        return new WordDelimiterGraphFilter(tokenStream, true, charTypeTable, flags, protoWords);
     }
 
     @Override

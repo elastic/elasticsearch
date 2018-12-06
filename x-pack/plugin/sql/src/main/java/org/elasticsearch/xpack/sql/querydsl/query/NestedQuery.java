@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 
 import org.apache.lucene.search.join.ScoreMode;
@@ -37,14 +37,14 @@ public class NestedQuery extends Query {
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     private final String path;
-    private final Map<String, Boolean> fields;
+    private final Map<String, Map.Entry<Boolean, String>> fields; // field -> (useDocValues, format)
     private final Query child;
 
     public NestedQuery(Location location, String path, Query child) {
         this(location, path, emptyMap(), child);
     }
 
-    public NestedQuery(Location location, String path, Map<String, Boolean> fields, Query child) {
+    public NestedQuery(Location location, String path, Map<String, Map.Entry<Boolean, String>> fields, Query child) {
         super(location);
         if (path == null) {
             throw new IllegalArgumentException("path is required");
@@ -68,10 +68,10 @@ public class NestedQuery extends Query {
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
         if (false == this.path.equals(path)) {
             // I'm not at the right path so let my child query have a crack at it
-            Query rewrittenChild = child.addNestedField(path, field, hasDocValues);
+            Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
             if (rewrittenChild == child) {
                 return this;
             }
@@ -81,9 +81,9 @@ public class NestedQuery extends Query {
             // I already have the field, no rewriting needed
             return this;
         }
-        Map<String, Boolean> newFields = new HashMap<>(fields.size() + 1);
+        Map<String, Map.Entry<Boolean, String>> newFields = new HashMap<>(fields.size() + 1);
         newFields.putAll(fields);
-        newFields.put(field, hasDocValues);
+        newFields.put(field, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format));
         return new NestedQuery(location(), path, unmodifiableMap(newFields), child);
     }
 
@@ -113,9 +113,9 @@ public class NestedQuery extends Query {
             boolean noSourceNeeded = true;
             List<String> sourceFields = new ArrayList<>();
 
-            for (Entry<String, Boolean> entry : fields.entrySet()) {
-                if (entry.getValue()) {
-                    ihb.addDocValueField(entry.getKey());
+            for (Map.Entry<String, Map.Entry<Boolean, String>> entry : fields.entrySet()) {
+                if (entry.getValue().getKey()) {
+                    ihb.addDocValueField(entry.getKey(), entry.getValue().getValue());
                 }
                 else {
                     sourceFields.add(entry.getKey());
@@ -141,7 +141,7 @@ public class NestedQuery extends Query {
         return path;
     }
 
-    Map<String, Boolean> fields() {
+    Map<String, Map.Entry<Boolean, String>> fields() {
         return fields;
     }
 

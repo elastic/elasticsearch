@@ -161,6 +161,7 @@ teardown:
       headers:
         es-security-runas-user: "inline_template_user"
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -172,6 +173,7 @@ teardown:
       headers:
         es-security-runas-user: "stored_template_user"
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -183,6 +185,7 @@ teardown:
       headers:
         es-security-runas-user: "terms_template_user"
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}

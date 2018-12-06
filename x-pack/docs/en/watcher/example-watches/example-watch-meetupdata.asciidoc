@@ -158,7 +158,7 @@ To set up the watch:
 --
 [source,js]
 --------------------------------------------------
-"compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+"compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
 --------------------------------------------------
 // NOTCONSOLE
 --
@@ -268,7 +268,7 @@ PUT _xpack/watcher/watch/meetup
   },
   "condition": {
     "compare": {
-      "ctx.payload.hits.total": {
+      "ctx.payload.hits.total.value": {
         "gt": 0
       }
     }

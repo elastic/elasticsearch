@@ -33,6 +33,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: field:bars
         analyzer: snowball

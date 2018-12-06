@@ -228,7 +228,6 @@ public class SSLChannelContextTests extends ESTestCase {
         context.flushChannel();
 
         ByteBuffer expectedBuffer = sslDriver.getNetworkWriteBuffer().duplicate();
-        expectedBuffer.flip();
         verify(sslDriver, times(1)).nonApplicationWrite();
         verify(rawChannel, times(1)).write(expectedBuffer);
     }
@@ -247,7 +246,6 @@ public class SSLChannelContextTests extends ESTestCase {
         context.flushChannel();
 
         ByteBuffer expectedBuffer = sslDriver.getNetworkWriteBuffer().duplicate();
-        expectedBuffer.flip();
         verify(flushOperation).incrementIndex(10);
         verify(rawChannel, times(1)).write(expectedBuffer);
         verify(selector).executeListener(listener, null);
@@ -268,7 +266,6 @@ public class SSLChannelContextTests extends ESTestCase {
         context.flushChannel();
 
         ByteBuffer expectedBuffer = sslDriver.getNetworkWriteBuffer().duplicate();
-        expectedBuffer.flip();
         verify(flushOperation).incrementIndex(5);
         verify(rawChannel, times(1)).write(eq(expectedBuffer));
         verify(selector, times(0)).executeListener(listener, null);

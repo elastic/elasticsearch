@@ -169,7 +169,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.readyForFlush());
 
         when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
-        when(flushOperation.isFullyFlushed()).thenReturn(true);
+        when(flushOperation.isFullyFlushed()).thenReturn(false, true);
         when(flushOperation.getListener()).thenReturn(listener);
         context.flushChannel();
 

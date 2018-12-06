@@ -120,7 +120,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         out.writeVInt(maxDoc);
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
+            CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
@@ -151,7 +152,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         return readFieldStats(in, null);
     }
 
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in,
+            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         final int numFieldStatistics = in.readVInt();
         if (fieldStatistics == null) {
             fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);

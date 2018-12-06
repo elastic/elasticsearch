@@ -421,7 +421,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .window(windowSize)
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -469,7 +469,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .window(windowSize)
                                         .modelBuilder(new LinearModel.LinearModelBuilder())
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -517,7 +517,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .window(windowSize)
                                         .modelBuilder(new EwmaModel.EWMAModelBuilder().alpha(alpha))
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -565,7 +565,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .window(windowSize)
                                         .modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta))
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -618,7 +618,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                                 .alpha(alpha).beta(beta).gamma(gamma).period(period).seasonalityType(seasonalityType))
                                         .gapPolicy(gapPolicy)
                                         .minimize(false))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -662,8 +662,9 @@ public class MovAvgIT extends ESIntegTestCase {
                                 .interval(1)
                                 .subAggregation(avg("avg").field(VALUE_FIELD))
                                 .subAggregation(
-                                        movingAvg("movavg_values", "avg").window(windowSize).modelBuilder(new SimpleModel.SimpleModelBuilder())
-                                                .gapPolicy(gapPolicy).predict(5))).execute().actionGet();
+                                        movingAvg("movavg_values", "avg").window(windowSize)
+                                                .modelBuilder(new SimpleModel.SimpleModelBuilder())
+                                                .gapPolicy(gapPolicy).predict(5))).get();
 
         assertSearchResponse(response);
 
@@ -714,7 +715,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .window(0)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy))
-                    ).execute().actionGet();
+                    ).get();
             fail("MovingAvg should not accept a window that is zero");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[window] must be a positive integer: [movavg_counts]"));
@@ -732,7 +733,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .window(windowSize)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy))
-                    ).execute().actionGet();
+                    ).get();
             fail("MovingAvg should not accept non-histogram as parent");
 
         } catch (SearchPhaseExecutionException exception) {
@@ -752,7 +753,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .window(-10)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy))
-                    ).execute().actionGet();
+                    ).get();
             fail("MovingAvg should not accept a window that is negative");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[window] must be a positive integer: [movavg_counts]"));
@@ -770,7 +771,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .window(windowSize)
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -793,7 +794,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy)
                                         .predict(numPredictions))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -817,7 +818,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .modelBuilder(randomModelBuilder())
                                             .gapPolicy(gapPolicy)
                                             .predict(0))
-                    ).execute().actionGet();
+                    ).get();
             fail("MovingAvg should not accept a prediction size that is zero");
 
         } catch (IllegalArgumentException exception) {
@@ -838,7 +839,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .modelBuilder(randomModelBuilder())
                                             .gapPolicy(gapPolicy)
                                             .predict(-10))
-                    ).execute().actionGet();
+                    ).get();
             fail("MovingAvg should not accept a prediction size that is negative");
 
         } catch (IllegalArgumentException exception) {
@@ -864,7 +865,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
                                                     .alpha(alpha).beta(beta).gamma(gamma).period(20).seasonalityType(seasonalityType))
                                             .gapPolicy(gapPolicy))
-                    ).execute().actionGet();
+                    ).get();
         } catch (SearchPhaseExecutionException e) {
             // All good
         }
@@ -887,7 +888,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                 .subAggregation(
                                         movingAvg("deriv_movavg", "deriv").window(windowSize).modelBuilder(new SimpleModel.SimpleModelBuilder())
                                                 .gapPolicy(gapPolicy).predict(12))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -994,7 +995,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .window(10)
                                             .modelBuilder(randomModelBuilder(100))
                                             .gapPolicy(gapPolicy))
-                    ).execute().actionGet();
+                    ).get();
         } catch (SearchPhaseExecutionException e) {
             // All good
         }
@@ -1020,7 +1021,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                                 .period(period).seasonalityType(seasonalityType))
                                         .gapPolicy(gapPolicy)
                                         .minimize(true))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -1104,7 +1105,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta))
                                         .gapPolicy(gapPolicy)
                                         .minimize(true))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -1153,7 +1154,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy)
                                         .minimize(true))
-                ).execute().actionGet();
+                ).get();
             fail("Simple Model cannot be minimized, but an exception was not thrown");
         } catch (SearchPhaseExecutionException e) {
             // All good
@@ -1171,7 +1172,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .modelBuilder(new LinearModel.LinearModelBuilder())
                                             .gapPolicy(gapPolicy)
                                             .minimize(true))
-                    ).execute().actionGet();
+                    ).get();
             fail("Linear Model cannot be minimized, but an exception was not thrown");
         } catch (SearchPhaseExecutionException e) {
             // all good
@@ -1201,7 +1202,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                                 .modelBuilder(builder)
                                                 .gapPolicy(gapPolicy)
                                                 .minimize(true))
-                        ).execute().actionGet();
+                        ).get();
             } catch (SearchPhaseExecutionException e) {
                 fail("Model [" + builder.toString() + "] can be minimized, but an exception was thrown");
             }
@@ -1226,7 +1227,7 @@ public class MovAvgIT extends ESIntegTestCase {
                 jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD2, 10).endObject()));
         }
 
-        bulkBuilder.execute().actionGet();
+        bulkBuilder.get();
         ensureSearchable();
 
         SearchResponse response = client()
@@ -1242,7 +1243,7 @@ public class MovAvgIT extends ESIntegTestCase {
                         movingAvg("movavg_values", "max")
                             .window(windowSize)
                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
-                            .gapPolicy(BucketHelpers.GapPolicy.SKIP).predict(5))).execute().actionGet();
+                            .gapPolicy(BucketHelpers.GapPolicy.SKIP).predict(5))).get();
 
         assertSearchResponse(response);
 

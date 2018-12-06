@@ -80,7 +80,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     .setQuery(q)
                     .setProfile(true)
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .execute().actionGet();
+                    .get();
 
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
             assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -147,7 +147,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             MultiSearchResponse.Item[] responses = client().prepareMultiSearch()
                     .add(vanilla)
                     .add(profile)
-                    .execute().actionGet().getResponses();
+                    .get().getResponses();
 
             SearchResponse vanillaResponse = responses[0].getResponse();
             SearchResponse profileResponse = responses[1].getResponse();
@@ -201,7 +201,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         Map<String, ProfileShardResult> p = resp.getProfileResults();
         assertNotNull(p);
@@ -248,7 +248,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         Map<String, ProfileShardResult> p = resp.getProfileResults();
         assertNotNull(p);
@@ -317,7 +317,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -369,7 +369,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -416,7 +416,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -463,7 +463,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -509,7 +509,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -557,7 +557,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setTypes("type1")
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         if (resp.getShardFailures().length > 0) {
             for (ShardSearchFailure f : resp.getShardFailures()) {
@@ -607,7 +607,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).execute().actionGet();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).get();
         assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));
     }
 

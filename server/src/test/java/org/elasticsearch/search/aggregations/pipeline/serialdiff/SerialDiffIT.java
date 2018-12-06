@@ -239,7 +239,7 @@ public class SerialDiffIT extends ESIntegTestCase {
                                 .subAggregation(diff("diff_values", "the_metric")
                                         .lag(lag)
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -283,7 +283,7 @@ public class SerialDiffIT extends ESIntegTestCase {
                                 .subAggregation(diff("diff_counts", "_count")
                                         .lag(-1)
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[lag] must be a positive integer: [diff_counts]"));
         }

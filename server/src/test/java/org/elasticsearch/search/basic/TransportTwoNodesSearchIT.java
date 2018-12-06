@@ -134,7 +134,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         refresh();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).setScroll(TimeValue.timeValueSeconds(30)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH)
+                .setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
@@ -156,10 +157,12 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                     equalTo("docCount"));
                 assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
                     equalTo(100.0f));
-                assertThat("id[" + hit.getId() + "] -> " + hit.getExplanation().toString(), hit.getId(), equalTo(Integer.toString(100 - total - i - 1)));
+                assertThat("id[" + hit.getId() + "] -> " + hit.getExplanation().toString(), hit.getId(),
+                    equalTo(Integer.toString(100 - total - i - 1)));
             }
             total += hits.length;
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30))
+                    .get();
         }
         clearScroll(searchResponse.getScrollId());
         assertEquals(100, total);
@@ -169,7 +172,9 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).addSort("age", SortOrder.ASC).setScroll(TimeValue.timeValueSeconds(30)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH)
+                .setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).addSort("age", SortOrder.ASC)
+                .setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
@@ -204,7 +209,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).addSort("nid", SortOrder.DESC).setScroll(TimeValue.timeValueSeconds(30)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(QUERY_THEN_FETCH).setQuery(termQuery("multi", "test"))
+                .setSize(60).setExplain(true).addSort("nid", SortOrder.DESC).setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
@@ -233,7 +239,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         Set<String> collectedIds = new TreeSet<>();
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH))
+                .actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(60));
@@ -256,7 +263,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).addSort("age", SortOrder.ASC).setScroll(TimeValue.timeValueSeconds(30)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("multi", "test")).setSize(60).setExplain(true)
+                .addSort("age", SortOrder.ASC).setScroll(TimeValue.timeValueSeconds(30)).get();
         while (true) {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
@@ -356,7 +364,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .add(client().prepareSearch("test").setQuery(new MatchQueryBuilder("foo", "biz")))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
-                .execute().actionGet();
+                .get();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());
 
@@ -376,10 +384,11 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         MultiSearchResponse response = client().prepareMultiSearch()
                 // Add custom score query with bogus script
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1), new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap())))))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1),
+                        new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap())))))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
-                .execute().actionGet();
+                .get();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());
 

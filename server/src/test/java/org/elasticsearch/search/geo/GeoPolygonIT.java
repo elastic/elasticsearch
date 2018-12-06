@@ -91,7 +91,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
                 .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
-                .execute().actionGet();
+                .get();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
@@ -106,7 +106,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).execute().actionGet();
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).get();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
@@ -123,7 +123,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
             .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
-            .execute().actionGet();
+            .get();
         assertHitCount(searchResponse, 4);
     }
 }

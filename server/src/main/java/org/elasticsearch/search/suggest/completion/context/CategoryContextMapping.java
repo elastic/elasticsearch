@@ -149,7 +149,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                 } else if (field.fieldType() instanceof StringFieldType) {
                     values.add(field.stringValue());
                 } else {
-                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName + "], only keyword and text fields are accepted");
+                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName +
+                            "], only keyword and text fields are accepted");
                 }
             }
         }
@@ -173,7 +174,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *
      *  A CategoryQueryContext has one of the following forms:
      *  <ul>
-     *     <li>Object: <pre>{&quot;context&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;prefix&quot;: <i>&lt;boolean&gt;</i>}</pre></li>
+     *     <li>Object: <pre>{&quot;context&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;prefix&quot;:
+     *     <i>&lt;boolean&gt;</i>}</pre></li>
      *     <li>String: <pre>&quot;string&quot;</pre></li>
      *  </ul>
      */

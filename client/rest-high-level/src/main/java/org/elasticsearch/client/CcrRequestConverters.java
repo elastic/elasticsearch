@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
@@ -96,6 +97,13 @@ final class CcrRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_ccr", "auto_follow")
             .addPathPart(getAutoFollowPatternRequest.getName())
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request getCcrStats(CcrStatsRequest ccrStatsRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "stats")
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }

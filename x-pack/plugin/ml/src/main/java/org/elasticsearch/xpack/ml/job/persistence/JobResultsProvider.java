@@ -545,7 +545,8 @@ public class JobResultsProvider {
                         throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
                     }
 
-                    QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
+                    QueryPage<Bucket> buckets = new QueryPage<>(results,
+                        searchResponse.getHits().getTotalHits().value, Bucket.RESULTS_FIELD);
 
                     if (query.isExpand()) {
                         Iterator<Bucket> bucketsToExpand = buckets.results().stream()
@@ -677,7 +678,7 @@ public class JobResultsProvider {
                         }
                     }
                     QueryPage<CategoryDefinition> result =
-                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, CategoryDefinition.RESULTS_FIELD);
                     handler.accept(result);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))), client::search);
     }
@@ -722,7 +723,7 @@ public class JobResultsProvider {
                         }
                     }
                     QueryPage<AnomalyRecord> queryPage =
-                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, AnomalyRecord.RESULTS_FIELD);
                     handler.accept(queryPage);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetRecordsAction.NAME))), client::search);
     }
@@ -771,7 +772,7 @@ public class JobResultsProvider {
                         }
                     }
                     QueryPage<Influencer> result =
-                            new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
+                            new QueryPage<>(influencers, response.getHits().getTotalHits().value, Influencer.RESULTS_FIELD);
                     handler.accept(result);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetInfluencersAction.NAME))), client::search);
     }
@@ -885,7 +886,7 @@ public class JobResultsProvider {
                     }
 
                     QueryPage<ModelSnapshot> result =
-                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelSnapshot.RESULTS_FIELD);
                     handler.accept(result);
                 }, errorHandler), client::search);
     }
@@ -917,7 +918,7 @@ public class JobResultsProvider {
             }
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelPlot.RESULTS_FIELD);
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
     }
 
     /**
@@ -1100,7 +1101,7 @@ public class JobResultsProvider {
                                 events.add(event.build());
                             }
 
-                            handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits(),
+                            handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits().value,
                                     ScheduledEvent.RESULTS_FIELD));
                         },
                         handler::onFailure),
@@ -1142,7 +1143,7 @@ public class JobResultsProvider {
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     Aggregations aggregations = searchResponse.getAggregations();
                     if (totalHits == 0 || aggregations == null) {
                         handler.accept(new ForecastStats());
@@ -1221,7 +1222,7 @@ public class JobResultsProvider {
                                 calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER, listener::onFailure).build());
                             }
 
-                            listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits(),
+                            listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));
                         },
                         listener::onFailure)

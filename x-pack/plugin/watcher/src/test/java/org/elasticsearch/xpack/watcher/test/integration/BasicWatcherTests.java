@@ -75,7 +75,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(request))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
                         .addAction("_logger", loggingAction("_logging")
                                 .setCategory("_category")))
                 .get();
@@ -95,7 +95,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L)))
                 .get();
         timeWarp().trigger("_name");
         // The watch's condition won't meet because there is no data that matches with the query
@@ -119,7 +119,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/1 * * * * ? 2020")))
                         .input(searchInput(searchRequest))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L)))
                 .get();
         assertThat(indexResponse.isCreated(), is(true));
         DeleteWatchResponse deleteWatchResponse = watcherClient.prepareDeleteWatch("_name").get();
@@ -180,7 +180,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .addAction("_id", indexAction("idx", "action"));
 
         watcherClient().preparePutWatch("_name")
-                .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
+                .setSource(source.condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L)))
                 .get();
 
         timeWarp().clock().fastForwardSeconds(5);
@@ -188,7 +188,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount("_name", 0, false);
 
         watcherClient().preparePutWatch("_name")
-                .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
+                .setSource(source.condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 0L)))
                 .get();
 
         timeWarp().clock().fastForwardSeconds(5);
@@ -199,7 +199,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch("_name")
                 .setSource(source
                         .trigger(schedule(Schedules.cron("0/1 * * * * ? 2020")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 0L)))
                 .get();
 
         timeWarp().clock().fastForwardSeconds(5);
@@ -244,14 +244,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L)))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 
@@ -265,7 +265,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         SearchResponse searchResponse = searchWatchRecords(builder -> builder.setQuery(matchQuery("watch_id", "_name1")));
         assertHitCount(searchResponse, 1);
         XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
-        assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
+        assertThat(source.getValue("result.input.payload.hits.total.value"), equalTo((Object) 1));
     }
 
     public void testPutWatchWithNegativeSchedule() throws Exception {
@@ -349,7 +349,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(request))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L)))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.GTE, 3L)))
                 .get();
 
         logger.info("created watch [{}] at [{}]", watchName, new DateTime(Clock.systemUTC().millis()));

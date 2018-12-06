@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -50,7 +51,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
-    private String type;
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     @Nullable
     private String routing;
@@ -74,10 +75,24 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
+     *
+     * @deprecated Types are in the process of being removed. Use {@link #DeleteRequest(String, String)} instead.
      */
+    @Deprecated
     public DeleteRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
+        this.id = id;
+    }
+
+    /**
+     * Constructs a new delete request against the specified index and id.
+     *
+     * @param index The index to get the document from
+     * @param id    The id of the document
+     */
+    public DeleteRequest(String index, String id) {
+        this.index = index;
         this.id = id;
     }
 
@@ -102,7 +117,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     /**
      * The type of the document to delete.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -110,7 +128,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     /**
      * Sets the type of the document to delete.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public DeleteRequest type(String type) {
         this.type = type;

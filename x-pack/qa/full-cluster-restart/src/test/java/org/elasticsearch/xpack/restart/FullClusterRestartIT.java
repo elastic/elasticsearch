@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -282,7 +284,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "/_xpack/rollup/job/rollup-job-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-job-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -341,7 +343,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "/_xpack/rollup/job/rollup-id-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -350,6 +352,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -373,14 +378,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertRollUpJob("rollup-id-test");
 
             // stop the rollup job to force a state save, which will upgrade the ID
-            final Request stopRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_stop");
+            final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");
             Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
             assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
 
             waitForRollUpJob("rollup-id-test", equalTo("stopped"));
 
             // start the rollup job again
-            final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -389,6 +394,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -496,8 +504,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(basic, hasEntry("username", "Aladdin"));
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
-
-        Map<String, Object> history = entityAsMap(client().performRequest(new Request("GET", ".watcher-history*/_search")));
+        Request searchRequest = new Request("GET", ".watcher-history*/_search");
+        if (isRunningAgainstOldCluster() == false) {
+            searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        }
+        Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");
         assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));
     }
@@ -622,12 +633,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest;
-        if (isRunningAgainstOldCluster()) {
-            getRollupJobRequest = new Request("GET", "/_xpack/rollup/job/" + rollupJob);
-        } else {
-            getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-        }
+        final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
@@ -673,12 +679,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest;
-            if (isRunningAgainstOldCluster()) {
-                getRollupJobRequest = new Request("GET", "/_xpack/rollup/job/" + rollupJob);
-            } else {
-                getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-            }
+            final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 

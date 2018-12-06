@@ -48,7 +48,8 @@ class PrecommitTasks {
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
             configureJarHell(project),
-            configureThirdPartyAudit(project)
+            configureThirdPartyAudit(project),
+            configureTestingConventions(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -87,6 +88,10 @@ class PrecommitTasks {
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
         ])
+    }
+
+    static Task configureTestingConventions(Project project) {
+        project.getTasks().create("testingConventions", TestingConventionsTasks.class)
     }
 
     private static Task configureJarHell(Project project) {
@@ -185,8 +190,7 @@ class PrecommitTasks {
         Task checkstyleTask = project.tasks.create('checkstyle')
         // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
         // creates them if there is main or test code to check and it makes `check` depend
-        // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
-        // we have to swap them.
+        // on them. We also want `precommit` to depend on `checkstyle`.
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
@@ -197,7 +201,6 @@ class PrecommitTasks {
         }
 
         project.tasks.withType(Checkstyle) { task ->
-            project.tasks[JavaBasePlugin.CHECK_TASK_NAME].dependsOn.remove(task)
             checkstyleTask.dependsOn(task)
             task.dependsOn(copyCheckstyleConf)
             task.inputs.file(checkstyleSuppressions)
@@ -212,7 +215,7 @@ class PrecommitTasks {
     private static Task configureNamingConventions(Project project) {
         if (project.sourceSets.findByName("test")) {
             Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
-            namingConventionsTask.javaHome = project.runtimeJavaHome
+            namingConventionsTask.javaHome = project.compilerJavaHome
             return namingConventionsTask
         }
         return null

@@ -1,13 +1,12 @@
-Project smbFixtureProject = xpackProject("test:smb-fixture")
-evaluationDependsOn(smbFixtureProject.path)
-
-apply plugin: 'elasticsearch.vagrantsupport'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   testCompile project(xpackModule('security'))
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
+
+testFixtures.useFixture ":x-pack:test:smb-fixture"
 
 // add test resources from security, so tests can use example certs
 sourceSets.test.resources.srcDirs(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
@@ -30,18 +29,3 @@ test {
   include '**/*Tests.class'
 }
 
-// these are just tests, no need to audit
-thirdPartyAudit.enabled = false
-
-task smbFixture {
-  dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", smbFixtureProject.up
-}
-
-if (project.rootProject.vagrantSupported) {
-  if (project.hasProperty('useExternalAD') == false) {
-    test.dependsOn smbFixture
-    test.finalizedBy smbFixtureProject.halt
-  }
-} else {
-  test.enabled = false
-}

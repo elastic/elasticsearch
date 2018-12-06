@@ -69,8 +69,8 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with all types");
                     SearchResponse response = client().prepareSearch("test").get();
-                    if (response.getHits().getTotalHits() != numOfDocs) {
-                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
+                    if (response.getHits().getTotalHits().value != numOfDocs) {
+                        final String message = "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. "
                             + ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
@@ -84,8 +84,8 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with a specific type");
                     SearchResponse response = client().prepareSearch("test").setTypes("type").get();
-                    if (response.getHits().getTotalHits() != numOfDocs) {
-                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
+                    if (response.getHits().getTotalHits().value != numOfDocs) {
+                        final String message = "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. "
                             + ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);

@@ -185,6 +185,7 @@ setup:
 
   - do:
       xpack.rollup.rollup_search:
+        rest_total_hits_as_int: true
         index: "foo_rollup"
         body:
           size: 0
@@ -193,6 +194,22 @@ setup:
   - length: { hits.hits: 0 }
   - match: { hits.total: 0 }
   - is_false: aggregations
+
+---
+"Empty aggregation with new response format":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs: {}
+
+  - length: { hits.hits: 0 }
+  - match: { hits.total.value:    0 }
+  - match: { hits.total.relation: eq }
+  - is_false: aggregations
+
 
 
 ---

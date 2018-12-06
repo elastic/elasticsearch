@@ -3,8 +3,11 @@
 
 Use a Painless script to create a
 {ref}/index-modules-similarity.html[weight] for use in a
-<<painless-similarity-context, similarity script>>.  Weight is used to prevent
-recalculation of constants that remain the same across documents.
+<<painless-similarity-context, similarity script>>.  The weight makes up the
+part of the similarity calculation that is independent of the document being
+scored, and so can be built up front and cached.
+
+Queries that contain multiple terms calculate a separate weight for each term.
 
 *Variables*
 

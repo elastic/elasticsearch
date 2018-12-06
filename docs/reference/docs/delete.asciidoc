@@ -1,9 +1,9 @@
 [[docs-delete]]
 == Delete API
 
-The delete API allows to delete a typed JSON document from a specific
+The delete API allows to delete a JSON document from a specific
 index based on its id. The following example deletes the JSON document
-from an index called `twitter`, under a type called `_doc`, with id `1`:
+from an index called `twitter` with ID `1`:
 
 [source,js]
 --------------------------------------------------
@@ -92,10 +92,7 @@ the request.
 If an <<docs-index_,external versioning variant>> is used,
 the delete operation automatically creates an index if it has not been
 created before (check out the <<indices-create-index,create index API>>
-for manually creating an index), and also automatically creates a
-dynamic type mapping for the specific type if it has not been created
-before (check out the <<indices-put-mapping,put mapping>>
-API for manually creating type mapping).
+for manually creating an index).
 
 [float]
 [[delete-distributed]]

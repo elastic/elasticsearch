@@ -54,10 +54,10 @@ d:i                  | l:s
 ;
 
 //
-// Date (in H2 these start at 0 instead of 1...)
+// Date
 //
-dateTimeDayOfWeek
-SELECT DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY DAY_OF_WEEK(birth_date);
+dateTimeIsoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY ISO_DAY_OF_WEEK(birth_date);
 
 d:i                  | l:s
 1                    | Preusig
@@ -84,6 +84,41 @@ d:i                  | l:s
 143                  | Zielinski
 50                   | Kalloufi
 110                  | Peac
+;
+
+weekOfYear
+SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date) DESC, birth_date DESC LIMIT 15;
+
+    week:i     |     birth_date:ts
+---------------+------------------------
+52             |1962-12-29T00:00:00.000Z
+52             |1959-12-25T00:00:00.000Z
+52             |1952-12-24T00:00:00.000Z
+51             |1960-12-17T00:00:00.000Z
+50             |1956-12-13T00:00:00.000Z
+49             |1959-12-03T00:00:00.000Z
+49             |1957-12-03T00:00:00.000Z
+48             |1963-11-26T00:00:00.000Z
+48             |1962-11-26T00:00:00.000Z
+47             |1962-11-19T00:00:00.000Z
+46             |1956-11-14T00:00:00.000Z
+46             |1952-11-13T00:00:00.000Z
+45             |1962-11-07T00:00:00.000Z
+45             |1953-11-07T00:00:00.000Z
+44             |1961-11-02T00:00:00.000Z
+;
+
+weekOfYearWithFilter
+SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 50 OR WEEK(birth_date) < 4 ORDER BY WEEK(birth_date) DESC, birth_date DESC;
+
+    week:i     |     birth_date:ts
+---------------+------------------------
+52             |1962-12-29T00:00:00.000Z
+52             |1959-12-25T00:00:00.000Z
+52             |1952-12-24T00:00:00.000Z
+51             |1960-12-17T00:00:00.000Z
+2              |1965-01-03T00:00:00.000Z
+2              |1953-01-07T00:00:00.000Z
 ;
 
 //
@@ -166,6 +201,26 @@ d:i                  | c:l                  | s:i
 null                 |10                    |100445 
 ;
 
+weekOfYearGroupBy
+SELECT WEEK(birth_date) week, COUNT(*) c FROM test_emp WHERE MOD(WEEK(birth_date), 4) = 0 GROUP BY week ORDER BY WEEK(birth_date);
+
+    week:i     |     c:l       
+---------------+---------------
+4              |3              
+8              |2              
+12             |1              
+16             |3              
+20             |1              
+24             |2              
+28             |3              
+32             |1              
+36             |3              
+40             |4              
+44             |2              
+48             |2              
+52             |3              
+;
+
 constantYear
 // tag::year
 SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
@@ -186,14 +241,37 @@ SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
 // end::monthOfYear
 ;
 
-constantWeekOfYear
-// tag::weekOfYear
-SELECT WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
+constantIsoWeekOfYear
+// tag::isoWeekOfYear
+SELECT ISO_WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
 
      week
 ---------------
 8
-// end::weekOfYear
+// end::isoWeekOfYear
+;
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantDayName-Ignore
+// tag::dayName
+SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+Monday
+// end::dayName
+;
+
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantMonthName-Ignore
+// tag::monthName
+SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+February
+// end::monthName
 ;
 
 constantDayOfYear
@@ -232,8 +310,18 @@ SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 
       day
 ---------------
-1
+2
 // end::dayOfWeek
+;
+
+constantIsoDayOfWeek
+// tag::isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+1
+// end::isoDayOfWeek
 ;
 
 constantHourOfDay
@@ -274,4 +362,24 @@ SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
 ---------------
 27
 // end::secondOfMinute
+;
+
+constantQuarter
+// tag::quarter
+SELECT QUARTER(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS quarter;
+
+    quarter
+---------------
+1
+// end::quarter
+;
+
+constantWeekOfYear
+// tag::weekOfYear
+SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS isoweek;
+
+      week     |   isoweek
+---------------+---------------
+2              |1
+// end::weekOfYear
 ;

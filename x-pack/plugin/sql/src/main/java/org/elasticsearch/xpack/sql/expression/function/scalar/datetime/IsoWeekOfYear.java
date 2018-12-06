@@ -6,28 +6,32 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonISODateTimeProcessor.NonISODateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.util.TimeZone;
 
 /**
- * Extract the day of the week from a datetime in non-ISO format. 1 is Sunday, 2 is Monday, etc.
+ * Extract the week of the year from a datetime following the ISO standard.
  */
-public class DayOfWeek extends NonISODateTimeFunction {
-    
-    public DayOfWeek(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, NonISODateTimeExtractor.DAY_OF_WEEK);
+public class IsoWeekOfYear extends DateTimeFunction {
+    public IsoWeekOfYear(Location location, Expression field, TimeZone timeZone) {
+        super(location, field, timeZone, DateTimeExtractor.WEEK_OF_YEAR);
     }
 
     @Override
     protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
-        return DayOfWeek::new;
+        return IsoWeekOfYear::new;
     }
 
     @Override
-    protected DayOfWeek replaceChild(Expression newChild) {
-        return new DayOfWeek(location(), newChild, timeZone());
+    protected IsoWeekOfYear replaceChild(Expression newChild) {
+        return new IsoWeekOfYear(location(), newChild, timeZone());
+    }
+
+    @Override
+    public String dateTimeFormat() {
+        return "w";
     }
 }

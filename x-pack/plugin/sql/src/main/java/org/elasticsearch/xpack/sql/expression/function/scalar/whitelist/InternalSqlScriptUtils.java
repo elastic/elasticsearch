@@ -10,6 +10,7 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonISODateTimeProcessor.NonISODateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -314,6 +315,13 @@ public final class InternalSqlScriptUtils {
         return NameExtractor.DAY_NAME.extract(asDateTime(dateTime), tzId);
     }
     
+    public static Integer dayOfWeek(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonISODateTimeExtractor.DAY_OF_WEEK.extract(asDateTime(dateTime), tzId);
+    }
+    
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -326,6 +334,13 @@ public final class InternalSqlScriptUtils {
             return null;
         }
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
+    }
+    
+    public static Integer weekOfYear(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonISODateTimeExtractor.WEEK_OF_YEAR.extract(asDateTime(dateTime), tzId);
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

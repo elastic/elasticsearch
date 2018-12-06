@@ -52,7 +52,7 @@ final class MigrationRequestConverters {
     static Request getDeprecationInfo(DeprecationInfoRequest deprecationInfoRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addCommaSeparatedPathParts(deprecationInfoRequest.getIndices())
-            .addPathPartAsIs("_xpack", "migration", "deprecations")
+            .addPathPartAsIs("_migration", "deprecations")
             .build();
 
         return new Request(HttpGet.METHOD_NAME, endpoint);

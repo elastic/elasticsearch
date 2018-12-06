@@ -71,8 +71,6 @@ for (Version version : bwcVersions.indexCompatible) {
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
-    // TODO: Use zen2 in bwc tests
-    setting 'discovery.type', 'zen'
 
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }

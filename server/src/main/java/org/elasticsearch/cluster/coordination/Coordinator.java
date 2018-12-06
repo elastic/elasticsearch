@@ -652,7 +652,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 .lastCommittedConfiguration(votingConfiguration)
                 .build();
 
-            MetaData.Builder metaDataBuilder = MetaData.builder();
+            MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
             metaDataBuilder.coordinationMetaData(coordinationMetaData);

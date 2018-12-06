@@ -66,8 +66,6 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.watcher.enabled', 'false'
             setting 'xpack.license.self_generated.type', 'basic'
             setting 'node.name', "upgraded-node-${stopNode}"
-            // TODO: Use zen2 in bwc tests
-            setting 'discovery.type', 'zen'
         }
     }
 

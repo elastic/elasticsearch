@@ -83,8 +83,6 @@ for (Version version : bwcVersions.wireCompatible) {
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'node.name', "upgraded-node-${stopNode}"
-      // TODO: Use zen2 in bwc tests
-      setting 'discovery.type', 'zen'
     }
   }
 

@@ -124,3 +124,25 @@ suffix number for each subsequent index.
 When the rollover is performed, the newly-created index is set as the write
 index for the rolled over alias. Documents sent to the alias are indexed into
 the new index, enabling indexing to continue uninterrupted.
+
+=== After Rollover
+
+beta[]
+
+After an index has been rolled over by {ilm}, the
+`index.lifecycle.indexing_complete` setting will be set to `true` on the index.
+This indicates to {ilm} that this index has already been rolled over, and does
+not need to be rolled over again. If you <<ilm-remove-policy,remove the policy>>
+from an index and set it to use another policy, this setting indicates that the
+new policy should skip execution of the Rollover action.
+
+IMPORTANT: If `index.lifecycle.indexing_complete` is set to `true` on an index,
+it will not be rolled over by {ilm}, but {ilm} will very that this index is no
+longer the write index for the alias specified by
+`index.lifecycle.rollover_alias`. If that setting is missing, or if the index is
+still the write index for that alias, this index will be moved to the
+<<index-lifecycle-error-handling,error step>>.
+
+In some cases, `index.lifecycle.indexing_complete` may be set automatically by
+other components of Elasticsearch or the Elastic Stack which need to handle
+rollover in a particular way.

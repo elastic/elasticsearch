@@ -130,7 +130,7 @@ final class SecurityRequestConverters {
     }
 
     static Request hasPrivileges(HasPrivilegesRequest hasPrivilegesRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, "_security/user/_has_privileges");
+        Request request = new Request(HttpGet.METHOD_NAME, "/_security/user/_has_privileges");
         request.setEntity(createEntity(hasPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -193,13 +193,13 @@ final class SecurityRequestConverters {
     }
 
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "_security/oauth2/token");
+        Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
         request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request invalidateToken(InvalidateTokenRequest invalidateTokenRequest) throws IOException {
-        Request request = new Request(HttpDelete.METHOD_NAME, "_security/oauth2/token");
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

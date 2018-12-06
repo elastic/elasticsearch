@@ -36,10 +36,11 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     private String reason = DEFAULT_REASON;
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        reason = in.readString();
+    public CancelTasksRequest() {}
+
+    public CancelTasksRequest(StreamInput in) throws IOException {
+        super(in);
+        this.reason = in.readString();
     }
 
     @Override

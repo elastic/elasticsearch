@@ -46,7 +46,8 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     public static XContentObjectTransformer<AggregatorFactories.Builder> aggregatorTransformer() {
         return new XContentObjectTransformer<>(searchRegistry, (p) -> {
             // Serializing a map creates an object, need to skip the start object for the aggregation parser
-            assert(XContentParser.Token.START_OBJECT.equals(p.nextToken()));
+            XContentParser.Token token = p.nextToken();
+            assert(XContentParser.Token.START_OBJECT.equals(token));
             return AggregatorFactories.parseAggregators(p);
         });
     }
@@ -61,6 +62,9 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     }
 
     public T fromMap(Map<String, Object> stringObjectMap) throws IOException {
+        if (stringObjectMap == null) {
+            return null;
+        }
         LoggingDeprecationAccumulationHandler deprecationLogger = new LoggingDeprecationAccumulationHandler();
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(stringObjectMap);
             XContentParser parser = XContentType.JSON
@@ -74,6 +78,9 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     }
 
     public Map<String, Object> toMap(T object) throws IOException {
+        if (object == null) {
+            return null;
+        }
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = object.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();

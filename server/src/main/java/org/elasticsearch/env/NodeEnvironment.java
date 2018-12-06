@@ -390,7 +390,7 @@ public final class NodeEnvironment  implements Closeable {
             metaData = new NodeMetaData(generateNodeId(settings));
         }
         // we write again to make sure all paths have the latest state file
-        NodeMetaData.FORMAT.write(metaData, paths);
+        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
         return metaData;
     }
 

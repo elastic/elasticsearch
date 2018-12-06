@@ -42,7 +42,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestMultiSearchAction.class));
-
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -51,6 +50,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
+
 
     private final boolean allowExplicitIndex;
 

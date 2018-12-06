@@ -615,8 +615,18 @@ final class RequestConverters {
     }
 
     static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart(
-            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        String endpoint;
+        if (tvrequest.getType() != null) {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId())
+                .addPathPartAsIs("_termvectors")
+                .build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex())
+                .addPathPartAsIs("_termvectors")
+                .addPathPart(tvrequest.getId())
+                .build();
+        }
+
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params(request);
         params.withRouting(tvrequest.getRouting());

@@ -3780,7 +3780,7 @@ public class InternalEngineTests extends EngineTestCase {
                     lookupAndCheck.run();
                 }
                 if (rarely()) {
-                    engine.flush();
+                    engine.flush(false, true);
                     lookupAndCheck.run();
                 }
             }

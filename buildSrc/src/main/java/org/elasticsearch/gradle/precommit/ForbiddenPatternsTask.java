@@ -67,18 +67,17 @@ public class ForbiddenPatternsTask extends DefaultTask {
     /*
      * The rules: a map from the rule name, to a rule regex pattern.
      */
-    private static final Map<String, String> patterns = new HashMap<>();
-    static {
-        // add mandatory rules
-        patterns.put("nocommit", "nocommit|NOCOMMIT");
-        patterns.put("nocommit should be all lowercase or all uppercase", "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
-        patterns.put("tab", "\t");
-    }
+    private final Map<String, String> patterns = new HashMap<>();
 
     public ForbiddenPatternsTask() {
         setDescription("Checks source files for invalid patterns like nocommits or tabs");
         getInputs().property("excludes", filesFilter.getExcludes());
         getInputs().property("rules", patterns);
+
+        // add mandatory rules
+        patterns.put("nocommit", "nocommit|NOCOMMIT");
+        patterns.put("nocommit should be all lowercase or all uppercase", "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
+        patterns.put("tab", "\t");
     }
 
     @InputFiles

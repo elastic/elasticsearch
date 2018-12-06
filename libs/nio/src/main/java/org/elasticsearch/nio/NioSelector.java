@@ -70,6 +70,11 @@ public class NioSelector implements Closeable {
         this.ioBuffer = ByteBuffer.allocateDirect(1 << 16);
     }
 
+    /**
+     * Returns a cached direct byte buffer for network operations. It is cleared on every get call.
+     *
+     * @return the byte buffer
+     */
     public ByteBuffer getIoBuffer() {
         assertOnSelectorThread();
         ioBuffer.clear();

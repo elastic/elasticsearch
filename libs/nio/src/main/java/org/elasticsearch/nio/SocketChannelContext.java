@@ -44,7 +44,7 @@ import java.util.function.Predicate;
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
-    public static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
+    protected static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
 
     protected final NioSocketChannel channel;
     protected final InboundChannelBuffer channelBuffer;
@@ -234,6 +234,17 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return closeNow;
     }
 
+
+    // When you read or write to a nio socket in java, the heap memory passed down must be copied to/from
+    // direct memory. The JVM internally does some buffering of the direct memory, however we can save space
+    // by reusing a thread-local direct buffer (provided by the NioSelector).
+    //
+    // Each network event loop is given a 64kb DirectByteBuffer. When we read we use this buffer and copy the
+    // data after the read. When we go to write, we copy the data to the direct memory before calling write.
+    // The choice of 64KB is rather arbitrary. We can explore different sizes in the future. However, any
+    // data that is copied to the buffer for a write, but not successfully flushed immediately, must be
+    // copied again on the next call.
+
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         ioBuffer.limit(Math.min(buffer.remaining(), ioBuffer.limit()));
@@ -251,20 +262,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             ioBuffer.flip();
             buffer.put(ioBuffer);
             return bytesRead;
-        }
-    }
-
-    protected int readFromChannel(ByteBuffer[] buffers) throws IOException {
-        try {
-            int bytesRead = (int) rawChannel.read(buffers);
-            if (bytesRead < 0) {
-                closeNow = true;
-                bytesRead = 0;
-            }
-            return bytesRead;
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
         }
     }
 

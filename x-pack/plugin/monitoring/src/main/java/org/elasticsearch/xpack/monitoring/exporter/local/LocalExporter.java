@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -78,7 +79,7 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
-public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener {
+public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
@@ -106,9 +107,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
+        // if additional listeners are added here, adjust LocalExporterTests#testLocalExporterRemovesListenersOnClose accordingly
         clusterService.addListener(this);
         cleanerService.add(this);
-        licenseState.addListener(this::licenseChanged);
+        licenseState.addListener(this);
     }
 
     @Override
@@ -121,7 +123,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     /**
      * When the license changes, we need to ensure that Watcher is setup properly.
      */
-    private void licenseChanged() {
+    @Override
+    public void onLicenseStateChange() {
         watcherSetup.set(false);
     }
 
@@ -153,7 +156,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             // we also remove the listener in resolveBulk after we get to RUNNING, but it's okay to double-remove
             clusterService.removeListener(this);
             cleanerService.remove(this);
-            licenseState.removeListener(this::licenseChanged);
+            licenseState.removeListener(this);
         }
     }
 

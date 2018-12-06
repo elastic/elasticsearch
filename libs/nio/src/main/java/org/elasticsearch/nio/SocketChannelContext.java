@@ -306,18 +306,28 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
 
-        int j = 0;
-        while (j < buffers.length && ioBuffer.remaining() > 0) {
-            ByteBuffer buffer = buffers[j++];
-            copyBytes(buffer, ioBuffer);
+        boolean continueFlush = buffers.length != 0;
+        int bytesFlushed = 0;
+        int lastBufferCopied = 0;
+        while (continueFlush) {
+            ioBuffer.clear();
+            int j = lastBufferCopied;
+            while (j < buffers.length && ioBuffer.remaining() > 0) {
+                ByteBuffer buffer = buffers[j++];
+                copyBytes(buffer, ioBuffer);
+            }
+            lastBufferCopied = j - 1;
+            boolean allBuffersCopied = j == buffers.length && buffers[lastBufferCopied].hasRemaining() == false;
+            ioBuffer.flip();
+            try {
+                bytesFlushed += rawChannel.write(ioBuffer);
+            } catch (IOException e) {
+                closeNow = true;
+                throw e;
+            }
+            continueFlush = ioBuffer.hasRemaining() == false && allBuffersCopied == false;
         }
-        ioBuffer.flip();
-        try {
-            return rawChannel.write(ioBuffer);
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
-        }
+        return bytesFlushed;
     }
 
     private void copyBytes(ByteBuffer from, ByteBuffer to) {

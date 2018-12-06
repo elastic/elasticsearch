@@ -118,6 +118,8 @@ public class RequestOptionsTests extends RestClientTestCase {
             builder.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(1));
         }
 
+        // NOCOMMIT randomize override strict mode
+
         return builder;
     }
 

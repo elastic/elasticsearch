@@ -332,8 +332,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     private void copyBytes(ByteBuffer from, ByteBuffer to) {
         int nBytesToCopy = Math.min(to.remaining(), from.remaining());
-        for (int i = 0; i < nBytesToCopy; ++i) {
-            to.put(from.get());
-        }
+        int initialLimit = from.limit();
+        from.limit(from.position() + nBytesToCopy);
+        to.put(from);
+        from.limit(initialLimit);
     }
 }

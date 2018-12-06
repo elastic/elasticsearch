@@ -128,7 +128,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
-        List<String> phaseNames = randomSubsetOf(TimeseriesLifecycleType.VALID_PHASES);
+        List<String> phaseNames = randomSubsetOf(
+            between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = (phase) ->  {
             switch (phase) {

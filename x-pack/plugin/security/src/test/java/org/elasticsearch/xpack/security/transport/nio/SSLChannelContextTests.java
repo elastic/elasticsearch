@@ -26,7 +26,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -217,7 +217,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.flushChannel();
 
         verify(sslDriver, times(2)).nonApplicationWrite();
-        verify(rawChannel, times(2)).write(sslDriver.getNetworkWriteBuffer());
+        verify(rawChannel, times(2)).write(same(selector.getIoBuffer()));
     }
 
     public void testNonAppWritesStopIfBufferNotFullyFlushed() throws Exception {
@@ -227,9 +227,8 @@ public class SSLChannelContextTests extends ESTestCase {
 
         context.flushChannel();
 
-        ByteBuffer expectedBuffer = sslDriver.getNetworkWriteBuffer().duplicate();
         verify(sslDriver, times(1)).nonApplicationWrite();
-        verify(rawChannel, times(1)).write(expectedBuffer);
+        verify(rawChannel, times(1)).write(same(selector.getIoBuffer()));
     }
 
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
@@ -245,9 +244,8 @@ public class SSLChannelContextTests extends ESTestCase {
         when(flushOperation.isFullyFlushed()).thenReturn(false,true);
         context.flushChannel();
 
-        ByteBuffer expectedBuffer = sslDriver.getNetworkWriteBuffer().duplicate();
         verify(flushOperation).incrementIndex(10);
-        verify(rawChannel, times(1)).write(expectedBuffer);
+        verify(rawChannel, times(1)).write(same(selector.getIoBuffer()));
         verify(selector).executeListener(listener, null);
         assertFalse(context.readyForFlush());
     }
@@ -265,9 +263,7 @@ public class SSLChannelContextTests extends ESTestCase {
         when(flushOperation.isFullyFlushed()).thenReturn(false, false);
         context.flushChannel();
 
-        ByteBuffer expectedBuffer = sslDriver.getNetworkWriteBuffer().duplicate();
-        verify(flushOperation).incrementIndex(5);
-        verify(rawChannel, times(1)).write(eq(expectedBuffer));
+        verify(rawChannel, times(1)).write(same(selector.getIoBuffer()));
         verify(selector, times(0)).executeListener(listener, null);
         assertTrue(context.readyForFlush());
     }
@@ -295,7 +291,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.flushChannel();
 
         verify(flushOperation1, times(2)).incrementIndex(5);
-        verify(rawChannel, times(3)).write(sslDriver.getNetworkWriteBuffer());
+        verify(rawChannel, times(3)).write(same(selector.getIoBuffer()));
         verify(selector).executeListener(listener, null);
         verify(selector, times(0)).executeListener(listener2, null);
         assertTrue(context.readyForFlush());

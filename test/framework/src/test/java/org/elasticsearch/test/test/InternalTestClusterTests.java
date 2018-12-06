@@ -300,7 +300,8 @@ public class InternalTestClusterTests extends ESTestCase {
             for (String name: cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
             }
-            String poorNode = randomFrom(cluster.getNodeNames());
+            String poorNode = randomValueOtherThanMany(n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
+                () -> randomFrom(cluster.getNodeNames()));
             Path dataPath = getNodePaths(cluster, poorNode)[0];
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);

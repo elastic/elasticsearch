@@ -56,6 +56,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -350,15 +351,72 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     }
 
-    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
-        String method = randomFrom(getHttpMethods());
-        Request request = new Request(method, "/200");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        for (String warningHeaderText : warningHeaderTexts) {
-            options.addHeader("Warning", warningHeaderText);
+    public void testDeprecationWarningExpectations() throws IOException {
+        List<String> expecteds = new ArrayList<>();
+        int numExpectedWarnings = between(1,4);
+        for (int i = 0; i < numExpectedWarnings; i++) {
+            expecteds.add(randomAsciiAlphanumOfLength(5));            
         }
-        request.setOptions(options);
-
+        assertNoDeprecationWarnings(expecteds, expecteds);
+        
+        {
+            String unexpectedWarning = "No one expects the Spanish inquisition...";
+            List<String> actuals = new ArrayList<>(expecteds);
+            actuals.add(unexpectedWarning);
+            assertUnexpectedDeprecationWarning(actuals, expecteds);
+        }
+        
+        {
+            List<String> actuals = new ArrayList<>();
+            List<String> falseExpectations = new ArrayList<>();
+            falseExpectations.add("we can't serve you because you're too good looking");
+            Request request = createRequest(actuals, falseExpectations);
+            Response response;
+            if (strictDeprecationMode) {
+                try {
+                    restClient.performRequest(request);
+                    fail("expected ResponseException because false expectations were set");
+                    return;
+                } catch (ResponseException e) {
+                    // TODO no sensible message to test currently - a perfectly OK server response was
+                    // flagged as invalid because false expectation was it would have a warning.
+                    response = e.getResponse();
+                }
+            } else {
+                response = restClient.performRequest(request);
+            }
+            assertFalse(response.hasWarnings());
+        }
+    }
+    
+    private void assertNoDeprecationWarnings(List<String> actualWarnings, List<String> expectedWarnings) throws IOException {
+        Request request = createRequest(actualWarnings, expectedWarnings);
+        Response response = restClient.performRequest(request);
+        assertTrue(response.hasWarnings());
+        assertEquals(actualWarnings, response.getWarnings());
+    }
+    
+    private void assertUnexpectedDeprecationWarning(List<String> actualWarnings, List<String> expectedWarnings) throws IOException {
+        Request request = createRequest(actualWarnings, expectedWarnings);
+        Response response;
+        if (strictDeprecationMode) {
+            try {
+                restClient.performRequest(request);
+                fail("expected ResponseException because strict deprecation mode is enabled");
+                return;
+            } catch (ResponseException e) {
+                assertThat(e.getMessage(), containsString("\nWarnings: " + actualWarnings));
+                response = e.getResponse();
+            }
+        } else {
+            response = restClient.performRequest(request);
+        }
+        assertTrue(response.hasWarnings());
+        assertEquals(actualWarnings, response.getWarnings());
+    }    
+    
+    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
+        Request request = createRequest(warningHeaderTexts, null);
         Response response;
         if (strictDeprecationMode) {
             try {
@@ -375,6 +433,20 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         assertTrue(response.hasWarnings());
         assertEquals(warningBodyTexts, response.getWarnings());
     }
+    
+    private Request createRequest(List<String> actualWarnings, List<String> expectedWarnings) {
+        String method = randomFrom(getHttpMethods());
+        Request request = new Request(method, "/200");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        for (String warningHeaderText : actualWarnings) {
+            options.addHeader("Warning", warningHeaderText);
+        }
+        if(expectedWarnings != null) {
+            options.setExpectedWarnings(expectedWarnings.toArray(new String[0]));
+        }
+        request.setOptions(options);
+        return request;
+    }    
 
     /**
      * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple

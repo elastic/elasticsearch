@@ -24,7 +24,9 @@ import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedRes
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -38,6 +40,7 @@ public class RequestOptionsTests extends RestClientTestCase {
         assertEquals(Collections.<Header>emptyList(), RequestOptions.DEFAULT.getHeaders());
         assertEquals(HttpAsyncResponseConsumerFactory.DEFAULT, RequestOptions.DEFAULT.getHttpAsyncResponseConsumerFactory());
         assertEquals(RequestOptions.DEFAULT, RequestOptions.DEFAULT.toBuilder().build());
+        assertNull(RequestOptions.DEFAULT.getExpectedWarnings());
     }
 
     public void testAddHeader() {
@@ -74,6 +77,18 @@ public class RequestOptionsTests extends RestClientTestCase {
             assertNull(e.getMessage());
         }
     }
+    
+    public void testExpectedWarnings() {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        int numWarnings = between(0, 5);
+        Set<String> warnings = new HashSet<>();
+        for (int i = 0; i < numWarnings; i++) {
+            warnings.add(randomAsciiAlphanumOfLengthBetween(5, 10));
+        }
+        builder.setExpectedWarnings(warnings.toArray(new String[numWarnings]));
+        RequestOptions options = builder.build();
+        assertEquals(warnings, options.getExpectedWarnings());
+    }   
 
     public void testSetHttpAsyncResponseConsumerFactory() {
         try {
@@ -118,6 +133,10 @@ public class RequestOptionsTests extends RestClientTestCase {
             builder.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(1));
         }
 
+        if (randomBoolean()) {
+            builder.setExpectedWarnings("warning 1", "warning 2");
+        }
+        
         return builder;
     }
 
@@ -127,13 +146,16 @@ public class RequestOptionsTests extends RestClientTestCase {
 
     private static RequestOptions mutate(RequestOptions options) {
         RequestOptions.Builder mutant = options.toBuilder();
-        int mutationType = between(0, 1);
+        int mutationType = between(0, 2);
         switch (mutationType) {
         case 0:
             mutant.addHeader("extra", "m");
             return mutant.build();
         case 1:
             mutant.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(5));
+            return mutant.build();
+        case 2:
+            mutant.setExpectedWarnings("expected warning", "warning 2");
             return mutant.build();
         default:
             throw new UnsupportedOperationException("Unknown mutation type [" + mutationType + "]");

@@ -48,6 +48,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "my_terms" : { "terms" : { "field" : "number" } } } }
 
   - match: { hits.total: 4 }
@@ -77,18 +78,21 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "query" : { "range" : { "number" : { "gte" : -2 } } } }
 
   - match: { hits.total: 3 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "query" : { "range" : { "number" : { "gte" : 0 } } } }
 
   - match: { hits.total: 3 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "query" : { "range" : { "number" : { "lt" : 1.5 } } } }
 
   - match: { hits.total: 2 }
@@ -98,6 +102,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 1, "sort" : { "number" : { "order" : "asc" } } }
 
   - match: { hits.total: 4 }

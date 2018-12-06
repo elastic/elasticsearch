@@ -6,26 +6,65 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
 public class ApiKeyServiceTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        threadPool = new TestThreadPool("api key service tests");
+    }
+
+    @After
+    public void stopThreadPool() {
+        terminate(threadPool);
+    }
 
     public void testGetCredentialsFromThreadContext() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -69,7 +108,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         Map<String, Object> sourceMap = new HashMap<>();
         sourceMap.put("api_key_hash", new String(hash));
-        sourceMap.put("role_descriptors", Collections.singletonList(Collections.singletonMap("name", "a role")));
+        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
         creatorMap.put("metadata", Collections.emptyMap());
@@ -110,5 +149,76 @@ public class ApiKeyServiceTests extends ESTestCase {
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
+    }
+
+    public void testGetRolesForApiKeyFromContext() throws Exception {
+        final String keyId = randomAlphaOfLength(12);
+        final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
+            Version.CURRENT, AuthenticationType.API_KEY, Collections.singletonMap(ApiKeyService.API_KEY_ID_KEY, keyId));
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(ApiKeyService.API_KEY_ID_KEY, keyId);
+        threadContext.putTransient(ApiKeyService.API_KEY_ROLE_KEY, ReservedRolesStore.SUPERUSER_ROLE);
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool));
+        PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        service.getRoleForApiKey(authentication, threadContext, mock(CompositeRolesStore.class), new FieldPermissionsCache(Settings.EMPTY),
+            roleFuture);
+        Role role = roleFuture.get();
+        assertEquals(ReservedRolesStore.SUPERUSER_ROLE, role);
+    }
+
+    public void testGetRolesForApiKeyIncorrectKeyId() {
+        final String keyId = randomAlphaOfLength(12);
+        final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
+            Version.CURRENT, AuthenticationType.API_KEY, Collections.singletonMap(ApiKeyService.API_KEY_ID_KEY, keyId));
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(11));
+        threadContext.putTransient(ApiKeyService.API_KEY_ROLE_KEY, ReservedRolesStore.SUPERUSER_ROLE);
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool));
+        PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.getRoleForApiKey(authentication, threadContext,
+            mock(CompositeRolesStore.class),new FieldPermissionsCache(Settings.EMPTY), roleFuture));
+        assertThat(ise.getMessage(), containsString(keyId));
+        assertThat(ise.getMessage(), containsString(threadContext.getTransient(ApiKeyService.API_KEY_ID_KEY)));
+    }
+
+    public void testGetRolesForApiKeyNotInContext() throws Exception {
+        Map<String, Object> superUserRdMap;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            superUserRdMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
+                BytesReference.bytes(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR
+                    .toXContent(builder, ToXContent.EMPTY_PARAMS, true))
+                    .streamInput(),
+                false);
+        }
+        Map<String, Object> authMetadata = new HashMap<>();
+        authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
+        authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
+            Collections.singletonMap(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
+
+        final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
+            Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool));
+        CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
+            Collection<RoleDescriptor> descriptors = (Collection<RoleDescriptor>) invocationOnMock.getArguments()[0];
+            if (descriptors.size() != 1) {
+                listener.onFailure(new IllegalStateException("descriptors was empty!"));
+            } else if (descriptors.iterator().next().getName().equals("superuser")) {
+                listener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            } else {
+                listener.onFailure(new IllegalStateException("unexpected role name " + descriptors.iterator().next().getName()));
+            }
+            return Void.TYPE;
+        }).when(rolesStore).buildRoleFromDescriptors(any(Collection.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+
+        PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        service.getRoleForApiKey(authentication, threadContext, rolesStore, new FieldPermissionsCache(Settings.EMPTY), roleFuture);
+        Role role = roleFuture.get();
+        assertThat(role.names(), arrayContaining("superuser"));
     }
 }

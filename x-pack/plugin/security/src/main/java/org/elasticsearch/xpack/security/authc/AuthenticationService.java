@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
@@ -205,7 +206,8 @@ public class AuthenticationService {
                     if (authResult.isAuthenticated()) {
                         final User user = authResult.getUser();
                         authenticatedBy = new RealmRef("_es_api_key", "_es_api_key", nodeName);
-                        writeAuthToContext(new Authentication(user, authenticatedBy, null));
+                        writeAuthToContext(new Authentication(user, authenticatedBy, null, Version.CURRENT,
+                            Authentication.AuthenticationType.API_KEY, authResult.getMetadata()));
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         Exception e = (authResult.getException() != null) ? authResult.getException()
                             : Exceptions.authenticationError(authResult.getMessage());

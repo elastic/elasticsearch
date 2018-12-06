@@ -52,6 +52,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -191,7 +194,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
-                new AnonymousUser(settings));
+                new AnonymousUser(settings), mock(ApiKeyService.class));
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }
 
@@ -1365,7 +1368,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
-        authzService.roles(user, rolesListener);
+        final Authentication authentication =
+            new Authentication(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"), null);
+        authzService.roles(user, authentication, rolesListener);
         return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
     }
 

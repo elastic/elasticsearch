@@ -1094,7 +1094,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 source.put("doc_type", "api_key");
                 source.put("creation_time", Instant.now().minus(5, ChronoUnit.MINUTES).toEpochMilli());
                 source.put("api_key_hash", new String(Hasher.BCRYPT4.hash(new SecureString(key.toCharArray()))));
-                source.put("role_descriptors", Collections.singletonList(Collections.singletonMap("name", "a role")));
+                source.put("role_descriptors", Collections.singletonMap("api key role", Collections.singletonMap("cluster", "all")));
                 source.put("name", "my api key for testApiKeyAuth");
                 Map<String, Object> creatorMap = new HashMap<>();
                 creatorMap.put("principal", "johndoe");

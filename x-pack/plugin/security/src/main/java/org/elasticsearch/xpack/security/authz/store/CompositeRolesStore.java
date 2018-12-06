@@ -241,6 +241,11 @@ public class CompositeRolesStore {
         return descriptors.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","));
     }
 
+    public void buildRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
+                                         ActionListener<Role> listener) {
+        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, listener);
+    }
+
     public static void buildRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
                                                 NativePrivilegeStore privilegeStore, ActionListener<Role> listener) {
         if (roleDescriptors.isEmpty()) {

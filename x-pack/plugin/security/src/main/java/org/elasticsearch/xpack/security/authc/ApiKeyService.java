@@ -19,29 +19,41 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,7 +67,12 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private static final String TYPE = "doc";
+    static final String API_KEY_ID_KEY = "_security_api_key_id";
+    static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
+    static final String API_KEY_ROLE_KEY = "_security_api_key_role";
+
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key_hashing.algorithm", "pbkdf2", Function.identity(), (v, s) -> {
         if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
@@ -126,8 +143,12 @@ public class ApiKeyService {
                     }
                 }
 
-                builder.array("role_descriptors", request.getRoleDescriptors())
-                    .field("name", request.getName())
+                builder.startObject("role_descriptors");
+                for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
+                    builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                }
+                builder.endObject();
+                builder.field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")
                     .field("principal", authentication.getUser().principal())
@@ -174,7 +195,8 @@ public class ApiKeyService {
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
-                            validateApiKeyCredentials(response.getSource(), credentials, clock, listener);
+                            final Map<String, Object> source = response.getSource();
+                            validateApiKeyCredentials(source, credentials, clock, listener);
                         }
                     } else {
                         credentials.close();
@@ -192,6 +214,56 @@ public class ApiKeyService {
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
+    }
+
+    /**
+     * The current request has been authenticated by an API key and this method enables the
+     * retrieval of role descriptors that are associated with the api key and triggers the building
+     * of the {@link Role} to authorize the request.
+     */
+    public void getRoleForApiKey(Authentication authentication, ThreadContext threadContext, CompositeRolesStore rolesStore,
+                                 FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> listener) {
+        if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
+            throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
+        }
+
+        final Map<String, Object> metadata = authentication.getMetadata();
+        final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
+        final String contextKeyId = threadContext.getTransient(API_KEY_ID_KEY);
+        if (apiKeyId.equals(contextKeyId)) {
+            final Role preBuiltRole = threadContext.getTransient(API_KEY_ROLE_KEY);
+            if (preBuiltRole != null) {
+                listener.onResponse(preBuiltRole);
+                return;
+            }
+        } else if (contextKeyId != null) {
+            throw new IllegalStateException("authentication api key id [" + apiKeyId + "] does not match context value [" +
+                contextKeyId + "]");
+        }
+
+        final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+        final List<RoleDescriptor> roleDescriptorList = roleDescriptors.entrySet().stream()
+            .map(entry -> {
+                final String name = entry.getKey();
+                final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
+                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    builder.map(rdMap);
+                    try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                        new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
+                        BytesReference.bytes(builder).streamInput())) {
+                        return RoleDescriptor.parse(name, parser, false);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).collect(Collectors.toList());
+
+        rolesStore.buildRoleFromDescriptors(roleDescriptorList, fieldPermissionsCache, ActionListener.wrap(role -> {
+            threadContext.putTransient(API_KEY_ID_KEY, apiKeyId);
+            threadContext.putTransient(API_KEY_ROLE_KEY, role);
+            listener.onResponse(role);
+        }, listener::onFailure));
+
     }
 
     /**
@@ -214,13 +286,13 @@ public class ApiKeyService {
                 final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
                 final String principal = Objects.requireNonNull((String) creator.get("principal"));
                 final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
-                final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) source.get("role_descriptors");
-                final String[] roleNames = roleDescriptors.stream()
-                    .map(rdSource -> (String) rdSource.get("name"))
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY);
+                final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
+                final String[] roleNames = roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
                 final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
-                listener.onResponse(AuthenticationResult.success(apiKeyUser));
+                final Map<String, Object> authResultMetadata = new HashMap<>();
+                authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
+                authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
+                listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
             } else {
                 listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
             }
@@ -308,6 +380,29 @@ public class ApiKeyService {
         @Override
         public void close() {
             key.close();
+        }
+    }
+
+    private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {
+
+        private final DeprecationLogger deprecationLogger;
+        private final String apiKeyId;
+
+        private ApiKeyLoggingDeprecationHandler(DeprecationLogger logger, String apiKeyId) {
+            this.deprecationLogger = logger;
+            this.apiKeyId = apiKeyId;
+        }
+
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                usedName, apiKeyId, modernName);
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                usedName, apiKeyId, replacedWith);
         }
     }
 }

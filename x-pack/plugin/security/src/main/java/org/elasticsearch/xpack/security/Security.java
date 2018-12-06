@@ -479,7 +479,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser);
+            auditTrailService, failureHandler, threadPool, anonymousUser, apiKeyService);
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache

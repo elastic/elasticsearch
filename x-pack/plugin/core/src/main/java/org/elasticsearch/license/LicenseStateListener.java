@@ -17,6 +17,6 @@ public interface LicenseStateListener {
     /**
      * Callback when the license state changes. See {@link XPackLicenseState#update(License.OperationMode, boolean, Version)}.
      */
-    void onLicenseStateChange();
+    void licenseStateChanged();
 
 }

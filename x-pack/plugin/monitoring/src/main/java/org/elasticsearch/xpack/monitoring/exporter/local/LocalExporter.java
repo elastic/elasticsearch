@@ -124,7 +124,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * When the license changes, we need to ensure that Watcher is setup properly.
      */
     @Override
-    public void onLicenseStateChange() {
+    public void licenseStateChanged() {
         watcherSetup.set(false);
     }
 

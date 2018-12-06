@@ -315,7 +315,7 @@ public class XPackLicenseState {
                 }
             }
         }
-        listeners.forEach(LicenseStateListener::onLicenseStateChange);
+        listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
     /** Add a listener to be notified on license change */

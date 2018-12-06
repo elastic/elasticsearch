@@ -54,7 +54,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
     }
 
     @Override
-    public void onLicenseStateChange() {
+    public void licenseStateChanged() {
         clear("license state changed");
     }
 

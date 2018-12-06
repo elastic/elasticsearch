@@ -292,42 +292,47 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
+        int initialPosition = buffer.position();
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         copyBytes(buffer, ioBuffer);
         ioBuffer.flip();
         try {
-            return rawChannel.write(ioBuffer);
+            int bytesWritten = rawChannel.write(ioBuffer);
+            buffer.position(initialPosition + bytesWritten);
+            return bytesWritten;
         } catch (IOException e) {
             closeNow = true;
+            buffer.position(initialPosition);
             throw e;
         }
     }
 
-    protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
+    protected int flushToChannel(FlushOperation flushOperation) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
 
-        boolean continueFlush = buffers.length != 0;
-        int bytesFlushed = 0;
-        int lastBufferCopied = 0;
+        boolean continueFlush = flushOperation.isFullyFlushed() == false;
+        int totalBytesFlushed = 0;
         while (continueFlush) {
             ioBuffer.clear();
-            int j = lastBufferCopied;
+            int j = 0;
+            ByteBuffer[] buffers = flushOperation.getBuffersToWrite();
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];
                 copyBytes(buffer, ioBuffer);
             }
-            lastBufferCopied = j - 1;
-            boolean allBuffersCopied = j == buffers.length && buffers[lastBufferCopied].hasRemaining() == false;
             ioBuffer.flip();
+            int bytesFlushed;
             try {
-                bytesFlushed += rawChannel.write(ioBuffer);
+                bytesFlushed = rawChannel.write(ioBuffer);
             } catch (IOException e) {
                 closeNow = true;
                 throw e;
             }
-            continueFlush = ioBuffer.hasRemaining() == false && allBuffersCopied == false;
+            flushOperation.incrementIndex(bytesFlushed);
+            totalBytesFlushed += bytesFlushed;
+            continueFlush = bytesFlushed > 0 && ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
         }
-        return bytesFlushed;
+        return totalBytesFlushed;
     }
 
     private void copyBytes(ByteBuffer from, ByteBuffer to) {

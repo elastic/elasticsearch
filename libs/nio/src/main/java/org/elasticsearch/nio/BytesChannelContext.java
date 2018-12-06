@@ -84,8 +84,7 @@ public class BytesChannelContext extends SocketChannelContext {
      * Returns a boolean indicating if the operation was fully flushed.
      */
     private boolean singleFlush(FlushOperation flushOperation) throws IOException {
-        int written = flushToChannel(flushOperation.getBuffersToWrite());
-        flushOperation.incrementIndex(written);
+        flushToChannel(flushOperation);
         return flushOperation.isFullyFlushed();
     }
 }

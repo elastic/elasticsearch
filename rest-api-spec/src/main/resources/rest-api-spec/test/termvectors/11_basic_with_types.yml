@@ -1,14 +1,10 @@
 setup:
-  - skip:
-        version: " - 6.99.99"
-        reason: types are required in requests before 7.0.0
-
   - do:
       indices.create:
           index: testidx
           body:
             mappings:
-              _doc:
+              testtype:
                 "properties":
                   "text":
                      "type" : "text"
@@ -16,7 +12,7 @@ setup:
   - do:
       index:
         index: testidx
-        type:  _doc
+        type:  testtype
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
@@ -29,6 +25,7 @@ setup:
   - do:
       termvectors:
         index: testidx
+        type:  testtype
         id:    testing_document
         "term_statistics" : true
 

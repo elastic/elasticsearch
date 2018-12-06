@@ -1,7 +1,3 @@
-setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
 
 ---
 "Deprecated camel case and _ parameters should fail in Term Vectors query":
@@ -16,7 +12,7 @@ setup:
            index: testidx
            body:
                mappings:
-                   _doc:
+                   testtype:
                        properties:
                            text:
                                type :         "text"
@@ -25,7 +21,7 @@ setup:
    - do:
        index:
            index: testidx
-           type:  _doc
+           type:  testtype
            id:    testing_document
            body:  {"text" : "The quick brown fox is brown."}
 
@@ -37,6 +33,7 @@ setup:
                "docs":
                    -
                        "_index" : "testidx"
+                       "_type" : "testtype"
                        "_id" : "testing_document"
                        "version" : 1
                        "versionType" : "external"
@@ -49,7 +46,7 @@ setup:
                "docs":
                    -
                        "_index" : "testidx"
-                       "_type" : "_doc"
+                       "_type" : "testtype"
                        "_id" : "testing_document"
                        "version" : 1
                        "_version_type" : "external"

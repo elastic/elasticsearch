@@ -437,6 +437,35 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
+
+        if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
+
+            // check the new groups are not job Ids
+            for (String group : request.getJobUpdate().getGroups()) {
+                if (mlMetadata.getJobs().containsKey(group)) {
+                    actionListener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, group)));
+                }
+            }
+
+            jobConfigProvider.jobIdMatches(request.getJobUpdate().getGroups(), ActionListener.wrap(
+                    matchingIds -> {
+                        if (matchingIds.isEmpty()) {
+                            updateJobPostInitialChecks(request, mlMetadata, actionListener);
+                        } else {
+                            actionListener.onFailure(new ResourceAlreadyExistsException(
+                                    Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchingIds.get(0))));
+                        }
+                    },
+                    actionListener::onFailure
+            ));
+        } else {
+            updateJobPostInitialChecks(request, mlMetadata, actionListener);
+        }
+    }
+
+    private void updateJobPostInitialChecks(UpdateJobAction.Request request, MlMetadata mlMetadata,
+                           ActionListener<PutJobAction.Response> actionListener) {
         if (ClusterStateJobUpdate.jobIsInMlMetadata(mlMetadata, request.getJobId())) {
             updateJobClusterState(request, actionListener);
         } else {

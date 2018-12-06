@@ -10,7 +10,11 @@
 --
 beta[]
 
-The <<index-lifecycle-management-api, {ilm} (ILM) APIs>> enable you to automate how you
+WARNING: {Ilm} is currently not supported by
+{stack-ov}/ccr-getting-started.html#ccr-getting-started-leader-index[leader indices] and
+{stack-ov}/ccr-getting-started.html#ccr-getting-started-follower-index[follower indices].
+
+The <<index-lifecycle-management-api, {Ilm} (ILM) APIs>> enable you to automate how you
 want to manage your indices over time. Rather than simply performing management
 actions on your indices on a set schedule, you can base actions on other factors
 such as shard size and performance requirements.

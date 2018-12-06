@@ -1099,7 +1099,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         private String fromNodeId;
 
-        public RejoinClusterRequest(String fromNodeId) {
+        RejoinClusterRequest(String fromNodeId) {
             this.fromNodeId = fromNodeId;
         }
 

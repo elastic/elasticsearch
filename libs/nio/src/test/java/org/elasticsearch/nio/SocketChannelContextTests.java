@@ -371,6 +371,16 @@ public class SocketChannelContextTests extends ESTestCase {
         assertEquals(10, buffer.remaining());
     }
 
+    public void testFlushBuffersHandlesZeroFlush() throws IOException {
+        when(rawChannel.write(any(ByteBuffer.class))).thenAnswer(consumeBufferAnswer(0));
+
+        ByteBuffer[] buffers = {ByteBuffer.allocate(1023), ByteBuffer.allocate(1023)};
+        FlushOperation flushOperation = new FlushOperation(buffers, listener);
+        context.flushToChannel(flushOperation);
+        assertEquals(2, flushOperation.getBuffersToWrite().length);
+        assertEquals(0, flushOperation.getBuffersToWrite()[0].position());
+    }
+
     public void testFlushBuffersHandlesPartialFlush() throws IOException {
         AtomicBoolean first = new AtomicBoolean(true);
         when(rawChannel.write(any(ByteBuffer.class))).thenAnswer(invocationOnMock -> {

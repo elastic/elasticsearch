@@ -296,15 +296,16 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         copyBytes(buffer, ioBuffer);
         ioBuffer.flip();
+        int bytesWritten;
         try {
-            int bytesWritten = rawChannel.write(ioBuffer);
-            buffer.position(initialPosition + bytesWritten);
-            return bytesWritten;
+            bytesWritten = rawChannel.write(ioBuffer);
         } catch (IOException e) {
             closeNow = true;
             buffer.position(initialPosition);
             throw e;
         }
+        buffer.position(initialPosition + bytesWritten);
+        return bytesWritten;
     }
 
     protected int flushToChannel(FlushOperation flushOperation) throws IOException {
@@ -330,7 +331,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             }
             flushOperation.incrementIndex(bytesFlushed);
             totalBytesFlushed += bytesFlushed;
-            continueFlush = bytesFlushed > 0 && ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
+            continueFlush = ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
         }
         return totalBytesFlushed;
     }

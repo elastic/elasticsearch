@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,7 +46,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
             Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList()));
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersRequest,
-            publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
+                (CopyFunction<PeersRequest>) publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
             in -> {
                 final List<DiscoveryNode> discoveryNodes = new ArrayList<>(in.getKnownPeers());
                 if (randomBoolean()) {
@@ -69,7 +70,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
         }
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersResponse,
-            publishResponse -> copyWriteable(publishResponse, writableRegistry(), PeersResponse::new),
+                (CopyFunction<PeersResponse>) publishResponse -> copyWriteable(publishResponse, writableRegistry(), PeersResponse::new),
             in -> {
                 final long term = in.getTerm();
                 if (randomBoolean()) {

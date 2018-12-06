@@ -36,7 +36,7 @@ public final class GetSslCertificatesRequest implements Validatable, ToXContentO
     private final Request request;
 
     private GetSslCertificatesRequest() {
-        request = new Request(HttpGet.METHOD_NAME, "/_xpack/ssl/certificates");
+        request = new Request(HttpGet.METHOD_NAME, "/_ssl/certificates");
     }
 
     public Request getRequest() {

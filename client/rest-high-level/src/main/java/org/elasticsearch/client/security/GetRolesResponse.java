@@ -41,9 +41,9 @@ public final class GetRolesResponse {
     private final List<Role> roles;
     private final Map<String, Map<String, Object>> transientMetadataMap;
 
-    GetRolesResponse(List<Role> roles, Map<String, Map<String, Object>> transientMetadata) {
+    GetRolesResponse(List<Role> roles, Map<String, Map<String, Object>> transientMetadataMap) {
         this.roles = Collections.unmodifiableList(roles);
-        this.transientMetadataMap = Collections.unmodifiableMap(transientMetadata);
+        this.transientMetadataMap = Collections.unmodifiableMap(transientMetadataMap);
     }
 
     public List<Role> getRoles() {

@@ -1,14 +1,16 @@
 {
-  "xpack.security.put_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-user.html",
-    "methods": [ "PUT", "POST" ],
+  "security.delete_user": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html",
+    "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/security/user/{username}",
-      "paths": [ "/_xpack/security/user/{username}" ],
+      "path": "/_security/user/{username}",
+      "paths": [
+        "/_security/user/{username}"
+      ],
       "parts": {
         "username": {
           "type" : "string",
-          "description" : "The username of the User",
+          "description" : "username",
           "required" : true
         }
       },
@@ -20,9 +22,6 @@
         }
       }
     },
-    "body": {
-      "description" : "The user to add",
-      "required" : true
-    }
+    "body": null
   }
 }

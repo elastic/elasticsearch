@@ -1025,7 +1025,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     // TODO: move all calls to high-level REST client once APIs for adding new role exist
     private void addRole(String roleName) throws IOException {
-        Request addRoleRequest = new Request(HttpPost.METHOD_NAME, "/_xpack/security/role/" + roleName);
+        Request addRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role/" + roleName);
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
@@ -1206,7 +1206,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //TODO Replace this with a call to PutPrivileges once it is implemented
-            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
+            final Request createPrivilegeRequest = new Request("POST", "/_security/privilege");
             createPrivilegeRequest.setJsonEntity("{" +
                 "  \"testapp\": {" +
                 "    \"read\": {" +
@@ -1330,7 +1330,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDeletePrivilege() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
+            final Request createPrivilegeRequest = new Request("POST", "/_security/privilege");
             createPrivilegeRequest.setJsonEntity("{" +
                 "  \"testapp\": {" +
                 "    \"read\": {" +

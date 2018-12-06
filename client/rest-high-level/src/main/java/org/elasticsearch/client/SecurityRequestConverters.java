@@ -54,7 +54,7 @@ final class SecurityRequestConverters {
 
     static Request changePassword(ChangePasswordRequest changePasswordRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/user")
+            .addPathPartAsIs("_security/user")
             .addPathPart(changePasswordRequest.getUsername())
             .addPathPartAsIs("_password")
             .build();
@@ -67,7 +67,7 @@ final class SecurityRequestConverters {
 
     static Request putUser(PutUserRequest putUserRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/user")
+            .addPathPartAsIs("_security/user")
             .addPathPart(putUserRequest.getUser().getUsername())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -79,7 +79,7 @@ final class SecurityRequestConverters {
 
     static Request deleteUser(DeleteUserRequest deleteUserRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack","security", "user")
+            .addPathPartAsIs("_security", "user")
             .addPathPart(deleteUserRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -90,7 +90,7 @@ final class SecurityRequestConverters {
 
     static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
         final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/role_mapping")
+            .addPathPartAsIs("_security/role_mapping")
             .addPathPart(putRoleMappingRequest.getName())
             .build();
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -102,7 +102,7 @@ final class SecurityRequestConverters {
 
     static Request getRoleMappings(final GetRoleMappingsRequest getRoleMappingRequest) throws IOException {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
-        builder.addPathPartAsIs("_xpack/security/role_mapping");
+        builder.addPathPartAsIs("_security/role_mapping");
         if (getRoleMappingRequest.getRoleMappingNames().size() > 0) {
             builder.addPathPart(Strings.collectionToCommaDelimitedString(getRoleMappingRequest.getRoleMappingNames()));
         }
@@ -119,7 +119,7 @@ final class SecurityRequestConverters {
 
     private static Request setUserEnabled(SetUserEnabledRequest setUserEnabledRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/user")
+            .addPathPartAsIs("_security/user")
             .addPathPart(setUserEnabledRequest.getUsername())
             .addPathPart(setUserEnabledRequest.isEnabled() ? "_enable" : "_disable")
             .build();
@@ -130,14 +130,14 @@ final class SecurityRequestConverters {
     }
 
     static Request hasPrivileges(HasPrivilegesRequest hasPrivilegesRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/security/user/_has_privileges");
+        Request request = new Request(HttpGet.METHOD_NAME, "_security/user/_has_privileges");
         request.setEntity(createEntity(hasPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request clearRealmCache(ClearRealmCacheRequest clearRealmCacheRequest) {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/realm");
+            .addPathPartAsIs("_security/realm");
         if (clearRealmCacheRequest.getRealms().isEmpty() == false) {
             builder.addCommaSeparatedPathParts(clearRealmCacheRequest.getRealms().toArray(Strings.EMPTY_ARRAY));
         } else {
@@ -154,7 +154,7 @@ final class SecurityRequestConverters {
 
     static Request clearRolesCache(ClearRolesCacheRequest disableCacheRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/role")
+            .addPathPartAsIs("_security/role")
             .addCommaSeparatedPathParts(disableCacheRequest.names())
             .addPathPart("_clear_cache")
             .build();
@@ -163,7 +163,7 @@ final class SecurityRequestConverters {
 
     static Request deleteRoleMapping(DeleteRoleMappingRequest deleteRoleMappingRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/role_mapping")
+            .addPathPartAsIs("_security/role_mapping")
             .addPathPart(deleteRoleMappingRequest.getName())
             .build();
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -174,7 +174,7 @@ final class SecurityRequestConverters {
 
     static Request deleteRole(DeleteRoleRequest deleteRoleRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/role")
+            .addPathPartAsIs("_security/role")
             .addPathPart(deleteRoleRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -185,7 +185,7 @@ final class SecurityRequestConverters {
 
     static Request getRoles(GetRolesRequest getRolesRequest) {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
-        builder.addPathPartAsIs("_xpack/security/role");
+        builder.addPathPartAsIs("_security/role");
         if (getRolesRequest.getRoleNames().size() > 0) {
             builder.addPathPart(Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()));
         }
@@ -193,20 +193,20 @@ final class SecurityRequestConverters {
     }
 
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_xpack/security/oauth2/token");
+        Request request = new Request(HttpPost.METHOD_NAME, "_security/oauth2/token");
         request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request invalidateToken(InvalidateTokenRequest invalidateTokenRequest) throws IOException {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/security/oauth2/token");
+        Request request = new Request(HttpDelete.METHOD_NAME, "_security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request getPrivileges(GetPrivilegesRequest getPrivilegesRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/privilege")
+            .addPathPartAsIs("_security/privilege")
             .addPathPart(getPrivilegesRequest.getApplicationName())
             .addCommaSeparatedPathParts(getPrivilegesRequest.getPrivilegeNames())
             .build();
@@ -215,7 +215,7 @@ final class SecurityRequestConverters {
 
     static Request deletePrivileges(DeletePrivilegesRequest deletePrivilegeRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/privilege")
+            .addPathPartAsIs("_security/privilege")
             .addPathPart(deletePrivilegeRequest.getApplication())
             .addCommaSeparatedPathParts(deletePrivilegeRequest.getPrivileges())
             .build();

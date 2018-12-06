@@ -1,15 +1,17 @@
 {
-  "xpack.security.change_password": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html",
+  "security.put_role": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/user/{username}/_password",
-      "paths": [ "/_xpack/security/user/{username}/_password", "/_xpack/security/user/_password" ],
+      "path": "/_security/role/{name}",
+      "paths": [
+        "/_security/role/{name}"
+      ],
       "parts": {
-        "username": {
+        "name": {
           "type" : "string",
-          "description" : "The username of the user to change the password for",
-          "required" : false
+          "description" : "Role name",
+          "required" : true
         }
       },
       "params": {
@@ -21,7 +23,7 @@
       }
     },
     "body": {
-      "description" : "the new password for the user",
+      "description" : "The role to add",
       "required" : true
     }
   }

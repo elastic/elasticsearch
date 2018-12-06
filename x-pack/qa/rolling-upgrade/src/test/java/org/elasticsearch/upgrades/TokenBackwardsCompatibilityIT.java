@@ -49,7 +49,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
         }
 
-        Request createTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"username\": \"test_user\",\n" +
@@ -70,7 +70,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "}");
         client().performRequest(indexRequest1);
 
-        Request createSecondTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request createSecondTokenRequest = new Request("POST", "/_security/oauth2/token");
         createSecondTokenRequest.setEntity(createTokenRequest.getEntity());
         response = client().performRequest(createSecondTokenRequest);
         responseMap = entityAsMap(response);
@@ -102,14 +102,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final String token = (String) source.get("token");
         assertTokenWorks(token);
 
-        Request invalidateRequest = new Request("DELETE", "_xpack/security/oauth2/token");
+        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
         invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
         invalidateRequest.addParameter("error_trace", "true");
         client().performRequest(invalidateRequest);
         assertTokenDoesNotWork(token);
 
         // create token and refresh on version that supports it
-        Request createTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request createTokenRequest = new Request("POST", "/_/security/oauth2/token");
         createTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"username\": \"test_user\",\n" +
@@ -125,7 +125,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertNotNull(refreshToken);
             assertTokenWorks(accessToken);
 
-            Request tokenRefreshRequest = new Request("POST", "_xpack/security/oauth2/token");
+            Request tokenRefreshRequest = new Request("POST", "/_security/oauth2/token");
             tokenRefreshRequest.setJsonEntity(
                     "{\n" +
                     "    \"refresh_token\": \"" + refreshToken + "\",\n" +
@@ -152,7 +152,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final String token = (String) source.get("token");
 
         // invalidate again since this may not have been invalidated in the mixed cluster
-        Request invalidateRequest = new Request("DELETE", "_xpack/security/oauth2/token");
+        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
         invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
         invalidateRequest.addParameter("error_trace", "true");
         Response invalidationResponse = client().performRequest(invalidateRequest);
@@ -164,7 +164,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final String workingToken = (String) source.get("token");
         assertTokenWorks(workingToken);
 
-        Request getTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request getTokenRequest = new Request("POST", "/_security/oauth2/token");
         getTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"username\": \"test_user\",\n" +
@@ -179,7 +179,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
         assertTokenWorks(accessToken);
 
-        Request refreshTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
         refreshTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"refresh_token\": \"" + refreshToken + "\",\n" +
@@ -198,7 +198,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertTokenWorks(String token) throws IOException {
-        Request request = new Request("GET", "_xpack/security/_authenticate");
+        Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         request.setOptions(options);
@@ -208,7 +208,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertTokenDoesNotWork(String token) {
-        Request request = new Request("GET", "_xpack/security/_authenticate");
+        Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         request.setOptions(options);

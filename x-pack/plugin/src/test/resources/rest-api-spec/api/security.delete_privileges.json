@@ -1,15 +1,22 @@
 {
-  "xpack.security.disable_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html",
-    "methods": [ "PUT", "POST" ],
+  "security.delete_privileges": {
+    "documentation": "TODO",
+    "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/security/user/{username}/_disable",
-      "paths": [ "/_xpack/security/user/{username}/_disable" ],
+      "path": "/_security/privilege/{application}/{name}",
+      "paths": [
+        "/_security/privilege/{application}/{name}"
+      ],
       "parts": {
-        "username": {
+        "application": {
           "type" : "string",
-          "description" : "The username of the user to disable",
-          "required" : false
+          "description" : "Application name",
+          "required" : true
+        },
+        "name": {
+          "type" : "string",
+          "description" : "Privilege name",
+          "required" : true
         }
       },
       "params": {

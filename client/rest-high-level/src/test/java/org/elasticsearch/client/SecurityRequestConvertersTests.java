@@ -76,7 +76,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         PutUserRequest putUserRequest = new PutUserRequest(user, password, enabled, refreshPolicy);
         Request request = SecurityRequestConverters.putUser(putUserRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + putUserRequest.getUser().getUsername(), request.getEndpoint());
+        assertEquals("/_security/user/" + putUserRequest.getUser().getUsername(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putUserRequest, request.getEntity());
     }
@@ -88,7 +88,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         DeleteUserRequest deleteUserRequest = new DeleteUserRequest(name, refreshPolicy);
         Request request = SecurityRequestConverters.deleteUser(deleteUserRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + name, request.getEndpoint());
+        assertEquals("/_security/user/" + name, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }
@@ -116,7 +116,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
 
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals("/_security/role_mapping/" + roleMappingName, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putRoleMappingRequest, request.getEntity());
     }
@@ -131,9 +131,9 @@ public class SecurityRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         if (noOfRoleMappingNames == 0) {
-            assertEquals("/_xpack/security/role_mapping", request.getEndpoint());
+            assertEquals("/_security/role_mapping", request.getEndpoint());
         } else {
-            assertEquals("/_xpack/security/role_mapping/" +
+            assertEquals("/_security/role_mapping/" +
                     Strings.collectionToCommaDelimitedString(getRoleMappingsRequest.getRoleMappingNames()), request.getEndpoint());
         }
         assertEquals(Collections.emptyMap(), request.getParameters());
@@ -147,7 +147,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         EnableUserRequest enableUserRequest = new EnableUserRequest(username, refreshPolicy);
         Request request = SecurityRequestConverters.enableUser(enableUserRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + username + "/_enable", request.getEndpoint());
+        assertEquals("/_security/user/" + username + "/_enable", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }
@@ -159,7 +159,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         DisableUserRequest disableUserRequest = new DisableUserRequest(username, refreshPolicy);
         Request request = SecurityRequestConverters.disableUser(disableUserRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + username + "/_disable", request.getEndpoint());
+        assertEquals("/_security/user/" + username + "/_disable", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }
@@ -180,7 +180,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest(username, password, refreshPolicy);
         Request request = SecurityRequestConverters.changePassword(changePasswordRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + changePasswordRequest.getUsername() + "/_password", request.getEndpoint());
+        assertEquals("/_security/user/" + changePasswordRequest.getUsername() + "/_password", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(changePasswordRequest, request.getEntity());
     }
@@ -192,7 +192,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest(null, password, refreshPolicy);
         Request request = SecurityRequestConverters.changePassword(changePasswordRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/_password", request.getEndpoint());
+        assertEquals("/_security/user/_password", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(changePasswordRequest, request.getEntity());
     }
@@ -211,7 +211,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Request request = SecurityRequestConverters.deleteRoleMapping(deleteRoleMappingRequest);
 
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals("/_security/role_mapping/" + roleMappingName, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }
@@ -223,9 +223,9 @@ public class SecurityRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         if (roles.length == 0) {
-            assertEquals("/_xpack/security/role", request.getEndpoint());
+            assertEquals("/_security/role", request.getEndpoint());
         } else {
-            assertEquals("/_xpack/security/role/" + Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()),
+            assertEquals("/_security/role/" + Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()),
                 request.getEndpoint());
         }
         assertNull(request.getEntity());
@@ -239,7 +239,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(name, refreshPolicy);
         Request request = SecurityRequestConverters.deleteRole(deleteRoleRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/role/" + name, request.getEndpoint());
+        assertEquals("/_security/role/" + name, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }
@@ -250,7 +250,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant(username, password.toCharArray());
         Request request = SecurityRequestConverters.createToken(createTokenRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals("/_security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
     }
@@ -260,7 +260,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         CreateTokenRequest createTokenRequest = CreateTokenRequest.refreshTokenGrant(refreshToken);
         Request request = SecurityRequestConverters.createToken(createTokenRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals("/_security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
     }
@@ -269,7 +269,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         CreateTokenRequest createTokenRequest = CreateTokenRequest.clientCredentialsGrant();
         Request request = SecurityRequestConverters.createToken(createTokenRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals("/_security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
     }
@@ -280,7 +280,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilege);
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege/" + application + "/" + privilege, request.getEndpoint());
+        assertEquals("/_security/privilege/" + application + "/" + privilege, request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());
     }
@@ -290,7 +290,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getApplicationPrivileges(application);
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege/" + application, request.getEndpoint());
+        assertEquals("/_security/privilege/" + application, request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());
     }
@@ -303,7 +303,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilegeNames);
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.arrayToCommaDelimitedString(privilegeNames),
+        assertEquals("/_security/privilege/" + application + "/" + Strings.arrayToCommaDelimitedString(privilegeNames),
             request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());
@@ -313,7 +313,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllPrivileges();
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege", request.getEndpoint());
+        assertEquals("/_security/privilege", request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());
     }
@@ -327,7 +327,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
             new DeletePrivilegesRequest(application, privileges.toArray(Strings.EMPTY_ARRAY), refreshPolicy);
         Request request = SecurityRequestConverters.deletePrivileges(deletePrivilegesRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.collectionToCommaDelimitedString(privileges),
+        assertEquals("/_security/privilege/" + application + "/" + Strings.collectionToCommaDelimitedString(privileges),
             request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());

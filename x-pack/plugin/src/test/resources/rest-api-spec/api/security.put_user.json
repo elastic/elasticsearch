@@ -1,14 +1,16 @@
 {
-  "xpack.security.put_role_mapping": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html",
+  "security.put_user": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-user.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/role_mapping/{name}",
-      "paths": [ "/_xpack/security/role_mapping/{name}" ],
+      "path": "/_security/user/{username}",
+      "paths": [
+        "/_security/user/{username}"
+      ],
       "parts": {
-        "name": {
+        "username": {
           "type" : "string",
-          "description" : "Role-mapping name",
+          "description" : "The username of the User",
           "required" : true
         }
       },
@@ -21,7 +23,7 @@
       }
     },
     "body": {
-      "description" : "The role to add",
+      "description" : "The user to add",
       "required" : true
     }
   }

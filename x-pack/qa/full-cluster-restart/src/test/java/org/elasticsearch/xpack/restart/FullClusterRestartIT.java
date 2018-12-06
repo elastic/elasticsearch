@@ -568,7 +568,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void createUser(final String id) throws Exception {
-        Request request = new Request("PUT", "/_xpack/security/user/" + id);
+        Request request = new Request("PUT", "/_security/user/" + id);
         request.setJsonEntity(
             "{\n" +
             "   \"password\" : \"j@rV1s\",\n" +
@@ -581,7 +581,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void createRole(final String id) throws Exception {
-        Request request = new Request("PUT", "/_xpack/security/role/" + id);
+        Request request = new Request("PUT", "/_security/role/" + id);
         request.setJsonEntity(
             "{\n" +
             "  \"run_as\": [ \"abc\" ],\n" +
@@ -601,7 +601,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void assertUserInfo(final String user) throws Exception {
-        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/user/" + user)));
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_security/user/" + user)));
         @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
         assertNotNull(userInfo.get("full_name"));
@@ -610,7 +610,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertRoleInfo(final String role) throws Exception {
         @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>)
-                entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/role/" + role))).get(role);
+            entityAsMap(client().performRequest(new Request("GET", "/_security/role/" + role))).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
         assertNotNull(response.get("indices"));

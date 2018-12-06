@@ -1,11 +1,11 @@
 {
-  "xpack.security.put_privileges": {
+  "security.put_privileges": {
     "documentation": "TODO",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/privilege/",
+      "path": "/_security/privilege/",
       "paths": [
-        "/_xpack/security/privilege/"
+        "/_security/privilege/"
       ],
       "params": {
         "refresh": {

@@ -56,7 +56,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(updateUserResponse.isCreated(), is(false));
         // delete user
         final Request deleteUserRequest = new Request(HttpDelete.METHOD_NAME,
-                "/_xpack/security/user/" + putUserRequest.getUser().getUsername());
+            "/_security/user/" + putUserRequest.getUser().getUsername());
         highLevelClient().getLowLevelClient().performRequest(deleteUserRequest);
     }
 

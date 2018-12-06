@@ -19,7 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -397,6 +397,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.MAX_KEEPALIVE_SETTING,
                     MultiBucketConsumerService.MAX_BUCKET_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
+                    SearchService.MAX_OPEN_SCROLL_CONTEXT,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
@@ -470,7 +471,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
                     LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
-                    TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
+                    TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
                     LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING

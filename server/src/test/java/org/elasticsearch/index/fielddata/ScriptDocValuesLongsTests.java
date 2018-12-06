@@ -23,6 +23,17 @@ import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PermissionCollection;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.BiConsumer;
+
+import static org.hamcrest.Matchers.contains;
 
 public class ScriptDocValuesLongsTests extends ESTestCase {
     public void testLongs() throws IOException {
@@ -33,7 +44,17 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = randomLong();
             }
         }
-        Longs longs = wrap(values);
+
+        Set<String> warnings = new HashSet<>();
+        Set<String> keys = new HashSet<>();
+
+        Longs longs = wrap(values, (deprecationKey, deprecationMessage) -> {
+            keys.add(deprecationKey);
+            warnings.add(deprecationMessage);
+            
+            // Create a temporary directory to prove we are running with the server's permissions.
+            createTempDir();
+        });
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
@@ -55,9 +76,33 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getValues().add(100L));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
+
+        /*
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
+         */
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
+            public Void run() {
+                longs.getValues();
+                return null;
+            }
+        }, noPermissionsAcc);
+
+        assertThat(warnings, contains(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+            + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, contains("ScriptDocValues#getValues"));
+
     }
 
-    private Longs wrap(long[][] values) {
+    private Longs wrap(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -76,6 +121,6 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, deprecationCallback);
     }
 }

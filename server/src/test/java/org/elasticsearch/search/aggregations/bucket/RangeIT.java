@@ -84,7 +84,7 @@ public class RangeIT extends ESIntegTestCase {
                 return value.getValue();
             });
 
-            scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "'].values", vars -> {
+            scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get(MULTI_VALUED_FIELD_NAME);
                 return value.getValues();
@@ -693,7 +693,7 @@ public class RangeIT extends ESIntegTestCase {
 
     public void testScriptMultiValued() throws Exception {
         Script script =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -923,7 +923,7 @@ public class RangeIT extends ESIntegTestCase {
                                                 .addRange("0-2", 0.0, 2.0)))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);

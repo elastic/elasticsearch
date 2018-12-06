@@ -36,6 +36,7 @@ setup:
   - do:
       catch: bad_request
       search:
+          rest_total_hits_as_int: true
           index: test1
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
@@ -49,6 +50,7 @@ setup:
   - do:
       catch: bad_request
       search:
+          rest_total_hits_as_int: true
           index: test1
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
@@ -61,6 +63,7 @@ setup:
       reason: index.highligt.max_analyzed_offset setting has been added in 7.0.0
   - do:
       search:
+          rest_total_hits_as_int: true
           index: test1
           body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field2" : {}}}}
   - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another <em>fox</em>."}
@@ -74,6 +77,7 @@ setup:
   - do:
       catch: bad_request
       search:
+          rest_total_hits_as_int: true
           index: test1
           body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -58,6 +59,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         final Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
+            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), 1)
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE);
 
         if (nodeOrdinal == 0) {
@@ -89,7 +91,8 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
             public void doAfterNodes(int n, Client client) throws IOException {
                 ensureGreen("test");
                 Response response =
-                    restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + internalCluster().getNodeNames()[n]));
+                    restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
+                        internalCluster().getNodeNames()[n]));
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
             }
 
@@ -109,7 +112,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
                             )
                         )
                     );
-                    Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes"));
+                    Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/voting_config_exclusions"));
                     assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
 
                     ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
@@ -133,10 +136,11 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodes.get(2)));
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2)));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
-        Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes/?wait_for_removal=false"));
+        Response deleteResponse = restClient.performRequest(
+            new Request("DELETE", "/_cluster/voting_config_exclusions/?wait_for_removal=false"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
     }
@@ -145,11 +149,11 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         List<String> nodes = internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodeToWithdraw));
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodeToWithdraw));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToWithdraw));
-        Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes"));
+        Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/voting_config_exclusions"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
     }
@@ -158,13 +162,13 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
         try {
-            restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/invalid"));
+            restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/invalid"));
             fail("Invalid node name should throw.");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(
                 e.getCause().getMessage(),
-                Matchers.containsString("add voting tombstones request for [invalid] matched no master-eligible nodes")
+                Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
             );
         }
     }

@@ -116,7 +116,10 @@ aggregation has been used on the `temperature` field, yielding the following res
   "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
-    "total" : 0,
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    },
     "max_score" : 0.0,
     "hits" : [ ]
   },
@@ -219,7 +222,10 @@ The response to the above query will look as expected, despite spanning rollup a
   "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
-    "total" : 0,
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    },
     "max_score" : 0.0,
     "hits" : [ ]
   },

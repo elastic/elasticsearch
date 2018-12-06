@@ -24,6 +24,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -46,6 +47,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -71,6 +73,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -97,6 +100,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -128,6 +132,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -150,6 +155,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -172,6 +178,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -194,6 +201,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -216,6 +224,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -238,6 +247,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -275,6 +285,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -326,6 +337,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -365,12 +377,13 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 script_fields:
                     foobar:
                         script: 
-                            source: "doc['f'].values.size()"
+                            source: "doc['f'].size()"
                             lang: painless
 
 
@@ -392,6 +405,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 aggs:
@@ -429,6 +443,7 @@
     - do:
         catch: bad_request
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 aggs:
@@ -442,3 +457,43 @@
     - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ScriptBytesValues value)" }
     - match: { error.type: "search_phase_execution_exception" }
     - match: { error.reason: "all shards failed" }
+
+
+---
+
+"Exception on negative score":
+    - skip:
+        version: " - 6.99.99"
+        reason: "check on negative scores was added from 7.0.0 on"
+
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        catch: bad_request
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            allow_partial_search_results: false
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "painless",
+                                    "source": "doc['num1'].value - 10.0"
+                                }
+                            }
+                        }]
+    - match: { error.root_cause.0.type: "illegal_argument_exception" }
+    - match: { error.root_cause.0.reason: "script score function must not produce negative scores, but got: [-9.0]"}

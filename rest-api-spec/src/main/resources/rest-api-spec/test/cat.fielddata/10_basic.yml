@@ -42,6 +42,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: index
         body:
           query: { match_all: {} }

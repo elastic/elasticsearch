@@ -91,6 +91,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
         DatafeedJobValidator.validate(datafeed, job);
+        DatafeedConfig.validateAggregations(datafeed.getParsedAggregations());
         JobState jobState = MlTasks.getJobState(datafeed.getJobId(), tasks);
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +

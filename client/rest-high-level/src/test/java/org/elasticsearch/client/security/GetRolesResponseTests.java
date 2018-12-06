@@ -71,6 +71,10 @@ public class GetRolesResponseTests extends ESTestCase {
                 @Override
                 public void usedDeprecatedField(String usedName, String replacedWith) {
                 }
+
+                @Override
+                public void deprecated(String message, Object... params) {
+                }
             }, json)));
         assertThat(response.getRoles().size(), equalTo(1));
         final Role role = response.getRoles().get(0);

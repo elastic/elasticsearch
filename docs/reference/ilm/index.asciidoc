@@ -68,4 +68,6 @@ include::update-lifecycle-policy.asciidoc[]
 
 include::error-handling.asciidoc[]
 
+include::ilm-and-snapshots.asciidoc[]
+
 include::start-stop-ilm.asciidoc[]

@@ -153,13 +153,13 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(job.getId() + "-datafeed",
             job.getId(),
             Collections.singletonList(index));
-        datafeedConfigBuilder.setAggregations(new AggregatorFactories.Builder().addAggregator(
+        datafeedConfigBuilder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("time")
                     .subAggregation(maxTime)
                     .subAggregation(avgAggregationBuilder)
                     .field("time")
                     .interval(TimeValue.timeValueMinutes(5).millis())));
-        datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gte(numDocs/2));
+        datafeedConfigBuilder.setParsedQuery(new RangeQueryBuilder("value").gte(numDocs/2));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
         datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
 

@@ -106,6 +106,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -261,7 +262,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStateMetaData shardStateMetaData = load(logger, shardPath.getShardStatePath());
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         // but index can't be opened for a failed shard
-        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
+        assertThat("store index should be corrupted", StoreUtils.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
             (shardId, lockTimeoutMS) -> new DummyShardLock(shardId)),
             equalTo(false));
     }
@@ -733,7 +734,6 @@ public class IndexShardTests extends IndexShardTestCase {
         return fut.get();
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testOperationPermitOnReplicaShards() throws Exception {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
@@ -1024,7 +1024,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -1089,7 +1088,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(indexShard, false);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRollbackReplicaEngineOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
 
@@ -3442,6 +3440,67 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
         assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(globalCheckpoint));
         closeShard(shard, false);
+    }
+
+    public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {
+        final IndexShard replica = newStartedShard(false);
+        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));
+
+        final int nbTermUpdates = randomIntBetween(1, 5);
+
+        for (int i = 0; i < nbTermUpdates; i++) {
+            long opPrimaryTerm = replica.getOperationPrimaryTerm() + 1;
+            final long globalCheckpoint = replica.getGlobalCheckpoint();
+            final long maxSeqNoOfUpdatesOrDeletes = replica.getMaxSeqNoOfUpdatesOrDeletes();
+
+            final int operations = scaledRandomIntBetween(5, 32);
+            final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
+            final CountDownLatch latch = new CountDownLatch(operations);
+
+            final Thread[] threads = new Thread[operations];
+            for (int j = 0; j < operations; j++) {
+                threads[j] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                    } catch (final BrokenBarrierException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    replica.acquireAllReplicaOperationsPermits(
+                        opPrimaryTerm,
+                        globalCheckpoint,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(final Releasable releasable) {
+                                try (Releasable ignored = releasable) {
+                                    assertThat(replica.getPendingPrimaryTerm(), greaterThanOrEqualTo(opPrimaryTerm));
+                                    assertThat(replica.getOperationPrimaryTerm(), equalTo(opPrimaryTerm));
+                                } finally {
+                                    latch.countDown();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(final Exception e) {
+                                try {
+                                    throw new RuntimeException(e);
+                                } finally {
+                                    latch.countDown();
+                                }
+                            }
+                        }, TimeValue.timeValueMinutes(30L));
+                });
+                threads[j].start();
+            }
+            barrier.await();
+            latch.await();
+
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
+
+        closeShard(replica, false);
     }
 
     /**

@@ -43,6 +43,10 @@ public class DeleteRoleMappingResponseTests extends ESTestCase {
                     @Override
                     public void usedDeprecatedField(String usedName, String replacedWith) {
                     }
+
+                    @Override
+                    public void deprecated(String message, Object... params) {
+                    }
                 }, json));
         final DeleteRoleMappingResponse expectedResponse = new DeleteRoleMappingResponse(true);
         assertThat(response, equalTo(expectedResponse));

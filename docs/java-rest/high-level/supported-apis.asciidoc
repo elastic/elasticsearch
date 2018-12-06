@@ -421,19 +421,23 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<{upid}-start-watch-service>>
 * <<{upid}-stop-watch-service>>
 * <<java-rest-high-x-pack-watcher-put-watch>>
+* <<{upid}-get-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
+* <<{upid}-execute-watch>>
 * <<{upid}-watcher-stats>>
 
 include::watcher/start-watch-service.asciidoc[]
 include::watcher/stop-watch-service.asciidoc[]
 include::watcher/put-watch.asciidoc[]
+include::watcher/get-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
 include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
+include::watcher/execute-watch.asciidoc[]
 include::watcher/watcher-stats.asciidoc[]
 
 == Graph APIs
@@ -469,6 +473,8 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-unfollow>>
 * <<{upid}-ccr-put-auto-follow-pattern>>
 * <<{upid}-ccr-delete-auto-follow-pattern>>
+* <<{upid}-ccr-get-auto-follow-pattern>>
+* <<{upid}-ccr-get-stats>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
@@ -476,6 +482,8 @@ include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
+include::ccr/get_auto_follow_pattern.asciidoc[]
+include::ccr/get_stats.asciidoc[]
 
 == Index Lifecycle Management APIs
 

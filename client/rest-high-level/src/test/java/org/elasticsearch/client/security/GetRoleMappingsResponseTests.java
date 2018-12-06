@@ -71,6 +71,10 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
                     @Override
                     public void usedDeprecatedField(String usedName, String replacedWith) {
                     }
+
+                    @Override
+                    public void deprecated(String message, Object... params) {
+                    }
                 }, json));
         final List<ExpressionRoleMapping> expectedRoleMappingsList = new ArrayList<>();
         expectedRoleMappingsList.add(new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name",

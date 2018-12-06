@@ -90,6 +90,15 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
+    public void testWarnWithUnknownKey() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"unknown_key\" : \"open,closed\"}}\r\n" +
+                "{\"query\" : {\"match_all\" :{}}}\r\n";
+        final FakeRestRequest restRequest =
+                new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        RestMultiSearchAction.parseRequest(restRequest, true);
+        assertWarnings("key [unknown_key] is not supported in the metadata section and will be rejected in 7.x");
+    }
+
     public void testSimpleAddWithCarriageReturn() throws Exception {
         final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n" +
             "{\"query\" : {\"match_all\" :{}}}\r\n";

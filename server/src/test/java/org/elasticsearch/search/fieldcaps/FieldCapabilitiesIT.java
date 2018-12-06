@@ -38,6 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -107,12 +108,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", true, true, new String[] {"old_index"}, null, null),
+                new FieldCapabilities("distance", "double", true, true, false, new String[] { "old_index" }, null, null),
             distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", true, false, new String[] {"new_index"}, null, null),
+                new FieldCapabilities("distance", "text", true, false, false, new String[] { "new_index" }, null, null),
             distance.get("text"));
 
         // Check the capabilities for the 'route_length_miles' alias.
@@ -121,7 +122,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true, true),
+                new FieldCapabilities("route_length_miles", "double", true, true, false),
             routeLength.get("double"));
     }
 

@@ -158,7 +158,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(), key -> new FieldCapabilities.Builder(field,
                 key));
-            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable());
+            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.isMeta());
         }
     }
 }

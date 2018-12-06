@@ -264,3 +264,25 @@ setup:
   - match: {fields.geo.keyword.indices:                 ["test3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+---
+"Get meta field information":
+  - skip:
+      version: " - 6.99.99"
+      reason: meta fields are returned since 7.0
+
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: [text, _index]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.text.text.indices
+  - is_false: fields.text.text.non_searchable_indices
+  - is_false: fields.text.text.non_aggregatable_indices
+  - match: {fields._index._index.searchable:            true}
+  - match: {fields._index._index.aggregatable:          true}
+  - match: {fields._index._index.meta:                  true}
+  - is_false: fields._index._index.indices
+  - is_false: fields._index._index.non_searchable_indices
+  - is_false: fields._index._index.non_aggregatable_indices

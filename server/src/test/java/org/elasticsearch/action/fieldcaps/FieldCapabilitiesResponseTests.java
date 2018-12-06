@@ -173,16 +173,16 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false));
+        titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false, false));
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
         ratingCapabilities.put("long", new FieldCapabilities("rating", "long",
-            true, false,
+            true, false, false,
             new String[]{"index1", "index2"},
             null,
             new String[]{"index1"}));
         ratingCapabilities.put("keyword", new FieldCapabilities("rating", "keyword",
-            false, true,
+            false, true, false,
             new String[]{"index3", "index4"},
             new String[]{"index4"},
             null));

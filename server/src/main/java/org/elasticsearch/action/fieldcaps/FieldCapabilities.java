@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +43,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
+    private static final ParseField META_FIELD = new ParseField("meta");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField NON_SEARCHABLE_INDICES_FIELD = new ParseField("non_searchable_indices");
     private static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
@@ -50,6 +52,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final String type;
     private final boolean isSearchable;
     private final boolean isAggregatable;
+    private final boolean isMeta;
 
     private final String[] indices;
     private final String[] nonSearchableIndices;
@@ -61,9 +64,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param type The type associated with the field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isMeta Whether this is a meta field.
      */
-    public FieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
-        this(name, type, isSearchable, isAggregatable, null, null, null);
+    public FieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable, boolean isMeta) {
+        this(name, type, isSearchable, isAggregatable, isMeta, null, null, null);
     }
 
     /**
@@ -72,6 +76,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param type The type associated with the field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isMeta Whether this is a meta field.
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
@@ -80,7 +85,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                               or null if the field is aggregatable in all indices.
      */
     public FieldCapabilities(String name, String type,
-                      boolean isSearchable, boolean isAggregatable,
+            boolean isSearchable, boolean isAggregatable, boolean isMeta,
                       String[] indices,
                       String[] nonSearchableIndices,
                       String[] nonAggregatableIndices) {
@@ -88,6 +93,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.type = type;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
+        this.isMeta = isMeta;
         this.indices = indices;
         this.nonSearchableIndices = nonSearchableIndices;
         this.nonAggregatableIndices = nonAggregatableIndices;
@@ -101,6 +107,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
+        this.isMeta = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -112,6 +119,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(isMeta);
+        }
     }
 
     @Override
@@ -120,6 +130,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
+        if (isMeta) {
+            builder.field(META_FIELD.getPreferredName(), isMeta);
+        }
         if (indices != null) {
             builder.field(INDICES_FIELD.getPreferredName(), indices);
         }
@@ -145,14 +158,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             (String) a[0],
             (boolean) a[1],
             (boolean) a[2],
-            a[3] != null ? ((List<String>) a[3]).toArray(new String[0]) : null,
+            a[3] != null ? (boolean) a[3] : false,
             a[4] != null ? ((List<String>) a[4]).toArray(new String[0]) : null,
-            a[5] != null ? ((List<String>) a[5]).toArray(new String[0]) : null));
+            a[5] != null ? ((List<String>) a[5]).toArray(new String[0]) : null,
+            a[6] != null ? ((List<String>) a[6]).toArray(new String[0]) : null));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), META_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD);
@@ -177,6 +192,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      */
     public boolean isSearchable() {
         return isSearchable;
+    }
+
+    /**
+     * Whether this is a meta field.
+     */
+    public boolean isMeta() {
+        return isMeta;
     }
 
     /**
@@ -212,17 +234,36 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         FieldCapabilities that = (FieldCapabilities) o;
 
-        if (isSearchable != that.isSearchable) return false;
-        if (isAggregatable != that.isAggregatable) return false;
-        if (!name.equals(that.name)) return false;
-        if (!type.equals(that.type)) return false;
-        if (!Arrays.equals(indices, that.indices)) return false;
-        if (!Arrays.equals(nonSearchableIndices, that.nonSearchableIndices)) return false;
+        if (isSearchable != that.isSearchable) {
+            return false;
+        }
+        if (isAggregatable != that.isAggregatable) {
+            return false;
+        }
+        if (isMeta != that.isMeta) {
+            return false;
+        }
+        if (!name.equals(that.name)) {
+            return false;
+        }
+        if (!type.equals(that.type)) {
+            return false;
+        }
+        if (!Arrays.equals(indices, that.indices)) {
+            return false;
+        }
+        if (!Arrays.equals(nonSearchableIndices, that.nonSearchableIndices)) {
+            return false;
+        }
         return Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices);
     }
 
@@ -232,6 +273,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         result = 31 * result + type.hashCode();
         result = 31 * result + (isSearchable ? 1 : 0);
         result = 31 * result + (isAggregatable ? 1 : 0);
+        result = 31 * result + (isMeta ? 1 : 0);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
@@ -243,6 +285,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private String type;
         private boolean isSearchable;
         private boolean isAggregatable;
+        private boolean isMeta;
         private List<IndexCaps> indiceList;
 
         Builder(String name, String type) {
@@ -250,14 +293,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.type = type;
             this.isSearchable = true;
             this.isAggregatable = true;
+            this.isMeta = true;
             this.indiceList = new ArrayList<>();
         }
 
-        void add(String index, boolean search, boolean agg) {
+        void add(String index, boolean search, boolean agg, boolean meta) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
+            this.isMeta &= meta;
         }
 
         FieldCapabilities build(boolean withIndices) {
@@ -298,7 +343,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             } else {
                 nonAggregatableIndices = null;
             }
-            return new FieldCapabilities(name, type, isSearchable, isAggregatable,
+            return new FieldCapabilities(name, type, isSearchable, isAggregatable, isMeta,
                 indices, nonSearchableIndices, nonAggregatableIndices);
         }
     }

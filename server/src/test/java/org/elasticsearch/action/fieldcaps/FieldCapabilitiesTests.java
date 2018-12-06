@@ -48,14 +48,15 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", true, false);
-        builder.add("index2", true, false);
-        builder.add("index3", true, false);
+        builder.add("index1", true, false, false);
+        builder.add("index2", true, false, true);
+        builder.add("index3", true, false, true);
 
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(false));
+            assertThat(cap1.isMeta(), equalTo(false));
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
@@ -63,6 +64,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(false));
+            assertThat(cap2.isMeta(), equalTo(false));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
             assertNull(cap2.nonSearchableIndices());
@@ -70,13 +72,14 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true);
-        builder.add("index2", true, false);
-        builder.add("index3", false, false);
+        builder.add("index1", false, true, true);
+        builder.add("index2", true, false, true);
+        builder.add("index3", false, false, true);
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
             assertThat(cap1.isAggregatable(), equalTo(false));
+            assertThat(cap1.isMeta(), equalTo(true));
             assertNull(cap1.indices());
             assertThat(cap1.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
             assertThat(cap1.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
@@ -84,6 +87,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(false));
             assertThat(cap2.isAggregatable(), equalTo(false));
+            assertThat(cap2.isMeta(), equalTo(true));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
             assertThat(cap1.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
@@ -114,7 +118,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             }
         }
         return new FieldCapabilities(fieldName,
-            randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(),
+                randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(), randomBoolean(),
             indices, nonSearchableIndices, nonAggregatableIndices);
     }
 
@@ -124,6 +128,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String type = instance.getType();
         boolean isSearchable = instance.isSearchable();
         boolean isAggregatable = instance.isAggregatable();
+        boolean isMetaData = instance.isMeta();
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
@@ -184,6 +189,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             nonAggregatableIndices = newNonAggregatableIndices;
             break;
         }
-        return new FieldCapabilities(name, type, isSearchable, isAggregatable, indices, nonSearchableIndices, nonAggregatableIndices);
+        return new FieldCapabilities(name, type, isSearchable, isAggregatable, isMetaData, indices, nonSearchableIndices,
+                nonAggregatableIndices);
     }
 }

@@ -179,7 +179,7 @@ public class IndexResolverTests extends ESTestCase {
         List<String> nonAggregatableIndices = new ArrayList<>();
 
         UpdateableFieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
-            super(name, type, isSearchable, isAggregatable);
+            super(name, type, isSearchable, isAggregatable, false);
         }
 
         @Override

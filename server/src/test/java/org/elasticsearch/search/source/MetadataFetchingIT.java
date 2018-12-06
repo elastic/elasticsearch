@@ -52,7 +52,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field", "value").get();
         refresh();
 
         SearchResponse response = client()
@@ -81,9 +81,9 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("_doc", "nested", "type=nested"));
         ensureGreen();
         client().prepareIndex("test", "_doc", "1")
-            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).execute().actionGet();
+            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         client().prepareIndex("test_with_types", "type1", "1")
-            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).execute().actionGet();
+            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
 
         SearchResponse response = client()
@@ -127,7 +127,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").setRouting("toto").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
         SearchResponse response = client()

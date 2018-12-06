@@ -113,7 +113,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .endObject()
                                 .endObject()
                             .endObject()
-                        .endObject()).execute().actionGet();
+                        .endObject()).get();
 
         for (int i = 0; i < docs.length; ++i) {
             XContentBuilder source = jsonBuilder()
@@ -123,7 +123,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
+            client().prepareIndex("idx", "type").setSource(source).get();
         }
         assertNoFailures(client().admin().indices().prepareRefresh("idx").
                 setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -171,7 +171,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             reqBuilder = reqBuilder.addAggregation(filter("filter" + i, filter));
         }
 
-        SearchResponse resp = reqBuilder.execute().actionGet();
+        SearchResponse resp = reqBuilder.get();
         Range range = resp.getAggregations().get("range");
         List<? extends Bucket> buckets = range.getBuckets();
 
@@ -233,7 +233,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .endObject()
                                 .endObject()
                             .endObject()
-                        .endObject()).execute().actionGet();
+                        .endObject()).get();
 
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
@@ -300,7 +300,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
                                     .size(maxNumTerms)
                                     .subAggregation(extendedStats("stats").field("num")))
-                .execute().actionGet();
+                .get();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits());
 
@@ -343,7 +343,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .endObject()
                                 .endObject()
                             .endObject()
-                        .endObject()).execute().actionGet();
+                        .endObject()).get();
 
 
         final int numDocs = scaledRandomIntBetween(500, 5000);
@@ -365,7 +365,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(randomFrom(values));
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
+            client().prepareIndex("idx", "type").setSource(source).get();
         }
         assertNoFailures(client().admin().indices().prepareRefresh("idx")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -386,7 +386,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                 .field("values")
                                 .interval(interval)
                                 .minDocCount(1))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(resp);
 
@@ -414,7 +414,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .endObject()
                                 .endObject()
                             .endObject()
-                        .endObject()).execute().actionGet();
+                        .endObject()).get();
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
         logger.info("Indexing [{}] docs", numDocs);
@@ -430,7 +430,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                 .field("double_value")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .subAggregation(percentiles("pcts").field("double_value")))
-                .execute().actionGet();
+                .get();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits());
     }
@@ -447,7 +447,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                         .addUnboundedTo(6)
                         .addUnboundedFrom(6)
                 .subAggregation(sum("sum").field("f"))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 

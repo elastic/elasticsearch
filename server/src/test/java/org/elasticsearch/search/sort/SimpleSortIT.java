@@ -171,7 +171,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         Collections.shuffle(builders, random);
         for (IndexRequestBuilder builder : builders) {
-            builder.execute().actionGet();
+            builder.get();
             if (random.nextBoolean()) {
                 if (random.nextInt(5) != 0) {
                     refresh();

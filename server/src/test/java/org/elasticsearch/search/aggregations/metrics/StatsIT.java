@@ -67,7 +67,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(stats("stats").field("value")))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -92,7 +92,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -126,7 +126,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -145,7 +145,7 @@ public class StatsIT extends AbstractNumericTestCase {
     public void testSingleValuedField_WithFormatter() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(stats("stats").format("0000.0").field("value")).execute().actionGet();
+                .addAggregation(stats("stats").format("0000.0").field("value")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -166,7 +166,7 @@ public class StatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(stats("stats").field("value"))).execute().actionGet();
+                .addAggregation(global("global").subAggregation(stats("stats").field("value"))).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -205,7 +205,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -276,7 +276,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("values"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 

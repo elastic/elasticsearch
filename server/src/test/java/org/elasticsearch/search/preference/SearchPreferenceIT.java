@@ -58,30 +58,32 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
     // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", cluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", cluster().numDataNodes()+2)
+                .put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").execute().actionGet();
+            client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_nodes:somenode", "_prefer_nodes:server2", "_prefer_nodes:somenode,server2"};
+        client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_nodes:somenode", "_prefer_nodes:server2",
+                "_prefer_nodes:somenode,server2"};
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
-            SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).get();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
-            searchResponse = client().prepareSearch().setPreference(pref).execute().actionGet();
+            searchResponse = client().prepareSearch().setPreference(pref).get();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
         }
 
         //_only_local is a stricter preference, we need to send the request to a data node
-        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local").execute().actionGet();
+        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local").get();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
         assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
-        searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").execute().actionGet();
+        searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").get();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
         assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
     }
@@ -93,13 +95,13 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).get();
         String firstNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).get();
         String secondNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
 
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
@@ -109,32 +111,32 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
 
@@ -142,23 +144,23 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 0}", XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
         refresh();
 
         try {
-            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").get();
             fail("should have failed because there are no replicas");
         } catch (Exception e) {
             // pass
         }
 
-        SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").get();
         assertThat(resp.getHits().getTotalHits(), equalTo(1L));
 
         client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen("test");
 
-        resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").get();
         assertThat(resp.getHits().getTotalHits(), equalTo(1L));
     }
 
@@ -167,7 +169,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ensureGreen();
 
         try {
-            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_nodes:DOES-NOT-EXIST").execute().actionGet();
+            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_nodes:DOES-NOT-EXIST").get();
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e, hasToString(containsString("no data nodes with criteria [DOES-NOT-EXIST] found for shard: [test][")));
@@ -179,7 +181,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
             Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))));
         ensureGreen();
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -194,7 +196,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ArrayList<String> allNodeIds = new ArrayList<>();
         ArrayList<String> allNodeNames = new ArrayList<>();
         ArrayList<String> allNodeHosts = new ArrayList<>();
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         for (NodeStats node : nodeStats.getNodes()) {
             allNodeIds.add(node.getNode().getId());
             allNodeNames.add(node.getNode().getName());
@@ -226,7 +228,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     private void assertSearchOnRandomNodes(SearchRequestBuilder request) {
         Set<String> hitNodes = new HashSet<>();
         for (int i = 0; i < 2; i++) {
-            SearchResponse searchResponse = request.execute().actionGet();
+            SearchResponse searchResponse = request.get();
             assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
             hitNodes.add(searchResponse.getHits().getAt(0).getShard().getNodeId());
         }

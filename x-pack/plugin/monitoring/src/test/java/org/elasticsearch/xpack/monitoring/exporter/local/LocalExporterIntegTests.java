@@ -84,7 +84,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 indexRandom(true, indexRequestBuilders);
             }
 
-            // start the monitoring service so that _xpack/monitoring/_bulk is not ignored
+            // start the monitoring service so that /_monitoring/bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
                     .put(MonitoringService.ENABLED.getKey(), true)
                     .put("xpack.monitoring.exporters._local.enabled", true)
@@ -115,7 +115,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     ensureYellowAndNoInitializingShards(".monitoring-*");
 
                     SearchResponse response = client().prepareSearch(".monitoring-*").get();
-                    assertThat((long)nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits()));
+                    assertThat((long)nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value));
                 });
 
                 checkMonitoringTemplates();
@@ -131,27 +131,27 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
-                        .get().getHits().getTotalHits(), greaterThan(0L));
+                        .get().getHits().getTotalHits().value, greaterThan(0L));
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "index_recovery"))
-                        .get().getHits().getTotalHits(), greaterThan(0L));
+                        .get().getHits().getTotalHits().value, greaterThan(0L));
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "index_stats"))
-                        .get().getHits().getTotalHits(), greaterThan(0L));
+                        .get().getHits().getTotalHits().value, greaterThan(0L));
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "indices_stats"))
-                        .get().getHits().getTotalHits(), greaterThan(0L));
+                        .get().getHits().getTotalHits().value, greaterThan(0L));
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "shards"))
-                        .get().getHits().getTotalHits(), greaterThan(0L));
+                        .get().getHits().getTotalHits().value, greaterThan(0L));
 
                 SearchResponse response = client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
@@ -263,7 +263,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         DateTimeFormatter dateFormatter = DateTimeFormat.forPattern(customTimeFormat).withZoneUTC();
 
         SearchResponse searchResponse = client().prepareSearch(".monitoring-*").setSize(100).get();
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             final Map<String, Object> source = hit.getSourceAsMap();

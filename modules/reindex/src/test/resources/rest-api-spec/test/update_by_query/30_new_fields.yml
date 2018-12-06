@@ -31,6 +31,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:
@@ -46,6 +47,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:

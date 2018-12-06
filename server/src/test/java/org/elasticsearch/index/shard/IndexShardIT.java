@@ -297,7 +297,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex(INDEX, "bar", "1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
 
         logger.info("--> closing the index [{}]", INDEX);
         client().admin().indices().prepareClose(INDEX).get();
@@ -307,7 +307,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ensureGreen(INDEX);
 
         resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
 
         // Now, try closing and changing the settings
 
@@ -332,7 +332,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ensureGreen(INDEX);
 
         resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
 
         assertAcked(client().admin().indices().prepareDelete(INDEX));
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
@@ -689,7 +689,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             started.countDown();
             do {
                 searchResponse = client().prepareSearch().get();
-            } while (searchResponse.getHits().totalHits != totalNumDocs.get());
+            } while (searchResponse.getHits().getTotalHits().value != totalNumDocs.get());
         });
         t.start();
         started.await();
@@ -842,7 +842,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         }
         shard.refresh("test");
-        assertThat(client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs));
+        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         shard.resetEngineToGlobalCheckpoint();
         final long moreDocs = between(10, 20);
@@ -858,7 +858,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 (long) searcher.reader().numDocs(), equalTo(numDocs + moreDocs));
         }
         assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs + moreDocs));
+            client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs + moreDocs));
     }
 
 }

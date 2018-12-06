@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -33,12 +32,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);
 
-        String line = "public void bar() {}";
-        File file = new File(project.getProjectDir(), "src/main/java/Foo.java");
-        file.getParentFile().mkdirs();
-        file.createNewFile();
-        Files.write(file.toPath(), line.getBytes());
-
+        writeSourceFile(project, "src/main/java/Foo.java", "public void bar() {}");
         checkAndAssertTaskSuccessful(task);
     }
 
@@ -46,12 +40,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);
 
-        String line = "\tpublic void bar() {}";
-        File file = new File(project.getProjectDir(), "src/main/java/Bar.java");
-        file.getParentFile().mkdirs();
-        file.createNewFile();
-        Files.write(file.toPath(), line.getBytes());
-
+        writeSourceFile(project, "src/main/java/Bar.java", "\tpublic void bar() {}");
         checkAndAssertTaskThrowsException(task);
     }
 
@@ -64,12 +53,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         ForbiddenPatternsTask task = createTask(project);
         task.rule(rule);
 
-        List<String> lines = Arrays.asList("GOOD LINE", "//todo", "// some stuff, toDo");
-        File file = new File(project.getProjectDir(), "src/main/java/Moot.java");
-        file.getParentFile().mkdirs();
-        file.createNewFile();
-        Files.write(file.toPath(), lines, StandardCharsets.UTF_8);
-
+        writeSourceFile(project, "src/main/java/Moot.java", "GOOD LINE", "//todo", "// some stuff, toDo");
         checkAndAssertTaskThrowsException(task);
     }
 
@@ -78,11 +62,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         ForbiddenPatternsTask task = createTask(project);
         task.exclude("**/*.java");
 
-        File file = new File(project.getProjectDir(), "src/main/java/FooBarMoot.java");
-        file.getParentFile().mkdirs();
-        file.createNewFile();
-        Files.write(file.toPath(), "\t".getBytes());
-
+        writeSourceFile(project, "src/main/java/FooBarMoot.java", "\t");
         checkAndAssertTaskSuccessful(task);
     }
 
@@ -95,6 +75,15 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
 
     private ForbiddenPatternsTask createTask(Project project) {
         return project.getTasks().create("forbiddenPatterns", ForbiddenPatternsTask.class);
+    }
+
+    private void writeSourceFile(Project project, String name, String... lines) throws IOException {
+        File file = new File(project.getProjectDir(), name);
+        file.getParentFile().mkdirs();
+        file.createNewFile();
+
+        if (lines.length != 0)
+            Files.write(file.toPath(), Arrays.asList(lines), StandardCharsets.UTF_8);
     }
 
     private void checkAndAssertTaskSuccessful(ForbiddenPatternsTask task) throws IOException {

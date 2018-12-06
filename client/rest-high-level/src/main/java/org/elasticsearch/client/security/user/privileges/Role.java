@@ -22,6 +22,7 @@ package org.elasticsearch.client.security.user.privileges;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -50,7 +51,7 @@ public final class Role {
     public static final ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Role, String> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
+    public static final ConstructingObjectParser<Tuple<Role, Map<String, Object>>, String> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
         (constructorObjects, roleName) -> {
                 // Don't ignore unknown fields. It is dangerous if the object we parse is also
                 // part of a request that we build later on, and the fields that we now ignore
@@ -64,8 +65,10 @@ public final class Role {
                 final Collection<String> runAsPrivilege = (Collection<String>) constructorObjects[i++];
                 final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
                 final Map<String, Object> transientMetadata = (Map<String, Object>) constructorObjects[i];
-            return new Role(roleName, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                    runAsPrivilege, metadata, transientMetadata);
+                return new Tuple<>(
+                        new Role(roleName, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+                                runAsPrivilege, metadata),
+                        transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) : Collections.emptyMap());
             });
 
     static {
@@ -87,15 +90,12 @@ public final class Role {
     private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
-    // this is read only from the client's perspective. The client cannot change this field of a role on the server.
-    private final Map<String, Object> transientMetadata;
 
     private Role(String name, @Nullable Collection<String> clusterPrivileges,
                  @Nullable GlobalPrivileges globalApplicationPrivileges,
                  @Nullable Collection<IndicesPrivileges> indicesPrivileges,
                  @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges,
-                 @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata,
-                 @Nullable Map<String, Object> transientMetadata) {
+                 @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata) {
         if (Strings.hasText(name) == false){
             throw new IllegalArgumentException("role name must be provided");
         } else {
@@ -114,7 +114,6 @@ public final class Role {
         // no run as privileges are granted unless otherwise specified
         this.runAsPrivilege = Collections.unmodifiableSet(runAsPrivilege != null ? new HashSet<>(runAsPrivilege) : Collections.emptySet());
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
-        this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) : Collections.emptyMap();
     }
 
     public String getName() {
@@ -143,10 +142,6 @@ public final class Role {
 
     public Map<String, Object> getMetadata() {
         return metadata;
-    }
-
-    public Map<String, Object> getTransientMetadata() {
-        return transientMetadata;
     }
 
     @Override
@@ -203,16 +198,11 @@ public final class Role {
             sb.append(metadata.toString());
             sb.append("], ");
         }
-        if (false == transientMetadata.isEmpty()) {
-            sb.append("TransientMetadata=[");
-            sb.append(transientMetadata.toString());
-            sb.append("] ");
-        }
         sb.append("}");
         return sb.toString();
     }
 
-    public static Role fromXContent(XContentParser parser, String name) {
+    public static Tuple<Role, Map<String, Object>> fromXContent(XContentParser parser, String name) {
         return PARSER.apply(parser, name);
     }
 
@@ -229,7 +219,6 @@ public final class Role {
         private @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges = null;
         private @Nullable Collection<String> runAsPrivilege = null;
         private @Nullable Map<String, Object> metadata = null;
-        private @Nullable Map<String, Object> transientMetadata = null;
 
         private Builder() {
         }
@@ -299,7 +288,7 @@ public final class Role {
 
         public Role build() {
             return new Role(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                runAsPrivilege, metadata, transientMetadata);
+                runAsPrivilege, metadata);
         }
     }
 
@@ -326,7 +315,7 @@ public final class Role {
         public static final String MANAGE_PIPELINE = "manage_pipeline";
         public static final String MANAGE_CCR = "manage_ccr";
         public static final String READ_CCR = "read_ccr";
-        public static final String[] ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE,
+        public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE,
                 MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, TRANSPORT_CLIENT,
                 MANAGE_SECURITY, MANAGE_SAML, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR };
     }
@@ -349,7 +338,7 @@ public final class Role {
         public static final String CREATE_INDEX = "create_index";
         public static final String VIEW_INDEX_METADATA = "view_index_metadata";
         public static final String MANAGE_FOLLOW_INDEX = "manage_follow_index";
-        public static final String[] ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
+        public static final String[] ALL_ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
                 DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX };
     }
 

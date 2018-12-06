@@ -1026,7 +1026,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-role-execute
             final Role role = Role.builder()
                     .name("testPutRole")
-                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ARRAY))
+                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
                     .build();
             final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
             final PutRoleResponse response = client.security().putRole(request, RequestOptions.DEFAULT);
@@ -1040,7 +1040,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             final Role role = Role.builder()
                     .name("testPutRole")
-                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ARRAY))
+                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
                     .build();
             final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
             // tag::put-role-execute-listener

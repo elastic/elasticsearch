@@ -31,7 +31,7 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
     public static IndicesPrivileges createNewRandom(String query) {
         final IndicesPrivileges.Builder indicesPrivilegesBuilder = IndicesPrivileges.builder()
             .indices(generateRandomStringArray(4, 4, false, false))
-            .privileges(randomSubsetOf(randomIntBetween(1, 4), Role.IndexPrivilegeName.ARRAY))
+            .privileges(randomSubsetOf(randomIntBetween(1, 4), Role.IndexPrivilegeName.ALL_ARRAY))
             .query(query);
         if (randomBoolean()) {
             final List<String> fields = Arrays.asList(generateRandomStringArray(4, 4, false));

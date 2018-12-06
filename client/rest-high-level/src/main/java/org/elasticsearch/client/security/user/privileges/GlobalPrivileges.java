@@ -49,7 +49,7 @@ public final class GlobalPrivileges implements ToXContentObject {
 
     // When categories change, adapting this field should suffice. Categories are NOT
     // opaque "named_objects", we wish to maintain control over these namespaces
-    public static final List<String> CATEGORIES = Collections.unmodifiableList(Arrays.asList("application"));
+    public static final List<String> CATEGORIES = Collections.singletonList("application");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_category_privileges",

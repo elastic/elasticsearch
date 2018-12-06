@@ -339,7 +339,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
 
     public void testPutRole() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(4, 7);
-        final List<String> clusterPrivileges = randomSubsetOf(3, Role.ClusterPrivilegeName.ARRAY);
+        final List<String> clusterPrivileges = randomSubsetOf(3, Role.ClusterPrivilegeName.ALL_ARRAY);
         final Map<String, Object> metadata = Collections.singletonMap(randomAlphaOfLengthBetween(4, 7), randomAlphaOfLengthBetween(4, 7));
         final String[] runAsPrivilege = randomArray(3, String[]::new, () -> randomAlphaOfLength(5));
         final List<String> applicationPrivilegeNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));

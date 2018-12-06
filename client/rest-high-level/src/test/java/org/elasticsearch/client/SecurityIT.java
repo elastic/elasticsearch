@@ -160,7 +160,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
     private static Role randomRole(String roleName) {
         final Role.Builder roleBuilder = Role.builder()
                 .name(roleName)
-                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ARRAY))
+                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
                 .indicesPrivileges(
                         randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
@@ -175,13 +175,6 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
                 metadata.put(randomAlphaOfLength(3), randomAlphaOfLength(3));
             }
             roleBuilder.metadata(metadata);
-        }
-        if (randomBoolean()) {
-            final Map<String, Object> transientMetadata = new HashMap<>();
-            for (int i = 0; i < randomInt(3); i++) {
-                transientMetadata.put(randomAlphaOfLength(3), randomAlphaOfLength(3));
-            }
-            roleBuilder.metadata(transientMetadata);
         }
         return roleBuilder.build();
     }

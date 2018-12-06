@@ -27,6 +27,7 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -35,6 +36,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.empty;
 
 public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest> {
 
@@ -48,7 +52,9 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
 
     @Override
     protected PutRoleRequest doParseInstance(XContentParser parser) throws IOException {
-        return new PutRoleRequest(Role.fromXContent(parser, roleName), null);
+        final Tuple<Role, Map<String, Object>> roleAndTransientMetadata = Role.fromXContent(parser, roleName);
+        assertThat(roleAndTransientMetadata.v2().entrySet(), is(empty()));
+        return new PutRoleRequest(roleAndTransientMetadata.v1(), null);
     }
 
     @Override
@@ -58,7 +64,7 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
 
     private static Role randomRole(String roleName) {
         final Role.Builder roleBuilder = Role.builder().name(roleName)
-                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ARRAY))
+                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
                 .indicesPrivileges(
                         randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
@@ -75,14 +81,7 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
             }
             roleBuilder.metadata(metadata);
         }
-        if (randomBoolean()) {
-            final Map<String, Object> transientMetadata = new HashMap<>();
-            for (int i = 0; i < randomInt(3); i++) {
-                transientMetadata.put(randomAlphaOfLength(3), randomAlphaOfLength(3));
-            }
-            roleBuilder.metadata(transientMetadata);
-        }
-        return roleBuilder.build();
+        return roleBuilder.build(); 
     }
 
 }

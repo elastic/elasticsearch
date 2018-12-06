@@ -73,6 +73,7 @@ public class GetRolesResponseTests extends ESTestCase {
                 }
             }, json)));
         assertThat(response.getRoles().size(), equalTo(1));
+        assertThat(response.getTransientMetadataMap().size(), equalTo(1));
         final Role role = response.getRoles().get(0);
         assertThat(role.getName(), equalTo("my_admin_role"));
         assertThat(role.getClusterPrivileges().size(), equalTo(1));
@@ -86,6 +87,7 @@ public class GetRolesResponseTests extends ESTestCase {
         expectedMetadata.put("version", 1);
         final Map<String, Object> expectedTransientMetadata = new HashMap<>();
         expectedTransientMetadata.put("enabled", true);
+        assertThat(response.getTransientMetadataMap().get(role.getName()), equalTo(expectedTransientMetadata));
         final Role expectedRole = Role.builder()
             .name("my_admin_role")
             .clusterPrivileges("all")
@@ -94,11 +96,11 @@ public class GetRolesResponseTests extends ESTestCase {
             .metadata(expectedMetadata)
             .build();
         assertThat(role, equalTo(expectedRole));
-        assertThat(role.getTransientMetadata(), equalTo(expectedTransientMetadata));
     }
 
     public void testEqualsHashCode() {
         final List<Role> roles = new ArrayList<>();
+        final Map<String, Map<String, Object>> transientMetadataMap = new HashMap<>();
         IndicesPrivileges indicesPrivileges = new IndicesPrivileges.Builder()
             .indices("index1", "index2")
             .privileges("write", "monitor", "delete")
@@ -115,6 +117,9 @@ public class GetRolesResponseTests extends ESTestCase {
             .metadata(metadata)
             .build();
         roles.add(role);
+        Map<String, Object> transientMetadata = new HashMap<>();
+        transientMetadata.put("transient_key", "transient_value");
+        transientMetadataMap.put(role.getName(), transientMetadata);
         IndicesPrivileges indicesPrivileges2 = new IndicesPrivileges.Builder()
             .indices("other_index1", "other_index2")
             .privileges("write", "monitor", "delete")
@@ -131,20 +136,23 @@ public class GetRolesResponseTests extends ESTestCase {
             .metadata(metadata2)
             .build();
         roles.add(role2);
-        final GetRolesResponse getRolesResponse = new GetRolesResponse(roles);
-        assertNotNull(getRolesResponse);
+        Map<String, Object> transientMetadata2 = new HashMap<>();
+        transientMetadata2.put("other_transient_key", "other_transient_value");
+        transientMetadataMap.put(role2.getName(), transientMetadata);
+        final GetRolesResponse getRolesResponse = new GetRolesResponse(roles, transientMetadataMap);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRolesResponse, (original) -> {
-            return new GetRolesResponse(original.getRoles());
+            return new GetRolesResponse(original.getRoles(), original.getTransientMetadataMap());
         });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRolesResponse, (original) -> {
-            return new GetRolesResponse(original.getRoles());
+            return new GetRolesResponse(original.getRoles(), original.getTransientMetadataMap());
         }, GetRolesResponseTests::mutateTestItem);
 
     }
 
     private static GetRolesResponse mutateTestItem(GetRolesResponse original) {
+        final List<Role> roles = new ArrayList<>();
+        final Map<String, Map<String, Object>> transientMetadataMap = new HashMap<>();
         if (randomBoolean()) {
-            final List<Role> roles = new ArrayList<>();
             IndicesPrivileges indicesPrivileges = new IndicesPrivileges.Builder()
                 .indices("index1", "index2")
                 .privileges("write", "monitor", "delete")
@@ -161,7 +169,10 @@ public class GetRolesResponseTests extends ESTestCase {
                 .metadata(metadata)
                 .build();
             roles.add(role);
-            return new GetRolesResponse(roles);
+            Map<String, Object> transientMetadata = new HashMap<>();
+            transientMetadata.put("transient_key", "transient_value");
+            transientMetadataMap.put(role.getName(), transientMetadata);
+            return new GetRolesResponse(roles, transientMetadataMap);
         } else {
             IndicesPrivileges indicesPrivileges = new IndicesPrivileges.Builder()
                 .indices("index1_changed", "index2")
@@ -181,7 +192,10 @@ public class GetRolesResponseTests extends ESTestCase {
             List<Role> newRoles = original.getRoles().stream().collect(Collectors.toList());
             newRoles.remove(0);
             newRoles.add(role);
-            return new GetRolesResponse(newRoles);
+            Map<String, Object> transientMetadata = new HashMap<>();
+            transientMetadata.put("transient_key", "transient_value");
+            transientMetadataMap.put(role.getName(), transientMetadata);
+            return new GetRolesResponse(newRoles, transientMetadataMap);
         }
     }
 }

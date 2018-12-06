@@ -132,7 +132,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertEquals("leader_cluster", ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY));
         assertEquals(followerIndex, followerMetadata.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(true, IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followerMetadata.getSettings()));
-        assertEquals(leaderMetadata.getVersion(), followerMetadata.getVersion());
 
         // UUID is changed so that we can follow indexes on same cluster
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());

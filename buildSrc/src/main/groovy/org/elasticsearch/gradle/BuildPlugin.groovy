@@ -263,6 +263,8 @@ class BuildPlugin implements Plugin<Project> {
                     dockerBinary = '/usr/bin/docker'
                 } else if (new File('/usr/local/bin/docker').exists()) {
                     dockerBinary = '/usr/local/bin/docker'
+                } else {
+                    dockerBinary = null
                 }
                 final int exitCode
                 final String dockerErrorOutput
@@ -313,9 +315,7 @@ class BuildPlugin implements Plugin<Project> {
         if (rootProject.buildDocker) {
             rootProject.requiresDocker.add(task)
         } else {
-            // do not overwrite an existing onlyIf closure
-            final Closure onlyIf = task.onlyIf
-            task.onlyIf { onlyIf && false }
+            task.enabled = false
         }
     }
 

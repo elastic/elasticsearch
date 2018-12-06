@@ -77,6 +77,10 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         return project.getTasks().create("forbiddenPatterns", ForbiddenPatternsTask.class);
     }
 
+    private ForbiddenPatternsTask createTask(Project project, String taskName) {
+        return project.getTasks().create(taskName, ForbiddenPatternsTask.class);
+    }
+
     private void writeSourceFile(Project project, String name, String... lines) throws IOException {
         File file = new File(project.getProjectDir(), name);
         file.getParentFile().mkdirs();
@@ -88,7 +92,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
 
     private void checkAndAssertTaskSuccessful(ForbiddenPatternsTask task) throws IOException {
         task.checkInvalidPatterns();
-        assertTaskSuccessful(task.getProject());
+        assertTaskSuccessful(task.getProject(), task.getName());
     }
 
     private void checkAndAssertTaskThrowsException(ForbiddenPatternsTask task) throws IOException {
@@ -100,8 +104,8 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         }
     }
 
-    private void assertTaskSuccessful(Project project) throws IOException {
-        File outputMarker = new File(project.getBuildDir(), "markers/forbiddenPatterns");
+    private void assertTaskSuccessful(Project project, String fileName) throws IOException {
+        File outputMarker = new File(project.getBuildDir(), "markers/" + fileName);
         assertTrue(outputMarker.exists());
 
         Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();

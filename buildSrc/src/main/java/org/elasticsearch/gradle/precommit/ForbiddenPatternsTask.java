@@ -75,8 +75,6 @@ public class ForbiddenPatternsTask extends DefaultTask {
         patterns.put("tab", "\t");
     }
 
-    private File outputMarker = new File(getProject().getBuildDir(), "markers/forbiddenPatterns");
-
     public ForbiddenPatternsTask() {
         setDescription("Checks source files for invalid patterns like nocommits or tabs");
         getInputs().property("excludes", filesFilter.getExcludes());
@@ -117,13 +115,14 @@ public class ForbiddenPatternsTask extends DefaultTask {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
         }
 
+        File outputMarker = getOutputMarker();
         outputMarker.getParentFile().mkdirs();
         Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
     }
 
     @OutputFile
     public File getOutputMarker() {
-        return outputMarker;
+        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     public void exclude(String... excludes) {

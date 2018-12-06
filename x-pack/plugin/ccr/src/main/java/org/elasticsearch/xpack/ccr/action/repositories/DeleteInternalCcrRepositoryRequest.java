@@ -14,30 +14,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class DeleteInternalCcrRepositoryRequest extends ActionRequest {
 
-    private String name;
-
-    DeleteInternalCcrRepositoryRequest() {
-    }
+    private final String name;
 
     public DeleteInternalCcrRepositoryRequest(String name) {
         this.name = Objects.requireNonNull(name);
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("name is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override

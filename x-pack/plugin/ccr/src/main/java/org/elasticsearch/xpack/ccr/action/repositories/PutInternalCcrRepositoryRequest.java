@@ -14,15 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class PutInternalCcrRepositoryRequest extends ActionRequest {
 
-    private String name;
-    private String type;
-
-    PutInternalCcrRepositoryRequest() {
-    }
+    private final String name;
+    private final String type;
 
     public PutInternalCcrRepositoryRequest(String name, String type) {
         this.name = Objects.requireNonNull(name);
@@ -31,14 +26,7 @@ public class PutInternalCcrRepositoryRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("name is missing", validationException);
-        }
-        if (type == null) {
-            validationException = addValidationError("type is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override
@@ -79,13 +67,5 @@ public class PutInternalCcrRepositoryRequest extends ActionRequest {
             "name='" + name + '\'' +
             ", type='" + type + '\'' +
             '}';
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 }

@@ -6,12 +6,11 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,8 +22,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryRequest,
-    PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse, PutInternalCcrRepositoryRequestBuilder> {
+public class PutInternalCcrRepositoryAction extends GenericAction<PutInternalCcrRepositoryRequest,
+    PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
     public static final String NAME = "cluster:admin/ccr/internal_repository/put";
@@ -41,11 +40,6 @@ public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrReposit
     @Override
     public Writeable.Reader<PutInternalCcrRepositoryResponse> getResponseReader() {
         return PutInternalCcrRepositoryResponse::new;
-    }
-
-    @Override
-    public PutInternalCcrRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutInternalCcrRepositoryRequestBuilder(client);
     }
 
     public static class TransportPutInternalRepositoryAction

@@ -6,12 +6,11 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,8 +22,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class DeleteInternalCcrRepositoryAction extends Action<DeleteInternalCcrRepositoryRequest,
-    DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse, DeleteInternalCcrRepositoryRequestBuilder> {
+public class DeleteInternalCcrRepositoryAction extends GenericAction<DeleteInternalCcrRepositoryRequest,
+    DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse> {
 
     public static final DeleteInternalCcrRepositoryAction INSTANCE = new DeleteInternalCcrRepositoryAction();
     public static final String NAME = "cluster:admin/ccr/internal_repository/delete";
@@ -41,11 +40,6 @@ public class DeleteInternalCcrRepositoryAction extends Action<DeleteInternalCcrR
     @Override
     public Writeable.Reader<DeleteInternalCcrRepositoryResponse> getResponseReader() {
         return DeleteInternalCcrRepositoryResponse::new;
-    }
-
-    @Override
-    public DeleteInternalCcrRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new DeleteInternalCcrRepositoryRequestBuilder(client);
     }
 
     public static class TransportDeleteInternalRepositoryAction

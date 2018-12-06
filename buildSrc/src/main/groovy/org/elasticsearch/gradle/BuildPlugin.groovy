@@ -875,10 +875,6 @@ class BuildPlugin implements Plugin<Project> {
                     task.shouldRunAfter testTask
                 }
             }
-            // no loose ends: check has to depend on all test tasks
-            project.tasks.matching {it.name == "check"}.all {
-                dependsOn(task)
-            }
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')

@@ -704,22 +704,36 @@ public abstract class EngineTestCase extends ESTestCase {
         return ops;
     }
 
-    public List<Engine.Operation> generateReplicaHistory(int numOps, boolean allowGapInSeqNo) {
+    public List<Engine.Operation> generateHistoryOnReplica(int numOps, boolean allowGapInSeqNo, boolean allowDuplicate,
+                                                           boolean includeNestedDocs) throws Exception {
         long seqNo = 0;
-        List<Engine.Operation> operations = new ArrayList<>(numOps);
+        final int maxIdValue = randomInt(numOps * 2);
+        final List<Engine.Operation> operations = new ArrayList<>(numOps);
+        CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory();
         for (int i = 0; i < numOps; i++) {
-            String id = Integer.toString(between(1, 100));
-            final ParsedDocument doc = EngineTestCase.createParsedDoc(id, null);
-            if (randomBoolean()) {
-                operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(),
-                    -1, true));
-            } else if (randomBoolean()) {
-                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
-            } else {
-                operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA,
-                    threadPool.relativeTimeInMillis(), "test-" + i));
+            final String id = Integer.toString(randomInt(maxIdValue));
+            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
+            final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
+            final int nestedValues = between(0, 3);
+            final long startTime = threadPool.relativeTimeInMillis();
+            final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
+            for (int copy = 0; copy < copies; copy++) {
+                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
+                switch (opType) {
+                    case INDEX:
+                        operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
+                            i, null, Engine.Operation.Origin.REPLICA, startTime, -1, true));
+                        break;
+                    case DELETE:
+                        operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
+                            i, null, Engine.Operation.Origin.REPLICA, startTime));
+                        break;
+                    case NO_OP:
+                        operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA, startTime, "test-" + i));
+                        break;
+                    default:
+                        throw new IllegalStateException("Unknown operation type [" + opType + "]");
+                }
             }
             seqNo++;
             if (allowGapInSeqNo && rarely()) {

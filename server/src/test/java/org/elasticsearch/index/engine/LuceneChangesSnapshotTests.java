@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -151,49 +149,14 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     /**
-     * If an operation above the local checkpoint is delivered multiple times, an engine will add multiple copies of that operation into
-     * Lucene (only the first copy is non-stale; the remaining are stale and soft-deleted). Moreover, a nested document is indexed into
+     * If an operation above the local checkpoint is delivered multiple times, an engine will add multiple copies of that operation
+     * into Lucene (only the first copy is non-stale; others are stale and soft-deleted). Moreover, a nested document is indexed into
      * Lucene as multiple documents (only the root document has both seq_no and term, non-root docs only have seq_no). This test verifies
      * that {@link LuceneChangesSnapshot} returns exactly one operation per seq_no, and skip non-root nested documents or stale copies.
      */
     public void testSkipStaleOrNonRootOfNestedDocuments() throws Exception {
         Map<Long, Long> seqNoToTerm = new HashMap<>();
-        final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFactory = nestedParsedDocFactory();
-        int numOps = between(1, 100);
-        List<Engine.Operation> operations = new ArrayList<>();
-        for (int seqNo = 0; seqNo < numOps; seqNo++) {
-            if (rarely()) {
-                continue; // make gap in sequence number
-            }
-            final String docId = Integer.toString(between(1, 100));
-            final long startTime = randomNonNegativeLong();
-            final long term = randomLongBetween(1, primaryTerm.get());
-            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
-            final boolean nestedDocs = randomBoolean();
-            final int nestedValues = between(0, 3);
-            int copies = frequently() ? 1 : between(2, 5);
-            for (int i = 0; i < copies; i++) {
-                final ParsedDocument doc = nestedDocs ? nestedDocFactory.apply(docId, nestedValues) : createParsedDoc(docId, null);
-                final Engine.Operation op;
-                switch (opType) {
-                    case INDEX:
-                        op = new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, term, 1L,
-                            null, Engine.Operation.Origin.REPLICA, startTime, -1, true);
-                        break;
-                    case DELETE:
-                        op = new Engine.Delete(doc.type(), docId, EngineTestCase.newUid(docId), seqNo, term, 1L,
-                            null, Engine.Operation.Origin.REPLICA, startTime);
-                        break;
-                    case NO_OP:
-                        op = new Engine.NoOp(seqNo, term, Engine.Operation.Origin.REPLICA, startTime, "test-" + seqNo);
-                        break;
-                    default:
-                        throw new IllegalStateException("invalid operation type [" + opType + "]");
-                }
-                operations.add(op);
-            }
-        }
-        Randomness.shuffle(operations);
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
         int totalOps = 0;
         for (Engine.Operation op : operations) {
             // Engine skips deletes or indexes below the local checkpoint
@@ -205,13 +168,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     totalOps++;
                 }
             }
-            if (op instanceof Engine.Index) {
-                engine.index((Engine.Index) op);
-            } else if (op instanceof Engine.Delete) {
-                engine.delete((Engine.Delete) op);
-            } else if (op instanceof Engine.NoOp) {
-                engine.noOp((Engine.NoOp) op);
-            }
+            applyOperation(engine, op);
             if (rarely()) {
                 engine.refresh("test");
             }

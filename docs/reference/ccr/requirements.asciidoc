@@ -49,9 +49,10 @@ For more information about index settings, see {ref}/index-modules.html[Index mo
 ==== Setting soft deletes on indices created by APM Server or Beats
 
 If you want to replicate indices created by APM Server or Beats, and are
-allowing APM Server or Beats to manage index templates you will want to add some
-settings to enable soft deletes. For example, you could make the following
-changes to the relevant APM Server or Beats configuration file.
+allowing APM Server or Beats to manage index templates, you need to enable
+soft deletes on the underlying index templates. To enable soft deletes on the
+underlying index templates, add the following changes to the relevant APM Server
+or Beats configuration file.
 
 ["source","yaml"]
 ----------------------------------------------------------------------

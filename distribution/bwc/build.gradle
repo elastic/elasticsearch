@@ -39,7 +39,6 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
     apply plugin: 'distribution'
     // Not published so no need to assemble
     assemble.enabled = false
-    assemble.dependsOn.remove('buildBwcVersion')
 
     File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 

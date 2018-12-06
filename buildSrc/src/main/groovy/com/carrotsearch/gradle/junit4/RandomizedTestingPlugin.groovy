@@ -47,7 +47,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         unitTest.include("**/*Tests.class")
         tasks.matching { it.name == "test" }.all {
             // We don't want to run any tests with the Gradle test runner since we add our own randomized runner
-            it.exclude "**/*"
+            it.enabled = false
             it.dependsOn unitTest
         }
     }

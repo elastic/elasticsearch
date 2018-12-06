@@ -60,7 +60,7 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
         aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
 
         final DerivativePipelineAggregationBuilder builder = new DerivativePipelineAggregationBuilder("name", "valid");
-        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
 
     /**

@@ -56,7 +56,7 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
         aggBuilders.add(createTestAggregatorFactory());
 
         final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "valid");
-        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
 
     /**

@@ -273,7 +273,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
 
         final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "valid");
-        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
 
     /**

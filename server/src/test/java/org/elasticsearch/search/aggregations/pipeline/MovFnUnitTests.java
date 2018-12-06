@@ -172,7 +172,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
         aggBuilders.add(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));
 
         final MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1);
-        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
 
     /**

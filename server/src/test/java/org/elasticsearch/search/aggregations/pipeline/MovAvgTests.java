@@ -124,7 +124,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         aggBuilders.add(createTestAggregatorFactory());
 
         final MovAvgPipelineAggregationBuilder builder = new MovAvgPipelineAggregationBuilder("name", "valid");
-        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
 
     /**

@@ -44,7 +44,6 @@ class RandomizedTestingPlugin implements Plugin<Project> {
     static void createUnitTestTask(TaskContainer tasks) {
         RandomizedTestingTask unitTest = tasks.create('unitTest', RandomizedTestingTask)
         unitTest.description = 'Runs unit tests with the randomized testing framework'
-        unitTest.include("**/*Tests.class")
         tasks.matching { it.name == "test" }.all {
             // We don't want to run any tests with the Gradle test runner since we add our own randomized runner
             it.enabled = false

@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -53,7 +54,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     private static final String FIELD = "field";
     public static final String TIME_ZONE = "time_zone";
     public static final String DELAY = "delay";
-    private static final String DEFAULT_TIMEZONE = "UTC";
+    public static final String DEFAULT_TIMEZONE = "UTC";
     private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a ->
@@ -103,7 +104,8 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         this.interval = interval;
         this.field = field;
         this.delay = delay;
-        this.timeZone = DateTimeZone.forID((timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE).toString();
+        this.timeZone = ZoneId.of((timeZone != null && timeZone.isEmpty() == false)
+            ? timeZone : DEFAULT_TIMEZONE, ZoneId.SHORT_IDS).toString();
 
         // validate interval
         createRounding(this.interval.toString(), this.timeZone);

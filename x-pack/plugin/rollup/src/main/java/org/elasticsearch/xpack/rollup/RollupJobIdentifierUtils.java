@@ -18,13 +18,13 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TimeZone;
 
 /**
  * This class contains utilities to identify which jobs are the "best" for a given aggregation tree.
@@ -98,13 +98,13 @@ public class RollupJobIdentifierUtils {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
 
-                        TimeZone thisTimezone = DateTimeZone.forID((String)agg.get(DateHistogramGroupConfig.TIME_ZONE)).toTimeZone();
-                        TimeZone sourceTimeZone = source.timeZone() == null
-                            ? DateTimeZone.UTC.toTimeZone()
-                            : source.timeZone().toTimeZone();
+                        ZoneId thisTimezone = ZoneId.of(((String)agg.get(DateHistogramGroupConfig.TIME_ZONE)), ZoneId.SHORT_IDS);
+                        ZoneId sourceTimeZone = source.timeZone() == null
+                            ? ZoneId.of(DateHistogramGroupConfig.DEFAULT_TIMEZONE)
+                            : ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
 
                         // Ensure we are working on the same timezone
-                        if (thisTimezone.hasSameRules(sourceTimeZone) == false) {
+                        if (thisTimezone.getRules().equals(sourceTimeZone.getRules()) == false) {
                             continue;
                         }
                         if (source.dateHistogramInterval() != null) {

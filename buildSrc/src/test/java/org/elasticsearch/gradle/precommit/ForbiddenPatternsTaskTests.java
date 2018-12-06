@@ -9,6 +9,7 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -25,13 +26,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);
 
-        task.checkInvalidPatterns();
-
-        File outputMarker = new File(project.getBuildDir(), "markers/forbiddenPatterns");
-        Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();
-
-        assertTrue(result.isPresent());
-        assertEquals("done", result.get());
+        checkAndAssertTaskSuccessful(task);
     }
 
     public void testCheckInvalidPatternsWhenSourceFilesExistNoViolation() throws Exception {
@@ -44,13 +39,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         file.createNewFile();
         Files.write(file.toPath(), line.getBytes());
 
-        task.checkInvalidPatterns();
-
-        File outputMarker = new File(project.getBuildDir(), "markers/forbiddenPatterns");
-        Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();
-
-        assertTrue(result.isPresent());
-        assertEquals("done", result.get());
+        checkAndAssertTaskSuccessful(task);
     }
 
     public void testCheckInvalidPatternsWhenSourceFilesExistHavingTab() throws Exception {
@@ -63,12 +52,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         file.createNewFile();
         Files.write(file.toPath(), line.getBytes());
 
-        try {
-            task.checkInvalidPatterns();
-            fail("GradleException was expected to be thrown in this case!");
-        } catch (GradleException e) {
-            assertTrue(e.getMessage().startsWith("Found invalid patterns"));
-        }
+        checkAndAssertTaskThrowsException(task);
     }
 
     public void testCheckInvalidPatternsWithCustomRule() throws Exception {
@@ -86,12 +70,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         file.createNewFile();
         Files.write(file.toPath(), lines, StandardCharsets.UTF_8);
 
-        try {
-            task.checkInvalidPatterns();
-            fail("GradleException was expected to be thrown in this case!");
-        } catch (GradleException e) {
-            assertTrue(e.getMessage().startsWith("Found invalid patterns"));
-        }
+        checkAndAssertTaskThrowsException(task);
     }
 
     public void testCheckInvalidPatternsWhenExcludingFiles() throws Exception {
@@ -104,13 +83,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         file.createNewFile();
         Files.write(file.toPath(), "\t".getBytes());
 
-        task.checkInvalidPatterns();
-
-        File outputMarker = new File(project.getBuildDir(), "markers/forbiddenPatterns");
-        Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();
-
-        assertTrue(result.isPresent());
-        assertEquals("done", result.get());
+        checkAndAssertTaskSuccessful(task);
     }
 
     private Project createProject() {
@@ -122,5 +95,28 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
 
     private ForbiddenPatternsTask createTask(Project project) {
         return project.getTasks().create("forbiddenPatterns", ForbiddenPatternsTask.class);
+    }
+
+    private void checkAndAssertTaskSuccessful(ForbiddenPatternsTask task) throws IOException {
+        task.checkInvalidPatterns();
+        assertTaskSuccessful(task.getProject());
+    }
+
+    private void checkAndAssertTaskThrowsException(ForbiddenPatternsTask task) throws IOException {
+        try {
+            task.checkInvalidPatterns();
+            fail("GradleException was expected to be thrown in this case!");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().startsWith("Found invalid patterns"));
+        }
+    }
+
+    private void assertTaskSuccessful(Project project) throws IOException {
+        File outputMarker = new File(project.getBuildDir(), "markers/forbiddenPatterns");
+        assertTrue(outputMarker.exists());
+
+        Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();
+        assertTrue(result.isPresent());
+        assertEquals("done", result.get());
     }
 }

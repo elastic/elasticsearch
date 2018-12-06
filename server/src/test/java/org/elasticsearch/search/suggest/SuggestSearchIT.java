@@ -1233,7 +1233,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             suggestBuilder.addSuggestion(suggestion.getKey(), suggestion.getValue());
         }
         builder.suggest(suggestBuilder);
-        SearchResponse actionGet = builder.get();
+        SearchResponse actionGet = builder.execute().actionGet();
         assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
         return actionGet.getSuggest();
     }

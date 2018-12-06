@@ -129,7 +129,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         prepareCreate("empty_bucket_idx")
             .addMapping("type", "value", "type=integer")
-            .get();
+            .execute()
+            .actionGet();
 
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
@@ -167,7 +168,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                     .subAggregation(
                         randomBuilder()
                             .field("value")))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, 2);
 
@@ -190,7 +192,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .addAggregation(
                 randomBuilder()
                     .field("value"))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, 0);
 
@@ -208,7 +211,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .addAggregation(
                 randomBuilder()
                     .field("value"))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -228,7 +232,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                     .subAggregation(
                         randomBuilder()
                             .field("value")))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -253,7 +258,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .addAggregation(
                 randomBuilder()
                     .field("value"))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -272,7 +278,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                 randomBuilder()
                     .field("value")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap())))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -298,7 +305,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                 randomBuilder()
                     .field("value")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -320,7 +328,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .addAggregation(
                 randomBuilder()
                     .field("values"))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -339,7 +348,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                 randomBuilder()
                     .field("values")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap())))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -364,7 +374,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                 randomBuilder()
                     .field("values")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -385,7 +396,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .addAggregation(
                 randomBuilder()
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap())))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -406,7 +418,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .addAggregation(
                 randomBuilder()
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params)))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -432,7 +445,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                         AggregationTestScriptsPlugin.NAME,
                         "doc['values']",
                         Collections.emptyMap())))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -457,7 +471,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                         AggregationTestScriptsPlugin.NAME,
                         "[ doc['value'].value, doc['value'].value + inc ]",
                         params)))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -484,7 +499,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                     .subAggregation(
                         randomBuilder()
                             .field("value")))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -533,7 +549,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                             .subAggregation(
                                 randomBuilder()
                                     .field("value"))))
-            .get();
+            .execute()
+            .actionGet();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 

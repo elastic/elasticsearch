@@ -83,7 +83,7 @@ public class CombiIT extends ESIntegTestCase {
                 .addAggregation(missing("missing_values").field("value"))
                 .addAggregation(terms("values").field("value")
                         .collectMode(aggCollectionMode ))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -117,7 +117,7 @@ public class CombiIT extends ESIntegTestCase {
                     .startObject("name").field("type", "keyword").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
-                .endObject()).get();
+                .endObject()).execute().actionGet();
 
         ensureSearchable("idx");
 
@@ -126,7 +126,7 @@ public class CombiIT extends ESIntegTestCase {
                 .addAggregation(histogram("values").field("value1").interval(1)
                         .subAggregation(terms("names").field("name")
                                 .collectMode(aggCollectionMode )))
-                .get();
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");

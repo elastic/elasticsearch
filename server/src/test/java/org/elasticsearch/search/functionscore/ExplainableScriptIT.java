@@ -124,7 +124,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                     jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
         }
         indexRandom(true, true, indexRequests);
-        client().admin().indices().prepareRefresh().get();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(

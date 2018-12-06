@@ -322,7 +322,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("value").field("f3_alias"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -338,7 +338,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("f3_alias:value AND f2:three"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -354,7 +354,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("value").field("f3_*"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -370,7 +370,7 @@ public class QueryStringIT extends ESIntegTestCase {
         // By default, the geo_point field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
-            .get();
+            .execute().actionGet();
 
         assertNoFailures(response);
         assertHitCount(response, 1);

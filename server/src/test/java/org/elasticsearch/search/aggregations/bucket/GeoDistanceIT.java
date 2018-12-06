@@ -82,11 +82,11 @@ public class GeoDistanceIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         prepareCreate("idx").setSettings(settings)
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
-                .get();
+                .execute().actionGet();
 
         prepareCreate("idx-multi")
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
-                .get();
+                .execute().actionGet();
 
         createIndex("idx_unmapped");
 
@@ -111,12 +111,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         cities.clear();
         cities.addAll(Arrays.asList(
-                // first point is within the ~17.5km, the second is ~710km
-                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"),
-                // first point is ~576km, the second is within the ~35km
-                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"),
-                // above 1000km
-                indexCity("idx-multi", "city3", "32.0741, 34.777")));
+                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"), // first point is within the ~17.5km, the second is ~710km
+                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"), // first point is ~576km, the second is within the ~35km
+                indexCity("idx-multi", "city3", "32.0741, 34.777"))); // above 1000km
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
@@ -124,7 +121,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         indexRandom(true, cities);
         prepareCreate("empty_bucket_idx")
-                .addMapping("type", "value", "type=integer", "location", "type=geo_point").get();
+                .addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
@@ -145,7 +142,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                        .get();
+                        .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -192,7 +189,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo("ring1", 500)
                         .addRange("ring2", 500, 1000)
                         .addUnboundedFrom("ring3", 1000))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -232,7 +229,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
+        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
@@ -241,7 +238,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -288,7 +285,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -337,7 +334,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedFrom(1000)
                         .subAggregation(terms("cities").field("city")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -417,9 +414,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")
-                                .addRange("0-100", 0.0, 100.0)))
-                .get();
+                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location").addRange("0-100", 0.0, 100.0)))
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -445,7 +441,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                 .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)))
-                .get();
+                .execute().actionGet();
             fail();
         } catch (SearchPhaseExecutionException spee){
             Throwable rootCause = spee.getCause().getCause();
@@ -463,7 +459,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                .get();
+                .execute().actionGet();
 
         assertSearchResponse(response);
 

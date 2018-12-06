@@ -26,25 +26,27 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestActionTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Before;
+import org.junit.AfterClass;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.document.RestGetSourceAction.RestGetSourceResponseListener;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RestGetSourceActionTests extends RestActionTestCase {
-    private RestGetSourceResponseListener listener;
+public class RestGetSourceActionTests extends ESTestCase {
 
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        RestRequest request = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(request, true, 0);
-        listener = new RestGetSourceResponseListener(channel, request);
+    private static RestRequest request = new FakeRestRequest();
+    private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+    private static RestGetSourceResponseListener listener = new RestGetSourceResponseListener(channel, request);
+
+    @AfterClass
+    public static void cleanupReferences() {
+        request = null;
+        channel = null;
+        listener = null;
     }
 
     public void testRestGetSourceAction() throws Exception {

@@ -333,12 +333,8 @@ if (isEclipse == false || project.path == ":server-tests") {
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
                  dependsOn: test.dependsOn) {
-    classpath = project.test.classpath
-    testClassesDirs = project.test.testClassesDirs
     include '**/*IT.class'
   }
-  check.dependsOn integTest
-  integTest.mustRunAfter test
 }
 // TODO: remove these compatibility tests in 7.0
 task testScriptedMetricAggParamsV6Compatibility(type: RandomizedTestingTask) {

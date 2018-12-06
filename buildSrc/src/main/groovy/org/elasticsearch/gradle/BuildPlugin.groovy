@@ -69,7 +69,7 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
-        final String minimumGradleVersion
+        String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
         try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
@@ -233,7 +233,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findCompilerJavaHome() {
-        final String compilerJavaHome = System.getenv('JAVA_HOME')
+        String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')
         if (compilerJavaProperty != null) {
             compilerJavaHome = findJavaHome(compilerJavaProperty)
@@ -771,12 +771,25 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
-        project.tasks.withType(RandomizedTestingTask) {
+        project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+
+            // Make sure all test tasks are configured properly
+            if (name != "test") {
+                project.tasks.matching { it.name == "test"}.all { testTask ->
+                    task.testClassesDirs = testTask.testClassesDirs
+                    task.classpath = testTask.classpath
+                    task.shouldRunAfter testTask
+                }
+            }
+            // no loose ends: check has to depend on all test tasks
+            project.tasks.matching {it.name == "check"}.all {
+                dependsOn(task)
+            }
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')

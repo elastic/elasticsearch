@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -203,13 +204,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
         boolean hasIndexRequestsWithPipelines = false;
-        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = clusterService.state().getMetaData().indices();
+        final MetaData metaData = clusterService.state().getMetaData();
+        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 String pipeline = indexRequest.getPipeline();
                 if (pipeline == null) {
                     IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
+                    if (indexMetaData == null) {
+                        //check the alias
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                            indexMetaData = alias.getWriteIndex();
+                        }
+                    }
                     if (indexMetaData == null) {
                         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
                     } else {

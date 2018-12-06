@@ -46,6 +46,7 @@ followClusterTestCluster {
     numNodes = 1
     clusterName = 'follow-cluster'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
     setting 'cluster.remote.middle_cluster.seeds', "\"${-> middleClusterTest.nodes.get(0).transportUri()}\""
     setting 'node.name', 'follow'
 }

@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ccr.CcrStatsRequest;
+import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
@@ -355,6 +357,50 @@ public final class CcrClient {
             CcrRequestConverters::getAutoFollowPattern,
             options,
             GetAutoFollowPatternResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Gets all CCR stats.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CcrStatsResponse getCcrStats(CcrStatsRequest request,
+                                        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::getCcrStats,
+            options,
+            CcrStatsResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Gets all CCR stats.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void getCcrStatsAsync(CcrStatsRequest request,
+                                 RequestOptions options,
+                                 ActionListener<CcrStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::getCcrStats,
+            options,
+            CcrStatsResponse::fromXContent,
             listener,
             Collections.emptySet()
         );

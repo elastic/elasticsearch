@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -38,8 +36,8 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
 
     @Inject
     public TransportGetRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
-        super(GetRollupJobsAction.NAME, clusterService, transportService, actionFilters,
-            GetRollupJobsAction.Request::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
+        super(GetRollupJobsAction.NAME, clusterService, transportService, actionFilters, GetRollupJobsAction.Request::new,
+            GetRollupJobsAction.Response::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -118,8 +116,4 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
         return new GetRollupJobsAction.Response(jobs, taskOperationFailures, failedNodeExceptions);
     }
 
-    @Override
-    protected GetRollupJobsAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new GetRollupJobsAction.Response(in);
-    }
 }

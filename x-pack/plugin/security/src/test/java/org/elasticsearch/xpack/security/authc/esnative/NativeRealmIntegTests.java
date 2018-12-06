@@ -257,7 +257,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testUpdatingUserAndAuthentication() throws Exception {
@@ -278,7 +278,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
         c.preparePutUser("joe", "s3krit2".toCharArray(), hasher, SecuritySettingsSource.TEST_ROLE).get();
 
@@ -292,7 +292,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         token = basicAuthHeaderValue("joe", new SecureString("s3krit2".toCharArray()));
         searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testCreateDeleteAuthenticate() {
@@ -314,7 +314,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
         DeleteUserResponse response = c.prepareDeleteUser("joe").get();
         assertThat(response.found(), is(true));

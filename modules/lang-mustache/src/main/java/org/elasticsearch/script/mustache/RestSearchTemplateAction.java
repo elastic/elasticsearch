@@ -39,13 +39,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
-
+    public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(
-            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HIT_AS_INT_PARAM)
-        );
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HIT_AS_INT_PARAM));
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 

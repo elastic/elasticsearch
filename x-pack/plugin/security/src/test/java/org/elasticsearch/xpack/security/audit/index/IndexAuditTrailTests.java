@@ -33,6 +33,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.Plugin;
@@ -43,6 +45,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInfo;
@@ -81,8 +84,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import static java.util.Collections.emptyMap;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
@@ -93,11 +96,11 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -187,6 +190,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
+                        .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                        .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
                         .put("xpack.security.audit.index.settings.index.number_of_shards", numShards)
                         .put("xpack.security.audit.index.settings.index.number_of_replicas", numReplicas)
                         // Disable native ML autodetect_process as the c++ controller won't be available
@@ -953,7 +959,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .prepareSearch(indexName)
                         .setTypes(IndexAuditTrail.DOC_TYPE)
                         .get();
-                if (searchResponse.getHits().getTotalHits() > 0L) {
+                if (searchResponse.getHits().getTotalHits().value > 0L) {
                     searchResponseSetOnce.set(searchResponse);
                     return true;
                 }
@@ -966,7 +972,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchResponse response = searchResponseSetOnce.get();
         assertNotNull(response);
 
-        assertEquals(1, response.getHits().getTotalHits());
+        assertEquals(1, response.getHits().getTotalHits().value);
         return response.getHits().getHits()[0];
     }
 

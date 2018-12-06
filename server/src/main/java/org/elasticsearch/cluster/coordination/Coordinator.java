@@ -650,8 +650,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return false;
             }
 
-            assert currentState.term() == 0 : currentState;
-            assert currentState.version() == 0 : currentState;
+            if (currentState.term() != 0 || currentState.version() != 0 || lastKnownLeader.isPresent()) {
+                throw new CoordinationStateRejectedException("Cannot set initial configuration, a formed cluster was already found");
+            }
 
             if (mode != Mode.CANDIDATE) {
                 throw new CoordinationStateRejectedException("Cannot set initial configuration in mode " + mode);

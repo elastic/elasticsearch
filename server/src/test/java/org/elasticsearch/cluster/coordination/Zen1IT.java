@@ -74,7 +74,6 @@ public class Zen1IT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount)
             .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
 
-
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
@@ -239,9 +238,11 @@ public class Zen1IT extends ESIntegTestCase {
 
         internalCluster().startNodes(nodeCount, ZEN2_SETTINGS);
 
+        logger.info("--> updating settings to exclude old nodes");
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
             .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), String.join(",", oldNodes))).get();
 
+        logger.info("--> waiting for old nodes to be vacated");
         waitForRelocation();
 
         while (internalCluster().size() > nodeCount) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,7 +55,8 @@ final class UserAgentParser {
 
     private void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY, regexStream);
+        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();
 
@@ -159,7 +161,7 @@ final class UserAgentParser {
     }
 
     public Details parse(String agentString) {
-        Details details = cache.get(name, agentString);;
+        Details details = cache.get(name, agentString);
 
         if (details == null) {
             VersionedName userAgent = findMatch(uaPatterns, agentString);

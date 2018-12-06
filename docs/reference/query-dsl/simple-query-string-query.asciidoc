@@ -13,8 +13,7 @@ GET /_search
   "query": {
     "simple_query_string" : {
         "query": "\"fried eggs\" +(eggplant | potato) -frittata",
-        "analyzer": "snowball",
-        "fields": ["body^5","_all"],
+        "fields": ["title^5", "body"],
         "default_operator": "and"
     }
   }
@@ -30,7 +29,13 @@ The `simple_query_string` top level parameters include:
 |`query` |The actual query to be parsed. See below for syntax.
 
 |`fields` |The fields to perform the parsed query against. Defaults to the
-`index.query.default_field` index settings, which in turn defaults to `_all`.
+`index.query.default_field` index settings, which in turn defaults to `*`. `*`
+extracts all fields in the mapping that are eligible to term queries and filters
+the metadata fields.
+
+WARNING: There is a limit on the number of fields that can be queried
+at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
+which defaults to 1024.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -38,7 +43,7 @@ is specified. For example, with a default operator of `OR`, the query
 with default operator of `AND`, the same query is translated to
 `capital AND of AND Hungary`. The default value is `OR`.
 
-|`analyzer` |The analyzer used to analyze each term of the query when
+|`analyzer` |Force the analyzer to use to analyze each term of the query when
 creating composite queries.
 
 |`flags` |Flags specifying which features of the `simple_query_string` to
@@ -62,9 +67,21 @@ the query string. This allows to use a field that has a different analysis chain
 for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
 comprehensive example.
 
-|`all_fields` | Perform the query on all fields detected in the mapping that can
-be queried. Will be used by default when the `_all` field is disabled and no
-`default_field` is specified index settings, and no `fields` are specified.
+|`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
+Defaults to `true`.
+
+|`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
+Perform the query on all fields detected in the mapping that can
+be queried.
+
+|`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
+is `0`.
+
+|`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
+expand to. Defaults to `50`
+
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
+Default is `true`.
 |=======================================================================
 
 [float]
@@ -111,12 +128,9 @@ documents that contain "baz".
 ==== Default Field
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
-which field to search on. It defaults to `_all` field.
-
-If the `_all` field is disabled and no `fields` are specified in the request`,
-the `simple_query_string` query will automatically attempt to determine the
-existing fields in the index's mapping that are queryable, and perform the
-search on those fields.
+which fields to search on. It defaults to `*` and the query will automatically
+attempt to determine the existing fields in the index's mapping that are queryable,
+and perform the search on those fields.
 
 [float]
 ==== Multi Field
@@ -160,3 +174,36 @@ GET /_search
 
 The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
 `PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.
+
+[float]
+==== Synonyms
+
+The `simple_query_string` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
+synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
+For example, the following synonym: `"ny, new york" would produce:`
+
+`(ny OR ("new york"))`
+
+It is also possible to match multi terms synonyms with conjunctions instead:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+   "query": {
+       "simple_query_string" : {
+           "query" : "ny city",
+           "auto_generate_synonyms_phrase_query" : false
+       }
+   }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`(ny OR (new AND york)) city)`
+
+that matches documents with the term `ny` or the conjunction `new AND york`.
+By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
+

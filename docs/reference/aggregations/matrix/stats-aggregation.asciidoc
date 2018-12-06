@@ -13,13 +13,34 @@ The `matrix_stats` aggregation is a numeric aggregation that computes the follow
 `correlation`:: The covariance matrix scaled to a range of -1 to 1, inclusive. Describes the relationship between field
             distributions.
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /statistics/_doc/0
+{"poverty": 24.0, "income": 50000.0}
+
+PUT /statistics/_doc/1
+{"poverty": 13.0, "income": 95687.0}
+
+PUT /statistics/_doc/2
+{"poverty": 69.0, "income": 7890.0}
+
+POST /_refresh
+--------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
 The following example demonstrates the use of matrix stats to describe the relationship between income and poverty.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs": {
-        "matrixstats": {
+        "statistics": {
             "matrix_stats": {
                 "fields": ["poverty", "income"]
             }
@@ -27,6 +48,8 @@ The following example demonstrates the use of matrix stats to describe the relat
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 The aggregation type is `matrix_stats` and the `fields` setting defines the set of fields (as an array) for computing
 the statistics. The above request returns the following response:
@@ -36,7 +59,7 @@ the statistics. The above request returns the following response:
 {
     ...
     "aggregations": {
-        "matrixstats": {
+        "statistics": {
             "doc_count": 50,
             "fields": [{
                 "name": "income",
@@ -73,6 +96,8 @@ the statistics. The above request returns the following response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (\-)?[0-9\.E]+/: $body.$_path/]
 
 The `doc_count` field indicates the number of documents involved in the computation of the statistics.
 
@@ -96,6 +121,7 @@ This is done by adding a set of fieldname : value mappings to specify default va
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs": {
         "matrixstats": {
@@ -107,6 +133,7 @@ This is done by adding a set of fieldname : value mappings to specify default va
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> Documents without a value in the `income` field will have the default value `50000`.
 

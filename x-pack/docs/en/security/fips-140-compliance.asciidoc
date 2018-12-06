@@ -1,0 +1,128 @@
+[role="xpack"]
+[[fips-140-compliance]]
+=== FIPS 140-2
+
+The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS PUB
+140-2), titled "Security Requirements for Cryptographic Modules" is a U.S.
+government computer security standard used to approve cryptographic modules.
+{es} offers a FIPS 140-2 compliant mode and as such can run in a FIPS 140-2
+enabled JVM. In order to set {es} in fips mode, you must set the
+`xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`
+
+For {es}, adherence to FIPS 140-2 is ensured by
+
+- Using FIPS approved / NIST recommended cryptographic algorithms.
+- Delegating the implementation of these cryptographic algorithms to a NIST
+  validated cryptographic module (available via the Java Security Provider
+  in use in the JVM).
+- Allowing the configuration of {es} in a FIPS 140-2 compliant manner, as
+  documented below.
+
+[float]
+=== Upgrade considerations
+
+If you plan to upgrade your existing Cluster to a version that can be run in
+a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
+upgrade to the new version in your existing JVM and perform all necessary
+configuration changes in preparation for running in fips mode. You can then
+perform a rolling restart of the nodes, this time starting each node in the FIPS
+140-2 JVM. This will allow {es} to take care of a couple of things automatically for you:
+
+- <<secure-settings, Secure Settings>> will be upgraded to the latest format version as
+  previous format versions cannot be loaded in a FIPS 140-2 JVM.
+- Self-generated trial licenses will be upgraded to the latest format that
+  is compliant with FIPS 140-2.
+
+If you are on a appropriate license level (platinum) you can elect to perform
+a rolling upgrade while at the same time running each upgraded node in a
+FIPS 140-2 JVM. In this case, you would need to also regenerate your
+`elasticsearch.keystore` and migrate all secure settings to it, in addition to the
+necessary configuration changes outlined below, before starting each node.
+
+[float]
+=== Configuring {es} for FIPS 140-2
+
+Apart from setting `xpack.security.fips_mode.enabled`, a number of security
+related settings need to be configured accordingly in order to be compliant
+and able to run {es} successfully in a FIPS 140-2 enabled JVM.
+
+[float]
+==== TLS
+
+SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot
+be used for <<ssl-tls-settings, xpack.ssl.supported_protocols>>
+
+NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
+(the FIPS Approved Security Provider that your JVM uses). All the ciphers that
+are configured by default in {es} are FIPS 140-2 compliant and as such can be
+used in a FIPS 140-2 JVM. (see <<ssl-tls-settings, xpack.ssl.cipher_suites>>)
+
+[float]
+==== TLS Keystores and keys
+
+Keystores can be used in a number of <<ssl-tls-settings>> in order to
+conveniently store key and trust material. Neither `JKS`, nor `PKCS#12` keystores
+can be used in a FIPS 140-2 enabled JVM however, so you must refrain from using
+these keystores.  Your FIPS 140-2 provider may provide a compliant keystore that
+can be used or you can use PEM encoded files. To use PEM encoded key material,
+you can use the relevant `\*.key` and `*.certificate` configuration
+options, and for trust material you can use `*.certificate_authorities`.
+
+
+FIPS 140-2 compliance dictates that the length of the public keys used for TLS
+must correspond to the strength of the symmetric key algorithm in use in TLS.
+Depending on the value of <<ssl-tls-settings, xpack.ssl.cipher_suites>> that
+you select to use, the TLS keys must have corresponding length according to
+the following table:
+
+[[comparable-key-strength]]
+.Comparable key strengths
+|=======================
+| Symmetric Key Algorithm | RSA key Length | ECC key length
+| `3DES`                  | 2048           | 224-255
+| `AES-128`               | 3072           | 256-383
+| `AES-256`               | 15630          | 512+
+|=======================
+
+[float]
+==== Password Hashing
+
+{es} offers a number of algorithms for securely hashing credentials in memory and
+on disk. However, only the `PBKDF2` family of algorithms is compliant with FIPS
+140-2 for password hashing. You must set the the `cache.hash_algo` realm settings
+and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
+available `PBKDF2` values.
+See <<hashing-settings>>.
+
+Password hashing configuration changes are not retroactive so the stored hashed
+credentials of existing users of the file and native realms will not be updated
+on disk.
+Authentication will still work, but in order to ensure FIPS 140-2 compliance,
+you would need to recreate users or change their password using the
+<<users-command, elasticsearch-user>> CLI tool for the file realm and the
+<<security-api-users,User Management APIs>> for the native realm.
+
+The user cache will be emptied upon node restart, so any existing hashes using
+non-compliant algorithms will be discarded and the new ones will be created
+using the compliant `PBKDF2` algorithm you have selected.
+
+[float]
+=== Limitations
+
+Due to the limitations that FIPS 140-2 compliance enforces, a small number of
+features are not available while running in fips mode. The list is as follows:
+
+* Azure Classic Discovery Plugin
+* Ingest Attachment Plugin
+* The {ref}/certutil.html[`elasticsearch-certutil`] tool. However,
+ `elasticsearch-certutil` can very well be used in a non FIPS 140-2
+  enabled JVM (pointing `JAVA_HOME` environment variable to a different java
+  installation) in order to generate the keys and certificates that
+  can be later used in the FIPS 140-2 enabled JVM.
+* The `elasticsearch-plugin` tool. Accordingly, `elasticsearch-plugin` can be
+  used with a different (non FIPS 140-2 enabled) Java installation if
+  available.
+* The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
+  TLS for transport security or PKI for client authentication.
+* The SAML Realm cannot decrypt and consume encrypted Assertions or encrypted
+  attributes in Attribute Statements from the SAML IdP.

@@ -1,24 +1,14 @@
 [[indices-put-mapping]]
 == Put Mapping
 
-The PUT mapping API allows you to add a new type to an existing index, or add new
-fields to an existing type:
+The PUT mapping API allows you to add fields to an existing index or to change search only settings of existing fields.
 
 [source,js]
 --------------------------------------------------
 PUT twitter <1>
 {}
 
-PUT twitter/_mapping/user <2>
-{
-  "properties": {
-    "name": {
-      "type": "text"
-    }
-  }
-}
-
-PUT twitter/_mapping/user <3>
+PUT twitter/_mapping/_doc <2>
 {
   "properties": {
     "email": {
@@ -29,8 +19,7 @@ PUT twitter/_mapping/user <3>
 --------------------------------------------------
 // CONSOLE
 <1> <<indices-create-index,Creates an index>> called `twitter` without any type mapping.
-<2> Uses the PUT mapping API to add a new mapping type called `user`.
-<3> Uses the PUT mapping API to add a new field called `email` to the `user` mapping type.
+<2> Uses the PUT mapping API to add a new field called `email` to the `_doc` mapping type.
 
 More information on how to define type mappings can be found in the
 <<mapping,mapping>> section.
@@ -48,7 +37,7 @@ PUT twitter-1
 PUT twitter-2
 
 # Update both mappings
-PUT /twitter-1,twitter-2/_mapping/my_type <1>
+PUT /twitter-1,twitter-2/_mapping/_doc <1>
 {
   "properties": {
     "user_name": {
@@ -60,11 +49,6 @@ PUT /twitter-1,twitter-2/_mapping/my_type <1>
 // CONSOLE
 <1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
 
-
-NOTE: When updating the `_default_` mapping with the
-<<indices-put-mapping,PUT mapping>> API, the new mapping is not merged with
-the existing mapping.  Instead, the new `_default_` mapping replaces the
-existing one.
 
 [[updating-field-mappings]]
 [float]
@@ -84,7 +68,7 @@ For example:
 PUT my_index <1>
 {
   "mappings": {
-    "user": {
+    "_doc": {
       "properties": {
         "name": {
           "properties": {
@@ -101,7 +85,7 @@ PUT my_index <1>
   }
 }
 
-PUT my_index/_mapping/user
+PUT my_index/_mapping/_doc
 {
   "properties": {
     "name": {
@@ -126,3 +110,53 @@ PUT my_index/_mapping/user
 Each <<mapping-params,mapping parameter>> specifies whether or not its setting
 can be updated on an existing field.
 
+[float]
+=== Skipping types
+
+Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
+in requests or responses anymore. You can opt in for this future behaviour by
+setting `include_type_name=false`.
+
+NOTE: This should only be done on indices that have been created with
+`include_type_name=false` or that used `_doc` as a type name.
+
+The Console script from the above section is equivalent to the below invocation:
+
+[source,js]
+-----------------------------------
+PUT my_index?include_type_name=false <1>
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "properties": {
+          "first": {
+            "type": "text"
+          }
+        }
+      },
+      "user_id": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT my_index/_mapping?include_type_name=false
+{
+  "properties": {
+    "name": {
+      "properties": {
+        "last": { <2>
+          "type": "text"
+        }
+      }
+    },
+    "user_id": {
+      "type": "keyword",
+      "ignore_above": 100 <3>
+    }
+  }
+}
+-----------------------------------
+// CONSOLE

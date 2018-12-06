@@ -20,12 +20,9 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public abstract class TestCustomMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
     private final String data;

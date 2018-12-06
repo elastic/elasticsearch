@@ -37,3 +37,38 @@ setup:
         snapshot: test_snapshot
 
   - match: { acknowledged: true }
+
+---
+"Create a snapshot for missing index":
+  - skip:
+      version: " - 6.0.0"
+      reason: ignore_unavailable default is false in 6.0.0
+
+  - do:
+      catch: missing
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: test_snapshot_1
+        wait_for_completion: true
+        body: |
+          { "indices": "missing_1" }
+
+  - do:
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: test_snapshot_2
+        wait_for_completion: true
+        body: |
+          { "indices": "missing_2", "ignore_unavailable": true }
+
+  - match: { snapshot.snapshot: test_snapshot_2 }
+  - match: { snapshot.state : SUCCESS }
+  - match: { snapshot.shards.successful: 0 }
+  - match: { snapshot.shards.failed : 0 }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: test_snapshot_2
+
+  - match: { acknowledged: true }

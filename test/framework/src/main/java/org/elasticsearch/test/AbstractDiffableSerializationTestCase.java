@@ -41,9 +41,8 @@ public abstract class AbstractDiffableSerializationTestCase<T extends Diffable<T
 
     protected abstract Reader<Diff<T>> diffReader();
 
-    public void testDiffableSerialization() throws IOException {
+    public final void testDiffableSerialization() throws IOException {
         DiffableTestUtils.testDiffableSerialization(this::createTestInstance, this::makeTestChanges, getNamedWriteableRegistry(),
             instanceReader(), diffReader());
     }
-
 }

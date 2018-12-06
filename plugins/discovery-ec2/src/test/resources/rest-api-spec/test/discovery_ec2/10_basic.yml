@@ -1,6 +1,9 @@
 # Integration tests for Discovery EC2 component
 #
 "Discovery EC2 loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: discovery-ec2  }
+    - contains:  { nodes.$master.plugins: { name: discovery-ec2 } }

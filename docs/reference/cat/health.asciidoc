@@ -14,7 +14,7 @@ GET /_cat/health?v
 [source,txt]
 --------------------------------------------------
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1475871424 16:17:04  elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
+1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/]
 // TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
@@ -33,7 +33,7 @@ which looks like:
 [source,txt]
 --------------------------------------------------
 cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
+elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
 

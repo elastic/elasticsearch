@@ -19,8 +19,8 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
@@ -62,7 +62,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         XContentBuilder updateMappingBuilder =
             jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text")
                 .endObject().endObject().endObject();
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
             client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
@@ -84,7 +84,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         // update some field in the mapping
         XContentBuilder updateMappingBuilder =
             jsonBuilder().startObject().startObject("_size").field("enabled", false).endObject().endObject();
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
             client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 

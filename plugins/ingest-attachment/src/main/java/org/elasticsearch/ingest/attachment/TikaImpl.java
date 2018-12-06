@@ -27,17 +27,20 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
 import java.io.ByteArrayInputStream;
-import java.io.FilePermission;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlContext;
 import java.security.AccessController;
@@ -48,7 +51,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.PropertyPermission;
 import java.util.Set;
@@ -61,7 +64,15 @@ import java.util.Set;
 final class TikaImpl {
 
     /** Exclude some formats */
-    private static final Set<MediaType> EXCLUDES = Collections.singleton(MediaType.application("x-tika-ooxml"));
+    private static final Set<MediaType> EXCLUDES = new HashSet<>(Arrays.asList(
+        MediaType.application("vnd.ms-visio.drawing"),
+        MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.stencil"),
+        MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.template"),
+        MediaType.application("vnd.ms-visio.template.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.drawing")
+    ));
 
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
@@ -88,7 +99,6 @@ final class TikaImpl {
     /**
      * parses with tika, throwing any exception hit while parsing the document
      */
-    // only package private for testing!
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
         SpecialPermission.check();
@@ -119,47 +129,62 @@ final class TikaImpl {
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
     // the ability to load some resources from JARs, and read sysprops
+    @SuppressForbidden(reason = "adds access to tmp directory")
     static PermissionCollection getRestrictedPermissions() {
         Permissions perms = new Permissions();
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
         perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));
 
-        // add permissions for resource access:
-        // classpath
-        addReadPermissions(perms, JarHell.parseClassPath());
-        // plugin jars
-        if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-            URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
-            Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
-            if (set.size() != urls.length) {
-                throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
+        try {
+            // add permissions for resource access:
+            // classpath
+            addReadPermissions(perms, JarHell.parseClassPath());
+            // plugin jars
+            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
+                URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
+                Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
+                if (set.size() != urls.length) {
+                    throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
+                }
+                addReadPermissions(perms, set);
             }
-            addReadPermissions(perms, set);
+            // jvm's java.io.tmpdir (needs read/write)
+            FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir",
+                PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        // jvm's java.io.tmpdir (needs read/write)
-        perms.add(new FilePermission(System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + "-",
-                                     "read,readlink,write,delete"));
         // current hacks needed for POI/PDFbox issues:
         perms.add(new SecurityPermission("putProviderProperty.BC"));
         perms.add(new SecurityPermission("insertProvider"));
         perms.add(new ReflectPermission("suppressAccessChecks"));
+        perms.add(new RuntimePermission("accessClassInPackage.sun.java2d.cmm.kcms"));
         // xmlbeans, use by POI, needs to get the context classloader
         perms.add(new RuntimePermission("getClassLoader"));
+        // ZipFile needs accessDeclaredMembers on JDK 10; cf. https://bugs.openjdk.java.net/browse/JDK-8187485
+        if (JavaVersion.current().compareTo(JavaVersion.parse("10")) >= 0) {
+            if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
+                // TODO remove this and from plugin-security.policy when JDK 11 is the only one we support
+                // this is needed pre 11, but it's fixed in 11 : https://bugs.openjdk.java.net/browse/JDK-8187485
+                perms.add(new RuntimePermission("accessDeclaredMembers"));
+            }
+        }
         perms.setReadOnly();
         return perms;
     }
 
     // add resources to (what is typically) a jar, but might not be (e.g. in tests/IDE)
     @SuppressForbidden(reason = "adds access to jar resources")
-    static void addReadPermissions(Permissions perms, Set<URL> resources) {
+    static void addReadPermissions(Permissions perms, Set<URL> resources) throws IOException {
         try {
             for (URL url : resources) {
                 Path path = PathUtils.get(url.toURI());
-                // resource itself
-                perms.add(new FilePermission(path.toString(), "read,readlink"));
-                // classes underneath
-                perms.add(new FilePermission(path.toString() + System.getProperty("file.separator") + "-", "read,readlink"));
+                if (Files.isDirectory(path)) {
+                    FilePermissionUtils.addDirectoryPath(perms, "class.path", path, "read,readlink");
+                } else {
+                    FilePermissionUtils.addSingleFilePath(perms, path, "read,readlink");
+                }
             }
         } catch (URISyntaxException bogus) {
             throw new RuntimeException(bogus);

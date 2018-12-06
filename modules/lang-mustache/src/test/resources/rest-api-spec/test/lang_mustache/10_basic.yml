@@ -1,6 +1,9 @@
 # Integration tests for Mustache scripts
 #
 "Mustache loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,64 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: lang-mustache  }
-
----
-"Indexed template":
-
-  - do:
-      put_template:
-        id: "1"
-        body: { "template": { "query": { "match_all": {}}, "size": "{{my_size}}" } }
-  - match: { acknowledged: true }
-
-  - do:
-      get_template:
-        id: 1
-  - match: { found: true }
-  - match: { lang: mustache }
-  - match: { _id: "1" }
-  - match: { template: /.*query\S\S\S\Smatch_all.*/ }
-
-  - do:
-      catch: missing
-      get_template:
-        id: 2
-  - match: { found: false }
-  - match: { lang: mustache }
-  - match: { _id: "2" }
-
-  - do:
-      delete_template:
-        id: "1"
-  - match: { acknowledged: true }
-
-  - do:
-      catch: missing
-      delete_template:
-        id: "non_existing"
-
-  - do:
-      catch: request
-      put_template:
-        id: "1"
-        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
-
-  - do:
-      catch: /failed\sto\sparse.*/
-      put_template:
-        id: "1"
-        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
-
----
-"missing body":
-
-  - skip:
-      version: " - 5.99.99"
-      reason: NPE caused by missing body fixed in 6.0.0
-      
-  - do:
-      catch: /request body is required/
-      raw:
-        method: POST
-        path: _search/template/1
+    - contains:  { nodes.$master.modules: { name: lang-mustache } }

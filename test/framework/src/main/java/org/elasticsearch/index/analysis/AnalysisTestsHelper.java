@@ -35,13 +35,15 @@ import java.util.Arrays;
 
 public class AnalysisTestsHelper {
 
-    public static ESTestCase.TestAnalysis createTestAnalysisFromClassPath(final Path baseDir, final String resource) throws IOException {
+    public static ESTestCase.TestAnalysis createTestAnalysisFromClassPath(final Path baseDir,
+                                                                          final String resource,
+                                                                          final AnalysisPlugin... plugins) throws IOException {
         final Settings settings = Settings.builder()
-                .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
+                .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                 .build();
 
-        return createTestAnalysisFromSettings(settings);
+        return createTestAnalysisFromSettings(settings, plugins);
     }
 
     public static ESTestCase.TestAnalysis createTestAnalysisFromSettings(

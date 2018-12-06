@@ -19,22 +19,16 @@
 
 package org.elasticsearch.join.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -53,7 +47,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField ID_FIELD = new ParseField("id");
-    private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String type;
@@ -132,15 +126,15 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (TYPE_FIELD.match(currentFieldName)) {
+                if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     type = parser.text();
-                } else if (ID_FIELD.match(currentFieldName)) {
+                } else if (ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     id = parser.text();
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[parent_id] query does not support [" + currentFieldName + "]");
@@ -159,11 +153,6 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (context.getIndexSettings().isSingleType() == false) {
-            // BWC for indices with multiple types
-            return doToQueryBWC(context);
-        }
-
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
         if (joinFieldMapper == null) {
             if (ignoreUnmapped) {
@@ -185,32 +174,6 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             .add(childMapper.fieldType().termQuery(id, context), BooleanClause.Occur.MUST)
             // Need to take child type into account, otherwise a child doc of different type with the same id could match
             .add(joinFieldMapper.fieldType().termQuery(type, context), BooleanClause.Occur.FILTER)
-            .build();
-    }
-
-    /**
-     * Creates parent_id query from a {@link ParentFieldMapper}
-     * Only used for BWC with multi-types indices
-     */
-    private Query doToQueryBWC(QueryShardContext context) throws IOException {
-        DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
-        if (childDocMapper == null) {
-            if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
-            } else {
-                throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
-            }
-        }
-        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-        if (parentFieldMapper.active() == false) {
-            throw new QueryShardException(context, "[" + NAME + "] _parent field has no parent type configured");
-        }
-        String fieldName = ParentFieldMapper.joinField(parentFieldMapper.type());
-
-        return new BooleanQuery.Builder()
-            .add(new DocValuesTermsQuery(fieldName, id), BooleanClause.Occur.MUST)
-            // Need to take child type into account, otherwise a child doc of different type with the same id could match
-            .add(new TermQuery(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.FILTER)
             .build();
     }
 

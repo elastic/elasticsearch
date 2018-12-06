@@ -23,11 +23,8 @@
 
 ---
 "Nodes stats unrecognized parameter":
-  - skip:
-      version: " - 5.0.99"
-      reason: strict stats handling does not exist in 5.0
   - do:
-      catch: request
+      catch: bad_request
       nodes.stats:
         metric: [ transprot ]
 

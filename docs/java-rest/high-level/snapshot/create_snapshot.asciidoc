@@ -1,0 +1,132 @@
+[[java-rest-high-snapshot-create-snapshot]]
+=== Create Snapshot API
+
+Use the Create Snapshot API to create a new snapshot.
+
+[[java-rest-high-snapshot-create-snapshot-request]]
+==== Create Snapshot Request
+
+A `CreateSnapshotRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request]
+--------------------------------------------------
+
+==== Required Arguments
+The following arguments are mandatory:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-repositoryName]
+--------------------------------------------------
+<1> The name of the repository.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-snapshotName]
+--------------------------------------------------
+<1> The name of the snapshot.
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-indices]
+--------------------------------------------------
+<1> A list of indices the snapshot is applied to.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-indicesOptions]
+--------------------------------------------------
+<1> Options applied to the indices.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-partial]
+--------------------------------------------------
+<1> Set `partial` to `true` to allow a successful snapshot without the
+availability of all the indices primary shards. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-includeGlobalState]
+--------------------------------------------------
+<1> Set `includeGlobalState` to `false` to prevent writing the cluster's global
+state as part of the snapshot. Defaults to `true`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`.
+<2> Timeout to connect to the master node as a `String`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-waitForCompletion]
+--------------------------------------------------
+<1> Waits for the snapshot to be completed before a response is returned.
+
+[[java-rest-high-snapshot-create-snapshot-sync]]
+==== Synchronous Execution
+
+Execute a `CreateSnapshotRequest` synchronously to receive a `CreateSnapshotResponse`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute]
+--------------------------------------------------
+
+Retrieve the `SnapshotInfo` from a `CreateSnapshotResponse` when the snapshot is fully created.
+(The `waitForCompletion` parameter is `true`).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-response-snapshot-info]
+--------------------------------------------------
+<1> The `SnapshotInfo` object.
+
+[[java-rest-high-snapshot-create-snapshot-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a create snapshot request requires both the
+`CreateSnapshotRequest` instance and an `ActionListener` instance to be
+passed as arguments to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute-async]
+--------------------------------------------------
+<1> The `CreateSnapshotRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back with the `onResponse` method
+if the execution is successful or the `onFailure` method if the execution
+failed.
+
+A typical listener for `CreateSnapshotResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of a failure. The raised exception is provided as an
+argument.
+
+[[java-rest-high-snapshot-create-snapshot-response]]
+==== Snapshot Create Response
+
+Use the `CreateSnapshotResponse` to retrieve information about the evaluated
+request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-response]
+--------------------------------------------------
+<1> Indicates the node has started the request.

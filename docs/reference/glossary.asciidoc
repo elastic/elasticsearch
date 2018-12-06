@@ -16,7 +16,7 @@
   terms stored in the index.
   +
   It is this process of analysis (both at index time and at search time)
-  that allows elasticsearch to perform full text queries.
+  that allows Elasticsearch to perform full text queries.
   +
   Also see <<glossary-text,text>> and <<glossary-term,term>>.
 
@@ -29,7 +29,7 @@
 
 [[glossary-document]] document ::
 
-  A document is a JSON document which is stored in elasticsearch. It is
+  A document is a JSON document which is stored in Elasticsearch. It is
   like a row in a table in a relational database. Each document is
   stored in an <<glossary-index,index>> and has a <<glossary-type,type>> and an
   <<glossary-id,id>>.
@@ -61,6 +61,15 @@
   `object`. The mapping also allows you to define (amongst other things)
   how the value for a field should be analyzed.
 
+[[glossary-filter]] filter ::
+
+  A filter is a non-scoring <<glossary-query,query>>, meaning that it does not score documents.
+  It is only concerned about answering the question - "Does this document match?". 
+  The answer is always a simple, binary yes or no. This kind of query is said to be made 
+  in a <<query-filter-context,filter context>>, 
+  hence it is called a filter. Filters are simple checks for set inclusion or exclusion. 
+  In most cases, the goal of filtering is to reduce the number of documents that have to be examined.
+
 [[glossary-index]] index ::
 
   An index is like a _table_ in a relational database. It has a
@@ -82,7 +91,7 @@
 
 [[glossary-node]] node ::
 
-  A node is a running instance of elasticsearch which belongs to a
+  A node is a running instance of Elasticsearch which belongs to a
   <<glossary-cluster,cluster>>. Multiple nodes can be started on a single
   server for testing purposes, but usually you should have one node per
   server.
@@ -96,14 +105,25 @@
   you index a document, it is indexed first on the primary shard, then
   on all <<glossary-replica-shard,replicas>> of the primary shard.
   +
-  By default, an <<glossary-index,index>> has 5 primary shards. You can
-  specify fewer or more primary shards to scale the number of
-  <<glossary-document,documents>> that your index can handle.
+  By default, an <<glossary-index,index>> has one primary shard. You can specify
+  more primary shards to scale the number of <<glossary-document,documents>>
+  that your index can handle.
   +
-  You cannot change the number of primary shards in an index, once the
-  index is created.
+  You cannot change the number of primary shards in an index, once the index is
+  index is created. However, an index can be split into a new index using the
+  <<indices-split-index, split API>>.
   +
   See also <<glossary-routing,routing>>
+
+[[glossary-query]] query ::
+
+  A query is the basic component of a search. A search can be defined by one or more queries 
+  which can be mixed and matched in endless combinations. While <<glossary-filter,filters>> are
+  queries that only determine if a document matches, those queries that also calculate how well
+  the document matches are known as "scoring queries". Those queries assign it a score, which is 
+  later used to sort matched documents. Scoring queries take more resources than <<glossary-filter,non scoring queries>> 
+  and their query results are not cacheable. As a general rule, use query clauses for full-text 
+  search or for any condition that requires scoring, and use filters for everything else.
 
  [[glossary-replica-shard]] replica shard ::
 
@@ -136,7 +156,7 @@
 [[glossary-shard]] shard ::
 
   A shard is a single Lucene instance. It is a low-level “worker” unit
-  which is managed automatically by elasticsearch. An index is a logical
+  which is managed automatically by Elasticsearch. An index is a logical
   namespace which points to <<glossary-primary-shard,primary>> and
   <<glossary-replica-shard,replica>> shards.
   +
@@ -159,10 +179,11 @@
 
 [[glossary-term]] term ::
 
-  A term is an exact value that is indexed in elasticsearch. The terms
+  A term is an exact value that is indexed in Elasticsearch. The terms
   `foo`, `Foo`, `FOO` are NOT equivalent. Terms (i.e. exact values) can
-  be searched for using _term_ queries. +
-   See also <<glossary-text,text>> and <<glossary-analysis,analysis>>.
+  be searched for using _term_ queries.
+  +
+  See also <<glossary-text,text>> and <<glossary-analysis,analysis>>.
 
 [[glossary-text]] text ::
 

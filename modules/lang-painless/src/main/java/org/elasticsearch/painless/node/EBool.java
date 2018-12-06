@@ -19,18 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Operation;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Opcodes;
 
 /**
  * Represents a boolean expression.
@@ -57,11 +55,11 @@ public final class EBool extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        left.expected = Definition.BOOLEAN_TYPE;
+        left.expected = boolean.class;
         left.analyze(locals);
         left = left.cast(locals);
 
-        right.expected = Definition.BOOLEAN_TYPE;
+        right.expected = boolean.class;
         right.analyze(locals);
         right = right.cast(locals);
 
@@ -75,7 +73,7 @@ public final class EBool extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = boolean.class;
     }
 
     @Override

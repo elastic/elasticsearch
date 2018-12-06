@@ -35,17 +35,6 @@ and enrich the document before indexing. With a heavy ingest load, it makes
 sense to use dedicated ingest nodes and to mark the master and data nodes as
 `node.ingest: false`.
 
-<<modules-tribe,Tribe node>>::
-
-A tribe node, configured via the `tribe.*` settings, is a special type  of
-coordinating only node that can connect to multiple clusters and perform
-search and other operations across all connected clusters.
-
-By default a node is a master-eligible node and a data node, plus it can
-pre-process documents through ingest pipelines. This is very convenient for
-small clusters but, as the cluster grows, it becomes important to consider
-separating dedicated master-eligible nodes from dedicated data nodes.
-
 [NOTE]
 [[coordinating-node]]
 .Coordinating node
@@ -104,10 +93,12 @@ To create a dedicated master-eligible node, set:
 node.master: true <1>
 node.data: false <2>
 node.ingest: false <3>
+cluster.remote.connect: false <4>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable cross-cluster search (enabled by default).
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
@@ -154,6 +145,13 @@ discovery.zen.minimum_master_nodes: 2 <1>
 ----------------------------
 <1> Defaults to `1`.
 
+To be able to remain available when one of the master-eligible nodes fails,
+clusters should have at least three master-eligible nodes, with
+`minimum_master_nodes` set accordingly. A <<rolling-upgrades,rolling upgrade>>,
+performed without any downtime, also requires at least three master-eligible
+nodes to avoid the possibility of data loss if a network split occurs while the
+upgrade is in progress.
+
 This setting can also be changed dynamically on a live cluster with the
 <<cluster-update-settings,cluster update settings API>>:
 
@@ -194,10 +192,12 @@ To create a dedicated data node, set:
 node.master: false <1>
 node.data: true <2>
 node.ingest: false <3>
+cluster.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable cross-cluster search (enabled by default).
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
@@ -220,7 +220,7 @@ To create a dedicated ingest node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
@@ -260,7 +260,7 @@ To create a dedicated coordinating node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
@@ -325,5 +325,5 @@ the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
 
 ifdef::include-xpack[]
-include::{xes-repo-dir}/node.asciidoc[]
+include::ml-node.asciidoc[]
 endif::include-xpack[]

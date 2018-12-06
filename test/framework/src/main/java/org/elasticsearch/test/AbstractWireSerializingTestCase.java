@@ -19,116 +19,14 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
-import java.util.Collections;
 
-import static org.hamcrest.Matchers.equalTo;
+public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
 
-public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
-
-    /**
-     * Creates a random test instance to use in the tests. This method will be
-     * called multiple times during test execution and should return a different
-     * random instance each time it is called.
-     */
-    protected abstract T createTestInstance();
-
-    /**
-     * Returns a {@link Reader} that can be used to de-serialize the instance
-     */
-    protected abstract Reader<T> instanceReader();
-
-    /**
-     * Tests that the equals and hashcode methods are consistent and copied
-     * versions of the instance have are equal.
-     */
-    public void testEqualsAndHashcode() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T firstInstance = createTestInstance();
-            assertFalse("instance is equal to null", firstInstance.equals(null));
-            assertFalse("instance is equal to incompatible type", firstInstance.equals(""));
-            assertEquals("instance is not equal to self", firstInstance, firstInstance);
-            assertThat("same instance's hashcode returns different values if called multiple times", firstInstance.hashCode(),
-                    equalTo(firstInstance.hashCode()));
-
-            T secondInstance = copyInstance(firstInstance);
-            assertEquals("instance is not equal to self", secondInstance, secondInstance);
-            assertEquals("instance is not equal to its copy", firstInstance, secondInstance);
-            assertEquals("equals is not symmetric", secondInstance, firstInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
-                    equalTo(firstInstance.hashCode()));
-
-            T thirdInstance = copyInstance(secondInstance);
-            assertEquals("instance is not equal to self", thirdInstance, thirdInstance);
-            assertEquals("instance is not equal to its copy", secondInstance, thirdInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
-                    equalTo(thirdInstance.hashCode()));
-            assertEquals("equals is not transitive", firstInstance, thirdInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", firstInstance.hashCode(),
-                    equalTo(thirdInstance.hashCode()));
-            assertEquals("equals is not symmetric", thirdInstance, secondInstance);
-            assertEquals("equals is not symmetric", thirdInstance, firstInstance);
-        }
-    }
-
-    /**
-     * Test serialization and deserialization of the test instance.
-     */
-    public void testSerialization() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T testInstance = createTestInstance();
-            assertSerialization(testInstance);
-        }
-    }
-
-    /**
-     * Serialize the given instance and asserts that both are equal
-     */
-    protected T assertSerialization(T testInstance) throws IOException {
-        return assertSerialization(testInstance, Version.CURRENT);
-    }
-
-    protected T assertSerialization(T testInstance, Version version) throws IOException {
-        T deserializedInstance = copyInstance(testInstance, version);
-        assertEquals(testInstance, deserializedInstance);
-        assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());
-        assertNotSame(testInstance, deserializedInstance);
-        return deserializedInstance;
-    }
-
-    protected T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
-    }
-
+    @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            instance.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
-                    getNamedWriteableRegistry())) {
-                in.setVersion(version);
-                return instanceReader().read(in);
-            }
-        }
-    }
-
-    /**
-     * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.
-     *
-     * Override this method if you need to register {@link NamedWriteable}s for the test object to de-serialize.
-     *
-     * By default this will return a {@link NamedWriteableRegistry} with no registered {@link NamedWriteable}s
-     */
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.emptyList());
+        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader());
     }
 }

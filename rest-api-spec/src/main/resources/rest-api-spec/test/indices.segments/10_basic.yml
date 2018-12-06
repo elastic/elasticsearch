@@ -43,7 +43,6 @@
 
 ---
 "closed segments test":
-
   - do:
       indices.create:
         index: index1
@@ -63,7 +62,7 @@
         index: index1
 
   - do:
-      catch: forbidden
+      catch: bad_request
       indices.segments:
           index: index1
 

@@ -56,7 +56,7 @@ setup:
 ---
 "Explain body without query element":
   - do:
-      catch: request
+      catch: bad_request
       explain:
           index:  test_1
           type:   test

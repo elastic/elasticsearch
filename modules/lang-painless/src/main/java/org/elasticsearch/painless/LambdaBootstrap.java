@@ -36,7 +36,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import static java.lang.invoke.MethodHandles.Lookup;
-import static org.elasticsearch.painless.Compiler.Loader;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
 import static org.elasticsearch.painless.WriterConstants.CTOR_METHOD_NAME;
 import static org.elasticsearch.painless.WriterConstants.DELEGATE_BOOTSTRAP_HANDLE;
@@ -93,7 +92,7 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  *         private $$Lambda0(List arg$0) {
  *             this.arg$0 = arg$0;
  *         }
- *         
+ *
  *         public static Consumer create$lambda(List arg$0) {
  *             return new $$Lambda0(arg$0);
  *         }
@@ -188,6 +187,10 @@ public final class LambdaBootstrap {
      * @param delegateMethodName The name of the method to be called in the Painless script class
      * @param delegateMethodType The type of method call in the Painless script class without
      *                           the captured types
+     * @param isDelegateInterface If the method to be called is owned by an interface where
+     *                            if the value is '1' if the delegate is an interface and '0'
+     *                            otherwise; note this is an int because the bootstrap method
+     *                            cannot convert constants to boolean
      * @return A {@link CallSite} linked to a factory method for creating a lambda class
      * that implements the expected functional interface
      * @throws LambdaConversionException Thrown when an illegal type conversion occurs at link time
@@ -200,9 +203,10 @@ public final class LambdaBootstrap {
             String delegateClassName,
             int delegateInvokeType,
             String delegateMethodName,
-            MethodType delegateMethodType)
+            MethodType delegateMethodType,
+            int isDelegateInterface)
             throws LambdaConversionException {
-        Loader loader = (Loader)lookup.lookupClass().getClassLoader();
+        Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
         Type delegateClassType = Type.getObjectType(delegateClassName.replace('.', '/'));
@@ -212,7 +216,7 @@ public final class LambdaBootstrap {
         ClassWriter cw = beginLambdaClass(lambdaClassName, factoryMethodType.returnType());
         Capture[] captures = generateCaptureFields(cw, factoryMethodType);
         generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
-        
+
         // Handles the special case where a method reference refers to a ctor (we need a static wrapper method):
         if (delegateInvokeType == H_NEWINVOKESPECIAL) {
             assert CTOR_METHOD_NAME.equals(delegateMethodName);
@@ -225,8 +229,8 @@ public final class LambdaBootstrap {
 
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
-            delegateMethodName, delegateMethodType, captures);
-        
+            delegateMethodName, delegateMethodType, isDelegateInterface == 1, captures);
+
         endLambdaClass(cw);
 
         Class<?> lambdaClass = createLambdaClass(loader, cw, lambdaClassType);
@@ -321,7 +325,7 @@ public final class LambdaBootstrap {
 
         constructor.returnValue();
         constructor.endMethod();
-        
+
         // Add a factory method, if lambda takes captures.
         // @uschindler says: I talked with Rémi Forax about this. Technically, a plain ctor
         // and a MethodHandle to the ctor would be enough - BUT: Hotspot is unable to
@@ -337,10 +341,10 @@ public final class LambdaBootstrap {
     /**
      * Generates a factory method to delegate to constructors.
      */
-    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName, 
+    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName,
             Type delegateClassType, MethodType delegateMethodType) {
         Method wrapperMethod = new Method(delegatorMethodName, delegateMethodType.toMethodDescriptorString());
-        Method constructorMethod = 
+        Method constructorMethod =
             new Method(CTOR_METHOD_NAME, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
         int modifiers = access | ACC_STATIC;
 
@@ -369,6 +373,7 @@ public final class LambdaBootstrap {
             int delegateInvokeType,
             String delegateMethodName,
             MethodType delegateMethodType,
+            boolean isDelegateInterface,
             Capture[] captures)
             throws LambdaConversionException {
 
@@ -379,7 +384,7 @@ public final class LambdaBootstrap {
         GeneratorAdapter iface = new GeneratorAdapter(modifiers, lamMeth,
             cw.visitMethod(modifiers, interfaceMethodName, lamDesc, null, null));
         iface.visitCode();
-        
+
         // Loads any captured variables onto the stack.
         for (int captureCount = 0; captureCount < captures.length; ++captureCount) {
             iface.loadThis();
@@ -434,7 +439,7 @@ public final class LambdaBootstrap {
         Handle delegateHandle =
             new Handle(delegateInvokeType, delegateClassType.getInternalName(),
                 delegateMethodName, delegateMethodType.toMethodDescriptorString(),
-                delegateInvokeType == H_INVOKEINTERFACE);
+                isDelegateInterface);
         iface.invokeDynamic(delegateMethodName, Type.getMethodType(interfaceMethodType
                 .toMethodDescriptorString()).getDescriptor(), DELEGATE_BOOTSTRAP_HANDLE,
                 delegateHandle);
@@ -451,11 +456,11 @@ public final class LambdaBootstrap {
     }
 
     /**
-     * Defines the {@link Class} for the lambda class using the same {@link Loader}
+     * Defines the {@link Class} for the lambda class using the same {@link Compiler.Loader}
      * that originally defined the class for the Painless script.
      */
     private static Class<?> createLambdaClass(
-            Loader loader,
+            Compiler.Loader loader,
             ClassWriter cw,
             Type lambdaClassType) {
 
@@ -473,7 +478,7 @@ public final class LambdaBootstrap {
     private static CallSite createNoCaptureCallSite(
             MethodType factoryMethodType,
             Class<?> lambdaClass) {
-        
+
         try {
             return new ConstantCallSite(MethodHandles.constant(
                 factoryMethodType.returnType(), lambdaClass.getConstructor().newInstance()));
@@ -503,7 +508,7 @@ public final class LambdaBootstrap {
      * delegate method will use converted types from the interface method.  Using
      * invokedynamic to make the delegate method call allows
      * {@link MethodHandle#asType} to be used to do the type conversion instead
-     * of either a lot more code or requiring many {@link Definition.Type}s to be looked
+     * of either a lot more code or requiring many {@link Class}es to be looked
      * up at link-time.
      */
     public static CallSite delegateBootstrap(Lookup lookup,

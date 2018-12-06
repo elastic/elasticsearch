@@ -36,25 +36,33 @@ It can be installed with pip:
 pip install elasticsearch
 ------------------------------------
 
+The legacy version for Elasticsearch version 2.x can be installed with pip:
+
+[source,sh]
+------------------------------------
+pip install elasticsearch2
+------------------------------------
+
 === Versioning
 
-There are two branches for development - `master` and `1.x`. Master branch is
-used to track all the changes for Elasticsearch 2.0 and beyond whereas 1.x
-tracks Elasticsearch 1.*.
+Current development happens in the master branch.
 
-Releases with major version 1 (1.X.Y) are to be used with Elasticsearch 1.* and
-later, 0.4 releases are meant to work with Elasticsearch 0.90.*.
+The master branch is the only branch under current development and 
+is used to track all the changes for Elasticsearch 5.x and beyond.
+
+Elasticsearch version 2.x is not longer under active development. 
+We will only backport severe bug fixes.
 
 The recommended way to set your requirements in your `setup.py` or
 `requirements.txt` is:
 
 [source,txt]
 ------------------------------------
-    # Elasticsearch 2.x
-    elasticsearch>=2.0.0,<3.0.0
+    # Elasticsearch 5.x
+    elasticsearch>=5.0.0,<6.0.0
 
-    # Elasticsearch 1.x
-    elasticsearch>=1.0.0,<2.0.0
+    # Elasticsearch 2.x
+    elasticsearch2
 ------------------------------------
 
 === Example use
@@ -112,7 +120,7 @@ some of the more engaging tasks like bulk indexing and reindexing.
 
 === License
 
-Copyright 2013-2016 Elasticsearch
+Copyright 2013-2018 Elasticsearch
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

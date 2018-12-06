@@ -18,18 +18,14 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
+import java.util.function.Predicate;
 
 public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & Streamable> extends AbstractStreamableTestCase<T> {
 
@@ -37,66 +33,43 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two queries.
      */
-    public void testFromXContent() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T testInstance = createTestInstance();
-            XContentType xContentType = randomFrom(XContentType.values());
-            XContentBuilder builder = toXContent(testInstance, xContentType);
-            XContentBuilder shuffled = shuffleXContent(builder);
-            assertParsedInstance(xContentType, shuffled.bytes(), testInstance);
-            for (Map.Entry<String, T> alternateVersion : getAlternateVersions().entrySet()) {
-                String instanceAsString = alternateVersion.getKey();
-                assertParsedInstance(XContentType.JSON, new BytesArray(instanceAsString), alternateVersion.getValue());
-            }
-        }
-    }
-
-    private void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
-            throws IOException {
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), instanceAsBytes);
-        T newInstance = parseInstance(parser);
-        assertNotSame(newInstance, expectedInstance);
-        assertEquals(expectedInstance, newInstance);
-        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-    }
-
-    private T parseInstance(XContentParser parser) throws IOException {
-        T parsedInstance = doParseInstance(parser);
-        assertNull(parser.nextToken());
-        return parsedInstance;
+    public final void testFromXContent() throws IOException {
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
+                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                this::assertEqualInstances, true, getToXContentParams());
     }
 
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
-    protected abstract T doParseInstance(XContentParser parser);
+    protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
     /**
-     * Renders the provided instance in XContent
-     * 
-     * @param instance
-     *            the instance to render
-     * @param contentType
-     *            the content type to render to
+     * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
+     * inserting random fields before parsing and checking that they don't make parsing fail.
      */
-    protected static <T extends ToXContent> XContentBuilder toXContent(T instance, XContentType contentType)
-            throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return builder;
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 
     /**
-     * Returns alternate string representation of the instance that need to be
-     * tested as they are never used as output of the test instance. By default
-     * there are no alternate versions.
-     * 
-     * These alternatives must be JSON strings.
+     * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
      */
-    protected Map<String, T> getAlternateVersions() {
-        return Collections.emptyMap();
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> false;
+    }
+
+    /**
+     * Fields that have to be ignored when shuffling as part of testFromXContent
+     */
+    protected String[] getShuffleFieldsExceptions() {
+        return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)}
+     */
+    protected ToXContent.Params getToXContentParams() {
+        return ToXContent.EMPTY_PARAMS;
     }
 }

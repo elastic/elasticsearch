@@ -19,6 +19,20 @@
 
 package org.elasticsearch.repositories.hdfs;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.AbstractFileSystem;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+
+import javax.security.auth.Subject;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -29,22 +43,20 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
-import javax.security.auth.Subject;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.AbstractFileSystem;
-import org.apache.hadoop.fs.FileContext;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
+import static org.elasticsearch.repositories.ESBlobStoreTestCase.readBlobFully;
+
 
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
 public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     @Override
     protected BlobStore newBlobStore() throws IOException {
+        return new HdfsBlobStore(createTestContext(), "temp", 1024, false);
+    }
+
+    private FileContext createTestContext() {
         FileContext fileContext;
         try {
             fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>)
@@ -52,7 +64,7 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         } catch (PrivilegedActionException e) {
             throw new RuntimeException(e.getCause());
         }
-        return new HdfsBlobStore(fileContext, "temp", 1024);
+        return fileContext;
     }
 
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
@@ -69,7 +81,7 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
             Class<?> clazz = Class.forName("org.apache.hadoop.security.User");
             ctor = clazz.getConstructor(String.class);
             ctor.setAccessible(true);
-        }  catch (ClassNotFoundException | NoSuchMethodException e) {
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
 
@@ -97,5 +109,34 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public void testReadOnly() throws Exception {
+        FileContext fileContext = createTestContext();
+        // Constructor will not create dir if read only
+        HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
+        FileContext.Util util = fileContext.util();
+        Path root = fileContext.makeQualified(new Path("dir"));
+        assertFalse(util.exists(root));
+        BlobPath blobPath = BlobPath.cleanPath().add("path");
+
+        // blobContainer() will not create path if read only
+        hdfsBlobStore.blobContainer(blobPath);
+        Path hdfsPath = root;
+        for (String p : blobPath) {
+            hdfsPath = new Path(hdfsPath, p);
+        }
+        assertFalse(util.exists(hdfsPath));
+
+        // if not read only, directory will be created
+        hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
+        assertTrue(util.exists(root));
+        BlobContainer container = hdfsBlobStore.blobContainer(blobPath);
+        assertTrue(util.exists(hdfsPath));
+
+        byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        writeBlob(container, "foo", new BytesArray(data), randomBoolean());
+        assertArrayEquals(readBlobFully(container, "foo", data.length), data);
+        assertTrue(container.blobExists("foo"));
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.bg.BulgarianStemFilter;
+import org.apache.lucene.analysis.bn.BengaliStemFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
 import org.apache.lucene.analysis.ckb.SoraniStemFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
@@ -43,6 +44,7 @@ import org.apache.lucene.analysis.hu.HungarianLightStemFilter;
 import org.apache.lucene.analysis.id.IndonesianStemFilter;
 import org.apache.lucene.analysis.it.ItalianLightStemFilter;
 import org.apache.lucene.analysis.lv.LatvianStemFilter;
+import org.apache.lucene.analysis.miscellaneous.EmptyTokenStream;
 import org.apache.lucene.analysis.no.NorwegianLightStemFilter;
 import org.apache.lucene.analysis.no.NorwegianLightStemmer;
 import org.apache.lucene.analysis.no.NorwegianMinimalStemFilter;
@@ -52,7 +54,6 @@ import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -75,7 +76,6 @@ import org.tartarus.snowball.ext.KpStemmer;
 import org.tartarus.snowball.ext.LithuanianStemmer;
 import org.tartarus.snowball.ext.LovinsStemmer;
 import org.tartarus.snowball.ext.NorwegianStemmer;
-import org.tartarus.snowball.ext.PorterStemmer;
 import org.tartarus.snowball.ext.PortugueseStemmer;
 import org.tartarus.snowball.ext.RomanianStemmer;
 import org.tartarus.snowball.ext.RussianStemmer;
@@ -83,25 +83,31 @@ import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
 
+import java.io.IOException;
+
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
     private String language;
 
-    StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
+        // check that we have a valid language by trying to create a TokenStream
+        create(EMPTY_TOKEN_STREAM).close();
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version indexVersion = indexSettings.getIndexVersionCreated();
-
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);
         } else if ("armenian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new ArmenianStemmer());
         } else if ("basque".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new BasqueStemmer());
+        } else if ("bengali".equalsIgnoreCase(language)) {
+            return new BengaliStemFilter(tokenStream);
         } else if ("brazilian".equalsIgnoreCase(language)) {
             return new BrazilianStemFilter(tokenStream);
         } else if ("bulgarian".equalsIgnoreCase(language)) {

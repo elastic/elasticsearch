@@ -19,8 +19,15 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -37,9 +44,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpServerTransport;
@@ -63,7 +73,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
@@ -93,7 +106,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     @After
@@ -135,6 +148,17 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
         assertEquals(maxAge, corsConfig.maxAge());
         assertFalse(corsConfig.isCredentialsAllowed());
+    }
+
+    public void testCorsConfigWithBadRegex() {
+        final Settings settings = Settings.builder()
+            .put(SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/[*/")
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .build();
+        SettingsException e = expectThrows(SettingsException.class, () -> Netty4HttpServerTransport.buildCorsConfig(settings));
+        assertThat(e.getMessage(), containsString("Bad regex in [http.cors.allow-origin]: [/[*/]"));
+        assertThat(e.getCause(), instanceOf(PatternSyntaxException.class));
     }
 
     /**
@@ -196,14 +220,23 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 HttpUtil.setContentLength(request, contentLength);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(expectedStatus));
-                if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                    final FullHttpRequest continuationRequest =
-                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                    final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
-
-                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                try {
+                    assertThat(response.status(), equalTo(expectedStatus));
+                    if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
+                        final FullHttpRequest continuationRequest =
+                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
+                        try {
+                            assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                            assertThat(
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                            );
+                        } finally {
+                            continuationResponse.release();
+                        }
+                    }
+                } finally {
+                    response.release();
                 }
             }
         }
@@ -262,17 +295,21 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
-                assertThat(
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
+                    assertThat(
                         new String(response.content().array(), Charset.forName("UTF-8")),
                         containsString("you sent a bad request and you should feel bad"));
+                } finally {
+                    response.release();
+                }
             }
         }
 
@@ -280,13 +317,12 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
 
-    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
+    public void testReadTimeout() throws Exception {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                threadContext.putHeader("foo", "bar");
-                threadContext.putTransient("bar", "baz");
+                throw new AssertionError("Should not have received a dispatched request");
             }
 
             @Override
@@ -294,23 +330,39 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                                            final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
-                threadContext.putHeader("foo_bad", "bar");
-                threadContext.putTransient("bar_bad", "baz");
+                throw new AssertionError("Should not have received a dispatched request");
             }
 
         };
 
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
+            .build();
+
+
+        NioEventLoopGroup group = new NioEventLoopGroup();
         try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            transport.dispatchRequest(null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo"));
-            assertNull(threadPool.getThreadContext().getTransient("bar"));
+            AtomicBoolean channelClosed = new AtomicBoolean(false);
 
-            transport.dispatchBadRequest(null, null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
-            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
+            Bootstrap clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
+
+                @Override
+                protected void initChannel(SocketChannel ch) {
+                    ch.pipeline().addLast(new ChannelHandlerAdapter() {});
+
+                }
+            }).group(group);
+            ChannelFuture connect = clientBootstrap.connect(remoteAddress.address());
+            connect.channel().closeFuture().addListener(future -> channelClosed.set(true));
+
+            assertBusy(() -> assertTrue("Channel should be closed due to read timeout", channelClosed.get()), 5, TimeUnit.SECONDS);
+
+        } finally {
+            group.shutdownGracefully().await();
         }
     }
 }

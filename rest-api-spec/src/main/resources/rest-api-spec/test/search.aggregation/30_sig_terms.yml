@@ -66,15 +66,15 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
-        type:  doc
 
   - match: {hits.total: 7}
   
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
-        type:  doc
         body: {"aggs": {"class": {"terms": {"field": "class"},"aggs": {"sig_terms": {"significant_terms": {"field": "text"}}}}}}
 
   - match: {aggregations.class.buckets.0.sig_terms.buckets.0.key: "bad"}
@@ -110,6 +110,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : { "exists" : { "field" : "ip" } }, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "min_doc_count" : 1 } } } }
 
   - match: { hits.total: 1 }
@@ -124,6 +125,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : { "exists" : { "field" : "ip" } }, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "min_doc_count" : 1, "include" : [ "::1" ] } } } }
 
   - match: { hits.total: 1 }
@@ -134,6 +136,7 @@
  
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : { "exists" : { "field" : "ip" } }, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "min_doc_count" : 1, "exclude" : [ "::1" ] } } } }
 
   - match: { hits.total: 1 }
@@ -143,6 +146,7 @@
   - do:
       catch: request
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
   
  

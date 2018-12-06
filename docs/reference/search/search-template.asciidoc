@@ -26,7 +26,7 @@ For more information on how Mustache templating and what kind of templating you
 can do with it check out the http://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
-NOTE: The mustache language is implemented in elasticsearch as a sandboxed
+NOTE: The mustache language is implemented in Elasticsearch as a sandboxed
 scripting language, hence it obeys settings that may be used to enable or
 disable scripts per type and context as described in the
 <<allowed-script-types-setting, scripting docs>>
@@ -402,17 +402,19 @@ The previous query will be rendered as:
 [[pre-registered-templates]]
 ===== Pre-registered template
 
-You can register search templates by storing them in the cluster state.
-There are REST APIs to manage these stored templates.
+You can register search templates by using the stored scripts api.
 
 [source,js]
 ------------------------------------------
-POST _search/template/<templatename>
+POST _scripts/<templatename>
 {
-    "template": {
-        "query": {
-            "match": {
-                "title": "{{query_string}}"
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "title": "{{query_string}}"
+                }
             }
         }
     }
@@ -440,7 +442,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _search/template/<templatename>
+GET _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -450,10 +452,15 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "_id" : "<templatename>",
-    "lang" : "mustache",
-    "found" : true,
-    "template" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"
+    "script" : {
+        "lang" : "mustache",
+        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+        "options": {
+          "content_type" : "application/json; charset=UTF-8"
+        }
+    },
+    "_id": "<templatename>",
+    "found": true
 }
 ------------------------------------------
 // TESTRESPONSE
@@ -462,7 +469,7 @@ This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE _search/template/<templatename>
+DELETE _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -606,7 +613,7 @@ body\n
 --------------------------------------------------
 // NOTCONSOLE
 
-The header part supports the same `index`, `types`, `search_type`,
+The header part supports the same `index`, `search_type`,
 `preference`, and `routing` options as the usual Multi Search API.
 
 The body includes a search template body request and supports inline,
@@ -617,7 +624,6 @@ stored and file templates. Here is an example:
 $ cat requests
 {"index": "test"}
 {"source": {"query": {"match":  {"user" : "{{username}}" }}}, "params": {"username": "john"}} <1>
-{"index": "_all", "types": "accounts"}
 {"source": {"query": {"{{query_type}}": {"name": "{{name}}" }}}, "params": {"query_type": "match_phrase_prefix", "name": "Smith"}}
 {"index": "_all"}
 {"id": "template_1", "params": {"query_string": "search for these words" }} <2>

@@ -30,19 +30,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,9 +70,10 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
     public void testNoTokenChars() throws IOException {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";
-        final Settings indexSettings = newAnalysisSettingsBuilder().build();
+        final Settings indexSettings = newAnalysisSettingsBuilder().put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 2).build();
+
         final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4)
-            .putArray("token_chars", new String[0]).build();
+            .putList("token_chars", new String[0]).build();
         Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
             .create();
         tokenizer.setReader(new StringReader("1.34"));
@@ -130,7 +125,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test", "_na_");
             final String name = "ngr";
-            Version v = randomVersion(random());
+            Version v = VersionUtils.randomVersion(random());
             Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
             boolean reverse = random().nextBoolean();
             if (reverse) {
@@ -151,16 +146,28 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         }
     }
 
+    /*`
+    * test that throws an error when trying to get a NGramTokenizer where difference between max_gram and min_gram
+    * is greater than the allowed value of max_ngram_diff
+     */
+    public void testMaxNGramDiffException() throws Exception{
+        final Index index = new Index("test", "_na_");
+        final String name = "ngr";
+        final Settings indexSettings = newAnalysisSettingsBuilder().build();
+        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
 
-    private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
-        Field[] declaredFields = Version.class.getFields();
-        List<Field> versionFields = new ArrayList<>();
-        for (Field field : declaredFields) {
-            if ((field.getModifiers() & Modifier.STATIC) != 0 && field.getName().startsWith("V_") && field.getType() == Version.class) {
-                versionFields.add(field);
-            }
-        }
-        return (Version) versionFields.get(random.nextInt(versionFields.size())).get(Version.class);
+        int maxAllowedNgramDiff = indexProperties.getMaxNgramDiff();
+        int ngramDiff = maxAllowedNgramDiff + 1;
+        int min_gram = 2;
+        int max_gram = min_gram + ngramDiff;
+
+        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", min_gram).put("max_gram", max_gram).build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            new NGramTokenizerFactory(indexProperties, null, name, settings).create());
+        assertEquals(
+            "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
+                + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.",
+            ex.getMessage());
     }
-
 }

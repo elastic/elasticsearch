@@ -26,6 +26,7 @@ import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -84,18 +85,23 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void match(LogEvent event) {
-            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
                 if (Regex.isSimpleMatchPattern(message)) {
                     if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
                         saw = true;
                     }
                 } else {
-                    if (event.getMessage().toString().contains(message)) {
+                    if (event.getMessage().getFormattedMessage().contains(message)) {
                         saw = true;
                     }
                 }
             }
         }
+
+        public boolean innerMatch(final LogEvent event) {
+            return true;
+        }
+
     }
 
     public static class UnseenEventExpectation extends AbstractEventExpectation {
@@ -106,7 +112,7 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void assertMatched() {
-            assertThat(name, saw, equalTo(false));
+            assertThat("expected to see " + name + " but did not", saw, equalTo(false));
         }
     }
 
@@ -118,8 +124,65 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void assertMatched() {
+            assertThat("expected to see " + name + " but did not", saw, equalTo(true));
+        }
+    }
+
+    public static class ExceptionSeenEventExpectation extends SeenEventExpectation {
+
+        private final Class<? extends Exception> clazz;
+        private final String exceptionMessage;
+
+        public ExceptionSeenEventExpectation(
+                final String name,
+                final String logger,
+                final Level level,
+                final String message,
+                final Class<? extends Exception> clazz,
+                final String exceptionMessage) {
+            super(name, logger, level, message);
+            this.clazz = clazz;
+            this.exceptionMessage = exceptionMessage;
+        }
+
+        @Override
+        public boolean innerMatch(final LogEvent event) {
+            return event.getThrown() != null
+                    && event.getThrown().getClass() == clazz
+                    && event.getThrown().getMessage().equals(exceptionMessage);
+        }
+
+    }
+
+    public static class PatternSeenEventExcpectation implements LoggingExpectation {
+
+        protected final String name;
+        protected final String logger;
+        protected final Level level;
+        protected final String pattern;
+        volatile boolean saw;
+
+        public PatternSeenEventExcpectation(String name, String logger, Level level, String pattern) {
+            this.name = name;
+            this.logger = logger;
+            this.level = level;
+            this.pattern = pattern;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
+                if (Pattern.matches(pattern, event.getMessage().getFormattedMessage())) {
+                    saw = true;
+                }
+            }
+        }
+
+        @Override
+        public void assertMatched() {
             assertThat(name, saw, equalTo(true));
         }
+
     }
 
     private static String getLoggerName(String name) {

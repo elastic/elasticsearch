@@ -1,6 +1,9 @@
 # Integration tests for SMB Store component
 #
 "SMB Store loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: store-smb  }
+    - contains:  { nodes.$master.plugins: { name: store-smb } }

@@ -24,12 +24,16 @@ import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -82,6 +86,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this.collator = ref.collator;
         }
 
+        @Override
         public CollationFieldType clone() {
             return new CollationFieldType(this);
         }
@@ -92,8 +97,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(otherFT, conflicts, strict);
+        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
+            super.checkCompatibility(otherFT, conflicts);
             CollationFieldType other = (CollationFieldType) otherFT;
             if (!Objects.equals(collator, other.collator)) {
                 conflicts.add("mapper [" + name() + "] has different [collator]");
@@ -120,15 +125,16 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query nullValueQuery() {
-            if (nullValue() == null) {
-                return null;
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
-            return termQuery(nullValue(), null);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
@@ -153,18 +159,25 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
                                 boolean transpositions) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        public Query wildcardQuery(String value,
+                                   @Nullable MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
                                  MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -234,7 +247,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private boolean numeric = false;
         private String variableTop = null;
         private boolean hiraganaQuaternaryMode = false;
-        private String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -386,7 +398,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                     }
                     collator = Collator.getInstance(locale);
                 } else {
-                    collator = Collator.getInstance();
+                    collator = Collator.getInstance(ULocale.ROOT);
                 }
             }
 
@@ -597,8 +609,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
 
         List<String> conflicts = new ArrayList<>();
         ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
@@ -740,7 +752,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        } else if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            createFieldNamesField(context, fields);
         }
     }
 }

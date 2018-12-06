@@ -26,17 +26,15 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
 
-public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
+public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final boolean normalizeKanji;
     private final boolean normalizeKana;
 
     public KuromojiIterationMarkCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
-        normalizeKanji = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "normalize_kanji",
-            JapaneseIterationMarkCharFilter.NORMALIZE_KANJI_DEFAULT, deprecationLogger);
-        normalizeKana = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "normalize_kana",
-            JapaneseIterationMarkCharFilter.NORMALIZE_KANA_DEFAULT, deprecationLogger);
+        normalizeKanji = settings.getAsBoolean("normalize_kanji", JapaneseIterationMarkCharFilter.NORMALIZE_KANJI_DEFAULT);
+        normalizeKana = settings.getAsBoolean("normalize_kana", JapaneseIterationMarkCharFilter.NORMALIZE_KANA_DEFAULT);
     }
 
     @Override
@@ -44,8 +42,4 @@ public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFa
         return new JapaneseIterationMarkCharFilter(reader, normalizeKanji, normalizeKana);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

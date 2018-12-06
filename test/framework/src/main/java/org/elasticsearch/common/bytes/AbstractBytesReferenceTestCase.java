@@ -68,20 +68,21 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     public void testSlice() throws IOException {
-        int length = randomInt(PAGE_SIZE * 3);
-        BytesReference pbr = newBytesReference(length);
-        int sliceOffset = randomIntBetween(0, length / 2);
-        int sliceLength = Math.max(0, length - sliceOffset - 1);
-        BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        assertEquals(sliceLength, slice.length());
-        for (int i = 0; i < sliceLength; i++) {
-            assertEquals(pbr.get(i+sliceOffset), slice.get(i));
-        }
-        BytesRef singlePageOrNull = getSinglePageOrNull(slice);
-        if (singlePageOrNull != null) {
-            // we can't assert the offset since if the length is smaller than the refercence
-            // the offset can be anywhere
-            assertEquals(sliceLength, singlePageOrNull.length);
+        for (int length : new int[] {0, 1, randomIntBetween(2, PAGE_SIZE), randomIntBetween(PAGE_SIZE + 1, 3 * PAGE_SIZE)}) {
+            BytesReference pbr = newBytesReference(length);
+            int sliceOffset = randomIntBetween(0, length / 2);
+            int sliceLength = Math.max(0, length - sliceOffset - 1);
+            BytesReference slice = pbr.slice(sliceOffset, sliceLength);
+            assertEquals(sliceLength, slice.length());
+            for (int i = 0; i < sliceLength; i++) {
+                assertEquals(pbr.get(i+sliceOffset), slice.get(i));
+            }
+            BytesRef singlePageOrNull = getSinglePageOrNull(slice);
+            if (singlePageOrNull != null) {
+                // we can't assert the offset since if the length is smaller than the refercence
+                // the offset can be anywhere
+                assertEquals(sliceLength, singlePageOrNull.length);
+            }
         }
     }
 
@@ -433,7 +434,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     public void testSliceArrayOffset() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * randomIntBetween(2, 5));
-        BytesReference pbr = newBytesReference(length);
+        BytesReference pbr = newBytesReferenceWithOffsetOfZero(length);
         int sliceOffset = randomIntBetween(0, pbr.length() - 1); // an offset to the end would be len 0
         int sliceLength = randomIntBetween(1, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
@@ -466,7 +467,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     public void testSliceToBytesRef() throws IOException {
         int length = randomIntBetween(0, PAGE_SIZE);
-        BytesReference pbr = newBytesReference(length);
+        BytesReference pbr = newBytesReferenceWithOffsetOfZero(length);
         // get a BytesRef from a slice
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
@@ -543,6 +544,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     protected abstract BytesReference newBytesReference(int length) throws IOException;
+
+    protected abstract BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException;
 
     public void testCompareTo() throws IOException {
         final int iters = randomIntBetween(5, 10);

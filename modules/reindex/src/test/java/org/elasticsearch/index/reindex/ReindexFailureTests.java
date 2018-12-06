@@ -63,7 +63,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
+            assertThat(failure.getMessage(), containsString("IllegalArgumentException[For input string: \"words words\"]"));
         }
     }
 
@@ -107,12 +107,20 @@ public class ReindexFailureTests extends ReindexTestCase {
                 response.get();
                 logger.info("Didn't trigger a reindex failure on the {} attempt", attempt);
                 attempt++;
+                /*
+                 * In the past we've seen the delete of the source index
+                 * actually take effect *during* the `indexDocs` call in
+                 * the next step. This breaks things pretty disasterously
+                 * so we *try* and wait for the delete to be fully
+                 * complete here.
+                 */
+                assertBusy(() -> assertFalse(client().admin().indices().prepareExists("source").get().isExists()));
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
-                        .or(containsString("no such index"))
+                        .or(containsString("no such index [source]"))
                         );
                 return;
             }
@@ -121,7 +129,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     }
 
     private void indexDocs(int count) throws Exception {
-        List<IndexRequestBuilder> docs = new ArrayList<IndexRequestBuilder>(count);
+        List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("test", "words words"));
         }

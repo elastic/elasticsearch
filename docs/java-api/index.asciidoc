@@ -5,8 +5,11 @@ include::../Versions.asciidoc[]
 
 [preface]
 == Preface
-This section describes the Java API that elasticsearch provides. All
-elasticsearch operations are executed using a
+
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+
+This section describes the Java API that Elasticsearch provides. All
+Elasticsearch operations are executed using a
 <<client,Client>> object. All
 operations are completely asynchronous in nature (either accepts a
 listener, or returns a future).
@@ -17,6 +20,9 @@ Additionally, operations on a client may be accumulated and executed in
 Note, all the APIs are exposed through the
 Java API (actually, the Java API is used internally to execute them).
 
+== Javadoc
+
+The javadoc for the transport client can be found at {transport-client-javadoc}/index.html.
 
 == Maven Repository
 
@@ -35,6 +41,37 @@ For example, you can define the latest version in your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
+[[java-transport-usage-maven-lucene]]
+=== Lucene Snapshot repository
+
+The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
+In such a case you will be unable to resolve the Lucene dependencies of the client.
+
+For example, if you want to use the `6.0.0-beta1` version which depends on Lucene `7.0.0-snapshot-00142c9`, you must
+define the following repository.
+
+For Maven:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<repository>
+    <id>elastic-lucene-snapshots</id>
+    <name>Elastic Lucene Snapshots</name>
+    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
+    <releases><enabled>true</enabled></releases>
+    <snapshots><enabled>false</enabled></snapshots>
+</repository>
+--------------------------------------------------
+
+For Gradle:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+maven {
+    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
+}
+--------------------------------------------------
+
 === Log4j 2 Logger
 
 You need to also include Log4j 2 dependencies:
@@ -44,7 +81,7 @@ You need to also include Log4j 2 dependencies:
 <dependency>
     <groupId>org.apache.logging.log4j</groupId>
     <artifactId>log4j-core</artifactId>
-    <version>2.8.2</version>
+    <version>2.11.1</version>
 </dependency>
 --------------------------------------------------
 
@@ -72,7 +109,7 @@ If you want to use another logger than Log4j 2, you can use http://www.slf4j.org
 <dependency>
     <groupId>org.apache.logging.log4j</groupId>
     <artifactId>log4j-to-slf4j</artifactId>
-    <version>2.8.2</version>
+    <version>2.11.1</version>
 </dependency>
 <dependency>
     <groupId>org.slf4j</groupId>
@@ -93,106 +130,10 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 </dependency>
 --------------------------------------------------
 
+:client-tests: {docdir}/../../server/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
 
-== Dealing with JAR dependency conflicts
-
-If you want to use Elasticsearch in your Java application, you may have to deal with version conflicts with third party
-dependencies like Guava and Joda.  For instance, perhaps Elasticsearch uses Joda 2.8, while your code uses Joda 2.1.
-
-You have two choices:
-
-* The simplest solution is to upgrade. Newer module versions are likely to have fixed old bugs.
-The further behind you fall, the harder it will be to upgrade later. Of course, it is possible that you are using a
-third party dependency that in turn depends on an outdated version of a package, which prevents you from upgrading.
-
-* The second option is to relocate the troublesome dependencies and to shade them either with your own application
-or with Elasticsearch and any plugins needed by the Elasticsearch client.
-
-The https://www.elastic.co/blog/to-shade-or-not-to-shade["To shade or not to shade" blog post] describes
-all the steps for doing so.
-
-== Embedding jar with dependencies
-
-If you want to create a single jar containing your application and all dependencies, you should not
-use `maven-assembly-plugin` for that because it can not deal with `META-INF/services` structure which is
-required by Lucene jars.
-
-Instead, you can use `maven-shade-plugin` and configure it as follow:
-
-[source,xml]
---------------------------------------------------
-<plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-shade-plugin</artifactId>
-    <version>2.4.1</version>
-    <executions>
-        <execution>
-            <phase>package</phase>
-            <goals><goal>shade</goal></goals>
-            <configuration>
-                <transformers>
-                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                </transformers>
-            </configuration>
-        </execution>
-    </executions>
-</plugin>
---------------------------------------------------
-
-Note that if you have a `main` class you want to automatically call when running `java -jar yourjar.jar`, just add
-it to the `transformers`:
-
-[source,xml]
---------------------------------------------------
-<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-    <mainClass>org.elasticsearch.demo.Generate</mainClass>
-</transformer>
---------------------------------------------------
-
-
-== Deploying in JBoss EAP6 module
-
-Elasticsearch and Lucene classes need to be in the same JBoss module.
-
-You should define a `module.xml` file like this:
-
-[source,xml]
---------------------------------------------------
-<?xml version="1.0" encoding="UTF-8"?>
-<module xmlns="urn:jboss:module:1.1" name="org.elasticsearch">
-  <resources>
-    <!-- Elasticsearch -->
-    <resource-root path="elasticsearch-2.0.0.jar"/>
-    <!-- Lucene -->
-    <resource-root path="lucene-core-5.1.0.jar"/>
-    <resource-root path="lucene-analyzers-common-5.1.0.jar"/>
-    <resource-root path="lucene-queries-5.1.0.jar"/>
-    <resource-root path="lucene-memory-5.1.0.jar"/>
-    <resource-root path="lucene-highlighter-5.1.0.jar"/>
-    <resource-root path="lucene-queryparser-5.1.0.jar"/>
-    <resource-root path="lucene-sandbox-5.1.0.jar"/>
-    <resource-root path="lucene-suggest-5.1.0.jar"/>
-    <resource-root path="lucene-misc-5.1.0.jar"/>
-    <resource-root path="lucene-join-5.1.0.jar"/>
-    <resource-root path="lucene-grouping-5.1.0.jar"/>
-    <resource-root path="lucene-spatial-5.1.0.jar"/>
-    <resource-root path="lucene-expressions-5.1.0.jar"/>
-    <!-- Insert other resources here -->
-  </resources>
-
-  <dependencies>
-    <module name="sun.jdk" export="true" >
-        <imports>
-            <include path="sun/misc/Unsafe" />
-        </imports>
-    </module>
-    <module name="org.apache.log4j"/>
-    <module name="org.apache.commons.logging"/>
-    <module name="javax.api"/>
-  </dependencies>
-</module>
---------------------------------------------------
-
+:client-reindex-tests: {docdir}/../../modules/reindex/src/test/java/org/elasticsearch/client/documentation
 
 include::client.asciidoc[]
 
@@ -203,7 +144,5 @@ include::search.asciidoc[]
 include::aggs.asciidoc[]
 
 include::query-dsl.asciidoc[]
-
-include::indexed-scripts.asciidoc[]
 
 include::admin/index.asciidoc[]

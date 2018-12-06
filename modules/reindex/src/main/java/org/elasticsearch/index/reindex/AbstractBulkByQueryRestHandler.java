@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,7 +38,7 @@ import java.util.function.Consumer;
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        A extends GenericAction<Request, BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+        A extends Action<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
     protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
         super(settings, action);
@@ -49,14 +50,12 @@ public abstract class AbstractBulkByQueryRestHandler<
         assert restRequest != null : "RestRequest should not be null";
 
         SearchRequest searchRequest = internal.getSearchRequest();
-        int scrollSize = searchRequest.source().size();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
         }
 
-        internal.setSize(searchRequest.source().size());
-        searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
+        searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
         String conflicts = restRequest.param("conflicts");
         if (conflicts != null) {
@@ -91,7 +90,8 @@ public abstract class AbstractBulkByQueryRestHandler<
                     consumer.getValue().accept(value);
                 }
             }
-            return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
+            return parser.contentType().xContent().createParser(parser.getXContentRegistry(),
+                parser.getDeprecationHandler(), BytesReference.bytes(builder.map(body)).streamInput());
         }
     }
 }

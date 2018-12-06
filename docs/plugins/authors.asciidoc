@@ -1,27 +1,33 @@
 [[plugin-authors]]
 == Help for plugin authors
 
+:plugin-properties-files: {docdir}/../../buildSrc/src/main/resources
+
 The Elasticsearch repository contains examples of:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/jvm-example[Java plugin]
-  which contains Java code.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/custom-settings[Java plugin]
+  which contains a plugin with custom settings.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rest-handler[Java plugin]
+  which contains a plugin that registers a Rest handler.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[Java plugin]
+  which contains a rescore plugin.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[Java plugin]
+  which contains a script plugin.
 
 These examples provide the bare bones needed to get started.  For more
 information about how to write a plugin, we recommend looking at the plugins
 listed in this documentation for inspiration.
 
 [float]
-=== Plugin Structure
-
-All plugin files must be contained in a directory called `elasticsearch`.
-
-[float]
 === Plugin descriptor file
 
-All plugins must contain a file called `plugin-descriptor.properties` in the folder named `elasticsearch`. The format
-for this file is described in detail here:
+All plugins must contain a file called `plugin-descriptor.properties`.
+The format for this file is described in detail in this example:
 
-https://github.com/elastic/elasticsearch/blob/master/buildSrc/src/main/resources/plugin-descriptor.properties[`/buildSrc/src/main/resources/plugin-descriptor.properties`].
+["source","properties"]
+--------------------------------------------------
+include::{plugin-properties-files}/plugin-descriptor.properties[]
+--------------------------------------------------
 
 Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
 can fill in the necessary values in the `build.gradle` file for your plugin.
@@ -46,18 +52,18 @@ can fill in the necessary values in the `build.gradle` file for your plugin.
 Use the system property `java.specification.version`. Version string must be a sequence
 of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
-|`elasticsearch.version`    |String  | version of elasticsearch compiled against.
+|`elasticsearch.version`    |String  | version of Elasticsearch compiled against.
 
 |=======================================================================
 
-Note that only jar files in the 'elasticsearch' directory are added to the classpath for the plugin!
+Note that only jar files at the root of the plugin are added to the classpath for the plugin!
 If you need other resources, package them into a resources jar.
 
 [IMPORTANT]
 .Plugin release lifecycle
 ==============================================
 
-You will have to release a new version of the plugin for each new elasticsearch release.
+You will have to release a new version of the plugin for each new Elasticsearch release.
 This version is checked when the plugin is loaded so Elasticsearch will refuse to start
 in the presence of plugins with the incorrect `elasticsearch.version`.
 
@@ -86,7 +92,7 @@ with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any
 spurious permissions!
 
-If you are using the elasticsearch Gradle build system, place this file in
+If you are using the Elasticsearch Gradle build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
 Keep in mind that the Java security model is stack-based, and the additional

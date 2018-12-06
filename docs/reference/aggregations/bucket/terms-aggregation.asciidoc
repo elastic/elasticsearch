@@ -3,10 +3,61 @@
 
 A multi-bucket value source based aggregation where buckets are dynamically built - one per unique value.
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /products
+{
+    "mappings": {
+        "product": {
+            "properties": {
+                "genre": {
+                    "type": "keyword"
+                },
+                "product": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+
+POST /products/product/_bulk?refresh
+{"index":{"_id":0}}
+{"genre": "rock", "product": "Product A"}
+{"index":{"_id":1}}
+{"genre": "rock"}
+{"index":{"_id":2}}
+{"genre": "rock"}
+{"index":{"_id":3}}
+{"genre": "jazz", "product": "Product Z"}
+{"index":{"_id":4}}
+{"genre": "jazz"}
+{"index":{"_id":5}}
+{"genre": "electronic"}
+{"index":{"_id":6}}
+{"genre": "electronic"}
+{"index":{"_id":7}}
+{"genre": "electronic"}
+{"index":{"_id":8}}
+{"genre": "electronic"}
+{"index":{"_id":9}}
+{"genre": "electronic"}
+{"index":{"_id":10}}
+{"genre": "electronic"}
+
+-------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
 Example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -15,6 +66,8 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -22,37 +75,37 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations" : {
         "genres" : {
             "doc_count_error_upper_bound": 0, <1>
             "sum_other_doc_count": 0, <2>
             "buckets" : [ <3>
                 {
-                    "key" : "jazz",
-                    "doc_count" : 10
+                    "key" : "electronic",
+                    "doc_count" : 6
                 },
                 {
                     "key" : "rock",
-                    "doc_count" : 10
+                    "doc_count" : 3
                 },
                 {
-                    "key" : "electronic",
-                    "doc_count" : 10
-                },
+                    "key" : "jazz",
+                    "doc_count" : 2
+                }
             ]
         }
     }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/\.\.\.//]
 <1> an upper bound of the error on the document counts for each term, see <<search-aggregations-bucket-terms-aggregation-approximate-counts,below>>
-<2> when there are lots of unique terms, elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
+<2> when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
 <3> the list of the top buckets, the meaning of `top` being defined by the <<search-aggregations-bucket-terms-aggregation-order,order>>
 
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
 
+[[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -61,6 +114,11 @@ and once all shards respond, it will reduce the results to the final list that w
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
+
+NOTE: If you want to retrieve **all** terms or all combinations of terms in a nested `terms` aggregation
+      you should use the <<search-aggregations-bucket-composite-aggregation,Composite>> aggregation which
+      allows to paginate over all possible terms rather than setting a size greater than the cardinality of the field in the
+      `terms` aggregation. The `terms` aggregation is meant to return the `top` terms and does not allow pagination.
 
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
@@ -74,6 +132,7 @@ A request is made to obtain the top 5 terms in the field product, ordered by des
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "products" : {
@@ -85,6 +144,8 @@ A request is made to obtain the top 5 terms in the field product, ordered by des
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 The terms for each of the three shards are shown below with their
 respective document counts in brackets:
@@ -107,7 +168,6 @@ respective document counts in brackets:
 |=========================================================
 
 The shards will return their top 5 terms so the results from the shards will be:
-
 
 [width="100%",cols="^2,^2,^2,^2",options="header"]
 |=========================================================
@@ -156,7 +216,7 @@ one can increase the accuracy of the returned terms and avoid the overhead of st
 the client.
 
 
-NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
+NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.
 
 
@@ -165,9 +225,9 @@ otherwise.
 
 ==== Calculating Document Count Error
 
-There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as
+There are two error values which can be shown on the terms aggregation. The first gives a value for the aggregation as
 a whole which represents the maximum potential document count for a term which did not make it into the final list of
-terms. This is calculated as the sum of the document count from the last term returned from each shard .For the example
+terms. This is calculated as the sum of the document count from the last term returned from each shard. For the example
 given above the value would be 46 (2 + 15 + 29). This means that in the worst case scenario a term which was not returned
 could have the 4th highest document count.
 
@@ -175,10 +235,10 @@ could have the 4th highest document count.
 --------------------------------------------------
 {
     ...
-
     "aggregations" : {
         "products" : {
             "doc_count_error_upper_bound" : 46,
+            "sum_other_doc_count" : 79,
             "buckets" : [
                 {
                     "key" : "Product A",
@@ -187,35 +247,55 @@ could have the 4th highest document count.
                 {
                     "key" : "Product Z",
                     "doc_count" : 52
-                },
+                }
                 ...
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 
 ==== Per bucket document count error
 
-experimental[]
+The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true:
 
-The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true. This shows an error value
-for each term returned by the aggregation which represents the 'worst case' error in the document count and can be useful when
-deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for the last term returned
-by all shards which did not return the term. In the example above the error in the document count for Product C would be 15 as
-Shard B was the only shard not to return the term and the document count of the last term it did return was 15. The actual document
-count of Product C was 54 so the document count was only actually off by 4 even though the worst case was that it would be off by
-15.  Product A, however has an error of 0 for its document count, since every shard returned it we can be confident that the count
-returned is accurate.
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "products" : {
+            "terms" : {
+                "field" : "product",
+                "size" : 5,
+                "show_term_doc_count_error": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+
+This shows an error value for each term returned by the aggregation which represents the 'worst case' error in the document count
+and can be useful when deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for
+the last term returned by all shards which did not return the term. In the example above the error in the document count for Product C
+would be 15 as Shard B was the only shard not to return the term and the document count of the last term it did return was 15.
+The actual document count of Product C was 54 so the document count was only actually off by 4 even though the worst case was that
+it would be off by 15. Product A, however has an error of 0 for its document count, since every shard returned it we can be confident
+that the count returned is accurate.
 
 [source,js]
 --------------------------------------------------
 {
     ...
-
     "aggregations" : {
         "products" : {
             "doc_count_error_upper_bound" : 46,
+            "sum_other_doc_count" : 79,
             "buckets" : [
                 {
                     "key" : "Product A",
@@ -226,13 +306,15 @@ returned is accurate.
                     "key" : "Product Z",
                     "doc_count" : 52,
                     "doc_count_error_upper_bound" : 2
-                },
+                }
                 ...
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 
 These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is
 ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard
@@ -259,6 +341,7 @@ Ordering the buckets by their doc `_count` in an ascending manner:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -270,11 +353,13 @@ Ordering the buckets by their doc `_count` in an ascending manner:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Ordering the buckets alphabetically by their terms in an ascending manner:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -286,6 +371,7 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
 
@@ -293,6 +379,7 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -307,11 +394,13 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Ordering the buckets by multi value metrics sub-aggregation (identified by the aggregation name):
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -326,6 +415,7 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [NOTE]
 .Pipeline aggs cannot be used for sorting
@@ -357,6 +447,7 @@ PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEP
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "countries" : {
@@ -376,6 +467,7 @@ PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEP
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above will sort the artist's countries buckets based on the average play count among the rock songs.
 
@@ -383,6 +475,7 @@ Multiple criteria can be used to order the buckets by providing an array of orde
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "countries" : {
@@ -392,7 +485,7 @@ Multiple criteria can be used to order the buckets by providing an array of orde
             },
             "aggs" : {
                 "rock" : {
-                    "filter" : { "term" : { "genre" : { "rock" }}},
+                    "filter" : { "term" : { "genre" : "rock" }},
                     "aggs" : {
                         "playback_stats" : { "stats" : { "field" : "play_count" }}
                     }
@@ -402,6 +495,7 @@ Multiple criteria can be used to order the buckets by providing an array of orde
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above will sort the artist's countries buckets based on the average play count among the rock songs and then by
 their `doc_count` in descending order.
@@ -415,6 +509,7 @@ It is possible to only return terms that match more than a configured number of 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -426,6 +521,7 @@ It is possible to only return terms that match more than a configured number of 
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `1`.
 
@@ -455,6 +551,7 @@ Generating the terms using a script:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -468,11 +565,29 @@ Generating the terms using a script:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a stored script use the following syntax:
 
+//////////////////////////
+
 [source,js]
 --------------------------------------------------
+POST /_scripts/my_script
+{
+  "script": {
+    "lang": "painless",
+    "source": "doc[params.field].value"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
@@ -488,18 +603,21 @@ This will interpret the `script` parameter as an `inline` script with the defaul
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 ==== Value Script
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "genres" : {
             "terms" : {
-                "field" : "gender",
+                "field" : "genre",
                 "script" : {
-                    "source" : "'Genre: ' +_value"
+                    "source" : "'Genre: ' +_value",
                     "lang" : "painless"
                 }
             }
@@ -507,7 +625,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
     }
 }
 --------------------------------------------------
-
+// CONSOLE
 
 ==== Filtering Values
 
@@ -519,6 +637,7 @@ It is possible to filter the values for which buckets will be created. This can 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -531,9 +650,10 @@ It is possible to filter the values for which buckets will be created. This can 
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
-with `water_` (so the tag `water_sports` will no be aggregated). The `include` regular expression will determine what
+with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what
 values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
 both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 
@@ -546,6 +666,7 @@ strings that represent the terms as they are found in the index:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "JapaneseCars" : {
@@ -563,6 +684,7 @@ strings that represent the terms as they are found in the index:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Filtering Values with partitions
 
@@ -574,6 +696,7 @@ Consider this request which is looking for accounts that have not logged any acc
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
    "size": 0,
    "aggs": {
@@ -600,6 +723,7 @@ Consider this request which is looking for accounts that have not logged any acc
    }
 }
 --------------------------------------------------
+// CONSOLE
 
 This request is finding the last logged access date for a subset of customer accounts because we
 might want to expire some customer accounts who haven't been seen for a long while.
@@ -622,7 +746,7 @@ expire then we may be missing accounts of interest and have set our numbers too 
 * increase the `size` parameter to return more results per partition (could be heavy on memory) or
 * increase the `num_partitions` to consider less accounts per request (could increase overall processing time as we need to make more requests)
 
-Ultimately this is a balancing act between managing the elasticsearch resources required to process a single request and the volume
+Ultimately this is a balancing act between managing the Elasticsearch resources required to process a single request and the volume
 of requests that the client application must issue to complete a task.
 
 ==== Multi-field terms aggregation
@@ -664,6 +788,7 @@ An example problem scenario is querying a movie database for the 10 most popular
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "actors" : {
@@ -683,6 +808,7 @@ An example problem scenario is querying a movie database for the 10 most popular
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Even though the number of actors may be comparatively small and we want only 50 result buckets there is a combinatorial explosion of buckets
 during calculation - a single actor can produce n² buckets where n is the number of actors. The sane option would be to first determine
@@ -694,6 +820,7 @@ It is possible to override the default heuristic and to provide a collect mode d
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "actors" : {
@@ -714,6 +841,7 @@ It is possible to override the default heuristic and to provide a collect mode d
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> the possible values are `breadth_first` and `depth_first`
 
@@ -728,33 +856,23 @@ collection mode need to replay the query on the second pass but only for the doc
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-experimental[The automated execution optimization is experimental, so this parameter is provided temporarily as a way to override the default behaviour]
-
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
- - by using ordinals of the field and preemptively allocating one bucket per ordinal value (`global_ordinals`)
- - by using ordinals of the field and dynamically allocating one bucket per ordinal value (`global_ordinals_hash`)
- - by using per-segment ordinals to compute counts and remap these counts to global counts using global ordinals (`global_ordinals_low_cardinality`)
+ - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 
-`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution modes
-are significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
+`global_ordinals` is the default option for `keyword` field, it uses global ordinals to allocates buckets dynamically
+so memory usage is linear to the number of values of the documents that are part of the aggregation scope.
+
+`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution mode
+is significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
 ordinals.
-
-`global_ordinals_low_cardinality` only works for leaf terms aggregations but is usually the fastest execution mode. Memory
-usage is linear with the number of unique values in the field, so it is only enabled by default on low-cardinality fields.
-
-`global_ordinals` is the second fastest option, but the fact that it preemptively allocates buckets can be memory-intensive,
-especially if you have one or more sub aggregations. It is used by default on top-level terms aggregations.
-
-`global_ordinals_hash` on the contrary to `global_ordinals` and `global_ordinals_low_cardinality` allocates buckets dynamically
-so memory usage is linear to the number of values of the documents that are part of the aggregation scope. It is used by default
-in inner aggregations.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -766,8 +884,9 @@ in inner aggregations.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
-<1> experimental[] the possible values are `map`, `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality`
+<1> The possible values are `map`, `global_ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
 
@@ -779,6 +898,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -790,6 +910,7 @@ had a value.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.
 

@@ -37,27 +37,30 @@ setup:
 "Search template with typed_keys parameter":
 
   - do:
-      put_template:
+      put_script:
         id: template_1
         body:
-          template:
-            query:
-              match:
-                bool: "{{bool_value}}"
-            aggs:
-              test_missing:
-                missing:
-                  field: "{{missing_field}}"
-            suggest:
-              term_suggest:
-                text: "{{suggest_text}}"
-                term:
-                  field: "{{suggest_field}}"
+          script:
+            lang: mustache
+            source:
+              query:
+                match:
+                  bool: "{{bool_value}}"
+              aggs:
+                test_missing:
+                  missing:
+                    field: "{{missing_field}}"
+              suggest:
+                term_suggest:
+                  text: "{{suggest_text}}"
+                  term:
+                    field: "{{suggest_field}}"
 
   - match: { acknowledged: true }
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test-*
         typed_keys: true
         body:
@@ -76,29 +79,32 @@ setup:
 "Multisearch template with typed_keys parameter":
 
   - do:
-      put_template:
+      put_script:
         id: registered_template
         body:
-          template:
-            query:
-              range:
-                integer:
-                 gte: "{{starting_value}}"
-            aggs:
-              test_histogram:
-                histogram:
-                  field:    "{{histo.field}}"
-                  interval: "{{histo.interval}}"
-            suggest:
-              phrase_suggester:
-                text: "{{keywords}}"
-                phrase:
-                  field: name
+          script:
+            lang: mustache
+            source:
+              query:
+                range:
+                  integer:
+                   gte: "{{starting_value}}"
+              aggs:
+                test_histogram:
+                  histogram:
+                    field:    "{{histo.field}}"
+                    interval: "{{histo.interval}}"
+              suggest:
+                phrase_suggester:
+                  text: "{{keywords}}"
+                  phrase:
+                    field: name
 
   - match: { acknowledged: true }
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           - index: test-*

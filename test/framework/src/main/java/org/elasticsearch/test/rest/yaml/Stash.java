@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -38,11 +38,11 @@ import java.util.regex.Pattern;
  * Allows to cache the last obtained test response and or part of it within variables
  * that can be used as input values in following requests and assertions.
  */
-public class Stash implements ToXContent {
+public class Stash implements ToXContentFragment {
     private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
     private static final Pattern PATH = Pattern.compile("\\$_path");
 
-    private static final Logger logger = Loggers.getLogger(Stash.class);
+    private static final Logger logger = LogManager.getLogger(Stash.class);
 
     public static final Stash EMPTY = new Stash();
 
@@ -184,10 +184,10 @@ public class Stash implements ToXContent {
         StringBuilder pathBuilder = new StringBuilder();
         Iterator<Object> element = path.iterator();
         if (element.hasNext()) {
-            pathBuilder.append(element.next());
+            pathBuilder.append(element.next().toString().replace(".", "\\."));
             while (element.hasNext()) {
                 pathBuilder.append('.');
-                pathBuilder.append(element.next());
+                pathBuilder.append(element.next().toString().replace(".", "\\."));
             }
         }
         String builtPath = Matcher.quoteReplacement(pathBuilder.toString());

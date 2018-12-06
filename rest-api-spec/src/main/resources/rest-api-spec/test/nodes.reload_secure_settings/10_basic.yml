@@ -1,0 +1,8 @@
+---
+"node_reload_secure_settings test":
+
+  - do:
+      nodes.reload_secure_settings: {}
+
+  - is_true: nodes
+  - is_true: cluster_name

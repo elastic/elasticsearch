@@ -31,8 +31,8 @@
 
   - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
-          type:    test
           body:
             query:
               more_like_this:

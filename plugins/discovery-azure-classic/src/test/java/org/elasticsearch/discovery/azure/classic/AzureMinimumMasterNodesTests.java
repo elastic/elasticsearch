@@ -19,18 +19,12 @@
 
 package org.elasticsearch.discovery.azure.classic;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
-import org.elasticsearch.cloud.azure.classic.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Reported issue in #15
@@ -41,54 +35,37 @@ import static org.hamcrest.Matchers.nullValue;
         transportClientRatio = 0.0,
         numClientNodes = 0,
         autoMinMasterNodes = false)
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-azure/issues/89")
 public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTestCase {
-
-    public AzureMinimumMasterNodesTests() {
-        super(AzureComputeServiceTwoNodesMock.TestPlugin.class);
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.minimum_master_nodes", 2)
-                // Make the test run faster
-                .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "50ms")
-                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "10ms")
-                .put("discovery.initial_state_timeout", "100ms");
-        return builder.build();
+                .put("discovery.initial_state_timeout", "1s")
+            .build();
     }
 
     public void testSimpleOnlyMasterNodeElection() throws IOException {
-        logger.info("--> start data node / non master node");
-        internalCluster().startNode();
-        try {
-            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(),
-                nullValue());
-            fail("should not be able to find master");
-        } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
-        }
-        logger.info("--> start another node");
-        internalCluster().startNode();
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
+        final String node1 = internalCluster().startNode();
+        registerAzureNode(node1);
+        expectThrows(MasterNotDiscoveredException.class, () ->
+            // master is not elected yet
+            client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId()
+        );
 
-        logger.info("--> stop master node");
+        final String node2 = internalCluster().startNode();
+        registerAzureNode(node2);
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+
         internalCluster().stopCurrentMasterNode();
+        expectThrows(MasterNotDiscoveredException.class, () ->
+            // master has been stopped
+            client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId()
+        );
 
-        try {
-            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-                nullValue());
-            fail("should not be able to find master");
-        } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
-        }
-
-        logger.info("--> start another node");
-        internalCluster().startNode();
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
+        final String node3 = internalCluster().startNode();
+        registerAzureNode(node3);
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
     }
 }

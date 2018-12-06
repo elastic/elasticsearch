@@ -23,39 +23,43 @@ documented individually.
 [float]
 === Development vs. production mode
 
-By default, Elasticsearch binds to `localhost` for <<modules-http,HTTP>>
-and <<modules-transport,transport (internal)>> communication. This is
-fine for downloading and playing with Elasticsearch, and everyday
-development but it's useless for production systems. To form a cluster,
-Elasticsearch instances must be reachable via transport communication so
-they must bind transport to an external interface. Thus, we consider an
-Elasticsearch instance to be in development mode if it does not bind
-transport to an external interface (the default), and is otherwise in
-production mode if it does bind transport to an external interface.
+By default, Elasticsearch binds to loopback addresses for <<modules-http,HTTP>>
+and <<modules-transport,transport (internal)>> communication. This is fine for
+downloading and playing with Elasticsearch as well as everyday development, but
+it's useless for production systems. To join a cluster, an Elasticsearch node
+must be reachable via transport communication. To join a cluster via a
+non-loopback address, a node must bind transport to a non-loopback address and
+not be using <<single-node-discovery,single-node discovery>>. Thus, we consider
+an Elasticsearch node to be in development mode if it can not form a cluster
+with another machine via a non-loopback address, and is otherwise in production
+mode if it can join a cluster via non-loopback addresses.
 
-Note that HTTP can be configured independently of transport via
-<<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>;
-this can be useful for configuring a single instance to be reachable via
-HTTP for testing purposes without triggering production mode.
+Note that HTTP and transport can be configured independently via
+<<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>; this
+can be useful for configuring a single node to be reachable via HTTP for testing
+purposes without triggering production mode.
 
-We recognize that some users need to bind transport to an external
-interface for testing their usage of the transport client. For this
-situation, we provide the discovery type `single-node` (configure it by
-setting `discovery.type` to `single-node`); in this situation, a node
-will elect itself master and will not form a cluster with any other
-node.
+[[single-node-discovery]]
+[float]
+=== Single-node discovery
+We recognize that some users need to bind transport to an external interface for
+testing their usage of the transport client. For this situation, we provide the
+discovery type `single-node` (configure it by setting `discovery.type` to
+`single-node`); in this situation, a node will elect itself master and will not
+join a cluster with any other node.
 
-If you are running a single node in production, it is possible to evade
-the bootstrap checks (either by not binding transport to an external
-interface, or by binding transport to an external interface and setting
-the discovery type to `single-node`). For this situation, you can force
-execution of the bootstrap checks by setting the system property
-`es.enforce.bootstrap.checks` to `true` (set this in <<jvm-options>>, or
-by adding `-Des.enforce.bootstrap.checks=true` to the environment
-variable `ES_JAVA_OPTS`). We strongly encourage you to do this if you
-are in this specific situation. This system property can be used to
-force execution of the bootstrap checks independent of the node
-configuration.
+
+[float]
+=== Forcing the bootstrap checks
+If you are running a single node in production, it is possible to evade the
+bootstrap checks (either by not binding transport to an external interface, or
+by binding transport to an external interface and setting the discovery type to
+`single-node`). For this situation, you can force execution of the bootstrap
+checks by setting the system property `es.enforce.bootstrap.checks` to `true`
+(set this in <<jvm-options>>, or by adding `-Des.enforce.bootstrap.checks=true`
+to the environment variable `ES_JAVA_OPTS`). We strongly encourage you to do
+this if you are in this specific situation. This system property can be used to
+force execution of the bootstrap checks independent of the node configuration.
 
 === Heap size check
 
@@ -63,12 +67,11 @@ If a JVM is started with unequal initial and max heap size, it can be
 prone to pauses as the JVM heap is resized during system usage. To avoid
 these resize pauses, it's best to start the JVM with the initial heap
 size equal to the maximum heap size. Additionally, if
-<<bootstrap.memory_lock,`bootstrap.memory_lock`>> is enabled, the JVM
+<<bootstrap-memory_lock,`bootstrap.memory_lock`>> is enabled, the JVM
 will lock the initial size of the heap on startup. If the initial heap
 size is not equal to the maximum heap size, after a resize it will not
 be the case that all of the JVM heap is locked in memory. To pass the
 heap size check, you must configure the <<heap-size,heap size>>.
-
 
 === File descriptor check
 
@@ -91,13 +94,13 @@ Elasticsearch would much rather use to service requests. There are
 several ways to configure a system to disallow swapping. One way is by
 requesting the JVM to lock the heap in memory through `mlockall` (Unix)
 or virtual lock (Windows). This is done via the Elasticsearch setting
-<<bootstrap.memory_lock,`bootstrap.memory_lock`>>. However, there are
+<<bootstrap-memory_lock,`bootstrap.memory_lock`>>. However, there are
 cases where this setting can be passed to Elasticsearch but
 Elasticsearch is not able to lock the heap (e.g., if the `elasticsearch`
 user does not have `memlock unlimited`). The memory lock check verifies
 that *if* the `bootstrap.memory_lock` setting is enabled, that the JVM
 was successfully able to lock the heap. To pass the memory lock check,
-you might have to configure <<mlockall,`mlockall`>>.
+you might have to configure <<bootstrap-memory_lock,`bootstrap.memory_lock`>>.
 
 [[max-number-threads-check]]
 === Maximum number of threads check
@@ -111,9 +114,22 @@ that the Elasticsearch process has the rights to create enough threads
 under normal use. This check is enforced only on Linux. If you are on
 Linux, to pass the maximum number of threads check, you must configure
 your system to allow the Elasticsearch process the ability to create at
-least 2048 threads. This can be done via `/etc/security/limits.conf`
+least 4096 threads. This can be done via `/etc/security/limits.conf`
 using the `nproc` setting (note that you might have to increase the
 limits for the `root` user too).
+
+=== Max file size check
+
+The segment files that are the components of individual shards and the translog
+generations that are components of the translog can get large (exceeding
+multiple gigabytes). On systems where the max size of files that can be created
+by the Elasticsearch process is limited, this can lead to failed
+writes. Therefore, the safest option here is that the max file size is unlimited
+and that is what the max file size bootstrap check enforces. To pass the max
+file check, you must configure your system to allow the Elasticsearch process
+the ability to write files of unlimited size. This can be done via
+`/etc/security/limits.conf` using the `fsize` setting to `unlimited` (note that
+you might have to increase the limits for the `root` user too).
 
 [[max-size-virtual-memory-check]]
 === Maximum size virtual memory check
@@ -139,6 +155,11 @@ the kernel allows a process to have at least 262,144 memory-mapped areas
 and is enforced on Linux only. To pass the maximum map count check, you
 must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
 
+Alternatively, the maximum map count check is only needed if you are using
+`mmapfs` as the <<index-modules-store,store type>> for your indices. If you
+<<allow-mmapfs,do not allow>> the use of `mmapfs` then this bootstrap check will
+not be enforced.
+
 === Client JVM check
 
 There are two different JVMs provided by OpenJDK-derived JVMs: the
@@ -150,8 +171,7 @@ the two VMs can be substantial. The client JVM check ensures that
 Elasticsearch is not running inside the client JVM. To pass the client
 JVM check, you must start Elasticsearch with the server VM. On modern
 systems and operating systems, the server VM is the
-default. Additionally, Elasticsearch is configured by default to force
-the server VM.
+default.
 
 === Use serial collector check
 
@@ -165,7 +185,7 @@ to run with the serial collector. To pass the serial collector check,
 you must not start Elasticsearch with the serial collector (whether it's
 from the defaults for the JVM that you're using, or you've explicitly
 specified it with `-XX:+UseSerialGC`). Note that the default JVM
-configuration that ship with Elasticsearch configures Elasticsearch to
+configuration that ships with Elasticsearch configures Elasticsearch to
 use the CMS collector.
 
 === System call filter check
@@ -173,7 +193,7 @@ Elasticsearch installs system call filters of various flavors depending
 on the operating system (e.g., seccomp on Linux). These system call
 filters are installed to prevent the ability to execute system calls
 related to forking as a defense mechanism against arbitrary code
-execution attacks on Elasticsearch The system call filter check ensures
+execution attacks on Elasticsearch. The system call filter check ensures
 that if system call filters are enabled, then they were successfully
 installed. To pass the system call filter check you must either fix any
 configuration errors on your system that prevented system call filters
@@ -210,3 +230,9 @@ have issues that can lead to index corruption when the G1GC collector is
 enabled.  The versions impacted are those earlier than the version of
 HotSpot that shipped with JDK 8u40. The G1GC check detects these early
 versions of the HotSpot JVM.
+
+=== All permission check
+
+The all permission check ensures that the security policy used during bootstrap
+does not grant the `java.security.AllPermission` to Elasticsearch. Running with
+the all permission granted is equivalent to disabling the security manager.

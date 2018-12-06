@@ -34,9 +34,6 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
-        "operation_threading": {
-          "description" : "TODO: ?"
-        },
         "q": {
           "type" : "string",
           "description" : "Query in the Lucene query string syntax"

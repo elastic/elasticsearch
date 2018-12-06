@@ -1,442 +1,473 @@
-[[types]]
-=== Data Types
+[[painless-types]]
+=== Types
 
-Painless supports both dynamic and static types. Static types are split into
-_primitive types_ and _reference types_.
-
-[[dynamic-types]]
-==== Dynamic Types
-
-Painless supports one dynamic type: `def`.  The `def` type can represent any
-primitive or reference type. When you use the `def` type, it mimics the exact
-behavior of whatever type it represents at runtime. The default value for the
-def type is `null.`
-
-Internally, if the `def` type represents a primitive type, it is converted to the
-corresponding reference type. It still behaves like the primitive type, however,
-including within the casting model. The `def` type can be assigned to different
-types during the course of script execution.
-
-IMPORTANT: Because a `def` type variable can be assigned to different types
-during execution, type conversion errors that occur when using the `def` type
-happen at runtime.
-
-Using the `def` type can have a slight impact on performance. If performance is
-critical, it's better to declare static types.
-
-*Examples:*
-[source,Java]
-----
-def x = 1;               // Declare def variable x and set it to the
-                         //   literal int 1
-def l = new ArrayList(); // Declare def variable l and set it a newly 
-                         //   allocated ArrayList
-----
+A type is a classification of data used to define the properties of a value.
+These properties specify what data a value represents and the rules for how a
+value is evaluated during an <<painless-operators, operation>>. Each type
+belongs to one of the following categories: <<primitive-types, primitive>>,
+<<reference-types, reference>>, or <<dynamic-types, dynamic>>.
 
 [[primitive-types]]
 ==== Primitive Types
 
-Primitive types are allocated directly onto the stack according to the standard
-Java memory model.
+A primitive type represents basic data built natively into the JVM and is
+allocated to non-heap memory. Declare a primitive type
+<<painless-variables, variable>> or access a primitive type member field (from
+a reference type instance), and assign it a primitive type value for evaluation
+during later operations. The default value for a newly-declared primitive type
+variable is listed as part of the definitions below. A primitive type value is
+copied during an assignment or as an argument for a method/function call.
 
-Primitive types can behave as their corresponding (<<boxing-unboxing, boxed>>)
-reference type. This means any piece of a reference type can be accessed or
-called through the primitive type. Operations performed in this manner convert
-the primitive type to its corresponding reference type at runtime and perform
-the field access  or method call without needing to perform any other
-operations.
+A primitive type has a corresponding reference type (also known as a boxed
+type). Use the <<field-access-operator, field access operator>> or
+<<method-call-operator, method call operator>> on a primitive type value to
+force evaluation as its corresponding reference type value.
 
-Painless supports the following primitive types.
+The following primitive types are available:
 
-byte::
-An 8-bit, signed, two's complement integer.
-Range: [-128, 127].
-Default value: 0.
-Reference type: Byte.
+[horizontal]
+`byte`::
+8-bit, signed, two's complement integer
+* range: [`-128`, `127`]
+* default value: `0`
+* reference type: `Byte`
 
-short:: 
-A 16-bit, signed, two's complement integer.
-Range: [-32768, 32767].
-Default value: 0.
-Reference type: Short.
+`short`::
+16-bit, signed, two's complement integer
+* range: [`-32768`, `32767`]
+* default value: `0`
+* reference type: `Short`
 
-char::
-A 16-bit Unicode character.
-Range: [0, 65535].
-Default value: 0 or `\u0000`.
-Reference type: Character.
+`char`::
+16-bit, unsigned, Unicode character
+* range: [`0`, `65535`]
+* default value: `0` or `\u0000`
+* reference type: `Character`
 
-int::
-A 32-bit, signed, two's complement integer.
-Range: [-2^32, 2^32-1].
-Default value: 0.
-Reference type: Integer.
+`int`::
+32-bit, signed, two's complement integer
+* range: [`-2^32`, `2^32-1`]
+* default value: `0`
+* reference type: `Integer`
 
-long::
-A 64-bit, signed, two's complement integer.
-Range: [-2^64, 2^64-1].
-Default value: 0.
-Reference type: Long.
+`long`::
+64-bit, signed, two's complement integer
+* range: [`-2^64`, `2^64-1`]
+* default value: `0`
+* reference type: `Long`
 
-float::
-A 32-bit, single-precision, IEEE 754 floating point number.
-Range:  Depends on multiple factors.
-Default value: 0.0.
-Reference type: Float.
+`float`::
+32-bit, signed, single-precision, IEEE 754 floating point number
+* default value: `0.0`
+* reference type: `Float`
 
-double::
-A 64-bit, double-precision, IEEE 754 floating point number.
-Range: Depends on multiple factors.
-Default value: 0.0.
-Reference type: Double.
+`double`::
+64-bit, signed, double-precision, IEEE 754 floating point number
+* default value: `0.0`
+* reference type: `Double`
 
-boolean::
-A logical quanity with two possible values: true and false.
-Range: true/false.
-Default value: false.
-Reference type: Boolean.
+`boolean`::
+logical quantity with two possible values of `true` and `false`
+* default value: `false`
+* reference type: `Boolean`
 
+*Examples*
 
-*Examples:*
-[source,Java]
+* Primitive types used in declaration, declaration and assignment.
++
+[source,Painless]
 ----
-int i = 1;        // Declare variable i as an int and set it to the
-                  //   literal 1
-double d;         // Declare variable d as a double and set it to the
-                  //   default value of 0.0
-boolean b = true; // Declare variable b as a boolean and set it to true
+<1> int i = 1;
+<2> double d;
+<3> boolean b = true;
 ----
-
-Using methods from the corresponding reference type on a primitive type.
-
-[source,Java]
++
+<1> declare `int i`;
+    store `int 1` to `i`
+<2> declare `double d`;
+    store default `double 0.0` to `d`
+<3> declare `boolean b`;
+    store `boolean true` to `b`
++
+* Method call on a primitive type using the corresponding reference type.
++
+[source,Painless]
 ----
-int i = 1;    // Declare variable i as an int and set it to the
-              //   literal 1
-i.toString(); // Invokes the Integer method toString on variable i
+<1> int i = 1;
+<2> i.toString();
 ----
++
+<1> declare `int i`;
+    store `int 1` to `i`
+<2> load from `i` -> `int 1`;
+    box `int 1` -> `Integer 1 reference`;
+    call `toString` on `Integer 1 reference` -> `String '1'`
 
 [[reference-types]]
 ==== Reference Types
 
-Reference types are similar to Java classes and can contain multiple pieces
-known as _members_. However, reference types do not support access modifiers.
-You allocate reference type instances on the heap using the `new` operator.
+A reference type is a named construct (object), potentially representing
+multiple pieces of data (member fields) and logic to manipulate that data
+(member methods), defined as part of the application programming interface
+(API) for scripts.
 
-Reference types can have both static and non-static members:
+A reference type instance is a single set of data for one reference type
+object allocated to the heap. Use the
+<<new-instance-operator, new instance operator>> to allocate a reference type
+instance. Use a reference type instance to load from, store to, and manipulate
+complex data.
 
-* Static members are shared by all instances of the same reference type and
-can be accessed without allocating an instance of the reference type. For
-example `Integer.MAX_VALUE`.
-* Non-static members are specific to an instance of the reference type
-and can only be accessed through the allocated instance.
+A reference type value refers to a reference type instance, and multiple
+reference type values may refer to the same reference type instance. A change to
+a reference type instance will affect all reference type values referring to
+that specific instance.
 
-The default value for a reference type is `null`, indicating that no memory has
-been allocated for it. When you assign `null` to a reference type, its previous
-value is discarded and garbage collected in accordance with the Java memory
-model as long as there are no other references to that value.
+Declare a reference type <<painless-variables, variable>> or access a reference
+type member field (from a reference type instance), and assign it a reference
+type value for evaluation during later operations. The default value for a
+newly-declared reference type variable is `null`. A reference type value is
+shallow-copied during an assignment or as an argument for a method/function
+call. Assign `null` to a reference type variable to indicate the reference type
+value refers to no reference type instance. The JVM will garbage collect a
+reference type instance when it is no longer referred to by any reference type
+values. Pass `null` as an argument to a method/function call to indicate the
+argument refers to no reference type instance.
 
-A reference type can contain:
+A reference type object defines zero-to-many of each of the following:
 
-* Zero to many primitive types. Primitive type members can be static or
-non-static and read-only or read-write.
-* Zero to many reference types. Reference type members can be static or
-non-static and read-only or read-write.
-* Methods that call an internal function to return a value and/or manipulate
-the primitive or reference type members. Method members can be static or
-non-static.
-* Constructors that call an internal function to return a newly-allocated
-reference type instance. Constructors are non-static methods that can
-optionally manipulate the primitive and reference type members.
+static member field::
 
-Reference types support a Java-style inheritance model. Consider types A and B.
-Type A is considered to be a parent of B, and B a child of A, if B inherits
-(is able to access as its own) all of A's fields and methods. Type B is
+A static member field is a named and typed piece of data. Each reference type
+*object* contains one set of data representative of its static member fields.
+Use the <<field-access-operator, field access operator>> in correspondence with
+the reference type object name to access a static member field for loading and
+storing to a specific reference type *object*. No reference type instance
+allocation is necessary to use a static member field.
+
+non-static member field::
+
+A non-static member field is a named and typed piece of data. Each reference
+type *instance* contains one set of data representative of its reference type
+object's non-static member fields. Use the
+<<field-access-operator, field access operator>> for loading and storing to a
+non-static member field of a specific reference type *instance*. An allocated
+reference type instance is required to use a non-static member field.
+
+static member method::
+
+A static member method is a <<painless-functions, function>> called on a
+reference type *object*. Use the <<method-call-operator, method call operator>>
+in correspondence with the reference type object name to call a static member
+method. No reference type instance allocation is necessary to use a static
+member method.
+
+non-static member method::
+
+A non-static member method is a <<painless-functions, function>> called on a
+reference type *instance*. A non-static member method called on a reference type
+instance can load from and store to non-static member fields of that specific
+reference type instance. Use the <<method-call-operator, method call operator>>
+in correspondence with a specific reference type instance to call a non-static
+member method. An allocated reference type instance is required to use a
+non-static member method.
+
+constructor::
+
+A constructor is a special type of <<painless-functions, function>> used to
+allocate a reference type *instance* defined by a specific reference type
+*object*. Use the <<new-instance-operator, new instance operator>> to allocate
+a reference type instance.
+
+A reference type object follows a basic inheritance model. Consider types A and
+B. Type A is considered to be a parent of B, and B a child of A, if B inherits
+(is able to access as its own) all of A's non-static members. Type B is
 considered a descendant of A if there exists a recursive parent-child
 relationship from B to A with none to many types in between. In this case, B
-inherits all of A's fields and methods along with all of the fields and
-methods of the types in between. Type B is also considered to be a type A
-in both relationships.
+inherits all of A's non-static members along with all of the non-static members
+of the types in between. Type B is also considered to be a type A in both
+relationships.
 
-For the complete list of Painless reference types and their supported methods,
-see the https://www.elastic.co/guide/en/elasticsearch/reference/current/painless-api-reference.html[Painless API Reference].
+*Examples*
 
-For more information about working with reference types, see
-<<field-access, Accessing Fields>> and <<method-access, Calling Methods>>.
-
-*Examples:*
-[source,Java]
+* Reference types evaluated in several different operations.
++
+[source,Painless]
 ----
-ArrayList al = new ArrayList();  // Declare variable al as an ArrayList and
-                                 //   set it to a newly allocated ArrayList
-List l = new ArrayList();        // Declare variable l as a List and set
-                                 //   it to a newly allocated ArrayList, which is
-                                 //   allowed because ArrayList inherits from List
-Map m;                           // Declare variable m as a Map and set it
-                                 //   to the default value of null
+<1> List l = new ArrayList();
+<2> l.add(1);
+<3> int i = l.get(0) + 2;
 ----
++
+<1> declare `List l`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `l`
+<2> load from `l` -> `List reference`;
+    implicit cast `int 1` to `def` -> `def`
+    call `add` on `List reference` with arguments (`def`)
+<3> declare `int i`;
+    load from `l` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 0`) -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    add `int 1` and `int 2` -> `int 3`;
+    store `int 3` to `i`
++
+* Sharing a reference type instance.
++
+[source,Painless]
+----
+<1> List l0 = new ArrayList();
+<2> List l1 = l0;
+<3> l0.add(1);
+<4> l1.add(2);
+<5> int i = l1.get(0) + l0.get(1);
+----
++
+<1> declare `List l0`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `l0`
+<2> declare `List l1`;
+    load from `l0` -> `List reference`;
+    store `List reference` to `l1`
+    (note `l0` and `l1` refer to the same instance known as a shallow-copy)
+<3> load from `l0` -> `List reference`;
+    implicit cast `int 1` to `def` -> `def`
+    call `add` on `List reference` with arguments (`def`)
+<4> load from `l1` -> `List reference`;
+    implicit cast `int 2` to `def` -> `def`
+    call `add` on `List reference` with arguments (`def`)
+<5> declare `int i`;
+    load from `l0` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 0`) -> `def @0`;
+    implicit cast `def @0` to `int 1` -> `int 1`;
+    load from `l1` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 1`) -> `def @1`;
+    implicit cast `def @1` to `int 2` -> `int 2`;
+    add `int 1` and `int 2` -> `int 3`;
+    store `int 3` to `i`;
++
+* Using the static members of a reference type.
++
+[source,Painless]
+----
+<1> int i = Integer.MAX_VALUE;
+<2> long l = Long.parseLong("123L");
+----
++
+<1> declare `int i`;
+    load from `MAX_VALUE` on `Integer` -> `int 2147483647`;
+    store `int 2147483647` to `i`
+<2> declare `long l`;
+    call `parseLong` on `Long` with arguments (`long 123`) -> `long 123`;
+    store `long 123` to `l`
 
-Directly accessing static pieces of a reference type.
+[[dynamic-types]]
+==== Dynamic Types
 
-[source,Java]
+A dynamic type value can represent the value of any primitive type or
+reference type using a single type name `def`. A `def` type value mimics
+the behavior of whatever value it represents at run-time and will always
+represent the child-most descendant type value of any type value when evaluated
+during operations.
+
+Declare a `def` type <<painless-variables, variable>> or access a `def` type
+member field (from a reference type instance), and assign it any type of value
+for evaluation during later operations. The default value for a newly-declared
+`def` type variable is `null`.  A `def` type variable or method/function
+parameter can change the type it represents during the compilation and
+evaluation of a script.
+
+Using the `def` type can have a slight impact on performance. Use only primitive
+types and reference types directly when performance is critical.
+
+*Errors*
+
+* If a `def` type value represents an inappropriate type for evaluation of an
+  operation at run-time.
+
+*Examples*
+
+* General uses of the `def` type.
++
+[source,Painless]
 ----
-Integer.MAX_VALUE      // a static field access
-Long.parseLong("123L") // a static function call
+<1> def dp = 1;
+<2> def dr = new ArrayList();
+<3> dr = dp;
 ----
++
+<1> declare `def dp`;
+    implicit cast `int 1` to `def` -> `def`;
+    store `def` to `dp`
+<2> declare `def dr`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `def` -> `def`;
+    store `def` to `dr`
+<3> load from `dp` -> `def`;
+    store `def` to `dr`;
+    (note the switch in the type `dr` represents from `ArrayList` to `int`)
++
+* A `def` type value representing the child-most descendant of a value.
++
+[source,Painless]
+----
+<1> Object l = new ArrayList();
+<2> def d = l;
+<3> d.ensureCapacity(10);
+----
++
+<1> declare `Object l`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `Object reference`
+            -> `Object reference`;
+    store `Object reference` to `l`
+<2> declare `def d`;
+    load from `l` -> `Object reference`;
+    implicit cast `Object reference` to `def` -> `def`;
+    store `def` to `d`;
+<3> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `ensureCapacity` on `ArrayList reference` with arguments (`int 10`);
+    (note `def` was implicit cast to `ArrayList reference`
+            since ArrayList` is the child-most descendant type value that the
+            `def` type value represents)
 
 [[string-type]]
 ==== String Type
 
-A `String` is a specialized reference type that is immutable and does not have
-to be explicitly allocated. You can directly assign to a `String` without first
-allocating it with the `new` keyword. (Strings can be allocated with the `new`
-keyword, but it's not required.)
+The `String` type is a specialized reference type that does not require
+explicit allocation. Use a <<string-literals, string literal>> to directly
+evaluate a `String` type value. While not required, the
+<<new-instance-operator, new instance operator>> can allocate `String` type
+instances.
 
-When assigning a value to a `String`, you must enclose the text in single or
-double quotes. Strings are allocated according to the standard Java Memory Model.
-The default value for a `String` is `null.`
+*Examples*
 
-*Examples:*
-[source,Java]
+* General use of the `String` type.
++
+[source,Painless]
 ----
-String r = "some text";             // Declare String r and set it to the
-                                    //   String "some text"
-String s = 'some text';             // Declare String s and set it to the
-                                    //   String 'some text'
-String t = new String("some text"); // Declare String t and set it to the
-                                    //   String "some text"
-String u;                           // Declare String u and set it to the
-                                    //   default value null
+<1> String r = "some text";
+<2> String s = 'some text';
+<3> String t = new String("some text");
+<4> String u;
 ----
++
+<1> declare `String r`;
+    store `String "some text"` to `r`
+<2> declare `String s`;
+    store `String 'some text'` to `s`
+<3> declare `String t`;
+    allocate `String` instance with arguments (`String "some text"`)
+            -> `String "some text"`;
+    store `String "some text"` to `t`
+<4> declare `String u`;
+    store default `null` to `u`
 
 [[void-type]]
 ==== void Type
 
-The `void` type represents the concept of no type. In Painless, `void` declares
-that a function has no return value.
+The `void` type represents the concept of a lack of type. Use the `void` type to
+indicate a function returns no value.
+
+*Examples*
+
+* Use of the `void` type in a function.
++
+[source,Painless]
+----
+void addToList(List l, def d) {
+    l.add(d);
+}
+----
 
 [[array-type]]
 ==== Array Type
 
-Arrays contain a series of elements of the same type that can be allocated
-simultaneously. Painless supports both single and multi-dimensional arrays for
-all types except void (including `def`).
+An array type is a specialized reference type where an array type instance
+contains a series of values allocated to the heap. Each value in an array type
+instance is defined as an element. All elements in an array type instance are of
+the same type (element type) specified as part of declaration. Each element is
+assigned an index within the range `[0, length)` where length is the total
+number of elements allocated for an array type instance.
 
-You declare an array by specifying a type followed by a series of empty brackets,
-where each set of brackets represents a dimension. Declared arrays have a default
-value of `null` and are themselves a reference type.
+Use the <<new-array-operator, new array operator>> or the
+<<array-initialization-operator, array initialization operator>> to allocate an
+array type instance. Declare an array type <<painless-variables, variable>> or
+access an array type member field (from a reference type instance), and assign
+it an array type value for evaluation during later operations. The default value
+for a newly-declared array type variable is `null`. An array type value is
+shallow-copied during an assignment or as an argument for a method/function
+call. Assign `null` to an array type variable to indicate the array type value
+refers to no array type instance. The JVM will garbage collect an array type
+instance when it is no longer referred to by any array type values. Pass `null`
+as an argument to a method/function call to indicate the argument refers to no
+array type instance.
 
-To allocate an array, you use the `new` keyword followed by the type and a
-set of brackets for each dimension. You can explicitly define the size of each dimension by specifying an expression within the brackets, or initialize each
-dimension with the desired number of values. The allocated size of each
-dimension is its permanent size.
+Use the <<array-length-operator, array length operator>> to retrieve the length
+of an array type value as an `int` type value. Use the
+<<array-access-operator, array access operator>> to load from and store to
+an individual element within an array type instance.
 
-To initialize an array, specify the values you want to initialize
-each dimension with as a comma-separated list of expressions enclosed in braces.
-For example, `new int[] {1, 2, 3}` creates a one-dimensional `int` array with a
-size of 3 and the values 1, 2, and 3.
+When an array type instance is allocated with multiple dimensions using the
+range `[2, d]` where `d >= 2`, each element within each dimension in the range
+`[1, d-1]` is also an array type. The element type of each dimension, `n`, is an
+array type with the number of dimensions equal to `d-n`. For example, consider
+`int[][][]` with 3 dimensions. Each element in the 3rd dimension, `d-3`, is the
+primitive type `int`.  Each element in the 2nd dimension, `d-2`, is the array
+type `int[]`. And each element in the 1st dimension, `d-1` is the array type
+`int[][]`.
 
-When you initialize an array, the order of the expressions is maintained. Each expression used as part of the initialization is converted to the
-array's type. An error occurs if the types do not match.
+*Examples*
 
-*Grammar:*
-[source,ANTLR4]
+* General use of single-dimensional arrays.
++
+[source,Painless]
 ----
-declare_array: TYPE ('[' ']')+;
-
-array_initialization: 'new' TYPE '[' ']' '{' expression (',' expression) '}'
-                    | 'new' TYPE '[' ']' '{' '}';
+<1> int[] x;
+<2> float[] y = new float[10];
+<3> def z = new float[5];
+<4> y[9] = 1.0F;
+<5> z[0] = y[9];
 ----
-
-*Examples:*
-[source,Java]
++
+<1> declare `int[] x`;
+    store default `null` to `x`
+<2> declare `float[] y`;
+    allocate `1-d float array` instance with `length [10]`
+            -> `1-d float array reference`;
+    store `1-d float array reference` to `y`
+<3> declare `def z`;
+    allocate `1-d float array` instance with `length [5]`
+            -> `1-d float array reference`;
+    implicit cast `1-d float array reference` to `def` -> `def`;
+    store `def` to `z`
+<4> load from `y` -> `1-d float array reference`;
+    store `float 1.0` to `index [9]` of `1-d float array reference`
+<5> load from `y` -> `1-d float array reference @0`;
+    load from `index [9]` of `1-d float array reference @0` -> `float 1.0`;
+    load from `z` -> `def`;
+    implicit cast `def` to `1-d float array reference @1`
+            -> `1-d float array reference @1`;
+    store `float 1.0` to `index [0]` of `1-d float array reference @1`
++
+* General use of a multi-dimensional array.
++
+[source,Painless]
 ----
-int[] x = new int[5];          // Declare int array x and assign it a newly
-                               //   allocated int array with a size of 5
-def[][] y = new def[5][5];     // Declare the 2-dimensional def array y and
-                               //   assign it a newly allocated 2-dimensional
-                               //   array where both dimensions have a size of 5
-int[] x = new int[] {1, 2, 3}; // Declare int array x and set it to an int
-                               //   array with values 1, 2, 3 and a size of 3
-int i = 1;
-long l = 2L;
-float f = 3.0F;
-double d = 4.0;
-String s = "5";
-def[] da = new def[] {i, l, f*d, s}; // Declare def array da and set it to
-                                     // a def array with a size of 4 and the
-                                     // values i, l, f*d, and s
+<1> int[][][] ia3 = new int[2][3][4];
+<2> ia3[1][2][3] = 99;
+<3> int i = ia3[1][2][3];
 ----
-
-[[casting]]
-=== Casting
-
-Casting is the conversion of one type to another. Implicit casts are casts that
-occur automatically, such as during an assignment operation. Explicit casts are
-casts where you use the casting operator to explicitly convert one type to
-another. This is necessary during operations where the cast cannot be inferred.
-
-To cast to a new type, precede the expression by the new type enclosed in
-parentheses, for example
-`(int)x`.
-
-The following sections specify the implicit casts that can be performed and the
-explicit casts that are allowed. The only other permitted cast is casting
-a single character `String` to a `char`.
-
-*Grammar:*
-[source,ANTLR4]
-----
-cast: '(' TYPE ')' expression
-----
-
-[[numeric-casting]]
-==== Numeric Casting
-
-The following table shows the allowed implicit and explicit casts between
-numeric types. Read the table by row. To find out if you need to explicitly
-cast from type A to type B, find the row for type A and scan across to the
-column for type B.
-
-IMPORTANT: Explicit casts between numeric types can result in some data loss. A
-smaller numeric type cannot necessarily accommodate the value from a larger
-numeric type. You might also lose precision when casting from integer types
-to floating point types.
-
-|====
-|       | byte     | short    | char     | int      | long     | float    | double
-| byte  |          | implicit | implicit | implicit | implicit | implicit | implicit
-| short | explicit |          | explicit | implicit | implicit | implicit | implicit
-| char  | explicit | explicit |          | implicit | implicit | implicit | implicit
-| int   | explicit | explicit | explicit |          | implicit | implicit | implicit
-| long  | explicit | explicit | explicit | explicit |          | implicit | implicit
-| float | explicit | explicit | explicit | explicit | explicit |          | implicit
-| float | explicit | explicit | explicit | explicit | explicit | explicit |
-|====
-
-
-Example(s)
-[source,Java]
-----
-int a = 1;            // Declare int variable a and set it to the literal
-                      //   value 1
-long b = a;           // Declare long variable b and set it to int variable
-                      //    a with an implicit cast to convert from int to long
-short c = (short)b;   // Declare short variable c, explicitly cast b to a
-                      //   short, and assign b to c
-byte d = a;           // ERROR: Casting an int to a byte requires an explicit
-                      //   cast
-double e = (double)a; // Explicitly cast int variable a to a double and assign
-                      //   it to the double variable e. The explicit cast is
-                      //   allowed, but it is not necessary.
-----
-
-[[reference-casting]]
-==== Reference Casting
-
-A reference type can be implicitly cast to another reference type as long as
-the type being cast _from_ is a descendant of the type being cast _to_.  A
-reference type can be explicitly cast _to_ if the type being cast to is a
-descendant of the type being cast _from_.
-
-*Examples:*
-[source,Java]
-----
-List x;                        // Declare List variable x
-ArrayList y = new ArrayList(); // Declare ArrayList variable y and assign it a
-                               //   newly allocated ArrayList [1]
-x = y;                         // Assign Arraylist y to List x using an
-                               //   implicit cast
-y = (ArrayList)x;              // Explicitly cast List x to an ArrayList and
-                               //  assign it to ArrayList y
-x = (List)y;                   // Set List x to ArrayList y using an explicit
-                               //   cast (the explicit cast is not necessary)
-y = x;                         // ERROR: List x cannot be implicitly cast to
-                               //   an ArrayList, an explicit cast is required
-Map m = y;                     // ERROR: Cannot implicitly or explicitly cast [2]
-                               //   an ArrayList to a Map, no relationship
-                               //   exists between the two types. 
-----
-[1] `ArrayList` is a descendant of the `List` type.
-[2] `Map` is unrelated to the `List` and `ArrayList` types.
-
-[[def-type-casting]]
-==== def Type Casting
-All primitive and reference types can always be implicitly cast to
-`def`. While it is possible to explicitly cast to `def`, it is not necessary.
-
-However, it is not always possible to implicitly cast a `def` to other
-primitive and reference types. An explicit cast is required if an explicit
-cast would normally be required between the non-def types.
-
-
-*Examples:*
-[source,Java]
-----
-def x;          // Declare def variable x and set it to null
-x = 3;          // Set the def variable x to the literal 3 with an implicit
-                //   cast from int to def
-double a = x;   // Declare double variable y and set it to def variable x,
-                //   which contains a double
-int b = x;      // ERROR: Results in a run-time error because an explicit cast is
-                //   required to cast from a double to an int
-int c = (int)x; // Declare int variable c, explicitly cast def variable x to an
-                //   int, and assign x to c
-----
-
-[[boxing-unboxing]]
-==== Boxing and Unboxing
-
-Boxing is where a cast is used to convert a primitive type to its corresponding
-reference type. Unboxing is the reverse, converting a reference type to the
-corresponding primitive type.
-
-There are two places Painless performs implicit boxing and unboxing:
-
-* When you call methods, Painless automatically boxes and unboxes arguments
-so you can specify either primitive types or their corresponding reference
-types.
-* When you use the `def` type, Painless automatically boxes and unboxes as
-needed when converting to and from `def`.
-
-The casting operator does not support any way to explicitly box a primitive
-type or unbox a reference type.
-
-If a primitive type needs to be converted to a reference type, the Painless
-reference type API supports methods that can do that. However, under normal
-circumstances this should not be necessary.
-
-*Examples:*
-[source,Java]
-----
-Integer x = 1;               // ERROR: not a legal implicit cast
-Integer y = (Integer)1;      // ERROR: not a legal explicit cast
-int a = new Integer(1);      // ERROR: not a legal implicit cast
-int b = (int)new Integer(1); // ERROR: not a legal explicit cast
-----
-
-[[promotion]]
-==== Promotion
-
-Promotion is where certain operations require types to be either a minimum
-numerical type or for two (or more) types to be equivalent.
-The documentation for each operation that has these requirements
-includes promotion tables that describe how this is handled.
-
-When an operation promotes a type or types, the resultant type
-of the operation is the promoted type.  Types can be promoted to def
-at compile-time; however, at run-time, the resultant type will be the
-promotion of the types the `def` is representing.
-
-*Examples:*
-[source,Java]
-----
-2 + 2.0     // Add the literal int 2 and the literal double 2.0. The literal
-            //   2 is promoted to a double and the resulting value is a double.
-
-def x = 1;  // Declare def variable x and set it to the literal int 1 through
-            //   an implicit cast
-x + 2.0F    // Add def variable x and the literal float 2.0.
-            // At compile-time the types are promoted to def.
-            // At run-time the types are promoted to float.
-----
++
+<1> declare `int[][][] ia`;
+    allocate `3-d int array` instance with length `[2, 3, 4]`
+            -> `3-d int array reference`;
+    store `3-d int array reference` to `ia3`
+<2> load from `ia3` -> `3-d int array reference`;
+    store `int 99` to `index [1, 2, 3]` of `3-d int array reference`
+<3> declare `int i`;
+    load from `ia3` -> `3-d int array reference`;
+    load from `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
+    store `int 99` to `i`

@@ -1,10 +1,6 @@
 ---
 "Put template":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
-
   - do:
       indices.put_template:
         name: test
@@ -25,10 +21,6 @@
 ---
 "Put multiple template":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
-
   - do:
       indices.put_template:
         name: test
@@ -48,10 +40,6 @@
 
 ---
 "Put template with aliases":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
 
   - do:
       indices.put_template:
@@ -77,10 +65,6 @@
 ---
 "Put template create":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
-
   - do:
       indices.put_template:
         name: test
@@ -100,7 +84,7 @@
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
   - do:
-      catch: request
+      catch: bad_request
       indices.put_template:
         name: test
         create: true
@@ -112,10 +96,6 @@
 
 ---
 "Test Put Versioned Template":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
 
   - do:
       indices.put_template:
@@ -212,14 +192,10 @@
         name: "my_template"
 
 ---
-"missing body":
+"Put index template without index_patterns":
 
-  - skip:
-      version: " - 5.4.99"
-      reason: NPE caused by missing body fixed in 5.5.0
-      
   - do:
-      catch: /request body is required/
-      raw:
-        method: PUT
-        path: _template/my_template
+      catch: /index patterns are missing/
+      indices.put_template:
+        name: test
+        body: {}

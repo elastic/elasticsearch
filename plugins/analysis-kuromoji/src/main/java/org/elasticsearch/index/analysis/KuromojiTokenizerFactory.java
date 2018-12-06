@@ -45,11 +45,10 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discartPunctuation;
 
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
-        discartPunctuation = settings
-            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "discard_punctuation", true, deprecationLogger);
+        discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
     }

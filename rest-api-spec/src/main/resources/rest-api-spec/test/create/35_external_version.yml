@@ -1,12 +1,8 @@
 ---
 "External version":
 
- - skip:
-      version: " - 5.1.1"
-      reason: validation logic only fixed from 5.1.2 onwards
-
  - do:
-      catch:              request
+      catch:              bad_request
       create:
           index:          test
           type:           test
@@ -20,7 +16,7 @@
  - match: { error.reason: "Validation Failed: 1: create operations only support internal versioning. use index instead;" }
 
  - do:
-      catch:              request
+      catch:              bad_request
       create:
           index:          test
           type:           test

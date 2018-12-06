@@ -19,25 +19,26 @@
 package org.elasticsearch.join.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesTermsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.document.DocumentField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,6 +50,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
@@ -65,15 +67,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     }
 
     @Override
-    public void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
-        if (parentSearchContext.mapperService().getIndexSettings().isSingleType()) {
-            handleJoinFieldInnerHits(parentSearchContext, innerHitsContext);
-        } else {
-            handleParentFieldInnerHits(parentSearchContext, innerHitsContext);
-        }
-    }
-
-    private void handleJoinFieldInnerHits(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
+    protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
         if (joinFieldMapper != null) {
@@ -87,24 +81,6 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 throw new IllegalStateException("no join field has been configured");
             }
         }
-    }
-
-    private void handleParentFieldInnerHits(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
-        QueryShardContext queryShardContext = context.getQueryShardContext();
-        DocumentMapper documentMapper = queryShardContext.documentMapper(typeName);
-        if (documentMapper == null) {
-            if (innerHitBuilder.isIgnoreUnmapped() == false) {
-                throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + typeName + "]");
-            } else {
-                return;
-            }
-        }
-        String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : documentMapper.type();
-        ParentChildInnerHitSubContext parentChildInnerHits = new ParentChildInnerHitSubContext(
-            name, context, queryShardContext.getMapperService(), documentMapper
-        );
-        setupInnerHitsContext(queryShardContext, parentChildInnerHits);
-        innerHitsContext.addInnerHitDefinition(parentChildInnerHits);
     }
 
     static final class JoinFieldInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
@@ -121,14 +97,14 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         }
 
         @Override
-        public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
+        public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocs[] result = new TopDocs[hits.length];
+            TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
-                DocumentField joinField = hit.getFields().get(joinFieldMapper.name());
-                if (joinField == null) {
-                    result[i] = Lucene.EMPTY_TOP_DOCS;
+                String joinName = getSortedDocValue(joinFieldMapper.name(), context, hit.docId());
+                if (joinName == null) {
+                    result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                     continue;
                 }
 
@@ -136,7 +112,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 ParentIdFieldMapper parentIdFieldMapper =
                     joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
                 if (parentIdFieldMapper == null) {
-                    result[i] = Lucene.EMPTY_TOP_DOCS;
+                    result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                     continue;
                 }
 
@@ -150,118 +126,69 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         .add(joinFieldMapper.fieldType().termQuery(typeName, qsc), BooleanClause.Occur.FILTER)
                         .build();
                 } else {
-                    DocumentField parentIdField = hit.getFields().get(parentIdFieldMapper.name());
-                    q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentIdField.getValue(), qsc);
+                    String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
+                    q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
                 }
 
-                Weight weight = context.searcher().createNormalizedWeight(q, false);
+                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 if (size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                     for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
                         intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                     }
-                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                    result[i] = new TopDocsAndMaxScore(
+                        new TopDocs(
+                            new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
+                            Lucene.EMPTY_SCORE_DOCS
+                        ), Float.NaN);
                 } else {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
+                    MaxScoreCollector maxScoreCollector = null;
                     if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                        if (trackScores()) {
+                            maxScoreCollector = new MaxScoreCollector();
+                        }
                     } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN);
+                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                        maxScoreCollector = new MaxScoreCollector();
                     }
                     try {
                         for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                            intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
+                            intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                         }
                     } finally {
                         clearReleasables(Lifetime.COLLECTION);
                     }
-                    result[i] = topDocsCollector.topDocs(from(), size());
-                }
-            }
-            return result;
-        }
-    }
-
-    static final class ParentChildInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
-        private final MapperService mapperService;
-        private final DocumentMapper documentMapper;
-
-        ParentChildInnerHitSubContext(String name, SearchContext context, MapperService mapperService, DocumentMapper documentMapper) {
-            super(name, context);
-            this.mapperService = mapperService;
-            this.documentMapper = documentMapper;
-        }
-
-        @Override
-        public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
-            Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocs[] result = new TopDocs[hits.length];
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
-                final Query hitQuery;
-                if (isParentHit(hit)) {
-                    String field = ParentFieldMapper.joinField(hit.getType());
-                    hitQuery = new DocValuesTermsQuery(field, hit.getId());
-                } else if (isChildHit(hit)) {
-                    DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.getType());
-                    final String parentType = hitDocumentMapper.parentFieldMapper().type();
-                    DocumentField parentField = hit.field(ParentFieldMapper.NAME);
-                    if (parentField == null) {
-                        throw new IllegalStateException("All children must have a _parent");
+                    TopDocs topDocs = topDocsCollector.topDocs(from(), size());
+                    float maxScore = Float.NaN;
+                    if (maxScoreCollector != null) {
+                        maxScore = maxScoreCollector.getMaxScore();
                     }
-                    Term uidTerm = context.mapperService().createUidTerm(parentType, parentField.getValue());
-                    if (uidTerm == null) {
-                        hitQuery = new MatchNoDocsQuery("Missing type: " + parentType);
-                    } else {
-                        hitQuery = new TermQuery(uidTerm);
-                    }
-                } else {
-                    result[i] = Lucene.EMPTY_TOP_DOCS;
-                    continue;
-                }
-
-                BooleanQuery q = new BooleanQuery.Builder()
-                    // Only include docs that have the current hit as parent
-                    .add(hitQuery, BooleanClause.Occur.FILTER)
-                    // Only include docs that have this inner hits type
-                    .add(documentMapper.typeFilter(context.getQueryShardContext()), BooleanClause.Occur.FILTER)
-                    .build();
-                Weight weight = context.searcher().createNormalizedWeight(q, false);
-                if (size() == 0) {
-                    TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                    for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                        intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
-                    }
-                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-                } else {
-                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topDocsCollector;
-                    if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
-                    } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN);
-                    }
-                    try {
-                        for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                            intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
-                        }
-                    } finally {
-                        clearReleasables(Lifetime.COLLECTION);
-                    }
-                    result[i] = topDocsCollector.topDocs(from(), size());
+                    result[i] = new TopDocsAndMaxScore(topDocs, maxScore);
                 }
             }
             return result;
         }
 
-        private boolean isParentHit(SearchHit hit) {
-            return hit.getType().equals(documentMapper.parentFieldMapper().type());
+        private String getSortedDocValue(String field, SearchContext context, int docId) {
+            try {
+                List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
+                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(docId, ctxs));
+                SortedDocValues docValues = ctx.reader().getSortedDocValues(field);
+                int segmentDocId = docId - ctx.docBase;
+                if (docValues == null || docValues.advanceExact(segmentDocId) == false) {
+                    return null;
+                }
+                int ord = docValues.ordValue();
+                BytesRef joinName = docValues.lookupOrd(ord);
+                return joinName.utf8ToString();
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
         }
 
-        private boolean isChildHit(SearchHit hit) {
-            DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.getType());
-            return documentMapper.type().equals(hitDocumentMapper.parentFieldMapper().type());
-        }
     }
+
 }

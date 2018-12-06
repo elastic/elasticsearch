@@ -21,9 +21,10 @@ package org.elasticsearch.discovery.gce;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -40,7 +41,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test class uses a GCE HTTP Mock system which allows to simulate JSON Responses.
@@ -105,13 +106,13 @@ public class GceDiscoveryTests extends ESTestCase {
         }
     }
 
-    protected List<DiscoveryNode> buildDynamicNodes(GceInstancesServiceImpl gceInstancesService, Settings nodeSettings) {
+    protected List<TransportAddress> buildDynamicNodes(GceInstancesServiceImpl gceInstancesService, Settings nodeSettings) {
         GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceInstancesService,
             transportService, new NetworkService(Collections.emptyList()));
 
-        List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
-        logger.info("--> nodes found: {}", discoveryNodes);
-        return discoveryNodes;
+        List<TransportAddress> dynamicHosts = provider.buildDynamicHosts(null);
+        logger.info("--> addresses found: {}", dynamicHosts);
+        return dynamicHosts;
     }
 
     public void testNodesWithDifferentTagsAndNoTagSet() {
@@ -120,32 +121,30 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(2));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
     }
 
     public void testNodesWithDifferentTagsAndOneTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
+                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(1));
-        assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(1));
     }
 
     public void testNodesWithDifferentTagsAndTwoTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(1));
-        assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(1));
     }
 
     public void testNodesWithSameTagsAndNoTagSet() {
@@ -154,50 +153,50 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(2));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
     }
 
     public void testNodesWithSameTagsAndOneTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
+                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(2));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
     }
 
     public void testNodesWithSameTagsAndTwoTagsSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(2));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
     }
 
     public void testMultipleZonesAndTwoNodesInSameZone() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
-                .putArray(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "europe-west1-b")
+                .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "europe-west1-b")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(2));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
     }
 
     public void testMultipleZonesAndTwoNodesInDifferentZones() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
-                .putArray(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "europe-west1-b")
+                .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "europe-west1-b")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(2));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
     }
 
     /**
@@ -206,15 +205,18 @@ public class GceDiscoveryTests extends ESTestCase {
     public void testZeroNode43() {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
-                .putArray(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
+                .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(0));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(0));
     }
 
     public void testIllegalSettingsMissingAllRequired() {
-        Settings nodeSettings = Settings.EMPTY;
+        Settings nodeSettings = Settings.builder()
+            // to prevent being resolved using default GCE host
+            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal")
+            .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         try {
             buildDynamicNodes(mock, nodeSettings);
@@ -226,7 +228,9 @@ public class GceDiscoveryTests extends ESTestCase {
 
     public void testIllegalSettingsMissingProject() {
         Settings nodeSettings = Settings.builder()
-            .putArray(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
+            // to prevent being resolved using default GCE host
+            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal")
+            .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         try {
@@ -239,6 +243,8 @@ public class GceDiscoveryTests extends ESTestCase {
 
     public void testIllegalSettingsMissingZone() {
         Settings nodeSettings = Settings.builder()
+            // to prevent being resolved using default GCE host
+            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal")
             .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);
@@ -258,10 +264,19 @@ public class GceDiscoveryTests extends ESTestCase {
     public void testNoRegionReturnsEmptyList() {
         Settings nodeSettings = Settings.builder()
             .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
-            .putArray(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
+            .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
-        assertThat(discoveryNodes, hasSize(1));
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(1));
+    }
+
+    public void testMetadataServerValues() {
+        Settings nodeSettings = Settings.EMPTY;
+        mock = new GceInstancesServiceMock(nodeSettings);
+        assertThat(mock.projectId(), not(projectName));
+
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(1));
     }
 }

@@ -17,7 +17,7 @@ setting `size=0`. For example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search
+GET /twitter/_search
 {
   "size": 0,
   "aggregations": {
@@ -44,7 +44,7 @@ Consider this example where we want to associate the color blue with our `terms`
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search
+GET /twitter/_search
 {
   "size": 0,
   "aggs": {
@@ -96,7 +96,7 @@ Considering the following <<search-aggregations-bucket-datehistogram-aggregation
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search?typed_keys
+GET /twitter/_search?typed_keys
 {
   "aggregations": {
     "tweets_over_time": {
@@ -133,12 +133,15 @@ In the response, the aggregations names will be changed to respectively `date_hi
                     "doc_count" : 5,
                     "top_hits#top_users" : {  <2>
                         "hits" : {
-                            "total" : 5,
+                            "total" : {
+                                "value": 5,
+                                "relation": "eq"
+                            },
                             "max_score" : 1.0,
                             "hits" : [
                                 {
                                   "_index": "twitter",
-                                  "_type": "tweet",
+                                  "_type": "_doc",
                                   "_id": "0",
                                   "_score": 1.0,
                                   "_source": {

@@ -25,6 +25,13 @@ under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.c
 
 A processor that extracts details from the User-Agent header value.
 
+[float]
+=== Community contributed ingest plugins
+
+The following plugin has been contributed by our community:
+
+* https://github.com/johtani/elasticsearch-ingest-csv[Ingest CSV Processor Plugin] (by Jun Ohtani)
+
 include::ingest-attachment.asciidoc[]
 
 include::ingest-geoip.asciidoc[]

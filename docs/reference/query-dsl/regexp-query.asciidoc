@@ -91,4 +91,8 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+NOTE: By default the maximum length of regex string allowed in a Regexp Query 
+is limited to 1000. You can update the `index.max_regex_length` index setting 
+to bypass this limit.
+
 include::regexp-syntax.asciidoc[]

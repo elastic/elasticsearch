@@ -186,3 +186,72 @@ setup() {
 
     systemctl stop elasticsearch.service
 }
+
+@test "[SYSTEMD] start Elasticsearch with custom JVM options" {
+    assert_file_exist $ESENVFILE
+    # The custom config directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionally means different
+    # processes can have different views of what's in these directories
+    local temp=`mktemp -p /etc -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
+    touch "$temp/jvm.options"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "-Xms512m" >> "$temp/jvm.options"
+    echo "-Xmx512m" >> "$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
+    cp $ESENVFILE "$temp/elasticsearch"
+    echo "ES_PATH_CONF=\"$temp\"" >> $ESENVFILE
+    echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
+    service elasticsearch start
+    wait_for_elasticsearch_status
+    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
+    curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
+    service elasticsearch stop
+    cp "$temp/elasticsearch" $ESENVFILE
+}
+
+@test "[SYSTEMD] masking systemd-sysctl" {
+    clean_before_test
+
+    systemctl mask systemd-sysctl.service
+    install_package
+
+    systemctl unmask systemd-sysctl.service
+}
+
+@test "[SYSTEMD] service file sets limits" {
+    clean_before_test
+    install_package
+    systemctl start elasticsearch.service
+    wait_for_elasticsearch_status
+    local pid=$(cat /var/run/elasticsearch/elasticsearch.pid)
+    local max_file_size=$(cat /proc/$pid/limits | grep "Max file size" | awk '{ print $4 }')
+    [ "$max_file_size" == "unlimited" ]
+    local max_processes=$(cat /proc/$pid/limits | grep "Max processes" | awk '{ print $3 }')
+    [ "$max_processes" == "4096" ]
+    local max_open_files=$(cat /proc/$pid/limits | grep "Max open files" | awk '{ print $4 }')
+    [ "$max_open_files" == "65536" ]
+    local max_address_space=$(cat /proc/$pid/limits | grep "Max address space" | awk '{ print $4 }')
+    [ "$max_address_space" == "unlimited" ]
+    systemctl stop elasticsearch.service
+}
+
+@test "[SYSTEMD] test runtime directory" {
+    clean_before_test
+    install_package
+    sudo rm -rf /var/run/elasticsearch
+    systemctl start elasticsearch.service
+    wait_for_elasticsearch_status
+    [ -d /var/run/elasticsearch ]
+    systemctl stop elasticsearch.service
+}
+
+@test "[SYSTEMD] GC logs exist" {
+    start_elasticsearch_service
+    assert_file_exist /var/log/elasticsearch/gc.log.0.current
+    stop_elasticsearch_service
+}

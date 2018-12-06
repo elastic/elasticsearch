@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}"],
+      "path": "/{index}/_doc/{id}",
+      "paths": ["/{index}/{type}/{id}", "/{index}/_doc/{id}"],
       "parts": {
         "id": {
           "type" : "string",
@@ -18,7 +18,6 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
           "description" : "The type of the document"
         }
       },

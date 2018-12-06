@@ -68,6 +68,6 @@ public final class SReturn extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(expression); 
+        return singleLineToString(expression);
     }
 }

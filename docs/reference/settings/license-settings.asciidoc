@@ -1,0 +1,19 @@
+[role="xpack"]
+[[license-settings]]
+=== {xpack} License Settings
+++++
+<titleabbrev>License Settings</titleabbrev>
+++++
+
+You can configure this licensing setting in the `elasticsearch.yml` file.
+For more information, see
+{xpack-ref}/license-management.html[{xpack} License Management].
+
+`xpack.license.self_generated.type`::
+Set to `basic` (default) to enable basic {xpack} features. +
++
+--
+If set to `trial`, the self-generated license gives access only to all the features
+of a x-pack for 30 days. You can later downgrade the cluster to a basic license if
+needed.
+--

@@ -38,6 +38,15 @@ public class MockSecureSettings implements SecureSettings {
     private Set<String> settingNames = new HashSet<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    public MockSecureSettings() {
+    }
+
+    private MockSecureSettings(MockSecureSettings source) {
+        secureStrings.putAll(source.secureStrings);
+        files.putAll(source.files);
+        settingNames.addAll(source.settingNames);
+    }
+
     @Override
     public boolean isLoaded() {
         return true;
@@ -93,5 +102,10 @@ public class MockSecureSettings implements SecureSettings {
         if (closed.get()) {
             throw new IllegalStateException("secure settings are already closed");
         }
+    }
+
+    public SecureSettings clone() {
+        ensureOpen();
+        return new MockSecureSettings(this);
     }
 }

@@ -1,11 +1,14 @@
 [[search-profile]]
 == Profile API
 
-experimental[]
+WARNING:  The Profile API is a debugging tool and adds significant overhead to search execution.
 
 The Profile API provides detailed timing information about the execution of individual components
 in a search request.  It gives the user insight into how search requests are executed at a low level so that
 the user can understand why certain requests are slow, and take steps to improve them.
+Note that the Profile API, <<profile-limitations, amongst other things>>, doesn't measure
+network latency, time spent in the search fetch phase, time spent while the requests spends
+in queues or while merging shard responses on the coordinating node.
 
 The output from the Profile API is *very* verbose, especially for complicated requests executed across
 many shards. Pretty-printing the response is recommended to help understand the output
@@ -17,11 +20,11 @@ Any `_search` request can be profiled by adding a top-level `profile` parameter:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /twitter/_search
 {
   "profile": true,<1>
   "query" : {
-    "match" : { "message" : "message number" }
+    "match" : { "message" : "some number" }
   }
 }
 --------------------------------------------------
@@ -41,10 +44,14 @@ This will yield the following result:
    "_shards": {
       "total": 1,
       "successful": 1,
+      "skipped" : 0,
       "failed": 0
    },
    "hits": {
-      "total": 4,
+      "total" : {
+          "value": 4,
+          "relation": "eq"
+      },
       "max_score": 0.5093388,
       "hits": [...] <1>
    },
@@ -57,7 +64,7 @@ This will yield the following result:
                  "query": [
                     {
                        "type": "BooleanQuery",
-                       "description": "message:message message:number",
+                       "description": "message:some message:number",
                        "time_in_nanos": "1873811",
                        "breakdown": {
                           "score": 51306,
@@ -71,12 +78,16 @@ This will yield the following result:
                           "next_doc": 53876,
                           "next_doc_count": 5,
                           "advance": 0,
-                          "advance_count": 0
+                          "advance_count": 0,
+                          "compute_max_score": 0,
+                          "compute_max_score_count": 0,
+                          "shallow_advance": 0,
+                          "shallow_advance_count": 0
                        },
                        "children": [
                           {
                              "type": "TermQuery",
-                             "description": "message:message",
+                             "description": "message:some",
                              "time_in_nanos": "391943",
                              "breakdown": {
                                 "score": 28776,
@@ -90,7 +101,11 @@ This will yield the following result:
                                 "next_doc": 10111,
                                 "next_doc_count": 5,
                                 "advance": 0,
-                                "advance_count": 0
+                                "advance_count": 0,
+                                "compute_max_score": 0,
+                                "compute_max_score_count": 0,
+                                "shallow_advance": 0,
+                                "shallow_advance_count": 0
                              }
                           },
                           {
@@ -109,7 +124,11 @@ This will yield the following result:
                                 "next_doc": 2852,
                                 "next_doc_count": 5,
                                 "advance": 0,
-                                "advance_count": 0
+                                "advance_count": 0,
+                                "compute_max_score": 0,
+                                "compute_max_score_count": 0,
+                                "shallow_advance": 0,
+                                "shallow_advance_count": 0
                              }
                           }
                        ]
@@ -229,13 +248,13 @@ The overall structure of this query tree will resemble your original Elasticsear
 "query": [
     {
        "type": "BooleanQuery",
-       "description": "message:message message:number",
+       "description": "message:some message:number",
        "time_in_nanos": "1873811",
        "breakdown": {...},               <1>
        "children": [
           {
              "type": "TermQuery",
-             "description": "message:message",
+             "description": "message:some",
              "time_in_nanos": "391943",
              "breakdown": {...}
           },
@@ -287,10 +306,14 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
    "next_doc": 53876,
    "next_doc_count": 5,
    "advance": 0,
-   "advance_count": 0
+   "advance_count": 0,
+   "compute_max_score": 0,
+   "compute_max_score_count": 0,
+   "shallow_advance": 0,
+   "shallow_advance_count": 0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:message message:number",\n"time_in_nanos": $body.$_path,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:some message:number",\n"time_in_nanos": $body.$_path,/]
 // TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
@@ -400,7 +423,7 @@ Looking at the previous example:
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
 `Collector` used by Elasticsearch.  The `reason` field attempts to give a plain english description of the class name.  The
 `time_in_nanos` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
-all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by elasticsearch to detect if the current
+all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by Elasticsearch to detect if the current
 search was cancelled and stop collecting documents as soon as it occurs.
 
 It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined
@@ -468,58 +491,48 @@ value is cumulative and contains the total time for all queries being rewritten.
 
 ==== A more complex example
 
+
 To demonstrate a slightly more complex query and the associated results, we can profile the following query:
 
 [source,js]
 --------------------------------------------------
-GET /test/_search
+GET /twitter/_search
 {
   "profile": true,
   "query": {
     "term": {
-      "message": {
-        "value": "search"
+      "user": {
+        "value": "test"
       }
     }
   },
   "aggs": {
-    "non_global_term": {
+    "my_scoped_agg": {
       "terms": {
-        "field": "agg"
-      },
-      "aggs": {
-        "second_term": {
-          "terms": {
-            "field": "sub_agg"
-          }
-        }
+        "field": "likes"
       }
     },
-    "another_agg": {
-      "cardinality": {
-        "field": "aggB"
-      }
-    },
-    "global_agg": {
+    "my_global_agg": {
       "global": {},
       "aggs": {
-        "my_agg2": {
+        "my_level_agg": {
           "terms": {
-            "field": "globalAgg"
+            "field": "likes"
           }
         }
       }
     }
   },
   "post_filter": {
-    "term": {
-      "my_field": "foo"
+    "match": {
+      "message": "some"
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT test\n/]
+// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations/]
+// TEST[continued]
 
 This example has:
 
@@ -530,10 +543,10 @@ This example has:
 
 And the response:
 
-
 [source,js]
 --------------------------------------------------
 {
+   ...
    "profile": {
          "shards": [
             {
@@ -543,120 +556,108 @@ And the response:
                      "query": [
                         {
                            "type": "TermQuery",
-                           "description": "my_field:foo",
+                           "description": "message:some",
                            "time_in_nanos": "409456",
                            "breakdown": {
                               "score": 0,
-                              "score_count": 1,
-                              "next_doc": 0,
-                              "next_doc_count": 2,
-                              "match": 0,
+                              "build_scorer_count": 1,
                               "match_count": 0,
                               "create_weight": 31584,
+                              "next_doc": 0,
+                              "match": 0,
                               "create_weight_count": 1,
+                              "next_doc_count": 2,
+                              "score_count": 1,
                               "build_scorer": 377872,
-                              "build_scorer_count": 1,
                               "advance": 0,
-                              "advance_count": 0
+                              "advance_count": 0,
+                              "compute_max_score": 0,
+                              "compute_max_score_count": 0,
+                              "shallow_advance": 0,
+                              "shallow_advance_count": 0
                            }
                         },
                         {
                            "type": "TermQuery",
-                           "description": "message:search",
+                           "description": "user:test",
                            "time_in_nanos": "303702",
                            "breakdown": {
                               "score": 0,
-                              "score_count": 1,
-                              "next_doc": 5936,
-                              "next_doc_count": 2,
-                              "match": 0,
+                              "build_scorer_count": 1,
                               "match_count": 0,
                               "create_weight": 185215,
+                              "next_doc": 5936,
+                              "match": 0,
                               "create_weight_count": 1,
+                              "next_doc_count": 2,
+                              "score_count": 1,
                               "build_scorer": 112551,
-                              "build_scorer_count": 1,
                               "advance": 0,
-                              "advance_count": 0
+                              "advance_count": 0,
+                              "compute_max_score": 0,
+                              "compute_max_score_count": 0,
+                              "shallow_advance": 0,
+                              "shallow_advance_count": 0
                            }
                         }
                      ],
                      "rewrite_time": 7208,
                      "collector": [
                         {
-                           "name": "MultiCollector",
-                           "reason": "search_multi",
-                           "time_in_nanos": "1378943",
-                           "children": [
-                              {
-                                 "name": "FilteredCollector",
-                                 "reason": "search_post_filter",
-                                 "time_in_nanos": "403659",
-                                 "children": [
+                          "name": "CancellableCollector",
+                          "reason": "search_cancelled",
+                          "time_in_nanos": 2390,
+                          "children": [
+                            {
+                              "name": "MultiCollector",
+                              "reason": "search_multi",
+                              "time_in_nanos": 1820,
+                              "children": [
+                                {
+                                  "name": "FilteredCollector",
+                                  "reason": "search_post_filter",
+                                  "time_in_nanos": 7735,
+                                  "children": [
                                     {
-                                       "name": "SimpleTopScoreDocCollector",
-                                       "reason": "search_top_hits",
-                                       "time_in_nanos": "6391"
+                                      "name": "SimpleTopScoreDocCollector",
+                                      "reason": "search_top_hits",
+                                      "time_in_nanos": 1328
                                     }
-                                 ]
-                              },
-                              {
-                                 "name": "BucketCollector: [[non_global_term, another_agg]]",
-                                 "reason": "aggregation",
-                                 "time_in_nanos": "954602"
-                              }
-                           ]
-                        }
-                     ]
-                  },
-                  {
-                     "query": [
-                        {
-                           "type": "MatchAllDocsQuery",
-                           "description": "*:*",
-                           "time_in_nanos": "48293",
-                           "breakdown": {
-                              "score": 0,
-                              "score_count": 1,
-                              "next_doc": 3672,
-                              "next_doc_count": 2,
-                              "match": 0,
-                              "match_count": 0,
-                              "create_weight": 6311,
-                              "create_weight_count": 1,
-                              "build_scorer": 38310,
-                              "build_scorer_count": 1,
-                              "advance": 0,
-                              "advance_count": 0
-                           }
-                        }
-                     ],
-                     "rewrite_time": 1067,
-                     "collector": [
-                        {
-                           "name": "GlobalAggregator: [global_agg]",
-                           "reason": "aggregation_global",
-                           "time_in_nanos": "122631"
+                                  ]
+                                },
+                                {
+                                  "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
+                                  "reason": "aggregation",
+                                  "time_in_nanos": 8273
+                                }
+                              ]
+                            }
+                          ]
                         }
                      ]
                   }
-               ]
+               ],
+               "aggregations": [...] <1>
             }
          ]
       }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": $body.$_path/]
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
+<1> The ``"aggregations"` portion has been omitted because it will be covered in the next section
 
 As you can see, the output is significantly verbose from before.  All the major portions of the query are
 represented:
 
-1. The first `TermQuery` (message:search) represents the main `term` query
-2. The second `TermQuery` (my_field:foo) represents the `post_filter` query
-3. There is a  `MatchAllDocsQuery` (\*:*) query which is being executed as a second, distinct search.  This was
-not part of the query specified by the user, but is auto-generated by the global aggregation to provide a global query scope
+1. The first `TermQuery` (user:test) represents the main `term` query
+2. The second `TermQuery` (message:some) represents the `post_filter` query
 
-The Collector tree is fairly straightforward, showing how a single MultiCollector wraps a FilteredCollector
-to execute the post_filter (and in turn wraps the normal scoring SimpleCollector), a BucketCollector to run
-all scoped aggregations.  In the MatchAll search, there is a single GlobalAggregator to run the global aggregation.
+The Collector tree is fairly straightforward, showing how a single CancellableCollector wraps a MultiCollector
+ which also wraps a FilteredCollector to execute the post_filter (and in turn wraps the normal scoring SimpleCollector),
+ a BucketCollector to run all scoped aggregations.
 
 ==== Understanding MultiTermQuery output
 
@@ -673,7 +674,7 @@ Due to this dynamic, per-segment rewriting, the clean tree structure becomes dis
 "lineage" showing how one query rewrites into the next.  At present time, all we can do is apologize, and suggest you
 collapse the details for that query's children if it is too confusing.  Luckily, all the timing statistics are correct,
 just not the physical layout in the response, so it is sufficient to just analyze the top-level MultiTermQuery and
-ignore it's children if you find the details too tricky to interpret.
+ignore its children if you find the details too tricky to interpret.
 
 Hopefully this will be fixed in future iterations, but it is a tricky problem to solve and still in-progress :)
 
@@ -681,84 +682,123 @@ Hopefully this will be fixed in future iterations, but it is a tricky problem to
 
 ==== `aggregations` Section
 
+
 The `aggregations` section contains detailed timing of the aggregation tree executed by a particular shard.
-The overall structure of this aggregation tree will resemble your original Elasticsearch request.  Let's consider
-the following example aggregations request:
+The overall structure of this aggregation tree will resemble your original Elasticsearch request.  Let's
+execute the previous query again and look at the aggregation profile this time:
 
 [source,js]
 --------------------------------------------------
-GET /house-prices/_search
+GET /twitter/_search
 {
   "profile": true,
-  "size": 0,
+  "query": {
+    "term": {
+      "user": {
+        "value": "test"
+      }
+    }
+  },
   "aggs": {
-    "property_type": {
+    "my_scoped_agg": {
       "terms": {
-        "field": "propertyType"
-      },
+        "field": "likes"
+      }
+    },
+    "my_global_agg": {
+      "global": {},
       "aggs": {
-        "avg_price": {
-          "avg": {
-            "field": "price"
+        "my_level_agg": {
+          "terms": {
+            "field": "likes"
           }
         }
       }
+    }
+  },
+  "post_filter": {
+    "match": {
+      "message": "some"
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT house-prices\n/]
+// TEST[s/_search/_search\?filter_path=profile.shards.aggregations/]
+// TEST[continued]
 
 Which yields the following aggregation profile output
 
 [source,js]
 --------------------------------------------------
-"aggregations": [
-  {
-    "type": "org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator",
-    "description": "property_type",
-    "time_in_nanos": "4280456978",
-    "breakdown": {
-      "reduce": 0,
-      "reduce_count": 0,
-      "build_aggregation": 49765,
-      "build_aggregation_count": 300,
-      "initialise": 52785,
-      "initialize_count": 300,
-      "collect": 3155490036,
-      "collect_count": 1800
-    },
-    "children": [
+{
+  "profile" : {
+    "shards" : [
       {
-        "type": "org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator",
-        "description": "avg_price",
-        "time_in_nanos": "1124864392",
-        "breakdown": {
-          "reduce": 0,
-          "reduce_count": 0,
-          "build_aggregation": 1394,
-          "build_aggregation_count": 150,
-          "initialise": 2883,
-          "initialize_count": 150,
-          "collect": 1124860115,
-          "collect_count": 900
-        }
+        "aggregations" : [
+          {
+            "type" : "LongTermsAggregator",
+            "description" : "my_scoped_agg",
+            "time_in_nanos" : 195386,
+            "breakdown" : {
+              "reduce" : 0,
+              "build_aggregation" : 81171,
+              "build_aggregation_count" : 1,
+              "initialize" : 22753,
+              "initialize_count" : 1,
+              "reduce_count" : 0,
+              "collect" : 91456,
+              "collect_count" : 4
+            }
+          },
+          {
+            "type" : "GlobalAggregator",
+            "description" : "my_global_agg",
+            "time_in_nanos" : 190430,
+            "breakdown" : {
+              "reduce" : 0,
+              "build_aggregation" : 59990,
+              "build_aggregation_count" : 1,
+              "initialize" : 29619,
+              "initialize_count" : 1,
+              "reduce_count" : 0,
+              "collect" : 100815,
+              "collect_count" : 4
+            },
+            "children" : [
+              {
+                "type" : "LongTermsAggregator",
+                "description" : "my_level_agg",
+                "time_in_nanos" : 160329,
+                "breakdown" : {
+                  "reduce" : 0,
+                  "build_aggregation" : 55712,
+                  "build_aggregation_count" : 1,
+                  "initialize" : 10559,
+                  "initialize_count" : 1,
+                  "reduce_count" : 0,
+                  "collect" : 94052,
+                  "collect_count" : 4
+                }
+              }
+            ]
+          }
+        ]
       }
     ]
   }
-]
+}
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
 
-From the profile structure we can see our `property_type` terms aggregation which is internally represented by the
-`GlobalOrdinalsStringTermsAggregator` class and the sub aggregator `avg_price` which is internally represented by the `AvgAggregator` class. The `type` field displays the class used internally to represent the aggregation. The `description` field displays the name of the aggregation.
+From the profile structure we can see that the `my_scoped_agg` is internally being run as a `LongTermsAggregator` (because the field it is
+aggregating, `likes`, is a numeric field).  At the same level, we see a `GlobalAggregator` which comes from `my_global_agg`.  That
+aggregation then has a child `LongTermsAggregator` which from the second terms aggregation on `likes`.
 
-The `time_in_nanos` field shows that it took ~4 seconds for the entire aggregation to execute.  The recorded time is inclusive
-of all children.
-
-The `breakdown` field will give detailed stats about how the time was spent, we'll look at
-that in a moment.  Finally, the `children` array lists any sub-aggregations that may be present.  Because we have an `avg_price` aggregation as a sub-aggregation to the `property_type` aggregation we see it listed as a child of the `property_type` aggregation.  the two aggregation outputs have identical information (type, time,
-breakdown, etc).  Children are allowed to have their own children.
+The `time_in_nanos` field shows the time executed by each aggregation, and is inclusive of all children.  While the overall time is useful,
+the `breakdown` field will give detailed stats about how the time was spent.
 
 ===== Timing Breakdown
 
@@ -771,12 +811,14 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
   "reduce_count": 0,
   "build_aggregation": 49765,
   "build_aggregation_count": 300,
-  "initialise": 52785,
+  "initialize": 52785,
   "initialize_count": 300,
+  "reduce_count": 0,
   "collect": 3155490036,
   "collect_count": 1800
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
 `time` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Elasticsearch is
@@ -822,8 +864,12 @@ There are also cases where special Lucene optimizations are disabled, since they
 could cause some queries to report larger relative times than their non-profiled counterparts, but in general should
 not have a drastic effect compared to other components in the profiled query.
 
+[[profile-limitations]]
 ==== Limitations
 
+- Profiling currently does not measure the search fetch phase nor the network overhead
+- Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node or
+additional work like e.g. building global ordinals (an internal data structure used to speed up search)
 - Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
 - Profiling of the reduce phase of aggregation is currently not available
 - The Profiler is still highly experimental. The Profiler is instrumenting parts of Lucene that were

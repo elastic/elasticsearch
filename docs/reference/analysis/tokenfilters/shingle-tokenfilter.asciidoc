@@ -1,6 +1,10 @@
 [[analysis-shingle-tokenfilter]]
 === Shingle Token Filter
 
+NOTE: Shingles are generally used to help speed up phrase queries.  Rather
+than building filter chains by hand, you may find it easier to use the
+<<index-phrases,`index-phrases`>> option on a text field.
+
 A token filter of type `shingle` that constructs shingles (token
 n-grams) from a token stream. In other words, it creates combinations of
 tokens as a single token. For example, the sentence "please divide this
@@ -38,3 +42,5 @@ used if the position increment is greater than one when a `stop` filter is used
 together with the `shingle` filter. Defaults to `"_"`
 |=======================================================================
 
+The index level setting `index.max_shingle_diff` controls the maximum allowed
+difference between `max_shingle_size` and `min_shingle_size`.

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plugin.discovery.azure.classic;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +43,7 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public static final String AZURE = "azure";
     protected final Settings settings;
-    private static final Logger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
+    private static final Logger logger = LogManager.getLogger(AzureDiscoveryPlugin.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public AzureDiscoveryPlugin(Settings settings) {
@@ -61,10 +61,16 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
         return Collections.singletonMap(AZURE,
-            () -> new AzureUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+            () -> createUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
     }
 
-
+    // Used for testing
+    protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
+                                                                   final AzureComputeService azureComputeService,
+                                                                   final TransportService transportService,
+                                                                   final NetworkService networkService) {
+        return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
+    }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -79,6 +85,4 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
                             AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING,
                             AzureComputeService.Discovery.ENDPOINT_NAME_SETTING);
     }
-
-
 }

@@ -22,7 +22,8 @@
       }
     },
     "body": {
-      "description": "The settings to be updated. Can be either `transient` or `persistent` (survives cluster restart)."
+      "description": "The settings to be updated. Can be either `transient` or `persistent` (survives cluster restart).",
+      "required" : true
     }
   }
 }

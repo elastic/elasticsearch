@@ -1,0 +1,61 @@
+grant {
+  permission java.lang.RuntimePermission "setFactory";
+
+  // needed because of problems in unbound LDAP library
+  permission java.util.PropertyPermission "*", "read,write";
+
+  // needed because of SAML (cf. o.e.x.s.s.RestorableContextClassLoader)
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
+  // needed for multiple server implementations used in tests
+  permission java.net.SocketPermission "*", "accept,connect";
+
+  // needed for Kerberos login
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosKey * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
+  permission javax.security.auth.AuthPermission "doAs";
+  permission javax.security.auth.kerberos.ServicePermission "*","initiate,accept";
+
+  permission java.util.PropertyPermission "javax.security.auth.useSubjectCredsOnly","write";
+  permission java.util.PropertyPermission "java.security.krb5.conf","write";
+  permission java.util.PropertyPermission "sun.security.krb5.debug","write";
+  permission java.util.PropertyPermission "java.security.debug","write";
+  permission java.util.PropertyPermission "sun.security.spnego.debug","write";
+
+  // needed for kerberos file permission tests to access user information
+  permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getFileStoreAttributes";
+};
+
+grant codeBase "${codebase.xmlsec-2.0.8.jar}" {
+  // needed during initialization of OpenSAML library where xml security algorithms are registered
+  // see https://github.com/apache/santuario-java/blob/e79f1fe4192de73a975bc7246aee58ed0703343d/src/main/java/org/apache/xml/security/utils/JavaUtils.java#L205-L220
+  // and https://git.shibboleth.net/view/?p=java-opensaml.git;a=blob;f=opensaml-xmlsec-impl/src/main/java/org/opensaml/xmlsec/signature/impl/SignatureMarshaller.java;hb=db0eaa64210f0e32d359cd6c57bedd57902bf811#l52
+  // which uses it in the opensaml-xmlsec-impl
+  permission java.security.SecurityPermission "org.apache.xml.security.register";
+};
+
+grant codeBase "${codebase.netty-common}" {
+   // for reading the system-wide configuration for the backlog of established sockets
+   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+};
+
+grant codeBase "${codebase.netty-transport}" {
+   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
+};
+
+grant codeBase "${codebase.elasticsearch-rest-client}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.httpasyncclient}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};

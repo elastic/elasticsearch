@@ -19,23 +19,17 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.services.ec2.AmazonEC2;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
-interface AwsEc2Service {
+interface AwsEc2Service extends Closeable {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 
     class HostType {
@@ -45,36 +39,6 @@ interface AwsEc2Service {
         public static final String PUBLIC_DNS = "public_dns";
         public static final String TAG_PREFIX = "tag:";
     }
-
-    /** The access key (ie login id) for connecting to ec2. */
-    Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.secureString("discovery.ec2.access_key", null);
-
-    /** The secret key (ie password) for connecting to ec2. */
-    Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.secureString("discovery.ec2.secret_key", null);
-
-    /** An override for the ec2 endpoint to connect to. */
-    Setting<String> ENDPOINT_SETTING = new Setting<>("discovery.ec2.endpoint", "",
-        s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
-
-    /** The protocol to use to connect to to ec2. */
-    Setting<Protocol> PROTOCOL_SETTING = new Setting<>("discovery.ec2.protocol", "https",
-        s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
-
-    /** The host name of a proxy to connect to ec2 through. */
-    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("discovery.ec2.proxy.host", Property.NodeScope);
-
-    /** The port of a proxy to connect to ec2 through. */
-    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("discovery.ec2.proxy.port", 80, 0, 1<<16, Property.NodeScope);
-
-    /** The username of a proxy to connect to s3 through. */
-    Setting<SecureString> PROXY_USERNAME_SETTING = SecureSetting.secureString("discovery.ec2.proxy.username", null);
-
-    /** The password of a proxy to connect to s3 through. */
-    Setting<SecureString> PROXY_PASSWORD_SETTING =  SecureSetting.secureString("discovery.ec2.proxy.password", null);
-
-    /** The socket timeout for connecting to s3. */
-    Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting("discovery.ec2.read_timeout",
-        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope);
 
     /**
      * discovery.ec2.host_type: The type of host type to use to communicate with other instances.
@@ -88,26 +52,24 @@ interface AwsEc2Service {
      * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
      * discovery. Defaults to true.
      */
-    Setting<Boolean> ANY_GROUP_SETTING =
-        Setting.boolSetting("discovery.ec2.any_group", true, Property.NodeScope);
+    Setting<Boolean> ANY_GROUP_SETTING = Setting.boolSetting("discovery.ec2.any_group", true, Property.NodeScope);
     /**
      * discovery.ec2.groups: Either a comma separated list or array based list of (security) groups. Only instances with the provided
      * security groups will be used in the cluster discovery. (NOTE: You could provide either group NAME or group ID.)
      */
-    Setting<List<String>> GROUPS_SETTING =
-        Setting.listSetting("discovery.ec2.groups", new ArrayList<>(), s -> s.toString(), Property.NodeScope);
+    Setting<List<String>> GROUPS_SETTING = Setting.listSetting("discovery.ec2.groups", new ArrayList<>(), s -> s.toString(),
+            Property.NodeScope);
     /**
      * discovery.ec2.availability_zones: Either a comma separated list or array based list of availability zones. Only instances within
      * the provided availability zones will be used in the cluster discovery.
      */
-    Setting<List<String>> AVAILABILITY_ZONES_SETTING =
-        Setting.listSetting("discovery.ec2.availability_zones", Collections.emptyList(), s -> s.toString(),
-            Property.NodeScope);
+    Setting<List<String>> AVAILABILITY_ZONES_SETTING = Setting.listSetting("discovery.ec2.availability_zones", Collections.emptyList(),
+            s -> s.toString(), Property.NodeScope);
     /**
      * discovery.ec2.node_cache_time: How long the list of hosts is cached to prevent further requests to the AWS API. Defaults to 10s.
      */
-    Setting<TimeValue> NODE_CACHE_TIME_SETTING =
-        Setting.timeSetting("discovery.ec2.node_cache_time", TimeValue.timeValueSeconds(10), Property.NodeScope);
+    Setting<TimeValue> NODE_CACHE_TIME_SETTING = Setting.timeSetting("discovery.ec2.node_cache_time", TimeValue.timeValueSeconds(10),
+            Property.NodeScope);
 
     /**
      * discovery.ec2.tag.*: The ec2 discovery can filter machines to include in the cluster based on tags (and not just groups).
@@ -115,7 +77,23 @@ interface AwsEc2Service {
      * instances with a tag key set to stage, and a value of dev. Several tags set will require all of those tags to be set for the
      * instance to be included.
      */
-    Setting<Settings> TAG_SETTING = Setting.groupSetting("discovery.ec2.tag.", Property.NodeScope);
+    Setting.AffixSetting<List<String>> TAG_SETTING = Setting.prefixKeySetting("discovery.ec2.tag.",
+            key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
 
-    AmazonEC2 client();
+    /**
+     * Builds then caches an {@code AmazonEC2} client using the current client
+     * settings. Returns an {@code AmazonEc2Reference} wrapper which should be
+     * released as soon as it is not required anymore.
+     */
+    AmazonEc2Reference client();
+
+    /**
+     * Updates the settings for building the client and releases the cached one.
+     * Future client requests will use the new settings to lazily built the new
+     * client.
+     *
+     * @param clientSettings the new refreshed settings
+     */
+    void refreshAndClearCache(Ec2ClientSettings clientSettings);
+
 }

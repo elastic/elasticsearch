@@ -318,4 +318,13 @@ public class CastTests extends ScriptTestCase {
             exec("def x = 5L; boolean y = (boolean) (x + x); return y");
         });
     }
+
+    public void testIllegalVoidCasts() {
+        expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));");
+        });
+        expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());");
+        });
+    }
 }

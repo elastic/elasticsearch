@@ -20,8 +20,6 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
-import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +34,7 @@ public class AzureBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         try {
             RepositoryMetaData repositoryMetaData = new RepositoryMetaData("azure", "ittest", Settings.EMPTY);
             AzureStorageServiceMock client = new AzureStorageServiceMock();
-            return new AzureBlobStore(repositoryMetaData, Settings.EMPTY, client);
+            return new AzureBlobStore(repositoryMetaData, client);
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }

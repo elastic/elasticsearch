@@ -1,6 +1,6 @@
 
 [[index-modules]]
-= Index Modules
+= Index modules
 
 [partintro]
 --
@@ -47,7 +47,7 @@ specific index module:
 `index.shard.check_on_startup`::
 +
 --
-experimental[] Whether or not shards should be checked for corruption before opening. When
+Whether or not shards should be checked for corruption before opening. When
 corruption is detected, it will prevent the shard from being opened. Accepts:
 
 `false`::
@@ -63,13 +63,7 @@ corruption is detected, it will prevent the shard from being opened. Accepts:
     Check for both physical and logical corruption. This is much more
     expensive in terms of CPU and memory usage.
 
-`fix`::
-
-    Check for both physical and logical corruption.  Segments that were reported
-    as corrupted will be automatically removed. This option *may result in data loss*.
-    Use with extreme caution!
-
-Checking shards may take a lot of time on large indices.
+WARNING: Expert only. Checking shards may take a lot of time on large indices.
 --
 
 [[index-codec]] `index.codec`::
@@ -78,6 +72,9 @@ Checking shards may take a lot of time on large indices.
     compression, but this can be set to +best_compression+
     which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
+    If you are updating the compression type, the new one will be applied
+    after segments are merged. Segment merging can be forced using
+    <<indices-forcemerge,force merge>>.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 
@@ -100,15 +97,31 @@ specific index module:
 
 `index.auto_expand_replicas`::
 
-    Auto-expand the number of replicas based on the number of available nodes.
+    Auto-expand the number of replicas based on the number of data nodes in the cluster.
     Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
-    for the upper bound (e.g. `0-all`).  Defaults to `false` (i.e. disabled).
+    for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
+    Note that the auto-expanded number of replicas does not take any other allocation
+    rules into account, such as <<allocation-awareness,shard allocation awareness>>,
+    <<shard-allocation-filtering,filtering>> or <<allocation-total-shards,total shards per node>>,
+    and this can lead to the cluster health becoming `YELLOW` if the applicable rules
+    prevent all the replicas from being allocated.
+
+`index.search.idle.after`::
+    How long a shard can not receive a search or get request until it's considered
+    search idle. (default is `30s`)
 
 `index.refresh_interval`::
 
     How often to perform a refresh operation, which makes recent changes to the
-    index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
-    refresh.
+    index visible to search. Defaults to `1s`.  Can be set to `-1` to disable
+    refresh. If this setting is not explicitly set, shards that haven't seen
+    search traffic for at least `index.search.idle.after` seconds will not receive
+    background refreshes until they receive a search request. Searches that hit an
+    idle shard where a refresh is pending will wait for the next background
+    refresh (within `1s`). This behavior aims to automatically optimize bulk
+    indexing in the default case when no searches are performed. In order to opt
+    out of this behavior an explicit value of `1s` should set as the refresh
+    interval.
 
 `index.max_result_window`::
 
@@ -118,12 +131,38 @@ specific index module:
     <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
     to raising this.
 
+`index.max_inner_result_window`::
+
+    The maximum value of `from + size` for inner hits definition and top hits aggregations to this index. Defaults to
+    `100`. Inner hits and top hits aggregation take heap memory and time proportional to `from + size` and this limits that memory.
+
 `index.max_rescore_window`::
 
     The maximum value of `window_size` for `rescore` requests in searches of this index.
     Defaults to `index.max_result_window` which defaults to `10000`. Search
     requests take heap memory and time proportional to
     `max(window_size, from + size)` and this limits that memory.
+
+`index.max_docvalue_fields_search`::
+
+    The maximum number of `docvalue_fields` that are allowed in a query.
+    Defaults to `100`. Doc-value fields are costly since they might incur
+    a per-field per-document seek.
+
+`index.max_script_fields`::
+
+    The maximum number of `script_fields` that are allowed in a query.
+    Defaults to `32`.
+
+`index.max_ngram_diff`::
+
+    The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
+    Defaults to `1`.
+
+`index.max_shingle_diff`::
+
+    The maximum allowed difference between max_shingle_size and min_shingle_size for ShingleTokenFilter.
+    Defaults to `3`.
 
 `index.blocks.read_only`::
 
@@ -140,7 +179,9 @@ specific index module:
 
 `index.blocks.write`::
 
-    Set to `true` to disable write operations against the index.
+    Set to `true` to disable data write operations against the index. Unlike `read_only`, 
+    this setting does not affect metadata. For instance, you can close an index with a `write` 
+    block, but not an index with a `read_only` block.
 
 `index.blocks.metadata`::
 
@@ -151,6 +192,54 @@ specific index module:
     Maximum number of refresh listeners available on each shard of the index.
     These listeners are used to implement <<docs-refresh,`refresh=wait_for`>>.
 
+ `index.analyze.max_token_count`::
+
+    The maximum number of tokens that can be produced using _analyze API.
+    Defaults to `10000`.
+
+ `index.highlight.max_analyzed_offset`::
+
+     The maximum number of characters that will be analyzed for a highlight request.
+     This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
+     Defaults to `1000000`.
+
+ `index.max_terms_count`::
+
+    The maximum number of terms that can be used in Terms Query.
+    Defaults to `65536`.
+
+ `index.max_regex_length`::
+
+    The maximum length of regex that can be used in Regexp Query.
+    Defaults to `1000`.
+
+ `index.routing.allocation.enable`::
+
+    Controls shard allocation for this index. It can be set to:
+    * `all` (default) - Allows shard allocation for all shards.
+    * `primaries` - Allows shard allocation only for primary shards.
+    * `new_primaries` - Allows shard allocation only for newly-created primary shards.
+    * `none` - No shard allocation is allowed.
+
+ `index.routing.rebalance.enable`::
+
+    Enables shard rebalancing for this index. It can be set to:
+    * `all` (default) - Allows shard rebalancing for all shards.
+    * `primaries` - Allows shard rebalancing only for primary shards.
+    * `replicas` - Allows shard rebalancing only for replica shards.
+    * `none` - No shard rebalancing is allowed.
+
+ `index.gc_deletes`::
+
+    The length of time that a <<delete-versioning,deleted document's version number>> remains available for <<index-versioning,further versioned operations>>.
+    Defaults to `60s`.
+
+  `index.default_pipeline`::
+
+    The default <<ingest,ingest node>> pipeline for this index. Index requests will fail
+    if the default pipeline is set and the pipeline does not exist. The default may be
+    overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
+    no ingest pipeline should be run.
 
 [float]
 === Settings in other index modules

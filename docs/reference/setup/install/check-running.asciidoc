@@ -18,11 +18,15 @@ which should give you a response something like this:
   "cluster_name" : "elasticsearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "{version}",
+    "number" : "{version_qualified}",
+    "build_flavor" : "{build_flavor}",
+    "build_type" : "zip",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
-    "lucene_version" : "{lucene_version}"
+    "lucene_version" : "{lucene_version}",
+    "minimum_wire_compatibility_version" : "1.2.3",
+    "minimum_index_compatibility_version" : "1.2.3"
   },
   "tagline" : "You Know, for Search"
 }
@@ -33,4 +37,6 @@ which should give you a response something like this:
 // TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
 // TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]
 // TESTRESPONSE[s/"build_snapshot" : false,/"build_snapshot" : $body.version.build_snapshot,/]
+// TESTRESPONSE[s/"minimum_wire_compatibility_version" : "1.2.3"/"minimum_wire_compatibility_version" : $body.version.minimum_wire_compatibility_version/]
+// TESTRESPONSE[s/"minimum_index_compatibility_version" : "1.2.3"/"minimum_index_compatibility_version" : $body.version.minimum_index_compatibility_version/]
 // So much s/// but at least we test that the layout is close to matching....

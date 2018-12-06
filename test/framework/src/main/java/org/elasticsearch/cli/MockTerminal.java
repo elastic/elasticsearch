@@ -24,9 +24,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 
 /**
@@ -93,7 +91,9 @@ public class MockTerminal extends Terminal {
     /** Wipes the input and output. */
     public void reset() {
         buffer.reset();
+        textIndex = 0;
         textInput.clear();
+        secretIndex = 0;
         secretInput.clear();
     }
 }

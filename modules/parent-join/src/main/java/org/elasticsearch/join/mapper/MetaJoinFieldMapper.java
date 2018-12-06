@@ -21,6 +21,7 @@ package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,7 +90,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
@@ -105,10 +107,15 @@ public class MetaJoinFieldMapper extends FieldMapper {
         public ParentJoinFieldMapper getMapper() {
             return mapper;
         }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            throw new UnsupportedOperationException("Exists query not supported for fields of type" + typeName());
+        }
     }
 
     MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings) {
-        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
+        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
     }
 
     void setFieldMapper(ParentJoinFieldMapper mapper) {

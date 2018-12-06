@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +38,7 @@ public class RemoveProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Processor processor = new RemoveProcessor(randomAlphaOfLength(10),
-            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)));
+            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)), false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
     }
@@ -45,13 +46,26 @@ public class RemoveProcessorTests extends ESTestCase {
     public void testRemoveNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RemoveProcessor(randomAlphaOfLength(10),
-            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(fieldName)));
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", fieldName);
+        String processorTag = randomAlphaOfLength(10);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, config);
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
         }
+    }
+
+    public void testIgnoreMissing() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", fieldName);
+        config.put("ignore_missing", true);
+        String processorTag = randomAlphaOfLength(10);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, config);
+        processor.execute(ingestDocument);
     }
 }

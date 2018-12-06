@@ -1,9 +1,0 @@
-:doc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
-
-include::_index.asciidoc[]
-include::get.asciidoc[]
-include::delete.asciidoc[]
-include::update.asciidoc[]
-include::bulk.asciidoc[]
-
-:doc-tests!:

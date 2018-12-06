@@ -1,7 +1,7 @@
 [[analysis-flatten-graph-tokenfilter]]
 === Flatten Graph Token Filter
 
-experimental[]
+experimental[This functionality is marked as experimental in Lucene]
 
 The `flatten_graph` token filter accepts an arbitrary graph token
 stream, such as that produced by

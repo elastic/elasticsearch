@@ -26,7 +26,9 @@ Let's look at a range of percentiles representing load time:
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "load_time_outlier" : {
             "percentiles" : {
@@ -36,6 +38,8 @@ Let's look at a range of percentiles representing load time:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
 <1> The field `load_time` must be a numeric field
 
 By default, the `percentile` metric will generate a range of
@@ -49,23 +53,24 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
    "aggregations": {
       "load_time_outlier": {
          "values" : {
-            "1.0": 15,
-            "5.0": 20,
-            "25.0": 23,
-            "50.0": 25,
-            "75.0": 29,
-            "95.0": 60,
-            "99.0": 150
+            "1.0": 5.0,
+            "5.0": 25.0,
+            "25.0": 165.0,
+            "50.0": 445.0,
+            "75.0": 725.0,
+            "95.0": 945.0,
+            "99.0": 985.0
          }
       }
    }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 As you can see, the aggregation will return a calculated value for each percentile
 in the default range.  If we assume response times are in milliseconds, it is
-immediately obvious that the webpage normally loads in 15-30ms, but occasionally
-spikes to 60-150ms.
+immediately obvious that the webpage normally loads in 10-725ms, but occasionally
+spikes to 945-985ms.
 
 Often, administrators are only interested in outliers -- the extreme percentiles.
 We can specify just the percents we are interested in (requested percentiles
@@ -73,7 +78,9 @@ must be a value between 0-100 inclusive):
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "load_time_outlier" : {
             "percentiles" : {
@@ -84,6 +91,8 @@ must be a value between 0-100 inclusive):
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
 <1> Use the `percents` parameter to specify particular percentiles to calculate
 
 ==== Keyed Response
@@ -92,12 +101,13 @@ By default the `keyed` flag is set to `true` which associates a unique string ke
 
 [source,js]
 --------------------------------------------------
-POST bank/account/_search?size=0
+GET latency/_search
 {
+    "size": 0,
     "aggs": {
-        "balance_outlier": {
+        "load_time_outlier": {
             "percentiles": {
-                "field": "balance",
+                "field": "load_time",
                 "keyed": false
             }
         }
@@ -105,7 +115,7 @@ POST bank/account/_search?size=0
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:bank]
+// TEST[setup:latency]
 
 Response:
 
@@ -115,35 +125,35 @@ Response:
     ...
 
     "aggregations": {
-        "balance_outlier": {
+        "load_time_outlier": {
             "values": [
                 {
                     "key": 1.0,
-                    "value": 1462.8400000000001
+                    "value": 5.0
                 },
                 {
                     "key": 5.0,
-                    "value": 3591.85
+                    "value": 25.0
                 },
                 {
                     "key": 25.0,
-                    "value": 13709.333333333334
+                    "value": 165.0
                 },
                 {
                     "key": 50.0,
-                    "value": 26020.11666666667
+                    "value": 445.0
                 },
                 {
                     "key": 75.0,
-                    "value": 38139.648148148146
+                    "value": 725.0
                 },
                 {
                     "key": 95.0,
-                    "value": 47551.549999999996
+                    "value": 945.0
                 },
                 {
                     "key": 99.0,
-                    "value": 49339.16
+                    "value": 985.0
                 }
             ]
         }
@@ -151,13 +161,6 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-// TESTRESPONSE[s/1462.8400000000001/$body.aggregations.balance_outlier.values.0.value/]
-// TESTRESPONSE[s/3591.85/$body.aggregations.balance_outlier.values.1.value/]
-// TESTRESPONSE[s/13709.333333333334/$body.aggregations.balance_outlier.values.2.value/]
-// TESTRESPONSE[s/26020.11666666667/$body.aggregations.balance_outlier.values.3.value/]
-// TESTRESPONSE[s/38139.648148148146/$body.aggregations.balance_outlier.values.4.value/]
-// TESTRESPONSE[s/47551.549999999996/$body.aggregations.balance_outlier.values.5.value/]
-// TESTRESPONSE[s/49339.16/$body.aggregations.balance_outlier.values.6.value/]
 
 ==== Script
 
@@ -167,7 +170,9 @@ a script to convert them on-the-fly:
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "load_time_outlier" : {
             "percentiles" : {
@@ -183,6 +188,9 @@ a script to convert them on-the-fly:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
+
 <1> The `field` parameter is replaced with a `script` parameter, which uses the
 script to generate values which percentiles are calculated on
 <2> Scripting supports parameterized input just like any other script
@@ -191,14 +199,16 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "load_time_outlier" : {
             "percentiles" : {
                 "script" : {
                     "id": "my_script",
-                    "params" : {
-                        "timeUnit" : 1000
+                    "params": {
+                        "field": "load_time"
                     }
                 }
             }
@@ -206,6 +216,8 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency,stored_example_script]
 
 [[search-aggregations-metrics-percentile-aggregation-approximation]]
 ==== Percentiles are (usually) approximate
@@ -247,14 +259,14 @@ it. It would not be the case on more skewed distributions.
 [[search-aggregations-metrics-percentile-aggregation-compression]]
 ==== Compression
 
-experimental[The `compression` parameter is specific to the current internal implementation of percentiles, and may change in the future]
-
 Approximate algorithms must balance memory utilization with estimation accuracy.
 This balance can be controlled using a `compression` parameter:
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "load_time_outlier" : {
             "percentiles" : {
@@ -267,6 +279,9 @@ This balance can be controlled using a `compression` parameter:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
+
 <1> Compression controls memory usage and approximation error
 
 The TDigest algorithm uses a number of "nodes" to approximate percentiles -- the
@@ -287,7 +302,7 @@ the TDigest will use less memory.
 
 ==== HDR Histogram
 
-experimental[]
+NOTE: This setting exposes the internal implementation of HDR Histogram and the syntax may change in the future.
 
 https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation
 that can be useful when calculating percentiles for latency measurements as it can be faster than the t-digest implementation
@@ -300,7 +315,9 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "load_time_outlier" : {
             "percentiles" : {
@@ -314,6 +331,9 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
+
 <1> `hdr` object indicates that HDR Histogram should be used to calculate the percentiles and specific settings for this algorithm can be specified inside the object
 <2> `number_of_significant_value_digits` specifies the resolution of values for the histogram in number of significant digits
 
@@ -328,7 +348,9 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
         "grade_percentiles" : {
             "percentiles" : {
@@ -339,5 +361,7 @@ had a value.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
 
 <1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.

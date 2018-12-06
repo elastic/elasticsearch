@@ -158,6 +158,6 @@ teardown:
 ---
 "Test Grok Patterns Retrieval":
   - do:
-      ingest.processor.grok: {}
+      ingest.processor_grok: {}
   - length: { patterns: 303 }
   - match: { patterns.PATH: "(?:%{UNIXPATH}|%{WINPATH})" }

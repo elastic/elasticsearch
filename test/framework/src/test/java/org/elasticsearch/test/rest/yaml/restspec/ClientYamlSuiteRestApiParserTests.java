@@ -22,13 +22,15 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, REST_SPEC_INDEX_API);
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("index.json", parser);
 
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("index"));
@@ -39,18 +41,20 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPaths().get(0), equalTo("/{index}/{type}"));
         assertThat(restApi.getPaths().get(1), equalTo("/{index}/{type}/{id}"));
         assertThat(restApi.getPathParts().size(), equalTo(3));
-        assertThat(restApi.getPathParts().get(0), equalTo("id"));
-        assertThat(restApi.getPathParts().get(1), equalTo("index"));
-        assertThat(restApi.getPathParts().get(2), equalTo("type"));
+        assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("id", "index", "type"));
+        assertThat(restApi.getPathParts(), hasEntry("index", true));
+        assertThat(restApi.getPathParts(), hasEntry("type", true));
+        assertThat(restApi.getPathParts(), hasEntry("id", false));
         assertThat(restApi.getParams().size(), equalTo(4));
-        assertThat(restApi.getParams(), contains("wait_for_active_shards", "op_type", "parent", "refresh"));
+        assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "parent", "refresh"));
+        restApi.getParams().entrySet().forEach(e -> assertThat(e.getValue(), equalTo(false)));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, REST_SPEC_GET_TEMPLATE_API);
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("indices.get_template.json", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("indices.get_template"));
         assertThat(restApi.getMethods().size(), equalTo(1));
@@ -59,7 +63,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPaths().get(0), equalTo("/_template"));
         assertThat(restApi.getPaths().get(1), equalTo("/_template/{name}"));
         assertThat(restApi.getPathParts().size(), equalTo(1));
-        assertThat(restApi.getPathParts().get(0), equalTo("name"));
+        assertThat(restApi.getPathParts(), hasEntry("name", false));
         assertThat(restApi.getParams().size(), equalTo(0));
         assertThat(restApi.isBodySupported(), equalTo(false));
         assertThat(restApi.isBodyRequired(), equalTo(false));
@@ -67,7 +71,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
 
     public void testParseRestSpecCountApi() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, REST_SPEC_COUNT_API);
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("count"));
         assertThat(restApi.getMethods().size(), equalTo(2));
@@ -78,12 +82,38 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPaths().get(1), equalTo("/{index}/_count"));
         assertThat(restApi.getPaths().get(2), equalTo("/{index}/{type}/_count"));
         assertThat(restApi.getPathParts().size(), equalTo(2));
-        assertThat(restApi.getPathParts().get(0), equalTo("index"));
-        assertThat(restApi.getPathParts().get(1), equalTo("type"));
+        assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("index", "type"));
+        restApi.getPathParts().entrySet().forEach(e -> assertThat(e.getValue(), equalTo(false)));
         assertThat(restApi.getParams().size(), equalTo(1));
-        assertThat(restApi.getParams().get(0), equalTo("ignore_unavailable"));
+        assertThat(restApi.getParams().keySet(), contains("ignore_unavailable"));
+        assertThat(restApi.getParams(), hasEntry("ignore_unavailable", false));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(false));
+    }
+
+    public void testRequiredBodyWithoutUrlParts() throws Exception {
+        String spec = "{\n" +
+            "  \"count\": {\n" +
+            "    \"documentation\": \"whatever\",\n" +
+            "    \"methods\": [ \"GET\", \"POST\" ],\n" +
+            "    \"url\": {\n" +
+            "      \"path\": \"/whatever\",\n" +
+            "      \"paths\": [ \"/whatever\" ]\n" +
+            "    },\n" +
+            "    \"body\": {\n" +
+            "      \"description\" : \"whatever\",\n" +
+            "      \"required\" : true\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        parser = createParser(YamlXContent.yamlXContent, spec);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
+
+        assertThat(restApi, notNullValue());
+        assertThat(restApi.getPathParts().isEmpty(), equalTo(true));
+        assertThat(restApi.getParams().isEmpty(), equalTo(true));
+        assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
     private static final String REST_SPEC_COUNT_API = "{\n" +

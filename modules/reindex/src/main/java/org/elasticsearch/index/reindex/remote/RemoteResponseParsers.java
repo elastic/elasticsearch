@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.reindex.remote;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,30 +81,27 @@ final class RemoteResponseParsers {
                 try (XContentBuilder b = XContentBuilder.builder(s.xContent())) {
                     b.copyCurrentStructure(p);
                     // a hack but this lets us get the right xcontent type to go with the source
-                    return new Tuple<>(b.bytes(), s);
+                    return new Tuple<>(BytesReference.bytes(b), s);
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);
             }
         }, new ParseField("_source"));
         ParseField routingField = new ParseField("_routing");
-        ParseField parentField = new ParseField("_parent");
         ParseField ttlField = new ParseField("_ttl");
+        ParseField parentField = new ParseField("_parent");
         HIT_PARSER.declareString(BasicHit::setRouting, routingField);
-        HIT_PARSER.declareString(BasicHit::setParent, parentField);
-        // Pre-2.0.0 parent and routing come back in "fields"
+        // Pre-2.0.0 routing come back in "fields"
         class Fields {
             String routing;
-            String parent;
         }
         ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> {
             hit.setRouting(fields.routing);
-            hit.setParent(fields.parent);
         }, fieldsParser, new ParseField("fields"));
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
-        fieldsParser.declareString((fields, parent) -> fields.parent = parent, parentField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
+        fieldsParser.declareString((fields, parent) -> {}, parentField); // ignore parents since they have been removed
     }
 
     /**
@@ -110,7 +110,16 @@ final class RemoteResponseParsers {
     public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER =
             new ConstructingObjectParser<>("hits", true, a -> a);
     static {
-        HITS_PARSER.declareLong(constructorArg(), new ParseField("total"));
+        HITS_PARSER.declareField(constructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
+                assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
+                return totalHits.value;
+            } else {
+                // For BWC with nodes pre 7.0
+                return p.longValue();
+            }
+        }, new ParseField("total"), ValueType.OBJECT_OR_LONG);
         HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
     }
 
@@ -270,7 +279,11 @@ final class RemoteResponseParsers {
             "/", true, a -> (Version) a[0]);
     static {
         ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
-                "version", true, a -> Version.fromString((String) a[0]));
+                "version", true, a -> Version.fromString(
+                    ((String) a[0])
+                        .replace("-SNAPSHOT", "")
+                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+        ));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }

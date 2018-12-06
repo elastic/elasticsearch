@@ -99,7 +99,7 @@
         index: index1
 
   - do:
-      catch: forbidden
+      catch: bad_request
       cat.segments:
         index: index1
 

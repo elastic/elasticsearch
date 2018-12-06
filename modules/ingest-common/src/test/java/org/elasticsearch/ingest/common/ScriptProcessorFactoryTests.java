@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
@@ -30,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -57,7 +59,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         String randomType = randomFrom("id", "source");
         configMap.put(randomType, "foo");
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
-        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
     }
@@ -69,7 +71,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put(randomType, "foo");
         configMap.put("params", randomParams);
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
-        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(randomParams));
     }
@@ -80,19 +82,19 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("source", "bar");
         configMap.put("lang", "mockscript");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        XContentParseException exception = expectThrows(XContentParseException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
-        assertThat(exception.getMessage(), is("Only one of [id] or [source] may be configured"));
+        assertThat(exception.getMessage(), containsString("[script] failed to parse field [source]"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("lang", "mockscript");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
 
-        assertThat(exception.getMessage(), is("Need [id] or [source] parameter to refer to scripts"));
+        assertThat(exception.getMessage(), is("must specify either [source] for an inline script or [id] for a stored script"));
     }
 
     public void testInlineBackcompat() throws Exception {
@@ -100,7 +102,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("inline", "code");
 
         factory.create(null, randomAlphaOfLength(10), configMap);
-        assertWarnings("Specifying script source with [inline] is deprecated, use [source] instead.");
+        assertWarnings("Deprecated field [inline] used, expected [source] instead");
     }
 
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {
@@ -112,7 +114,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         factory = new ScriptProcessor.Factory(mockedScriptService);
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("lang", "mockscript");
         configMap.put(randomType, "my_script");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,

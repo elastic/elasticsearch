@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -54,12 +55,12 @@ public final class XContentTestUtils {
         builder.startObject();
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
 
     /**
-     * Compares to maps generated from XContentObjects. The order of elements in arrays is ignored.
+     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
      *
      * @return null if maps are equal or path to the element where the difference was found
      */
@@ -144,7 +145,7 @@ public final class XContentTestUtils {
      * If the xContent output contains objects that should be skipped of such treatment, an optional filtering
      * {@link Predicate} can be supplied that checks xContent paths that should be excluded from this treatment.
      *
-     * This predicate should check the xContent path that we want to insert to and return <tt>true</tt> if the
+     * This predicate should check the xContent path that we want to insert to and return {@code true} if the
      * path should be excluded. Paths are string concatenating field names and array indices, so e.g. in:
      *
      * <pre>
@@ -184,7 +185,8 @@ public final class XContentTestUtils {
         List<String> insertPaths;
 
         // we can use NamedXContentRegistry.EMPTY here because we only traverse the xContent once and don't use it
-        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, xContent, contentType)) {
+        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, xContent, contentType)) {
             parser.nextToken();
             List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             if (excludeFilter == null) {
@@ -207,8 +209,8 @@ public final class XContentTestUtils {
                 }
             }
         };
-        return XContentTestUtils
-                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value).bytes();
+        return BytesReference.bytes(XContentTestUtils
+                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value));
     }
 
     /**
@@ -284,7 +286,7 @@ public final class XContentTestUtils {
      * {@link ObjectPath}.
      * The key/value arguments can suppliers that either return fixed or random values.
      */
-    static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
+    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
             Supplier<Object> value) throws IOException {
         ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {

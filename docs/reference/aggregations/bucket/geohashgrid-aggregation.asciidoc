@@ -22,7 +22,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 PUT /museums
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "location": {
                     "type": "geo_point"
@@ -32,7 +32,7 @@ PUT /museums
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_doc/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
@@ -149,6 +149,15 @@ field::         Mandatory. The name of the field indexed with GeoPoints.
 
 precision::     Optional. The string length of the geohashes used to define
                 cells/buckets in the results. Defaults to 5.
+                The precision can either be defined in terms of the integer
+                precision levels mentioned above. Values outside of [1,12] will
+                be rejected.
+                Alternatively, the precision level can be approximated from a
+                distance measure like "1km", "10m". The precision level is
+                calculate such that cells will not exceed the specified
+                size (diagonal) of the required precision. When this would lead
+                to precision levels higher than the supported 12 levels,
+                (e.g. for distances <5.6cm) the value is rejected.
 
 size::          Optional. The maximum number of geohash buckets to return
                 (defaults to 10,000). When results are trimmed, buckets are

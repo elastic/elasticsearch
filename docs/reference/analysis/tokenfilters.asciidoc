@@ -9,8 +9,6 @@ or add tokens (eg synonyms).
 Elasticsearch has a number of built in token filters which can be
 used to build <<analysis-custom-analyzer,custom analyzers>>.
 
-include::tokenfilters/standard-tokenfilter.asciidoc[]
-
 include::tokenfilters/asciifolding-tokenfilter.asciidoc[]
 
 include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
@@ -34,6 +32,12 @@ include::tokenfilters/stop-tokenfilter.asciidoc[]
 include::tokenfilters/word-delimiter-tokenfilter.asciidoc[]
 
 include::tokenfilters/word-delimiter-graph-tokenfilter.asciidoc[]
+
+include::tokenfilters/multiplexer-tokenfilter.asciidoc[]
+
+include::tokenfilters/condition-tokenfilter.asciidoc[]
+
+include::tokenfilters/predicate-tokenfilter.asciidoc[]
 
 include::tokenfilters/stemmer-tokenfilter.asciidoc[]
 
@@ -96,3 +100,5 @@ include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
 include::tokenfilters/fingerprint-tokenfilter.asciidoc[]
 
 include::tokenfilters/minhash-tokenfilter.asciidoc[]
+
+include::tokenfilters/remove-duplicates-tokenfilter.asciidoc[]

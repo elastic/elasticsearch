@@ -56,7 +56,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         super(indexSettings, name, settings);
 
         boolean ignoreCase =
-            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+            settings.getAsBoolean("ignore_case", false);
         String patternString = settings.get("keywords_pattern");
         if (patternString != null) {
             // a pattern for matching keywords is specified, as opposed to a
@@ -68,7 +68,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
             keywordPattern = Pattern.compile(patternString);
             keywordLookup = null;
         } else {
-            Set<?> rules = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, "keywords");
+            Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
             if (rules == null) {
                 throw new IllegalArgumentException(
                     "keyword filter requires either `keywords`, `keywords_path`, " +

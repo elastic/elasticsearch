@@ -1,0 +1,51 @@
+--
+:api: delete-forecast 
+:request: DeleteForecastRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Delete Forecast API
+
+The Delete Forecast API provides the ability to delete a {ml} job's
+forecast in the cluster.
+It accepts a +{request}+ object and responds
+with an +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Delete Forecast Request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Sets the specific forecastIds to delete, can be set to `_all` to indicate ALL forecasts for the given
+`jobId` 
+<2> Set the timeout for the request to respond, default is 30 seconds 
+<3> Set the `allow_no_forecasts` option. When `true` no error will be returned if an `_all`
+request finds no forecasts. It defaults to `true`
+
+[id="{upid}-{api}-response"]
+==== Delete Forecast Response
+
+An +{response}+ contains an acknowledgement of the forecast(s) deletion
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `isAcknowledged()` indicates if the forecast was successfully deleted or not.
+
+include::../execution.asciidoc[]

@@ -20,7 +20,7 @@ For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_one": {
           "type": "integer"
@@ -34,18 +34,18 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "number_one": "10" <1>
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "number_two": "10" <2>
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 <1> The `number_one` field will contain the integer `10`.
 <2> This document will be rejected because coercion is disabled.
 
@@ -67,7 +67,7 @@ PUT my_index
     "index.mapping.coerce": false
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_one": {
           "type": "integer",
@@ -81,13 +81,13 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { "number_one": "10" } <1>
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 { "number_two": "10" } <2>
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 <1> The `number_one` field overrides the index level setting to enable coercion.
 <2> This document will be rejected because the `number_two` field inherits the index-level coercion setting.

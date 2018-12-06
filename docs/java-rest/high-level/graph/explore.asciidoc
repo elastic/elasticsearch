@@ -1,0 +1,53 @@
+[[java-rest-high-x-pack-graph-explore]]
+=== X-Pack Graph explore API
+
+[[java-rest-high-x-pack-graph-explore-execution]]
+==== Initial request
+
+Graph queries are executed using the `explore()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/GraphDocumentationIT.java[x-pack-graph-explore-request]
+--------------------------------------------------
+<1> In this example we seed the exploration with a query to find messages mentioning the mysterious `projectx`
+<2> What we want to discover in these messages are the ids of `participants` in the communications and the md5 hashes
+of any attached files. In each case, we want to find people or files that have had at least one document connecting them
+to projectx.
+<3> The next "hop" in the graph exploration is to find the people who have shared several messages with the people or files
+discovered in the previous hop (the projectx conspirators). The `minDocCount` control is used here to ensure the people
+discovered have had at least 5 communications with projectx entities. Note we could also supply a "guiding query" here e.g. a 
+date range to consider only recent communications but we pass null to consider all connections.
+<4> Finally we call the graph explore API with the GraphExploreRequest object.  
+
+
+==== Response
+
+Graph responses consist of Vertex and Connection objects (aka "nodes" and "edges" respectively):
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/GraphDocumentationIT.java[x-pack-graph-explore-response]
+--------------------------------------------------
+<1> Each Vertex is a unique term (a combination of fieldname and term value). The "hopDepth" property tells us at which point in the 
+requested exploration this term was first discovered. 
+<2> Each Connection is a pair of Vertex objects and includes a docCount property telling us how many times these two
+Vertex terms have been sighted together
+
+
+[[java-rest-high-x-pack-graph-expand-execution]]
+==== Expanding a client-side Graph
+
+Typically once an application has rendered an initial GraphExploreResponse as a collection of vertices and connecting lines (graph visualization toolkits such as D3, sigma.js or Keylines help here) the next step a user may want to do is "expand". This involves finding new vertices that might be connected to the existing ones currently shown.
+
+To do this we use the same `explore` method but our request contains details about which vertices to expand from and which vertices to avoid re-discovering. 
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/GraphDocumentationIT.java[x-pack-graph-explore-expand]
+--------------------------------------------------
+<1> Unlike the initial request we do not need to pass a starting query
+<2> In the first hop which represents our "from" vertices we explicitly list the terms that we already have on-screen and want to expand by using the `addInclude` filter.
+We can supply a boost for those terms that are considered more important to follow than others but here we select a common value of 1 for all.
+<3> When defining the second hop which represents the "to" vertices we hope to discover we explicitly list the terms that we already know about using the `addExclude` filter
+

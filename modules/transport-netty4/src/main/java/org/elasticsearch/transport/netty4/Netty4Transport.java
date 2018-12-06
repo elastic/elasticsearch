@@ -24,8 +24,8 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -34,16 +34,15 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -52,28 +51,17 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -86,7 +74,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class Netty4Transport extends TcpTransport<Channel> {
+public class Netty4Transport extends TcpTransport {
+    private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
     static {
         Netty4Utils.setup();
@@ -97,13 +86,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
-    public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
-    public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope);
-
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-            "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
+        "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
         byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
@@ -112,24 +96,19 @@ public class Netty4Transport extends TcpTransport<Channel> {
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
 
-    protected final ByteSizeValue maxCumulationBufferCapacity;
-    protected final int maxCompositeBufferComponents;
-    protected final RecvByteBufAllocator recvByteBufAllocator;
-    protected final int workerCount;
-    protected final ByteSizeValue receivePredictorMin;
-    protected final ByteSizeValue receivePredictorMax;
-    // package private for testing
-    volatile Netty4OpenChannelsHandler serverOpenChannels;
-    protected volatile Bootstrap bootstrap;
-    protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private final RecvByteBufAllocator recvByteBufAllocator;
+    private final int workerCount;
+    private final ByteSizeValue receivePredictorMin;
+    private final ByteSizeValue receivePredictorMax;
+    private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private volatile Bootstrap clientBootstrap;
+    private volatile NioEventLoopGroup eventLoopGroup;
 
-    public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                          NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
-        super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+    public Netty4Transport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
+        super("netty", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
-        this.maxCumulationBufferCapacity = NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
-        this.maxCompositeBufferComponents = NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
@@ -142,26 +121,17 @@ public class Netty4Transport extends TcpTransport<Channel> {
         }
     }
 
-    TransportServiceAdapter transportServiceAdapter() {
-        return transportServiceAdapter;
-    }
-
     @Override
     protected void doStart() {
         boolean success = false;
         try {
-            bootstrap = createBootstrap();
+            ThreadFactory threadFactory = daemonThreadFactory(settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+            eventLoopGroup = new NioEventLoopGroup(workerCount, threadFactory);
+            clientBootstrap = createClientBootstrap(eventLoopGroup);
             if (NetworkService.NETWORK_SERVER.get(settings)) {
-                final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
-                this.serverOpenChannels = openChannels;
-                // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    final Settings settings = Settings.builder()
-                        .put(createFallbackSettings())
-                        .put(entry.getValue()).build();
-                    createServerBootstrap(entry.getKey(), settings);
-                    bindServer(entry.getKey(), settings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    createServerBootstrap(profileSettings, eventLoopGroup);
+                    bindServer(profileSettings);
                 }
             }
             super.doStart();
@@ -173,14 +143,11 @@ public class Netty4Transport extends TcpTransport<Channel> {
         }
     }
 
-    private Bootstrap createBootstrap() {
+    private Bootstrap createClientBootstrap(NioEventLoopGroup eventLoopGroup) {
         final Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
+        bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
 
-        bootstrap.handler(getClientChannelInitializer());
-
-        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(defaultConnectionProfile.getConnectTimeout().millis()));
         bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
 
@@ -199,239 +166,98 @@ public class Netty4Transport extends TcpTransport<Channel> {
         final boolean reuseAddress = TCP_REUSE_ADDRESS.get(settings);
         bootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
 
-        bootstrap.validate();
-
         return bootstrap;
     }
 
-    private Settings createFallbackSettings() {
-        Settings.Builder fallbackSettingsBuilder = Settings.builder();
-
-        List<String> fallbackBindHost = TcpTransport.BIND_HOST.get(settings);
-        if (fallbackBindHost.isEmpty() == false) {
-            fallbackSettingsBuilder.putArray("bind_host", fallbackBindHost);
-        }
-
-        List<String> fallbackPublishHost = TcpTransport.PUBLISH_HOST.get(settings);
-        if (fallbackPublishHost.isEmpty() == false) {
-            fallbackSettingsBuilder.putArray("publish_host", fallbackPublishHost);
-        }
-
-        boolean fallbackTcpNoDelay = TcpTransport.TCP_NO_DELAY.get(settings);
-        fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
-
-        boolean fallbackTcpKeepAlive = TcpTransport.TCP_KEEP_ALIVE.get(settings);
-        fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
-
-        boolean fallbackReuseAddress = TcpTransport.TCP_REUSE_ADDRESS.get(settings);
-        fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
-
-        ByteSizeValue fallbackTcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
-        if (fallbackTcpSendBufferSize.getBytes() >= 0) {
-            fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
-        }
-
-        ByteSizeValue fallbackTcpBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (fallbackTcpBufferSize.getBytes() >= 0) {
-            fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
-        }
-
-        return fallbackSettingsBuilder.build();
-    }
-
-    private void createServerBootstrap(String name, Settings settings) {
+    private void createServerBootstrap(ProfileSettings profileSettings, NioEventLoopGroup eventLoopGroup) {
+        String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
-            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
-                    + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
-                name, workerCount, settings.get("port"), settings.get("bind_host"), settings.get("publish_host"), compress,
-                defaultConnectionProfile.getConnectTimeout(),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING),
+            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
+                name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts,
                 receivePredictorMin, receivePredictorMax);
         }
 
-        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
-
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
+        serverBootstrap.group(eventLoopGroup);
         serverBootstrap.channel(NioServerSocketChannel.class);
 
-        serverBootstrap.childHandler(getServerChannelInitializer(name, settings));
+        serverBootstrap.childHandler(getServerChannelInitializer(name));
+        serverBootstrap.handler(new ServerChannelExceptionHandler());
 
-        serverBootstrap.childOption(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
-        serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
+        serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
+        serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
 
-        final ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.getDefault(settings);
-        if (tcpSendBufferSize != null && tcpSendBufferSize.getBytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+        if (profileSettings.sendBufferSize.getBytes() != -1) {
+            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(profileSettings.sendBufferSize.getBytes()));
         }
 
-        final ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.getDefault(settings);
-        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.getBytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.bytesAsInt()));
+        if (profileSettings.receiveBufferSize.getBytes() != -1) {
+            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(profileSettings.receiveBufferSize.bytesAsInt()));
         }
 
         serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
         serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
 
-        final boolean reuseAddress = TCP_REUSE_ADDRESS.get(settings);
-        serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
-        serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
+        serverBootstrap.option(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
+        serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
         serverBootstrap.validate();
 
         serverBootstraps.put(name, serverBootstrap);
     }
 
-    protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
-        return new ServerChannelInitializer(name, settings);
+    protected ChannelHandler getServerChannelInitializer(String name) {
+        return new ServerChannelInitializer(name);
     }
 
-    protected ChannelHandler getClientChannelInitializer() {
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
         return new ClientChannelInitializer();
     }
 
-    protected final void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
-        final Throwable t = unwrapped != null ? unwrapped : cause;
-        onException(ctx.channel(), t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
-    }
+    static final AttributeKey<Netty4TcpChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
+    static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    public long getNumOpenServerConnections() {
-        Netty4OpenChannelsHandler channels = serverOpenChannels;
-        return channels == null ? 0 : channels.numberOfOpenChannels();
-    }
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
+        Bootstrap bootstrapWithHandler = clientBootstrap.clone();
+        bootstrapWithHandler.handler(getClientChannelInitializer(node));
+        bootstrapWithHandler.remoteAddress(address);
+        ChannelFuture connectFuture = bootstrapWithHandler.connect();
 
-    @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
-        final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
-        boolean success = false;
-        try {
-            final TimeValue connectTimeout;
-            final Bootstrap bootstrap;
-            final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
-            if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
-                bootstrap = this.bootstrap.clone(this.bootstrap.config().group());
-                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(profile.getConnectTimeout().millis()));
-                connectTimeout = profile.getConnectTimeout();
-            } else {
-                connectTimeout = defaultConnectTimeout;
-                bootstrap = this.bootstrap;
-            }
-            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
-            final InetSocketAddress address = node.getAddress().address();
-            for (int i = 0; i < channels.length; i++) {
-                connections.add(bootstrap.connect(address));
-            }
-            final Iterator<ChannelFuture> iterator = connections.iterator();
-            final ChannelFutureListener closeListener = future -> onChannelClose.accept(future.channel());
-            try {
-                for (int i = 0; i < channels.length; i++) {
-                    assert iterator.hasNext();
-                    ChannelFuture future = iterator.next();
-                    future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!future.isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
-                    }
-                    channels[i] = future.channel();
-                    channels[i].closeFuture().addListener(closeListener);
-                }
-                assert iterator.hasNext() == false : "not all created connection have been consumed";
-            } catch (final RuntimeException e) {
-                for (final ChannelFuture future : Collections.unmodifiableList(connections)) {
-                    FutureUtils.cancel(future);
-                    if (future.channel() != null && future.channel().isOpen()) {
-                        try {
-                            future.channel().close();
-                        } catch (Exception inner) {
-                            e.addSuppressed(inner);
-                        }
-                    }
-                }
-                throw e;
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                try {
-                    nodeChannels.close();
-                } catch (IOException e) {
-                    logger.trace("exception while closing channels", e);
-                }
-            }
+        Channel channel = connectFuture.channel();
+        if (channel == null) {
+            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
+            throw new IOException(connectFuture.cause());
         }
-        return nodeChannels;
+        addClosedExceptionLogger(channel);
+
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
+        channel.attr(CHANNEL_KEY).set(nettyChannel);
+
+        return nettyChannel;
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
-        final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(channel);
-            } else {
-                Throwable cause = f.cause();
-                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
-                // going to cause that to bubble up and kill the process.
-                if (cause instanceof Exception) {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
-    }
-
-    @Override
-    protected void closeChannels(final List<Channel> channels) throws IOException {
-        Netty4Utils.closeChannels(channels);
-    }
-
-    @Override
-    protected InetSocketAddress getLocalAddress(Channel channel) {
-        return (InetSocketAddress) channel.localAddress();
-    }
-
-    @Override
-    protected Channel bind(String name, InetSocketAddress address) {
-        return serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
-    }
-
-    ScheduledPing getPing() {
-        return scheduledPing;
-    }
-
-    @Override
-    protected boolean isOpen(Channel channel) {
-        return channel.isOpen();
+    protected Netty4TcpServerChannel bind(String name, InetSocketAddress address) {
+        Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
+        Netty4TcpServerChannel esChannel = new Netty4TcpServerChannel(channel, name);
+        channel.attr(SERVER_CHANNEL_KEY).set(esChannel);
+        return esChannel;
     }
 
     @Override
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
-        Releasables.close(serverOpenChannels, () -> {
-            final List<Tuple<String, Future<?>>> serverBootstrapCloseFutures = new ArrayList<>(serverBootstraps.size());
-            for (final Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {
-                serverBootstrapCloseFutures.add(
-                    Tuple.tuple(entry.getKey(), entry.getValue().config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS)));
+        Releasables.close(() -> {
+            Future<?> shutdownFuture = eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
+            shutdownFuture.awaitUninterruptibly();
+            if (shutdownFuture.isSuccess() == false) {
+                logger.warn("Error closing netty event loop group", shutdownFuture.cause());
             }
-            for (final Tuple<String, Future<?>> future : serverBootstrapCloseFutures) {
-                future.v2().awaitUninterruptibly();
-                if (!future.v2().isSuccess()) {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "Error closing server bootstrap for profile [{}]", future.v1()), future.v2().cause());
-                }
-            }
-            serverBootstraps.clear();
 
-            if (bootstrap != null) {
-                bootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
-                bootstrap = null;
-            }
+            serverBootstraps.clear();
+            clientBootstrap = null;
         });
     }
 
@@ -439,42 +265,65 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this));
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
-
     }
 
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
-        protected final Settings settings;
 
-        protected ServerChannelInitializer(String name, Settings settings) {
+        protected ServerChannelInitializer(String name) {
             this.name = name;
-            this.settings = settings;
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
+            addClosedExceptionLogger(ch);
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
+            ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this));
+            serverAcceptedChannel(nettyTcpChannel);
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
-
     }
 
+    private void addClosedExceptionLogger(Channel channel) {
+        channel.closeFuture().addListener(f -> {
+            if (f.isSuccess() == false) {
+                logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
+            }
+        });
+    }
+
+    @ChannelHandler.Sharable
+    private class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
+            Netty4TcpServerChannel serverChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                onServerException(serverChannel, new Exception(cause));
+            } else {
+                onServerException(serverChannel, (Exception) cause);
+            }
+        }
+    }
 }

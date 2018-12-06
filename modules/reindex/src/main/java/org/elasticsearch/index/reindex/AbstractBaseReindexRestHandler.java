@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,7 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends GenericAction<Request, BulkByScrollResponse>
+                A extends Action<BulkByScrollResponse>
             > extends BaseRestHandler {
 
     private final A action;
@@ -90,7 +90,11 @@ public abstract class AbstractBaseReindexRestHandler<
 
         request.setRefresh(restRequest.paramAsBoolean("refresh", request.isRefresh()));
         request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
-        request.setSlices(restRequest.paramAsInt("slices", request.getSlices()));
+
+        Integer slices = parseSlices(restRequest);
+        if (slices != null) {
+            request.setSlices(slices);
+        }
 
         String waitForActiveShards = restRequest.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -113,6 +117,32 @@ public abstract class AbstractBaseReindexRestHandler<
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
             }
         };
+    }
+
+    private static Integer parseSlices(RestRequest request) {
+        String slicesString = request.param("slices");
+        if (slicesString == null) {
+            return null;
+        }
+
+        if (slicesString.equals(AbstractBulkByScrollRequest.AUTO_SLICES_VALUE)) {
+            return AbstractBulkByScrollRequest.AUTO_SLICES;
+        }
+
+        int slices;
+        try {
+            slices = Integer.parseInt(slicesString);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "[slices] must be a positive integer or the string \"auto\", but was [" + slicesString + "]", e);
+        }
+
+        if (slices < 1) {
+            throw new IllegalArgumentException(
+                "[slices] must be a positive integer or the string \"auto\", but was [" + slicesString + "]");
+        }
+
+        return slices;
     }
 
     /**

@@ -53,7 +53,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 .put(index("baz"), true)
                 .put(index("source", "source_multi"), true)
                 .put(index("source2", "source_multi"), true)).build();
-    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
+    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver();
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
 
@@ -88,10 +88,10 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testRemoteInfoSkipsValidation() {
         // The index doesn't have to exist
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, new BytesArray("test"), null, null, emptyMap(),
+        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, new BytesArray("test"), null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "does_not_exist", "target");
         // And it doesn't matter if they are the same index. They are considered to be different because the remote one is, well, remote.
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, new BytesArray("test"), null, null, emptyMap(),
+        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, new BytesArray("test"), null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "target", "target");
     }
 

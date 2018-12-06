@@ -27,7 +27,7 @@ which indexes the field values for fast completions.
 PUT music
 {
     "mappings": {
-        "song" : {
+        "_doc" : {
             "properties" : {
                 "suggest" : {
                     "type" : "completion"
@@ -86,7 +86,7 @@ the suggestions will be scored. Indexing a suggestion is as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
     "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
@@ -112,7 +112,7 @@ You can index multiple suggestions for a document as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
     "suggest" : [
         {
@@ -134,7 +134,7 @@ a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
@@ -156,9 +156,9 @@ POST music/_search?pretty
 {
     "suggest": {
         "song-suggest" : {
-            "prefix" : "nir",
-            "completion" : {
-                "field" : "suggest"
+            "prefix" : "nir", <1>
+            "completion" : { <2>
+                "field" : "suggest" <3>
             }
         }
     }
@@ -167,14 +167,19 @@ POST music/_search?pretty
 // CONSOLE
 // TEST[continued]
 
+<1> Prefix used to search for suggestions
+<2> Type of suggestions
+<3> Name of the field to search for suggestions in
+
 returns this response:
 
 [source,js]
 --------------------------------------------------
 {
   "_shards" : {
-    "total" : 5,
-    "successful" : 5,
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
     "failed" : 0
   },
   "hits": ...
@@ -188,7 +193,7 @@ returns this response:
       "options" : [ {
         "text" : "Nirvana",
         "_index": "music",
-        "_type": "song",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": {
@@ -217,14 +222,15 @@ filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_search?size=0
+POST music/_search
 {
-    "_source": "suggest",
+    "_source": "suggest", <1>
     "suggest": {
         "song-suggest" : {
             "prefix" : "nir",
             "completion" : {
-                "field" : "suggest"
+                "field" : "suggest", <2>
+                "size" : 5 <3>
             }
         }
     }
@@ -232,6 +238,10 @@ POST music/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Filter the source to return only the `suggest` field
+<2> Name of the field to search for suggestions in
+<3> Number of suggestions to return
 
 Which should look like:
 
@@ -241,13 +251,17 @@ Which should look like:
     "took": 6,
     "timed_out": false,
     "_shards" : {
-        "total" : 5,
-        "successful" : 5,
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
         "failed" : 0
     },
     "hits": {
-        "total" : 0,
-        "max_score" : 0.0,
+        "total" : {
+            "value": 0,
+            "relation": "eq"
+        },
+        "max_score" : null,
         "hits" : []
     },
     "suggest": {
@@ -258,7 +272,7 @@ Which should look like:
             "options" : [ {
                 "text" : "Nirvana",
                 "_index": "music",
-                "_type": "song",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -275,6 +289,7 @@ The basic completion suggester query supports the following parameters:
 
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
+`skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
@@ -288,6 +303,33 @@ multiple shards. To get best performance for completions, it is recommended to
 index completions into a single shard index. In case of high heap usage due to
 shard size, it is still recommended to break index into multiple shards instead
 of optimizing for completion performance.
+
+[[skip_duplicates]]
+==== Skip duplicate suggestions
+
+Queries can return duplicate suggestions coming from different documents.
+It is possible to modify this behavior by setting `skip_duplicates` to true.
+When set, this option filters out documents with duplicate suggestions from the result.
+
+[source,js]
+--------------------------------------------------
+POST music/_search?pretty
+{
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "skip_duplicates": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+WARNING: when set to true this option can slow down search because more suggestions
+need to be visited to find the top N.
 
 [[fuzzy]]
 ==== Fuzzy queries

@@ -21,9 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class RethrottleAction extends Action<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
+public class RethrottleAction extends Action<ListTasksResponse> {
     public static final RethrottleAction INSTANCE = new RethrottleAction();
     public static final String NAME = "cluster:admin/reindex/rethrottle";
 
@@ -32,12 +32,12 @@ public class RethrottleAction extends Action<RethrottleRequest, ListTasksRespons
     }
 
     @Override
-    public RethrottleRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RethrottleRequestBuilder(client, this);
+    public ListTasksResponse newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public ListTasksResponse newResponse() {
-        return new ListTasksResponse();
+    public Writeable.Reader<ListTasksResponse> getResponseReader() {
+        return ListTasksResponse::new;
     }
 }

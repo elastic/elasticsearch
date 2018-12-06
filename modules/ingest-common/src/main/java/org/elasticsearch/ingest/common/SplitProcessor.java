@@ -68,11 +68,11 @@ public final class SplitProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         String oldVal = document.getFieldValue(field, String.class, ignoreMissing);
 
         if (oldVal == null && ignoreMissing) {
-            return;
+            return document;
         } else if (oldVal == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot split.");
         }
@@ -81,6 +81,7 @@ public final class SplitProcessor extends AbstractProcessor {
         List<String> splitList = new ArrayList<>(strings.length);
         Collections.addAll(splitList, strings);
         document.setFieldValue(targetField, splitList);
+        return document;
     }
 
     @Override

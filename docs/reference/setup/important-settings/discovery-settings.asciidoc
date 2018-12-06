@@ -1,0 +1,58 @@
+[[discovery-settings]]
+=== Discovery settings
+
+Elasticsearch uses a custom discovery implementation called "Zen Discovery" for
+node-to-node clustering and master election. There are two important discovery
+settings that should be configured before going to production.
+
+[float]
+[[unicast.hosts]]
+==== `discovery.zen.ping.unicast.hosts`
+
+Out of the box, without any network configuration, Elasticsearch will bind to
+the available loopback addresses and will scan ports 9300 to 9305 to try to
+connect to other nodes running on the same server. This provides an auto-
+clustering experience without having to do any configuration.
+
+When the moment comes to form a cluster with nodes on other servers, you have to
+provide a seed list of other nodes in the cluster that are likely to be live and
+contactable. This can be specified as follows:
+
+[source,yaml]
+--------------------------------------------------
+discovery.zen.ping.unicast.hosts:
+   - 192.168.1.10:9300
+   - 192.168.1.11 <1>
+   - seeds.mydomain.com <2>
+--------------------------------------------------
+<1> The port will default to `transport.profiles.default.port` and fallback to
+    `transport.tcp.port` if not specified.
+<2> A hostname that resolves to multiple IP addresses will try all resolved
+    addresses.
+
+[float]
+[[minimum_master_nodes]]
+==== `discovery.zen.minimum_master_nodes`
+
+To prevent data loss, it is vital to configure the
+`discovery.zen.minimum_master_nodes` setting so that each master-eligible node
+knows the _minimum number of master-eligible nodes_ that must be visible in
+order to form a cluster.
+
+Without this setting, a cluster that suffers a network failure is at risk of
+having the cluster split into two independent clusters -- a split brain -- which
+will lead to data loss. A more detailed explanation is provided in
+<<split-brain>>.
+
+To avoid a split brain, this setting should be set to a _quorum_ of
+master-eligible nodes:
+
+    (master_eligible_nodes / 2) + 1
+
+In other words, if there are three master-eligible nodes, then minimum master
+nodes should be set to `(3 / 2) + 1` or `2`:
+
+[source,yaml]
+--------------------------------------------------
+discovery.zen.minimum_master_nodes: 2
+--------------------------------------------------

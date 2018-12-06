@@ -61,9 +61,6 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
         return Arrays.asList(
                 new RestSearchTemplateAction(settings, restController),
                 new RestMultiSearchTemplateAction(settings, restController),
-                new RestGetSearchTemplateAction(settings, restController),
-                new RestPutSearchTemplateAction(settings, restController),
-                new RestDeleteSearchTemplateAction(settings, restController),
                 new RestRenderSearchTemplateAction(settings, restController));
     }
 }

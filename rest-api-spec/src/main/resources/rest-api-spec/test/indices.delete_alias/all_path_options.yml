@@ -84,10 +84,6 @@ setup:
 
 ---
 "check delete with index list":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.delete_alias:
         index: "test_index1,test_index2"
@@ -110,10 +106,6 @@ setup:
 
 ---
 "check delete with prefix* index":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.delete_alias:
         index: "test_*"
@@ -137,10 +129,6 @@ setup:
 
 ---
 "check delete with index list and * aliases":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.delete_alias:
         index: "test_index1,test_index2"
@@ -164,10 +152,6 @@ setup:
 
 ---
 "check delete with index list and _all aliases":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.delete_alias:
         index: "test_index1,test_index2"
@@ -191,10 +175,6 @@ setup:
 
 ---
 "check delete with index list and wildcard aliases":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.delete_alias:
         index: "test_index1,test_index2"

@@ -142,7 +142,7 @@ teardown:
 ---
 "Test invalid processor config":
   - do:
-      catch: request
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -158,9 +158,9 @@ teardown:
           }
   - match: { error.root_cause.0.type: "parse_exception" }
   - match: { error.root_cause.0.reason: "[field] required property is missing" }
-  - match: { error.root_cause.0.header.processor_tag: "fritag" }
-  - match: { error.root_cause.0.header.processor_type: "set" }
-  - match: { error.root_cause.0.header.property_name: "field" }
+  - match: { error.root_cause.0.processor_tag: "fritag" }
+  - match: { error.root_cause.0.processor_type: "set" }
+  - match: { error.root_cause.0.property_name: "field" }
 
 ---
 "Test basic pipeline with on_failure in processor":
@@ -203,16 +203,3 @@ teardown:
       catch: missing
       ingest.get_pipeline:
         id: "my_pipeline"
-
----
-"missing body":
-
-  - skip:
-      version: " - 5.99.99"
-      reason: NPE caused by missing body fixed in 6.0.0
-      
-  - do:
-      catch: /request body or source parameter is required/
-      raw:
-        method: PUT
-        path: _ingest/pipeline/my_pipeline

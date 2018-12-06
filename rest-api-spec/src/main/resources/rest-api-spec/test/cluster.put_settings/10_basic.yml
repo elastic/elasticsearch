@@ -64,26 +64,8 @@
 ---
 "Test get a default settings":
 
-# this can't be bumped to 5.0.2 until snapshots are published
- - skip:
-        version: " - 5.0.3"
-        reason:  Fetching default group setting was buggy until 5.0.3
-
  - do:
       cluster.get_settings:
         include_defaults: true
 
  - match: {defaults.node.attr.testattr: "test"}
-
----
-"missing body":
-
-  - skip:
-      version: " - 5.4.99"
-      reason: NPE caused by missing body fixed in 5.5.0
-      
-  - do:
-      catch: /request body is required/
-      raw:
-        method: PUT
-        path: _settings

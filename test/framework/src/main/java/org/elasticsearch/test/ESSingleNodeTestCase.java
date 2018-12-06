@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -29,20 +28,22 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -51,7 +52,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -62,6 +62,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -88,6 +90,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        client().admin().indices()
+            .preparePutTemplate("random-soft-deletes-template")
+            .setPatterns(Collections.singletonList("*"))
+            .setOrder(0)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            ).get();
     }
 
     private static void stopNode() throws IOException {
@@ -114,9 +124,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
-        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
+        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
                 metaData.persistentSettings().size(), equalTo(0));
-        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
+        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
         if (resetNodeAfterTest()) {
             assert NODE != null;
@@ -162,6 +172,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
+    /** True if a dummy http transport should be used, or false if the real http transport should be used. */
+    protected boolean addMockHttpTransport() {
+        return true;
+    }
+
     private Node newNode() {
         final Path tempDir = createTempDir();
         Settings settings = Settings.builder()
@@ -172,37 +187,53 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", "node_s_0")
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+            .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
+            // default the watermarks low values to prevent tests from failing on nodes without enough disk space
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
+            // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
+            // turn it off for these tests.
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        if (plugins.contains(MockTcpTransportPlugin.class) == false) {
+        if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins = new ArrayList<>(plugins);
-            plugins.add(MockTcpTransportPlugin.class);
+            plugins.add(getTestTransportPlugin());
         }
         if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
             plugins = new ArrayList<>(plugins);
             plugins.add(TestZenDiscovery.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins);
+        if (addMockHttpTransport()) {
+            plugins.add(MockHttpTransport.TestPlugin.class);
+        }
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
-            build.start();
+            node.start();
         } catch (NodeValidationException e) {
             throw new RuntimeException(e);
         }
-        return build;
+        return node;
     }
 
     /**
      * Returns a client to the single-node cluster.
      */
     public Client client() {
-        return NODE.client();
+        return wrapClient(NODE.client());
+    }
+
+    public Client wrapClient(final Client client) {
+        return client;
     }
 
     /**
@@ -249,7 +280,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
-        if (type != null && mappings != null) {
+        if (type != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
@@ -319,4 +350,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return getInstanceFromNode(NamedXContentRegistry.class);
     }
+
+    protected boolean forbidPrivateIndexSettings() {
+        return true;
+    }
+
 }

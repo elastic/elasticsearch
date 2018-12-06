@@ -111,4 +111,10 @@ The above sentence would produce the following terms:
 [float]
 === Configuration
 
-The `whitespace` tokenizer is not configurable.
+The `whitespace` tokenizer accepts the following parameters:
+
+[horizontal]
+`max_token_length`::
+
+    The maximum token length. If a token is seen that exceeds this length then
+    it is split at `max_token_length` intervals. Defaults to `255`.

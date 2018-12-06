@@ -23,16 +23,17 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpHost;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -43,41 +44,47 @@ import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStat
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     private static HttpServer[] httpServers;
-    private static RestClient restClient;
+    private static HttpHost[] httpHosts;
+    private static boolean stoppedFirstHost = false;
+    private static String pathPrefixWithoutLeadingSlash;
     private static String pathPrefix;
+    private static RestClient restClient;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        String pathPrefixWithoutLeadingSlash;
         if (randomBoolean()) {
-            pathPrefixWithoutLeadingSlash = "testPathPrefix/" + randomAsciiOfLengthBetween(1, 5);
+            pathPrefixWithoutLeadingSlash = "testPathPrefix/" + randomAsciiLettersOfLengthBetween(1, 5);
             pathPrefix = "/" + pathPrefixWithoutLeadingSlash;
         } else {
             pathPrefix = pathPrefixWithoutLeadingSlash = "";
         }
         int numHttpServers = randomIntBetween(2, 4);
         httpServers = new HttpServer[numHttpServers];
-        HttpHost[] httpHosts = new HttpHost[numHttpServers];
+        httpHosts = new HttpHost[numHttpServers];
         for (int i = 0; i < numHttpServers; i++) {
             HttpServer httpServer = createHttpServer();
             httpServers[i] = httpServer;
             httpHosts[i] = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         }
+        restClient = buildRestClient(NodeSelector.ANY);
+    }
+
+    private static RestClient buildRestClient(NodeSelector nodeSelector) {
         RestClientBuilder restClientBuilder = RestClient.builder(httpHosts);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
         }
-        restClient = restClientBuilder.build();
+        restClientBuilder.setNodeSelector(nodeSelector);
+        return restClientBuilder.build();
     }
 
     private static HttpServer createHttpServer() throws Exception {
@@ -90,8 +97,6 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         return httpServer;
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;
 
@@ -123,6 +128,9 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         if (httpServers.length > 1 && randomBoolean()) {
             List<HttpServer> updatedHttpServers = new ArrayList<>(httpServers.length - 1);
             int nodeIndex = randomInt(httpServers.length - 1);
+            if (0 == nodeIndex) {
+                stoppedFirstHost = true;
+            }
             for (int i = 0; i < httpServers.length; i++) {
                 HttpServer httpServer = httpServers[i];
                 if (i == nodeIndex) {
@@ -143,7 +151,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
             Response response;
             try {
-                response = restClient.performRequest(method, "/" + statusCode);
+                response = restClient.performRequest(new Request(method, "/" + statusCode));
             } catch(ResponseException responseException) {
                 response = responseException.getResponse();
             }
@@ -161,7 +169,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
             //we don't test status codes that are subject to retries as they interfere with hosts being stopped
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
-            restClient.performRequestAsync(method, "/" + statusCode, new ResponseListener() {
+            restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(new TestResponse(method, statusCode, response));
@@ -187,6 +195,37 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
+    /**
+     * Test host selector against a real server <strong>and</strong>
+     * test what happens after calling
+     */
+    public void testNodeSelector() throws IOException {
+        try (RestClient restClient = buildRestClient(firstPositionNodeSelector())) {
+            Request request = new Request("GET", "/200");
+            int rounds = between(1, 10);
+            for (int i = 0; i < rounds; i++) {
+                /*
+                 * Run the request more than once to verify that the
+                 * NodeSelector overrides the round robin behavior.
+                 */
+                if (stoppedFirstHost) {
+                    try {
+                        restClient.performRequest(request);
+                        fail("expected to fail to connect");
+                    } catch (ConnectException e) {
+                        // Windows isn't consistent here. Sometimes the message is even null!
+                        if (false == System.getProperty("os.name").startsWith("Windows")) {
+                            assertEquals("Connection refused", e.getMessage());
+                        }
+                    }
+                } else {
+                    Response response = restClient.performRequest(request);
+                    assertEquals(httpHosts[0], response.getHost());
+                }
+            }
+        }
+    }
+
     private static class TestResponse {
         private final String method;
         private final int statusCode;
@@ -207,5 +246,18 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             }
             throw new AssertionError("unexpected response " + response.getClass());
         }
+    }
+
+    private NodeSelector firstPositionNodeSelector() {
+        return new NodeSelector() {
+            @Override
+            public void select(Iterable<Node> nodes) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    if (httpHosts[0] != itr.next().getHost()) {
+                        itr.remove();
+                    }
+                }
+            }
+        };
     }
 }

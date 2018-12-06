@@ -13,3 +13,6 @@ type:
 |`max_gram` |Defaults to `2`.
 |============================
 
+The index level setting `index.max_ngram_diff` controls the maximum allowed
+difference between `max_gram` and `min_gram`.
+

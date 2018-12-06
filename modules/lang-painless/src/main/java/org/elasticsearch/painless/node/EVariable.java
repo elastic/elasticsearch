@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -58,12 +57,12 @@ public final class EVariable extends AStoreable {
             throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
         }
 
-        actual = variable.type;
+        actual = variable.clazz;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(actual.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
@@ -77,7 +76,7 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 
@@ -88,12 +87,12 @@ public final class EVariable extends AStoreable {
 
     @Override
     void load(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(actual.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
     void store(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(actual.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 
     @Override

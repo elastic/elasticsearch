@@ -2,12 +2,15 @@
 == Index Templates
 
 Index templates allow you to define templates that will automatically be
-applied when new indices are created. The templates include both settings and
-mappings, and a list of patterns that control whether the template should be
+applied when new indices are created. The templates include both 
+<<index-modules-settings,settings>> and <<mapping,mappings>>
+and a simple pattern template that controls whether the template should be 
 applied to the new index.
 
-NOTE: Templates are only applied at index creation time.  Changing a template
-will have no impact on existing indices.
+NOTE: Templates are only applied at index creation time. Changing a template
+will have no impact on existing indices. When using the create index API, the
+settings/mappings defined as part of the create index call will take precedence
+over any matching settings/mappings defined in the template.
 
 For example:
 
@@ -20,7 +23,7 @@ PUT _template/template_1
     "number_of_shards": 1
   },
   "mappings": {
-    "type1": {
+    "_doc": {
       "_source": {
         "enabled": false
       },
@@ -43,9 +46,9 @@ PUT _template/template_1
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
 everywhere in the JSON document except before the initial opening curly bracket. 
 
-Defines a template named `template_1`, with a template pattern of `te*`.
+Defines a template named `template_1`, with a template pattern of `te*` or `bar*`.
 The settings and mappings will be applied to any index name that matches
-the `te*` pattern.
+the `te*` or `bar*` pattern.
 
 It is also possible to include aliases in an index template as follows:
 
@@ -154,7 +157,7 @@ PUT /_template/template_1
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
+        "_doc" : {
             "_source" : { "enabled" : false }
         }
     }
@@ -168,7 +171,7 @@ PUT /_template/template_2
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
+        "_doc" : {
             "_source" : { "enabled" : true }
         }
     }
@@ -177,11 +180,14 @@ PUT /_template/template_2
 // CONSOLE
 // TEST[s/^/DELETE _template\/template_1\n/]
 
-The above will disable storing the `_source` on all `type1` types, but
+The above will disable storing the `_source`, but
 for indices that start with `te*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
+
+NOTE: Multiple matching templates with the same order value will 
+result in a non-deterministic merging order.
 
 [float]
 [[versioning-templates]]

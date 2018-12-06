@@ -1,0 +1,134 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-operators]]
+=== Comparison Operators
+
+Boolean operator for comparing against one or multiple expressions.
+
+* Equality (`=`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
+--------------------------------------------------
+
+* Null safe Equality (`<=>`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareWithNull]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareTwoNulls]
+--------------------------------------------------
+
+* Inequality (`<>` or `!=`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldNonEquality]
+--------------------------------------------------
+
+* Comparison (`<`, `<=`, `>`, `>=`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldLessThan]
+--------------------------------------------------
+
+* `BETWEEN`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
+--------------------------------------------------
+
+* `IS NULL`/`IS NOT NULL`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
+--------------------------------------------------
+
+* `IN (<value1>, <value2>, ...)`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
+--------------------------------------------------
+
+[[sql-operators-logical]]
+=== Logical Operators
+
+Boolean operator for evaluating one or two expressions.
+
+* `AND`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldAndComparison]
+--------------------------------------------------
+
+* `OR`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldOrComparison]
+--------------------------------------------------
+
+* `NOT`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
+--------------------------------------------------
+
+[[sql-operators-math]]
+=== Math Operators
+
+Perform mathematical operations affecting one or two values.
+The result is a value of numeric type.
+
+* Add (`+`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[plus]
+--------------------------------------------------
+
+* Subtract (infix `-`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[minus]
+--------------------------------------------------
+
+* Negate (unary `-`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[unaryMinus]
+--------------------------------------------------
+
+* Multiply (`*`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
+--------------------------------------------------
+
+* Divide (`/`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Reminder(`%`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
+--------------------------------------------------

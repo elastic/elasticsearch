@@ -18,27 +18,19 @@
  */
 package org.elasticsearch.client.benchmark.rest;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.benchmark.AbstractBenchmark;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -86,9 +78,10 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 bulkRequestBody.append(bulkItem);
                 bulkRequestBody.append("\n");
             }
-            HttpEntity entity = new NStringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON);
+            Request request = new Request("POST", "/geonames/type/_noop_bulk");
+            request.setJsonEntity(bulkRequestBody.toString());
             try {
-                Response response = client.performRequest("POST", "/geonames/type/_noop_bulk", Collections.emptyMap(), entity);
+                Response response = client.performRequest(request);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (Exception e) {
                 throw new ElasticsearchException(e);
@@ -107,9 +100,10 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
         @Override
         public boolean search(String source) {
-            HttpEntity searchBody = new NStringEntity(source, StandardCharsets.UTF_8);
+            Request request = new Request("GET", endpoint);
+            request.setJsonEntity(source);
             try {
-                Response response = client.performRequest("GET", endpoint, Collections.emptyMap(), searchBody);
+                Response response = client.performRequest(request);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (IOException e) {
                 throw new ElasticsearchException(e);

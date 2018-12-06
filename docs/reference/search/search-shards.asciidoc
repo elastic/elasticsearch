@@ -18,7 +18,7 @@ Full example:
 GET /twitter/_search_shards
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 This will yield the following result:
 
@@ -100,10 +100,10 @@ And specifying the same request, this time with a routing value:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search_shards?routing=foo,baz
+GET /twitter/_search_shards?routing=foo,bar
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 This will yield the following result:
 
@@ -120,9 +120,9 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "shard": 0,
+        "shard": 2,
         "state": "STARTED",
-        "allocation_id": {"id":"0TvkCyF7TAmM1wHP4a42-A"},
+        "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
         "relocating_node": null
       }
     ],
@@ -131,9 +131,9 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "shard": 1,
+        "shard": 3,
         "state": "STARTED",
-        "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
+        "allocation_id": {"id":"0TvkCyF7TAmM1wHP4a42-A"},
         "relocating_node": null
       }
     ]
@@ -141,9 +141,9 @@ This will yield the following result:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"nodes": ...,/"nodes": $body.nodes,/]
-// TESTRESPONSE[s/JklnKbD7Tyqi9TP3_Q_tBg/$body.shards.0.0.node/]
-// TESTRESPONSE[s/0TvkCyF7TAmM1wHP4a42-A/$body.shards.0.0.allocation_id.id/]
-// TESTRESPONSE[s/fMju3hd1QHWmWrIgFnI4Ww/$body.shards.1.0.allocation_id.id/]
+// TESTRESPONSE[s/JklnKbD7Tyqi9TP3_Q_tBg/$body.shards.1.0.node/]
+// TESTRESPONSE[s/0TvkCyF7TAmM1wHP4a42-A/$body.shards.1.0.allocation_id.id/]
+// TESTRESPONSE[s/fMju3hd1QHWmWrIgFnI4Ww/$body.shards.0.0.allocation_id.id/]
 
 This time the search will only be executed against two of the shards, because
 routing values have been specified.

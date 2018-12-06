@@ -116,20 +116,20 @@ public class PercolateQueryTests extends ESTestCase {
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         // no scoring, wrapping it in a constant score query:
-        Query query = new ConstantScoreQuery(new PercolateQuery(queryStore, new BytesArray("a"),
-                new TermQuery(new Term("select", "a")), percolateSearcher, new MatchNoDocsQuery("")));
+        Query query = new ConstantScoreQuery(new PercolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("a")),
+                new TermQuery(new Term("select", "a")), percolateSearcher, null, new MatchNoDocsQuery("")));
         TopDocs topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
         assertThat(topDocs.scoreDocs.length, equalTo(1));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
         Explanation explanation = shardSearcher.explain(query, 0);
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
 
-        query = new ConstantScoreQuery(new PercolateQuery(queryStore, new BytesArray("b"),
-                new TermQuery(new Term("select", "b")), percolateSearcher, new MatchNoDocsQuery("")));
+        query = new ConstantScoreQuery(new PercolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("b")),
+                new TermQuery(new Term("select", "b")), percolateSearcher, null, new MatchNoDocsQuery("")));
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits, equalTo(3L));
+        assertThat(topDocs.totalHits.value, equalTo(3L));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         explanation = shardSearcher.explain(query, 1);
@@ -146,15 +146,15 @@ public class PercolateQueryTests extends ESTestCase {
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[2].score));
 
-        query = new ConstantScoreQuery(new PercolateQuery(queryStore, new BytesArray("c"),
-                new MatchAllDocsQuery(), percolateSearcher, new MatchAllDocsQuery()));
+        query = new ConstantScoreQuery(new PercolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("c")),
+                new MatchAllDocsQuery(), percolateSearcher, null, new MatchAllDocsQuery()));
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits, equalTo(4L));
+        assertThat(topDocs.totalHits.value, equalTo(4L));
 
-        query = new PercolateQuery(queryStore, new BytesArray("{}"), new TermQuery(new Term("select", "b")),
-                percolateSearcher, new MatchNoDocsQuery(""));
+        query = new PercolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")),
+            new TermQuery(new Term("select", "b")), percolateSearcher, null, new MatchNoDocsQuery(""));
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits, equalTo(3L));
+        assertThat(topDocs.totalHits.value, equalTo(3L));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));
         explanation = shardSearcher.explain(query, 3);

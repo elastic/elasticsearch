@@ -78,7 +78,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
 
-        Collator collator = Collator.getInstance().freeze();
+        Collator collator = Collator.getInstance(ULocale.ROOT).freeze();
         ((CollationFieldType) ft).setCollator(collator);
 
         RawCollationKey fooKey = collator.getRawCollationKey("foo", null);
@@ -121,12 +121,20 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
             () -> ft.prefixQuery("prefix", null, null));
     }
 
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        expectThrows(UnsupportedOperationException.class,
+            () -> ft.wildcardQuery("foo*", null, null));
+    }
+
     public void testRangeQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
 
-        Collator collator = Collator.getInstance().freeze();
+        Collator collator = Collator.getInstance(ULocale.ROOT).freeze();
         ((CollationFieldType) ft).setCollator(collator);
 
         RawCollationKey aKey = collator.getRawCollationKey("a", null);
@@ -135,11 +143,11 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef(aKey.bytes, 0, aKey.size),
             new BytesRef(bKey.bytes, 0, bKey.size), false, false);
 
-        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null));
+        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null, null, null, null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.rangeQuery("a", "b", false, false, null));
+            () -> ft.rangeQuery("a", "b", false, false, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

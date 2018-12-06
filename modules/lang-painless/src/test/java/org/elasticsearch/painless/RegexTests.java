@@ -153,7 +153,7 @@ public class RegexTests extends ScriptTestCase {
     }
 
     public void testSplitAsStream() {
-        assertEquals(new HashSet<>(Arrays.asList("cat", "dog")), exec("/,/.splitAsStream('cat,dog').collect(Collectors.toSet())"));
+        assertEquals(new HashSet<String>(Arrays.asList("cat", "dog")), exec("/,/.splitAsStream('cat,dog').collect(Collectors.toSet())"));
     }
 
     // Make sure the flags are set
@@ -252,7 +252,7 @@ public class RegexTests extends ScriptTestCase {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Pattern.compile('aa')");
         });
-        assertEquals("Unknown call [compile] with [1] arguments on type [Pattern].", e.getMessage());
+        assertTrue(e.getMessage().contains("[java.util.regex.Pattern, compile/1]"));
     }
 
     public void testBadRegexPattern() {
@@ -271,7 +271,7 @@ public class RegexTests extends ScriptTestCase {
         ClassCastException e = expectScriptThrows(ClassCastException.class, () -> {
             exec("12 ==~ /cat/");
         });
-        assertEquals("Cannot cast from [int] to [String].", e.getMessage());
+        assertEquals("Cannot cast from [int] to [java.lang.String].", e.getMessage());
     }
 
     public void testBogusRegexFlag() {

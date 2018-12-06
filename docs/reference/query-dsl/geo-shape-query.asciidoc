@@ -27,7 +27,7 @@ Given the following index:
 PUT /example
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "location": {
                     "type": "geo_shape"
@@ -37,7 +37,7 @@ PUT /example
     }
 }
 
-POST /example/doc?refresh
+POST /example/_doc?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
     "location": {
@@ -93,6 +93,7 @@ to 'shapes'.
 * `type` - Index type where the pre-indexed shape is.
 * `path` - The field specified as path containing the pre-indexed shape.
 Defaults to 'shape'.
+* `routing` - The routing of the shape document if required.
 
 The following is an example of using the Filter with a pre-indexed
 shape:
@@ -102,7 +103,7 @@ shape:
 PUT /shapes
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "location": {
                     "type": "geo_shape"
@@ -112,7 +113,7 @@ PUT /shapes
     }
 }
 
-PUT /shapes/doc/deu
+PUT /shapes/_doc/deu
 {
     "location": {
         "type": "envelope",
@@ -129,7 +130,7 @@ GET /example/_search
                     "location": {
                         "indexed_shape": {
                             "index": "shapes",
-                            "type": "doc",
+                            "type": "_doc",
                             "id": "deu",
                             "path": "location"
                         }

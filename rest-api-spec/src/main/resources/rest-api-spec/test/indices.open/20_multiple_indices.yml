@@ -28,8 +28,9 @@ setup:
         index: _all
 
   - do:
-      catch: forbidden
+      catch: bad_request
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
   - do:
@@ -42,6 +43,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
 ---
@@ -51,8 +53,9 @@ setup:
         index: test_*
 
   - do:
-      catch: forbidden
+      catch: bad_request
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
   - do:
@@ -65,6 +68,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
 ---
@@ -74,8 +78,9 @@ setup:
         index: '*'
 
   - do:
-      catch: forbidden
+      catch: bad_request
       search:
+        rest_total_hits_as_int: true
         index: test_index3
 
   - do:
@@ -88,5 +93,6 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index3
 

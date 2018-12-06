@@ -26,14 +26,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 /**
  * Factory for ASCIIFoldingFilter.
  */
 public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
-        implements MultiTermAwareComponent {
+        implements NormalizingTokenFilterFactory {
+
     public static final ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
     public static final boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
@@ -42,9 +43,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
     public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment,
             String name, Settings settings) {
         super(indexSettings, name, settings);
-        preserveOriginal = settings.getAsBooleanLenientForPreEs6Indices(
-                indexSettings.getIndexVersionCreated(), PRESERVE_ORIGINAL.getPreferredName(),
-                DEFAULT_PRESERVE_ORIGINAL, deprecationLogger);
+        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
     }
 
     @Override
@@ -53,7 +52,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
     }
 
     @Override
-    public Object getMultiTermComponent() {
+    public TokenFilterFactory getSynonymFilter() {
         if (preserveOriginal == false) {
             return this;
         } else {
@@ -63,6 +62,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
                 public String name() {
                     return ASCIIFoldingTokenFilterFactory.this.name();
                 }
+
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     return new ASCIIFoldingFilter(tokenStream, false);
@@ -70,4 +70,10 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
             };
         }
     }
+
+    public TokenStream normalize(TokenStream tokenStream) {
+        // Normalization should only emit a single token, so always turn off preserveOriginal
+        return new ASCIIFoldingFilter(tokenStream, false);
+    }
+
 }

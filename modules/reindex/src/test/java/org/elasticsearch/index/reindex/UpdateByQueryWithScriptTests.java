@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Date;
@@ -39,7 +37,7 @@ public class UpdateByQueryWithScriptTests
          * error message to the user, not some ClassCastException.
          */
         Object[] options = new Object[] {"cat", new Object(), 123, new Date(), Math.PI};
-        for (String ctxVar: new String[] {"_index", "_type", "_id", "_version", "_parent", "_routing"}) {
+        for (String ctxVar: new String[] {"_index", "_type", "_id", "_version", "_routing"}) {
             try {
                 applyScript((Map<String, Object> ctx) -> ctx.put(ctxVar, randomFrom(options)));
             } catch (IllegalArgumentException e) {
@@ -50,12 +48,12 @@ public class UpdateByQueryWithScriptTests
 
     @Override
     protected UpdateByQueryRequest request() {
-        return new UpdateByQueryRequest(new SearchRequest());
+        return new UpdateByQueryRequest();
     }
 
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService, null,
-                listener(), Settings.EMPTY);
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService,
+                null, listener());
     }
 }

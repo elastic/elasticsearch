@@ -1,0 +1,37 @@
+--
+:api: get-datafeed
+:request: GetDatafeedRequest
+:response: GetDatafeedResponse
+--
+[id="{upid}-{api}"]
+=== Get Datafeed API
+
+The Get Datafeed API provides the ability to get {ml} datafeeds in the cluster.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get Datafeed Request
+
+A +{request}+ object gets can have any number of `datafeedId` entries.
+However, they all must be non-null. An empty list is the same as requesting for all datafeeds.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing `datafeedIds`, can contain wildcards
+<2> Whether to ignore if a wildcard expression matches no datafeeds.
+ (This includes `_all` string or when no datafeeds have been specified)
+
+[id="{upid}-{api}-response"]
+==== Get Datafeed Response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of retrieved datafeeds
+<2> The retrieved datafeeds
+
+include::../execution.asciidoc[]

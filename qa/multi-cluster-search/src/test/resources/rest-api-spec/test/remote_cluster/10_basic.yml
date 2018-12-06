@@ -2,9 +2,33 @@
 "Index data and search on the old cluster":
 
   - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            test_type:
+              properties:
+                created_at:
+                   type: date
+                   format: "yyyy-MM-dd"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"f1": "remote_cluster", "sort_field": 1, "created_at" : "2016-01-01"}'
+
+  - do:
         indices.create:
           index: field_caps_index_1
           body:
+              settings:
+                index.number_of_shards: 1
               mappings:
                 t:
                   properties:
@@ -29,6 +53,8 @@
         indices.create:
           index: field_caps_index_3
           body:
+              settings:
+                index.number_of_shards: 1
               mappings:
                 t:
                   properties:
@@ -82,6 +108,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           aggs:
@@ -97,6 +124,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: aliased_test_index
 
   - match: { _shards.total: 3 }

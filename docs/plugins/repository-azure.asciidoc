@@ -10,38 +10,43 @@ include::install_remove.asciidoc[]
 [[repository-azure-usage]]
 ==== Azure Repository
 
-To enable Azure repositories, you have first to set your azure storage settings in `elasticsearch.yml` file:
+To enable Azure repositories, you have first to define your azure storage settings as
+{ref}/secure-settings.html[secure settings], before starting up the node:
 
-[source,yaml]
-----
-cloud:
-    azure:
-        storage:
-            my_account:
-                account: your_azure_storage_account
-                key: your_azure_storage_key
-----
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.account
+bin/elasticsearch-keystore add azure.client.default.key
+----------------------------------------------------------------
+
+Where `account` is the azure account name and `key` the azure secret key.
+These settings are used by the repository's internal azure client.
 
 Note that you can also define more than one account:
 
-[source,yaml]
-----
-cloud:
-    azure:
-        storage:
-            my_account1:
-                account: your_azure_storage_account1
-                key: your_azure_storage_key1
-                default: true
-            my_account2:
-                account: your_azure_storage_account2
-                key: your_azure_storage_key2
-----
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.account
+bin/elasticsearch-keystore add azure.client.default.key
+bin/elasticsearch-keystore add azure.client.secondary.account
+bin/elasticsearch-keystore add azure.client.secondary.key
+----------------------------------------------------------------
 
-`my_account1` is the default account which will be used by a repository unless you set an explicit one.
+`default` is the default account name which will be used by a repository,
+unless you set an explicit one in the
+<<repository-azure-repository-settings, repository settings>>.
+
+Both `account` and `key` storage settings are
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
+reload the settings, the internal azure clients, which are used to transfer the
+snapshot, will utilize the latest settings from the keystore.
+
+NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
+of the storage secure settings. They will complete using the client as it was built
+when the operation started.
 
 You can set the client side timeout to use when making any single request. It can be defined globally, per account or both.
-It's not set by default which means that elasticsearch is using the
+It's not set by default which means that Elasticsearch is using the
 http://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
 set by the azure client (known as 5 minutes).
 
@@ -51,25 +56,18 @@ The initial backoff period is defined by Azure SDK as `30s`. Which means `30s` o
 before retrying after a first timeout or failure. The maximum backoff period is defined by Azure SDK as
 `90s`.
 
+`endpoint_suffix` can be used to specify Azure endpoint suffix explicitly. Defaults to `core.windows.net`.
+
 [source,yaml]
 ----
-cloud:
-    azure:
-        storage:
-            timeout: 10s
-            my_account1:
-                account: your_azure_storage_account1
-                key: your_azure_storage_key1
-                default: true
-                max_retries: 7
-            my_account2:
-                account: your_azure_storage_account2
-                key: your_azure_storage_key2
-                timeout: 30s
+azure.client.default.timeout: 10s
+azure.client.default.max_retries: 7
+azure.client.default.endpoint_suffix: core.chinacloudapi.cn
+azure.client.secondary.timeout: 30s
 ----
 
-In this example, timeout will be `10s` per try for `my_account1` with `7` retries before failing
-and `30s` per try for `my_account2` with `3` retries.
+In this example, timeout will be `10s` per try for `default` with `7` retries before failing
+and endpoint suffix will be `core.chinacloudapi.cn` and `30s` per try for `secondary` with `3` retries.
 
 [IMPORTANT]
 .Supported Azure Storage Account types
@@ -84,15 +82,27 @@ The Azure Repository plugin works with all Standard storage accounts
 https://azure.microsoft.com/en-gb/documentation/articles/storage-premium-storage[Premium Locally Redundant Storage] (`Premium_LRS`) is **not supported** as it is only usable as VM disk storage, not as general storage.
 ===============================================
 
+You can register a proxy per client using the following settings:
+
+[source,yaml]
+----
+azure.client.default.proxy.host: proxy.host
+azure.client.default.proxy.port: 8888
+azure.client.default.proxy.type: http
+----
+
+Supported values for `proxy.type` are `direct` (default), `http` or `socks`.
+When `proxy.type` is set to `http` or `socks`, `proxy.host` and `proxy.port` must be provided.
+
+
 [[repository-azure-repository-settings]]
-===== Repository settings
+==== Repository settings
 
 The Azure repository supports following settings:
 
-`account`::
+`client`::
 
-    Azure account settings to use. Defaults to the only one if you set a single
-    account or to the one marked as `default` if you have more than one.
+    Azure named client to use. Defaults to `default`.
 
 `container`::
 
@@ -153,14 +163,14 @@ PUT _snapshot/my_backup3
 {
     "type": "azure",
     "settings": {
-        "account": "my_account1"
+        "client": "secondary"
     }
 }
 PUT _snapshot/my_backup4
 {
     "type": "azure",
     "settings": {
-        "account": "my_account2",
+        "client": "secondary",
         "location_mode": "primary_only"
     }
 }
@@ -180,7 +190,7 @@ client.admin().cluster().preparePutRepository("my_backup_java1")
 ----
 
 [[repository-azure-validation]]
-===== Repository validation rules
+==== Repository validation rules
 
 According to the http://msdn.microsoft.com/en-us/library/dd135715.aspx[containers naming guide], a container name must
 be a valid DNS name, conforming to the following naming rules:

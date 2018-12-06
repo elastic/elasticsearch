@@ -1,10 +1,9 @@
 [[copy-to]]
 === `copy_to`
 
-The `copy_to` parameter allows you to create custom
-<<mapping-all-field,`_all`>> fields.  In other words, the values of multiple
-fields can be copied into a group field, which can then be queried as a single
-field.  For instance, the `first_name` and `last_name` fields can be copied to
+The `copy_to` parameter allows you to copy the values of multiple
+fields into a group field, which can then be queried as a single
+field. For instance, the `first_name` and `last_name` fields can be copied to
 the `full_name` field as follows:
 
 [source,js]
@@ -12,7 +11,7 @@ the `full_name` field as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "first_name": {
           "type": "text",
@@ -30,7 +29,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "first_name": "John",
   "last_name": "Smith"

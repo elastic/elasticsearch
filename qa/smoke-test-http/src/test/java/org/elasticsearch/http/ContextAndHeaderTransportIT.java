@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -30,13 +30,17 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -46,8 +50,10 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -84,7 +90,6 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 
@@ -98,12 +103,12 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     @Before
     public void createIndices() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("location").field("type", "geo_shape").endObject()
             .startObject("name").field("type", "text").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -216,8 +221,12 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws IOException {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
-        Response response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search",
-                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        Request request = new Request("GET", "/" + queryIndex + "/_search");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(CUSTOM_HEADER, randomHeaderValue);
+        options.addHeader(IRRELEVANT_HEADER, randomHeaderValue);
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
         assertThat(searchRequests, hasSize(greaterThan(0)));
@@ -282,21 +291,20 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     public static class ActionLoggingPlugin extends Plugin implements ActionPlugin {
 
+        private final SetOnce<LoggingFilter> loggingFilter = new SetOnce<>();
+
         @Override
-        public Collection<Module> createGuiceModules() {
-            return Collections.<Module>singletonList(new ActionLoggingModule());
+        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                   NamedXContentRegistry xContentRegistry, Environment environment,
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+            loggingFilter.set(new LoggingFilter(threadPool));
+            return Collections.emptyList();
         }
 
         @Override
-        public List<Class<? extends ActionFilter>> getActionFilters() {
-            return singletonList(LoggingFilter.class);
-        }
-    }
-
-    public static class ActionLoggingModule extends AbstractModule {
-        @Override
-        protected void configure() {
-            bind(LoggingFilter.class).asEagerSingleton();
+        public List<ActionFilter> getActionFilters() {
+            return singletonList(loggingFilter.get());
         }
 
     }
@@ -305,9 +313,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
         private final ThreadPool threadPool;
 
-        @Inject
-        public LoggingFilter(Settings settings, ThreadPool pool) {
-            super(settings);
+        public LoggingFilter(ThreadPool pool) {
             this.threadPool = pool;
         }
 

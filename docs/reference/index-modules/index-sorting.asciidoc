@@ -1,9 +1,7 @@
 [[index-modules-index-sorting]]
 == Index Sorting
 
-experimental[]
-
-When creating a new index in elasticsearch it is possible to configure how the Segments
+When creating a new index in Elasticsearch it is possible to configure how the Segments
 inside each Shard will be sorted. By default Lucene does not apply any sort.
 The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
 
@@ -25,7 +23,7 @@ PUT twitter
         }
     },
     "mappings": {
-        "tweet": {
+        "_doc": {
             "properties": {
                 "date": {
                     "type": "date"
@@ -53,7 +51,7 @@ PUT twitter
         }
     },
     "mappings": {
-        "tweet": {
+        "_doc": {
             "properties": {
                 "username": {
                     "type": "keyword",
@@ -112,7 +110,7 @@ before activating this feature.
 [[early-terminate]]
 === Early termination of search request
 
-By default in elasticsearch a search request must visit every document that match a query to
+By default in Elasticsearch a search request must visit every document that match a query to
 retrieve the top documents sorted by a specified sort.
 Though when the index sort and the search sort are the same it is possible to limit
 the number of documents that should be visited per segment to retrieve the N top ranked documents globally.
@@ -190,22 +188,18 @@ as soon as N documents have been collected per segment.
 --------------------------------------------------
 {
   "_shards": ...
-   "hits" : {
-      "total" : -1,     <1>
+   "hits" : {  <1>
       "max_score" : null,
       "hits" : []
   },
   "took": 20,
-  "terminated_early": true,     <2>
   "timed_out": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
 // TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
-// TESTRESPONSE[s/"terminated_early": true,//]
 
 <1> The total number of hits matching the query is unknown because of early termination.
-<2> Indicates whether the top docs retrieval has actually terminated_early.
 
 NOTE: Aggregations will collect all documents that match the query regardless of the value of `track_total_hits`
 

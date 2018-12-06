@@ -259,7 +259,7 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 // check if the Docker binary exists and record its path
-                final List<String> maybeDockerBinaries = ['/usr/bin/docker2', '/usr/local/bin/docker2']
+                final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
                 final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
 
                 int exitCode

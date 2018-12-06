@@ -23,9 +23,6 @@ teardown:
         id: "my_watch"
         ignore: 404
 
-
-
-
 ---
 "Test watch search input is run as user who added the watch":
   - skip:
@@ -42,6 +39,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -97,6 +95,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -153,6 +152,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "index_not_allowed_to_read" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -260,6 +260,7 @@ teardown:
             "transform" : {
               "search" : {
                 "request" : {
+                  "rest_total_hits_as_int": true,
                   "indices" : [ "index_not_allowed_to_read" ],
                   "body" :{
                     "query" : { "match_all": {} }

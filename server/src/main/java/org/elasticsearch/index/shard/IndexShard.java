@@ -31,7 +31,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -78,6 +77,7 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.GetResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -816,23 +816,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
             return new Engine.DeleteResult(e, version, operationPrimaryTerm, seqNo, false);
         }
-        final Term uid = extractUidForDelete(type, id);
+        if (resolveType(type).equals(mapperService.documentMapper().type()) == false) {
+            // We should never get there due to the fact that we generate mapping updates on deletes,
+            // but we still prefer to have a hard exception here as we would otherwise delete a
+            // document in the wrong type.
+            throw new IllegalStateException("Deleting document from type [" + resolveType(type) + "] while current type is [" +
+                    mapperService.documentMapper().type() + "]");
+        }
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         final Engine.Delete delete = prepareDelete(type, id, uid, seqNo, opPrimaryTerm, version,
             versionType, origin);
         return delete(getEngine(), delete);
     }
 
-    private static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
+    private Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
                                                VersionType versionType, Engine.Operation.Origin origin) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime);
-    }
-
-    private Term extractUidForDelete(String type, String id) {
-        // This is only correct because we create types dynamically on delete operations
-        // otherwise this could match the same _id from a different type
-        BytesRef idBytes = Uid.encodeId(id);
-        return new Term(IdFieldMapper.NAME, idBytes);
+        return new Engine.Delete(resolveType(type), id, uid, seqNo, primaryTerm, version, versionType, origin, startTime);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
@@ -854,6 +854,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
+        DocumentMapper mapper = mapperService.documentMapper();
+        if (mapper == null || mapper.type().equals(resolveType(get.type())) == false) {
+            return GetResult.NOT_EXISTS;
+        }
         return getEngine().get(get, this::acquireSearcher);
     }
 
@@ -2268,14 +2272,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
             final ShardStateMetaData newShardStateMetadata =
                     new ShardStateMetaData(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
-            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath.getShardStatePath());
+            ShardStateMetaData.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }
     }
 
+    /**
+     * If an index/update/get/delete operation is using the special `_doc` type, then we replace
+     * it with the actual type that is being used in the mappings so that users may use typeless
+     * APIs with indices that have types.
+     */
+    private String resolveType(String type) {
+        if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
+            DocumentMapper docMapper = mapperService.documentMapper();
+            if (docMapper != null) {
+                return docMapper.type();
+            }
+        }
+        return type;
+    }
+
     private DocumentMapperForType docMapper(String type) {
-        return mapperService.documentMapperWithAutoCreate(type);
+        return mapperService.documentMapperWithAutoCreate(resolveType(type));
     }
 
     private EngineConfig newEngineConfig() {

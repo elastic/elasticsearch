@@ -91,7 +91,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
-        final RestoreService restoreService = getFollowerCluster().getMasterNodeInstance(RestoreService.class);
+        final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
 
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
@@ -103,7 +103,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
 
         PlainActionFuture<RestoreService.RestoreCompletionResponse> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, future, false);
+        restoreService.restoreSnapshot(restoreRequest, future);
         future.actionGet();
 
         ClusterStateResponse leaderState = leaderClient()

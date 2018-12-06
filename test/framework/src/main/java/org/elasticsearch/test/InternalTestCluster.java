@@ -1455,11 +1455,8 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, new DataNodePredicate());
     }
 
-    /**
-     * Returns an Iterable to all instances for the given class &gt;T&lt; for the cluster's master node.
-     */
-    public synchronized <T> T getMasterNodeInstance(Class<T> clazz) {
-        return getInstance(clazz, new MasterNodePredicate(getMasterName()));
+    public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new NodeNamePredicate(getMasterName()));
     }
 
     /**

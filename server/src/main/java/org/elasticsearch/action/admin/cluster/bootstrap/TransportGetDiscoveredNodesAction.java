@@ -37,11 +37,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 
@@ -93,8 +96,12 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
                 logger.trace("discovered {}", nodesSet);
-                if (nodesSet.size() >= request.getWaitForNodes() && listenerNotified.compareAndSet(false, true)) {
-                    listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
+                try {
+                    if (checkWaitRequirements(request, nodesSet) && listenerNotified.compareAndSet(false, true)) {
+                        listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
+                    }
+                } catch (Exception e) {
+                    listenableFuture.onFailure(e);
                 }
             }
 
@@ -123,5 +130,40 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 }
             });
         }
+    }
+
+    private static boolean matchesRequirement(DiscoveryNode discoveryNode, String requirement) {
+        return discoveryNode.getName().equals(requirement)
+            || discoveryNode.getAddress().toString().equals(requirement)
+            || discoveryNode.getAddress().getAddress().equals(requirement);
+    }
+
+    private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
+        if (nodes.size() < request.getWaitForNodes()) {
+            return false;
+        }
+
+        List<String> requirements = request.getRequiredNodes();
+        final Set<DiscoveryNode> selectedNodes = new HashSet<>();
+        for (final String requirement : requirements) {
+            final Set<DiscoveryNode> matchingNodes
+                = nodes.stream().filter(n -> matchesRequirement(n, requirement)).collect(Collectors.toSet());
+
+            if (matchingNodes.isEmpty()) {
+                return false;
+            }
+            if (matchingNodes.size() > 1) {
+                throw new IllegalArgumentException("[" + requirement + "] matches " + matchingNodes);
+            }
+
+            for (final DiscoveryNode matchingNode : matchingNodes) {
+                if (selectedNodes.add(matchingNode) == false) {
+                    throw new IllegalArgumentException("[" + matchingNode + "] matches " +
+                        requirements.stream().filter(r -> matchesRequirement(matchingNode, requirement)).collect(Collectors.toList()));
+                }
+            }
+        }
+
+        return true;
     }
 }

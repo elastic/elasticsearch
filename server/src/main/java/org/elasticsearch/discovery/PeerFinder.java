@@ -157,11 +157,13 @@ public abstract class PeerFinder {
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;
-                startProbe(peersRequest.getSourceNode().getAddress());
+                if (peersRequest.getSourceNode().isMasterNode()) {
+                    startProbe(peersRequest.getSourceNode().getAddress());
+                }
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
                 knownPeers = getFoundPeersUnderLock();
             } else {
-                assert leader.isPresent();
+                assert leader.isPresent() || lastAcceptedNodes == null;
                 knownPeers = Collections.emptyList();
             }
             return new PeersResponse(leader, knownPeers, currentTerm);

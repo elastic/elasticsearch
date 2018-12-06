@@ -506,10 +506,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
         protected Directory newDirectory(Path dir) {
             MockDirectoryWrapper mock = newMockFSDirectory(dir);
             if (failureMode == FailureMode.FAIL_ON_METHOD) {
+                final String failMethod = randomFrom(failureMethods);
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override
                     public void eval(MockDirectoryWrapper dir) throws IOException {
-                        String failMethod = randomFrom(failureMethods);
                         for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
                             if (failMethod.equals(e.getMethodName())) {
                                 throw new MockDirectoryWrapper.FakeIOException();

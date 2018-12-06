@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -415,18 +415,18 @@ public class MetaDataTests extends ESTestCase {
         return new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
     }
 
-    private Set<VotingTombstone> randomVotingTombstones() {
+    private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
         final int size = randomIntBetween(0, 10);
-        final Set<VotingTombstone> nodes = new HashSet<>(size);
+        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
         while (nodes.size() < size) {
-            assertTrue(nodes.add(new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+            assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
         return nodes;
     }
 
     public void testXContentWithCoordinationMetaData() throws IOException {
         CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomVotingTombstones());
+                randomVotingConfigExclusions());
 
         MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
 
@@ -443,10 +443,10 @@ public class MetaDataTests extends ESTestCase {
 
     public void testGlobalStateEqualsCoordinationMetaData() {
         CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
-                randomVotingConfig(), randomVotingTombstones());
+                randomVotingConfig(), randomVotingConfigExclusions());
         MetaData metaData1 = MetaData.builder().coordinationMetaData(coordinationMetaData1).build();
         CoordinationMetaData coordinationMetaData2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
-                randomVotingConfig(), randomVotingTombstones());
+                randomVotingConfig(), randomVotingConfigExclusions());
         MetaData metaData2 = MetaData.builder().coordinationMetaData(coordinationMetaData2).build();
 
         assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData1));

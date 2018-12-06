@@ -106,7 +106,8 @@ final class DocumentParser {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        if (Objects.equals(source.type(), docMapper.type()) == false) {
+        if (Objects.equals(source.type(), docMapper.type()) == false &&
+                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
                 + docMapper.type() + "]");
         }
@@ -445,13 +446,7 @@ final class DocumentParser {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            if (idField.stringValue() != null) {
-                // backward compat with 5.x
-                // TODO: Remove on 7.0
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            } else {
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            }
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

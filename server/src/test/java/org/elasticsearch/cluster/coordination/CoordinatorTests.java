@@ -23,19 +23,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -48,7 +51,6 @@ import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -58,6 +60,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -109,7 +112,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
-@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
 
     @Before
@@ -134,6 +136,15 @@ public class CoordinatorTests extends ESTestCase {
             final ClusterState appliedState = clusterNode.getLastAppliedClusterState();
             assertThat(nodeId + " has the applied value", value(appliedState), is(finalValue));
         }
+    }
+
+    public void testDoesNotElectNonMasterNode() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5), false);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        assertTrue(leader.localNode.isMasterNode());
     }
 
     public void testNodesJoinAfterStableCluster() {
@@ -889,10 +900,6 @@ public class CoordinatorTests extends ESTestCase {
             // then wait for the new leader to commit a state without the old leader
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
-    private static String nodeIdFromIndex(int nodeIndex) {
-        return "node" + nodeIndex;
-    }
-
     class Cluster {
 
         static final long EXTREME_DELAY_VARIABILITY = 10000L;
@@ -910,26 +917,29 @@ public class CoordinatorTests extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
 
         Cluster(int initialNodeCount) {
+            this(initialNodeCount, true);
+        }
+
+        Cluster(int initialNodeCount, boolean allNodesMasterEligible) {
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
 
-            final Set<String> initialConfigurationNodeIds = new HashSet<>(initialNodeCount);
-            while (initialConfigurationNodeIds.isEmpty()) {
-                for (int i = 0; i < initialNodeCount; i++) {
-                    if (randomBoolean()) {
-                        initialConfigurationNodeIds.add(nodeIdFromIndex(i));
-                    }
-                }
-            }
-            initialConfiguration = new VotingConfiguration(initialConfigurationNodeIds);
-            logger.info("--> creating cluster of {} nodes with initial configuration {}", initialNodeCount, initialConfiguration);
-
+            final Set<String> masterEligibleNodeIds = new HashSet<>(initialNodeCount);
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(i);
+                final ClusterNode clusterNode = new ClusterNode(i, allNodesMasterEligible || i == 0 || randomBoolean());
                 clusterNodes.add(clusterNode);
+                if (clusterNode.getLocalNode().isMasterNode()) {
+                    masterEligibleNodeIds.add(clusterNode.getId());
+                }
             }
+
+            initialConfiguration = new VotingConfiguration(new HashSet<>(
+                randomSubsetOf(randomIntBetween(1, masterEligibleNodeIds.size()), masterEligibleNodeIds)));
+
+            logger.info("--> creating cluster of {} nodes (master-eligible nodes: {}) with initial configuration {}",
+                initialNodeCount, masterEligibleNodeIds, initialConfiguration);
         }
 
         void addNodesAndStabilise(int newNodesCount) {
@@ -950,7 +960,7 @@ public class CoordinatorTests extends ESTestCase {
 
             final int nodeSizeAtStart = clusterNodes.size();
             for (int i = 0; i < newNodesCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i);
+                final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i, true);
                 clusterNodes.add(clusterNode);
             }
         }
@@ -1090,11 +1100,11 @@ public class CoordinatorTests extends ESTestCase {
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             assertFalse("stabilisation requires stable storage", disruptStorage);
 
-            if (clusterNodes.stream().allMatch(n -> n.coordinator.isInitialConfigurationSet() == false)) {
+            if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
                 runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
-                final ClusterNode bootstrapNode = getAnyNode();
+                final ClusterNode bootstrapNode = getAnyMasterEligibleNode();
                 bootstrapNode.applyInitialConfiguration();
             } else {
                 logger.info("setting initial configuration not required");
@@ -1211,6 +1221,10 @@ public class CoordinatorTests extends ESTestCase {
             return connectionStatus;
         }
 
+        ClusterNode getAnyMasterEligibleNode() {
+            return randomFrom(clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).collect(Collectors.toList()));
+        }
+
         ClusterNode getAnyNode() {
             return getAnyNodeExcept();
         }
@@ -1283,16 +1297,20 @@ public class CoordinatorTests extends ESTestCase {
             private DisruptableMockTransport mockTransport;
             private ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
 
-            ClusterNode(int nodeIndex) {
+            ClusterNode(int nodeIndex, boolean masterEligible) {
                 this.nodeIndex = nodeIndex;
-                localNode = createDiscoveryNode();
+                localNode = createDiscoveryNode(masterEligible);
                 persistedState = new MockPersistedState(0L,
                     clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
                 onNode(localNode, this::setUp).run();
             }
 
-            private DiscoveryNode createDiscoveryNode() {
-                return CoordinationStateTests.createNode(nodeIdFromIndex(nodeIndex));
+            private DiscoveryNode createDiscoveryNode(boolean masterEligible) {
+                final TransportAddress address = buildNewFakeTransportAddress();
+                return new DiscoveryNode("", "node" + nodeIndex,
+                    UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
+                    address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
+                    masterEligible ? EnumSet.allOf(Role.class) : emptySet(), Version.CURRENT);
             }
 
             private void setUp() {
@@ -1481,6 +1499,10 @@ public class CoordinatorTests extends ESTestCase {
                         logger.info(new ParameterizedMessage("failed to set initial configuration to {}", initialConfiguration), e);
                     }
                 }).run();
+            }
+
+            private boolean isNotUsefullyBootstrapped() {
+                return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
             }
 
             private class FakeClusterApplier implements ClusterApplier {

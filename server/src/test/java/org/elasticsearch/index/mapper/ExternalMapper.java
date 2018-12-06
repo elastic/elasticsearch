@@ -182,7 +182,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = new PointBuilder(-100, 45).build();
+        Point shape = new PointBuilder(-100, 45).buildS4J();
         shapeMapper.parse(context.createExternalValueContext(shape));
 
         context = context.createExternalValueContext(generatedValue);

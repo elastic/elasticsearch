@@ -9,13 +9,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.proto.DateUtils;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Formats {@link SqlQueryResponse} for the CLI. {@linkplain Writeable} so
@@ -26,7 +24,7 @@ public class CliFormatter implements Writeable {
      * The minimum width for any column in the formatted results.
      */
     private static final int MIN_COLUMN_WIDTH = 15;
-    
+
     private int[] width;
 
     /**
@@ -47,7 +45,7 @@ public class CliFormatter implements Writeable {
             for (int i = 0; i < width.length; i++) {
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                width[i] = Math.max(width[i], toString(row.get(i)).length());
+                width[i] = Math.max(width[i], StringUtils.toString(row.get(i)).length());
             }
         }
     }
@@ -120,8 +118,7 @@ public class CliFormatter implements Writeable {
                 }
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                String string = toString(row.get(i));
-
+                String string = StringUtils.toString(row.get(i));
                 if (string.length() <= width[i]) {
                     // Pad
                     sb.append(string);
@@ -138,14 +135,6 @@ public class CliFormatter implements Writeable {
             sb.append('\n');
         }
         return sb.toString();
-    }
-
-    private static String toString(Object object) {
-        if (object instanceof ZonedDateTime) {
-            return DateUtils.toString((ZonedDateTime) object);
-        } else {
-            return Objects.toString(object);
-        }
     }
 
     /**

@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FlushIT extends ESIntegTestCase {
+
     public void testWaitIfOngoing() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");

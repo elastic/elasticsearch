@@ -298,18 +298,13 @@ public class Lucene {
         return false;
     }
 
-    private static TotalHits readTotalHits(StreamInput in) throws IOException {
+    public static TotalHits readTotalHits(StreamInput in) throws IOException {
+        long totalHits = in.readVLong();
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
         if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            if (in.readBoolean()) {
-                long totalHits = in.readVLong();
-                TotalHits.Relation totalHitsRelation = in.readEnum(TotalHits.Relation.class);
-                return new TotalHits(totalHits, totalHitsRelation);
-            } else {
-                return null;
-            }
-        } else {
-            return new TotalHits(in.readVLong(), TotalHits.Relation.EQUAL_TO);
+            totalHitsRelation = in.readEnum(TotalHits.Relation.class);
         }
+        return new TotalHits(totalHits, totalHitsRelation);
     }
 
     public static TopDocsAndMaxScore readTopDocs(StreamInput in) throws IOException {
@@ -423,25 +418,12 @@ public class Lucene {
 
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
-    private static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
-        boolean hasTotalHits = totalHits != null;
+    public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
+        out.writeVLong(totalHits.value);
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            out.writeBoolean(hasTotalHits);
-            if (hasTotalHits) {
-                out.writeVLong(totalHits.value);
-                out.writeEnum(totalHits.relation);
-            }
-        } else {
-            if (hasTotalHits) {
-                out.writeVLong(totalHits.value);
-                if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
-                    throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that " +
-                        "are on a version < 7.0.0");
-                }
-            } else {
-                // for bwc we use 0 but this will be translated to -1 by the coordinating node
-                out.writeVLong(0);
-            }
+            out.writeEnum(totalHits.relation);
+        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+            throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
         }
     }
 

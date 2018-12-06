@@ -107,11 +107,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                 } else {
                     this.collector = new EarlyTerminatingCollector(hitCountCollector, 0, false);
-                    this.hitCountSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
+                    this.hitCountSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 }
             } else {
                 this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
-                this.hitCountSupplier = () -> null;
+                this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.EQUAL_TO);
             }
         }
 
@@ -222,7 +222,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1); // don't compute hit counts via the collector
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 if (trackTotalHits == false) {
-                    totalHitsSupplier = () -> null;
+                    totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 } else {
                     totalHitsSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
                 }

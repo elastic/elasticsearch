@@ -1,8 +1,8 @@
 [role="xpack"]
 [[monitoring-settings]]
-===  Monitoring Settings in Elasticsearch
+===  Monitoring settings in Elasticsearch
 ++++
-<titleabbrev>Monitoring Settings</titleabbrev>
+<titleabbrev>Monitoring settings</titleabbrev>
 ++++
 
 By default, monitoring is enabled but data collection is disabled. To enable
@@ -43,17 +43,14 @@ to `true`. Its default value is `false`.
 The `xpack.monitoring.collection` settings control how data is collected from
 your Elasticsearch nodes.
 
-`xpack.monitoring.collection.enabled`::
+`xpack.monitoring.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 
 added[6.3.0] Set to `true` to enable the collection of monitoring data. When
 this setting is `false` (default), {es} monitoring data is not collected and
 all monitoring data from other sources such as {kib}, Beats, and Logstash is
 ignored.
-+
-You can update this setting through the
-<<cluster-update-settings,Cluster Update Settings API>>.
 
-`xpack.monitoring.collection.interval`::
+`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>):: 
 
 Setting to `-1` to disable data collection is no longer supported beginning with
 7.0.0. deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to
@@ -62,24 +59,26 @@ Setting to `-1` to disable data collection is no longer supported beginning with
 Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
 option in `kibana.yml` to the same value.
-+
-You can update this setting through the
-<<cluster-update-settings,Cluster Update Settings API>>.
+
+`xpack.monitoring.elasticsearch.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
+
+Controls whether statistics about your {es} cluster should be collected. Defaults to `true`.
+This is different from xpack.monitoring.collection.enabled, which allows you to enable or disable
+all monitoring collection. However, this setting simply disables the collection of Elasticsearch
+data while still allowing other data (e.g., Kibana, Logstash, Beats, or APM Server monitoring data)
+to pass through this cluster.
 
 `xpack.monitoring.collection.cluster.stats.timeout`::
 
 Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
 
-`xpack.monitoring.collection.indices`::
+`xpack.monitoring.collection.indices` (<<cluster-update-settings,Dynamic>>)::
 
 Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names
 as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for
 example `test*`. You can explicitly include or exclude indices by prepending
 `+` to include the index, or `-` to exclude the index. For example, to include all indices that
 start with `test` except `test3`, you could specify `+test*,-test3`.
-+
-You can update this setting through the
-<<cluster-update-settings,Cluster Update Settings API>>.
 
 `xpack.monitoring.collection.index.stats.timeout`::
 

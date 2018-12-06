@@ -1,55 +1,36 @@
-[[java-rest-high-x-pack-ml-open-job]]
+--
+:api: open-job
+:request: OpenJobRequest
+:response: OpenJobResponse
+--
+[id="{upid}-{api}"]
 === Open Job API
 
 The Open Job API provides the ability to open {ml} jobs in the cluster.
-It accepts a `OpenJobRequest` object and responds
-with a `OpenJobResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-open-job-request]]
+[id="{upid}-{api}-request"]
 ==== Open Job Request
 
-An `OpenJobRequest` object gets created with an existing non-null `jobId`.
+An +{request}+ object gets created with an existing non-null `jobId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-open-job-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 <2> Optionally setting the `timeout` value for how long the
 execution should wait for the job to be opened.
 
-[[java-rest-high-x-pack-ml-open-job-execution]]
-==== Execution
-
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+[id="{upid}-{api}-response"]
+==== Open Job Response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-open-job-execute]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `isOpened()` from the `OpenJobResponse` indicates if the job was successfully
+<1> `isOpened()` from the +{response}+ indicates if the job was successfully
 opened or not.
 
-[[java-rest-high-x-pack-ml-open-job-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-open-job-execute-async]
---------------------------------------------------
-<1> The `OpenJobRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListener` for `OpenJobResponse` may
-look like
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-open-job-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
+include::../execution.asciidoc[]

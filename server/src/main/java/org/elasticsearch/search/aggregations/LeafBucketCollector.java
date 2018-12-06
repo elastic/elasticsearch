@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -33,7 +33,7 @@ public abstract class LeafBucketCollector implements LeafCollector {
 
     public static final LeafBucketCollector NO_OP_COLLECTOR = new LeafBucketCollector() {
         @Override
-        public void setScorer(Scorer arg0) throws IOException {
+        public void setScorer(Scorable arg0) throws IOException {
             // no-op
         }
         @Override
@@ -55,7 +55,7 @@ public abstract class LeafBucketCollector implements LeafCollector {
             return new LeafBucketCollector() {
 
                 @Override
-                public void setScorer(Scorer s) throws IOException {
+                public void setScorer(Scorable s) throws IOException {
                     for (LeafBucketCollector c : colls) {
                         c.setScorer(s);
                     }
@@ -83,7 +83,7 @@ public abstract class LeafBucketCollector implements LeafCollector {
     }
 
     @Override
-    public void setScorer(Scorer scorer) throws IOException {
+    public void setScorer(Scorable scorer) throws IOException {
         // no-op by default
     }
 }

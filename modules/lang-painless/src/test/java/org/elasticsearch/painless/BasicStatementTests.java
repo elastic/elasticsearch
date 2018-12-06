@@ -262,19 +262,19 @@ public class BasicStatementTests extends ScriptTestCase {
                               "for (int i = 0; i < array.length; i++) { sum += array[i] } return sum",
                               Collections.emptyMap(),
                               Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
-                              null, true
+                              true
        ));
        assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" +
                              "int i = 0; while (i < array.length) { sum += array[i++] } return sum",
                              Collections.emptyMap(),
                              Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
-                             null, true
+                             true
        ));
        assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" +
                              "int i = 0; do { sum += array[i++] } while (i < array.length); return sum",
                              Collections.emptyMap(),
                              Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
-                             null, true
+                             true
        ));
     }
 

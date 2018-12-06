@@ -20,10 +20,13 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.auth.BasicAWSCredentials;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -35,7 +38,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -46,11 +48,14 @@ import java.util.function.Function;
  * <dt>{@code bucket}</dt><dd>S3 bucket</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
+ * <dt>{@code chunk_size}</dt>
+ * <dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
 class S3Repository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(S3Repository.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     static final String TYPE = "s3";
 
@@ -143,6 +148,8 @@ class S3Repository extends BlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
+    private final Settings settings;
+
     private final S3Service service;
 
     private final String bucket;
@@ -163,6 +170,8 @@ class S3Repository extends BlobStoreRepository {
 
     private final String clientName;
 
+    private final AmazonS3Reference reference;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -171,6 +180,7 @@ class S3Repository extends BlobStoreRepository {
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service) {
         super(metadata, settings, namedXContentRegistry);
+        this.settings = settings;
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -200,21 +210,54 @@ class S3Repository extends BlobStoreRepository {
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+
         this.clientName = CLIENT_NAME.get(metadata.settings());
 
-        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
-                "buffer_size [{}], cannedACL [{}], storageClass [{}]",
-            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
-
-        // (repository settings)
-        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            overrideCredentialsFromClusterState(service);
+        if (CLIENT_NAME.exists(metadata.settings()) && S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            logger.warn(
+                    "ignoring use of named client [{}] for repository [{}] as insecure credentials were specified",
+                    clientName,
+                    metadata.name());
         }
+
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            // provided repository settings
+            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings.");
+            final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
+            final S3ClientSettings s3ClientSettings = S3ClientSettings.getClientSettings(metadata, insecureCredentials);
+            this.reference = new AmazonS3Reference(service.buildClient(s3ClientSettings));
+        } else {
+            reference = null;
+        }
+
+        logger.debug(
+                "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+                bucket,
+                chunkSize,
+                serverSideEncryption,
+                bufferSize,
+                cannedACL,
+                storageClass);
     }
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        if (reference != null) {
+            assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
+            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
+                @Override
+                public AmazonS3Reference clientReference() {
+                    if (reference.tryIncRef()) {
+                        return reference;
+                    } else {
+                        throw new IllegalStateException("S3 client is closed");
+                    }
+                }
+            };
+        } else {
+            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        }
     }
 
     // only use for testing
@@ -244,13 +287,13 @@ class S3Repository extends BlobStoreRepository {
         return chunkSize;
     }
 
-    void overrideCredentialsFromClusterState(final S3Service s3Service) {
-        deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
-                + "store these in named clients and the elasticsearch keystore for secure settings.");
-        final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
-        // hack, but that's ok because the whole if branch should be axed
-        final Map<String, S3ClientSettings> prevSettings = s3Service.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
-        final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
-        s3Service.refreshAndClearCache(newSettings);
+    @Override
+    protected void doClose() {
+        if (reference != null) {
+            assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
+            reference.decRef();
+        }
+        super.doClose();
     }
+
 }

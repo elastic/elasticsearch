@@ -59,12 +59,17 @@ public interface RecoveryTargetHandler {
 
     /**
      * Index a set of translog operations on the target
-     * @param operations operations to index
-     * @param totalTranslogOps current number of total operations expected to be indexed
      *
+     * @param operations                          operations to index
+     * @param totalTranslogOps                    current number of total operations expected to be indexed
+     * @param maxSeenAutoIdTimestampOnPrimary     the maximum auto_id_timestamp of all append-only requests processed by the primary shard
+     * @param maxSeqNoOfUpdatesOrDeletesOnPrimary the max seq_no of update operations (index operations overwrite Lucene) or delete ops on
+     *                                            the primary shard when capturing these operations. This value is at least as high as the
+     *                                            max_seq_no_of_updates on the primary was when any of these ops were processed on it.
      * @return the local checkpoint on the target shard
      */
-    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException;
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                 long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfUpdatesOrDeletesOnPrimary) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive

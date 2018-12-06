@@ -36,7 +36,7 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder>
     @Override
     protected RangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        RangeAggregationBuilder factory = new RangeAggregationBuilder("foo");
+        RangeAggregationBuilder factory = new RangeAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

@@ -25,8 +25,7 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.StopwordAnalyzerBase;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 
 public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
@@ -36,7 +35,7 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
      */
     @Deprecated
     public StandardHtmlStripAnalyzer() {
-        super(StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        super(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 
     StandardHtmlStripAnalyzer(CharArraySet stopwords) {
@@ -46,8 +45,7 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
     @Override
     protected TokenStreamComponents createComponents(final String fieldName) {
         final Tokenizer src = new StandardTokenizer();
-        TokenStream tok = new StandardFilter(src);
-        tok = new LowerCaseFilter(tok);
+        TokenStream tok = new LowerCaseFilter(src);
         if (!stopwords.isEmpty()) {
             tok = new StopFilter(tok, stopwords);
         }

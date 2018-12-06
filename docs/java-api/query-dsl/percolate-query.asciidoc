@@ -19,15 +19,14 @@ a document containing a percolator query should be indexed:
 --------------------------------------------------
 // create an index with a percolator field with the name 'query':
 client.admin().indices().prepareCreate("myIndexName")
-                        .addMapping("query", "query", "type=percolator")
-                        .addMapping("docs", "content", "type=text")
+                        .addMapping("_doc", "query", "type=percolator", "content", "type=text")
                         .get();
 
 //This is the query we're registering in the percolator
 QueryBuilder qb = termQuery("content", "amazing");
 
 //Index the query = register it in the percolator
-client.prepareIndex("myIndexName", "query", "myDesignatedQueryName")
+client.prepareIndex("myIndexName", "_doc", "myDesignatedQueryName")
     .setSource(jsonBuilder()
         .startObject()
             .field("query", qb) // Register the query
@@ -49,7 +48,7 @@ XContentBuilder docBuilder = XContentFactory.jsonBuilder().startObject();
 docBuilder.field("content", "This is amazing!");
 docBuilder.endObject(); //End of the JSON root object
 
-PercolateQueryBuilder percolateQuery = new PercolateQueryBuilder("query", "docs", BytesReference.bytes(docBuilder));
+PercolateQueryBuilder percolateQuery = new PercolateQueryBuilder("query", "_doc", BytesReference.bytes(docBuilder));
 
 // Percolate, by executing the percolator query in the query dsl:
 SearchResponse response = client().prepareSearch("myIndexName")

@@ -26,8 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
@@ -166,7 +164,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
                         .wrapLongitude(false))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         GeoBounds geoBounds = searchResponse.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));

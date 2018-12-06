@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -246,8 +247,11 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
+    public ScoreMode scoreMode() {
+        if (valuesSource != null && valuesSource.needsScores()) {
+            return ScoreMode.COMPLETE;
+        }
+        return super.scoreMode();
     }
 
     @Override

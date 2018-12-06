@@ -555,3 +555,8 @@ See <<commands>>.
 
 See <<api-definitions>>.
 
+[role="exclude",id="analysis-standard-tokenfilter"]
+=== Standard filter removed
+
+The standard token filter has been removed.
+

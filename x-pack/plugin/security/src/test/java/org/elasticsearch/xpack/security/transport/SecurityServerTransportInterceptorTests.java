@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -73,7 +74,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         xPackLicenseState = mock(XPackLicenseState.class);
         when(xPackLicenseState.isAuthAllowed()).thenReturn(true);
-        when(xPackLicenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     @After
@@ -102,7 +102,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(null, null, null, null, null);
         assertTrue(calledWrappedSender.get());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(xPackLicenseState).isSecurityEnabled();
         verifyNoMoreInteractions(xPackLicenseState);
         verifyZeroInteractions(securityContext);
     }
@@ -112,10 +111,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
             securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
-        final boolean securityEnabled = randomBoolean();
-        final boolean authAllowed = securityEnabled && randomBoolean();
+        final boolean authAllowed = randomBoolean();
         when(xPackLicenseState.isAuthAllowed()).thenReturn(authAllowed);
-        when(xPackLicenseState.isSecurityEnabled()).thenReturn(securityEnabled);
         ClusterState notRecovered = ClusterState.builder(clusterService.state())
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
@@ -139,10 +136,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
-        verify(xPackLicenseState).isSecurityEnabled();
-        if (securityEnabled) {
-            verify(xPackLicenseState).isAuthAllowed();
-        }
+        verify(xPackLicenseState).isAuthAllowed();
         verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
@@ -177,7 +171,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(xPackLicenseState).isSecurityEnabled();
         verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
@@ -215,7 +208,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(xPackLicenseState).isSecurityEnabled();
         verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
@@ -246,7 +238,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(xPackLicenseState).isSecurityEnabled();
         verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
@@ -345,7 +336,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     threadContext.wrapRestorable(storedContext), new TransportResponseHandler<Empty>() {
 
                 @Override
-                public Empty newInstance() {
+                public Empty read(StreamInput in) {
                     return Empty.INSTANCE;
                 }
 
@@ -384,7 +375,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                         new TransportResponseHandler<Empty>() {
 
                             @Override
-                            public Empty newInstance() {
+                            public Empty read(StreamInput in) {
                                 return Empty.INSTANCE;
                             }
 

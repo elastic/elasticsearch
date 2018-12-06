@@ -75,12 +75,12 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                         try {
                             while (!stop.get()) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
-                                if (sr.getHits().getTotalHits() != numDocs) {
+                                if (sr.getHits().getTotalHits().value != numDocs) {
                                     // if we did not search all shards but had no failures that is potentially fine
                                     // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                     // request comes in. It's a small window but a known limitation.
                                     if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
-                                        nonCriticalExceptions.add("Count is " + sr.getHits().getTotalHits() + " but " + numDocs +
+                                        nonCriticalExceptions.add("Count is " + sr.getHits().getTotalHits().value + " but " + numDocs +
                                             " was expected. " + formatShardStatus(sr));
                                     } else {
                                         assertHitCount(sr, numDocs);
@@ -88,7 +88,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                 }
 
                                 final SearchHits sh = sr.getHits();
-                                assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
+                                assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits().value,
                                         equalTo((long) (sh.getHits().length)));
                                 // this is the more critical but that we hit the actual hit array has a different size than the
                                 // actual number of hits.

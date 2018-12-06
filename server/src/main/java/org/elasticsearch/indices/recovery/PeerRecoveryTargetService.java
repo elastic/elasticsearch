@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -34,7 +35,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -78,7 +79,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  */
-public class PeerRecoveryTargetService extends AbstractComponent implements IndexEventListener {
+public class PeerRecoveryTargetService implements IndexEventListener {
+
+    private static final Logger logger = LogManager.getLogger(PeerRecoveryTargetService.class);
 
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
@@ -100,9 +103,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
-            recoverySettings, ClusterService clusterService) {
-        super(settings);
+    public PeerRecoveryTargetService(ThreadPool threadPool, TransportService transportService,
+            RecoverySettings recoverySettings, ClusterService clusterService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
@@ -195,8 +197,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                             new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
-                                public RecoveryResponse newInstance() {
-                                    return new RecoveryResponse();
+                                public RecoveryResponse read(StreamInput in) throws IOException {
+                                    RecoveryResponse recoveryResponse = new RecoveryResponse();
+                                    recoveryResponse.readFrom(in);
+                                    return recoveryResponse;
                                 }
                             }).txGet()));
             final RecoveryResponse recoveryResponse = responseHolder.get();
@@ -455,7 +459,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
-                    recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
+                    recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps(),
+                        request.maxSeenAutoIdTimestampOnPrimary(), request.maxSeqNoOfUpdatesOrDeletesOnPrimary());
                     channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
                 } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node

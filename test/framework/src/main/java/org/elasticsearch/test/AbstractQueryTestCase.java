@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -83,15 +82,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
+        return createTestQueryBuilder(supportsBoost(), supportsQueryName());
+    }
+
+    public final QB createTestQueryBuilder(boolean supportsBoost, boolean supportsQueryName) {
         QB query = doCreateTestQueryBuilder();
-        //we should not set boost and query name for queries that don't parse it
-        if (supportsBoostAndQueryName()) {
-            if (randomBoolean()) {
-                query.boost(2.0f / randomIntBetween(1, 20));
-            }
-            if (randomBoolean()) {
-                query.queryName(createUniqueRandomName());
-            }
+        if (supportsBoost && randomBoolean()) {
+            query.boost(2.0f / randomIntBetween(1, 20));
+        }
+        if (supportsQueryName && randomBoolean()) {
+            query.queryName(createUniqueRandomName());
         }
         return query;
     }
@@ -100,6 +100,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Create the query that is being tested
      */
     protected abstract QB doCreateTestQueryBuilder();
+
+    public void testNegativeBoosts() {
+        QB testQuery = createTestQueryBuilder();
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> testQuery.boost(-0.5f));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
+    }
 
     /**
      * Generic test that creates new query from the test query and checks both for equality
@@ -453,18 +460,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
-            if (supportsBoostAndQueryName()) {
+            if (supportsBoost()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
                         rewrite(thirdLuceneQuery));
             }
-
-            // check that context#isFilter is not changed by invoking toQuery/rewrite
-            boolean filterFlag = randomBoolean();
-            context.setIsFilter(filterFlag);
-            rewriteQuery(firstQuery, context).toQuery(context);
-            assertEquals("isFilter should be unchanged", filterFlag, context.isFilter());
         }
     }
 
@@ -480,12 +481,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser
-     * doesn't parse them as they are not supported. This method allows to disable boost and queryName related tests for those queries.
-     * Those queries are easy to identify: their parsers don't parse `boost` and `_name` as they don't apply to the specific query:
-     * wrapper query and match_none
+     * Few queries allow you to set the boost on the Java API, although the corresponding parser
+     * doesn't parse it as it isn't supported. This method allows to disable boost related tests for those queries.
+     * Those queries are easy to identify: their parsers don't parse {@code boost} as they don't apply to the specific query:
+     * wrapper query and {@code match_none}.
      */
-    protected boolean supportsBoostAndQueryName() {
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    /**
+     * Few queries allow you to set the query name on the Java API, although the corresponding parser
+     * doesn't parse it as it isn't supported. This method allows to disable query name related tests for those queries.
+     * Those queries are easy to identify: their parsers don't parse {@code _name} as they don't apply to the specific query:
+     * wrapper query and {@code match_none}.
+     */
+    protected boolean supportsQueryName() {
         return true;
     }
 

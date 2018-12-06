@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -31,9 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Arrays;
@@ -85,7 +82,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
             }
         }
         Arrays.sort(percentiles);
-        Loggers.getLogger(HDRPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
+        LogManager.getLogger(HDRPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
         return percentiles;
     }
 
@@ -135,7 +132,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                                 .percentiles(10, 15)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -158,7 +155,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                         percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("value")
                                 .percentiles(0, 10, 15, 100)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
@@ -419,7 +416,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
 
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")

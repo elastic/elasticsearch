@@ -20,6 +20,7 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.HttpMethod;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -57,6 +59,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -78,6 +81,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 import static org.elasticsearch.http.nio.cors.NioCorsHandler.ANY_ORIGIN;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);
 
     public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
         intSetting("http.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
@@ -176,11 +180,15 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         } else if (origin.equals(ANY_ORIGIN)) {
             builder = NioCorsConfigBuilder.forAnyOrigin();
         } else {
-            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-            if (p == null) {
-                builder = NioCorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-            } else {
-                builder = NioCorsConfigBuilder.forPattern(p);
+            try {
+                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+                if (p == null) {
+                    builder = NioCorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+                } else {
+                    builder = NioCorsConfigBuilder.forPattern(p);
+                }
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
             }
         }
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {

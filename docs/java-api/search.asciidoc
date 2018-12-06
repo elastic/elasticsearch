@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.QueryBuilders.*;
 [source,java]
 --------------------------------------------------
 SearchResponse response = client.prepareSearch("index1", "index2")
-        .setTypes("type1", "type2")
         .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
         .setQuery(QueryBuilders.termQuery("multi", "test"))                 // Query
         .setPostFilter(QueryBuilders.rangeQuery("age").from(12).to(18))     // Filter
@@ -90,7 +89,7 @@ MultiSearchResponse sr = client.prepareMultiSearch()
 long nbHits = 0;
 for (MultiSearchResponse.Item item : sr.getResponses()) {
     SearchResponse response = item.getResponse();
-    nbHits += response.getHits().getTotalHits();
+    nbHits += response.getHits().getTotalHits().value;
 }
 --------------------------------------------------
 
@@ -211,12 +210,12 @@ To execute a stored templates, use `ScriptService.ScriptType.STORED`:
 [source,java]
 --------------------------------------------------
 SearchResponse sr = new SearchTemplateRequestBuilder(client)
-        .setScript("template_gender")                       <1>
+        .setScript("template_gender")         <1>
         .setScriptType(ScriptType.STORED)     <2>
-        .setScriptParams(template_params)                   <3>
-        .setRequest(new SearchRequest())                    <4>
-        .get()                                              <5>
-        .getResponse();                                     <6>
+        .setScriptParams(template_params)     <3>
+        .setRequest(new SearchRequest())      <4>
+        .get()                                <5>
+        .getResponse();                       <6>
 --------------------------------------------------
 <1> template name
 <2> template stored in the cluster state
@@ -230,7 +229,7 @@ You can also execute inline templates:
 [source,java]
 --------------------------------------------------
 sr = new SearchTemplateRequestBuilder(client)
-        .setScript("{\n" +                                  <1>
+        .setScript("{\n" +                   <1>
                 "        \"query\" : {\n" +
                 "            \"match\" : {\n" +
                 "                \"gender\" : \"{{param_gender}}\"\n" +
@@ -238,12 +237,12 @@ sr = new SearchTemplateRequestBuilder(client)
                 "        }\n" +
                 "}")
         .setScriptType(ScriptType.INLINE)    <2>
-        .setScriptParams(template_params)                  <3>
-        .setRequest(new SearchRequest())                   <4>
-        .get()                                             <5>
-        .getResponse();                                    <6>
+        .setScriptParams(template_params)    <3>
+        .setRequest(new SearchRequest())     <4>
+        .get()                               <5>
+        .getResponse();                      <6>
 --------------------------------------------------
-<1> template name
+<1> template's body
 <2> template is passed inline
 <3> parameters
 <4> set the execution context (ie. define the index name here)

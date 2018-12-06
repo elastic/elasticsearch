@@ -6,27 +6,126 @@
 
 # This file contains a whitelist for SQL specific utilities available inside SQL scripting
 
+class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
+}
+
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
+
+#
+# Utilities
+# 
+  def docValue(java.util.Map, String)
+  boolean nullSafeFilter(Boolean)
+  double nullSafeSortNumeric(Number)
+  String nullSafeSortString(Object)
+
+#
+# Comparison
+#
+  Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
+  Boolean neq(Object, Object)
+  Boolean lt(Object, Object)
+  Boolean lte(Object, Object)
+  Boolean gt(Object, Object)
+  Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
+
+#
+# Logical
+#
+  Boolean and(Boolean, Boolean)
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Null
+#
+  Object coalesce(java.util.List)
+  Object greatest(java.util.List)
+  Object least(java.util.List)
+  Object nullif(Object, Object)
+
+#
+# Regex
+#
+  Boolean regex(String, String)
+
+#
+# Math
+#
+  def add(Object, Object)
+  def sub(Object, Object)
+  def div(Object, Object)
+  def mod(Object, Object)
+  def mul(Object, Object)
+  Number neg(Number)
+  Number round(Number, Number)
+  Number truncate(Number, Number)
   
-  Integer dateTimeChrono(long, String, String)
+  Double abs(Number)
+  Double acos(Number)
+  Double asin(Number)
+  Double atan(Number)
+  Double cbrt(Number)
+  Double ceil(Number)
+  Double cos(Number)
+  Double cosh(Number)
+  Double cot(Number)
+  Double degrees(Number)
+  Double e(Number)
+  Double exp(Number)
+  Double expm1(Number)
+  Double floor(Number)
+  Double log(Number)
+  Double log10(Number)
+  Double pi(Number)
+  Double radians(Number)
+  Double random(Number)
+  Double sign(Number)
+  Double sin(Number)
+  Double sinh(Number)
+  Double sqrt(Number)
+  Double tan(Number)
+  
+#
+# Date/Time functions 
+#
+  Integer dateTimeChrono(Object, String, String)
+  String  dayName(Object, String)
+  String  monthName(Object, String)
+  Integer quarter(Object, String)
+  IntervalDayTime intervalDayTime(String, String)
+  IntervalYearMonth intervalYearMonth(String, String)
+  ZonedDateTime asDateTime(Object)
+
+#
+# ASCII Functions
+# 
   Integer ascii(String)
   Integer bitLength(String)
-  String character(Number)
+  String  character(Number)
   Integer charLength(String)
-  String lcase(String)
-  String ucase(String)
+  String  concat(String, String)
+  String  insert(String, Number, Number, String)
+  String  lcase(String)
+  String  left(String, Number)
   Integer length(String)
-  String rtrim(String)
-  String ltrim(String)
-  String space(Number)
-  String left(String, int)
-  String right(String, int)
-  String concat(String, String)
-  String repeat(String, int)
-  Integer position(String, String)
-  String insert(String, int, int, String)
-  String substring(String, int, int)
-  String replace(String, String, String)
   Integer locate(String, String)
-  Integer locate(String, String, Integer)
+  Integer locate(String, String, Number)
+  String  ltrim(String)
+  Integer octetLength(String)
+  Integer position(String, String)
+  String  repeat(String, Number)
+  String  replace(String, String, String)
+  String  right(String, Number)
+  String  rtrim(String)
+  String  space(Number)
+  String  substring(String, Number, Number)
+  String  ucase(String)
 }

@@ -258,7 +258,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.interval", "-42s").build()));
-        assertEquals("Failed to parse value [-42s] for setting [indices.memory.interval] must be >= 0s", e.getMessage());
+        assertEquals("failed to parse value [-42s] for setting [indices.memory.interval], must be >= [0ms]", e.getMessage());
 
     }
 
@@ -266,7 +266,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.shard_inactive_time", "-42s").build()));
-        assertEquals("Failed to parse value [-42s] for setting [indices.memory.shard_inactive_time] must be >= 0s", e.getMessage());
+        assertEquals("failed to parse value [-42s] for setting [indices.memory.shard_inactive_time], must be >= [0ms]", e.getMessage());
 
     }
 
@@ -295,7 +295,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                                                        .put("indices.memory.index_buffer_size", "4mb").build());
         IndexShard shard0 = test.getShard(0);
         IndexShard shard1 = test.getShard(1);
-        IndexShard shard2 = test.getShard(2);
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);
@@ -313,7 +312,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
 
-        // Now we are still writing 3 MB (shard0), and using 5 MB index buffers, so we should now 1) be writing shard1, and 2) be throttling shard1:
+        // Now we are still writing 3 MB (shard0), and using 5 MB index buffers, so we should now 1) be writing shard1,
+        // and 2) be throttling shard1:
         controller.assertWriting(shard0, 3);
         controller.assertWriting(shard1, 4);
         controller.assertBuffer(shard0, 1);

@@ -20,10 +20,9 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Scorer;
-import org.elasticsearch.script.ExplainableSearchScript;
+import org.apache.lucene.search.Scorable;
+import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 
@@ -32,13 +31,9 @@ import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
-    static final class CannedScorer extends Scorer {
+    static final class CannedScorer extends Scorable {
         protected int docid;
         protected float score;
-
-        CannedScorer() {
-            super(null);
-        }
 
         @Override
         public int docID() {
@@ -46,13 +41,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         }
 
         @Override
-        public float score() throws IOException {
+        public float score() {
             return score;
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -79,29 +69,30 @@ public class ScriptScoreFunction extends ScoreFunction {
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute();
+                if (result < 0f) {
+                    throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
+                }
                 return result;
             }
 
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 Explanation exp;
-                if (leafScript instanceof ExplainableSearchScript) {
+                if (leafScript instanceof ExplainableScoreScript) {
                     leafScript.setDocument(docId);
                     scorer.docid = docId;
-                    scorer.score = subQueryScore.getValue();
-                    exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
+                    scorer.score = subQueryScore.getValue().floatValue();
+                    exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {
-                    double score = score(docId, subQueryScore.getValue());
+                    double score = score(docId, subQueryScore.getValue().floatValue());
+                    // info about params already included in sScript
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
-                    if (sScript.getParams() != null) {
-                        explanation += " and parameters: \n" + sScript.getParams().toString();
-                    }
                     Explanation scoreExp = Explanation.match(
-                            subQueryScore.getValue(), "_score: ",
-                            subQueryScore);
+                        subQueryScore.getValue(), "_score: ",
+                        subQueryScore);
                     return Explanation.match(
-                            (float) score, explanation,
-                            scoreExp);
+                        (float) score, explanation,
+                        scoreExp);
                 }
                 return exp;
             }

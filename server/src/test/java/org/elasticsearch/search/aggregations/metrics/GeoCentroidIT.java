@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
@@ -54,7 +53,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
-        assertThat(response.getHits().getTotalHits(), equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();

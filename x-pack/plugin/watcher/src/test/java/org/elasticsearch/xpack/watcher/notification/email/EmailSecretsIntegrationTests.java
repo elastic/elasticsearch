@@ -88,8 +88,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                         .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_email", ActionBuilders.emailAction(
                                 EmailTemplate.builder()
-                                        .from("_from")
-                                        .to("_to")
+                                        .from("from@example.org")
+                                        .to("to@example.org")
                                         .subject("_subject"))
                                 .setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())))
                 .get();

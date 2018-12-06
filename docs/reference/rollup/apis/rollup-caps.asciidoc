@@ -45,7 +45,7 @@ For more information, see
 ==== Examples
 
 Imagine we have an index named `sensor-1` full of raw data.  We know that the data will grow over time, so there
-will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job that targets the index pattern `sensor-*` to accomodate
+will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job that targets the index pattern `sensor-*` to accommodate
 this future scaling:
 
 [source,js]

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -41,7 +42,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -64,8 +64,8 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -99,11 +99,11 @@ import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -129,7 +129,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class JobResultsProvider {
-    private static final Logger LOGGER = Loggers.getLogger(JobResultsProvider.class);
+    private static final Logger LOGGER = LogManager.getLogger(JobResultsProvider.class);
 
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
@@ -545,7 +545,8 @@ public class JobResultsProvider {
                         throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
                     }
 
-                    QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
+                    QueryPage<Bucket> buckets = new QueryPage<>(results,
+                        searchResponse.getHits().getTotalHits().value, Bucket.RESULTS_FIELD);
 
                     if (query.isExpand()) {
                         Iterator<Bucket> bucketsToExpand = buckets.results().stream()
@@ -677,7 +678,7 @@ public class JobResultsProvider {
                         }
                     }
                     QueryPage<CategoryDefinition> result =
-                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, CategoryDefinition.RESULTS_FIELD);
                     handler.accept(result);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))), client::search);
     }
@@ -722,7 +723,7 @@ public class JobResultsProvider {
                         }
                     }
                     QueryPage<AnomalyRecord> queryPage =
-                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, AnomalyRecord.RESULTS_FIELD);
                     handler.accept(queryPage);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetRecordsAction.NAME))), client::search);
     }
@@ -771,7 +772,7 @@ public class JobResultsProvider {
                         }
                     }
                     QueryPage<Influencer> result =
-                            new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
+                            new QueryPage<>(influencers, response.getHits().getTotalHits().value, Influencer.RESULTS_FIELD);
                     handler.accept(result);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetInfluencersAction.NAME))), client::search);
     }
@@ -885,7 +886,7 @@ public class JobResultsProvider {
                     }
 
                     QueryPage<ModelSnapshot> result =
-                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelSnapshot.RESULTS_FIELD);
                     handler.accept(result);
                 }, errorHandler), client::search);
     }
@@ -917,7 +918,7 @@ public class JobResultsProvider {
             }
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelPlot.RESULTS_FIELD);
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
     }
 
     /**
@@ -1100,7 +1101,7 @@ public class JobResultsProvider {
                                 events.add(event.build());
                             }
 
-                            handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits(),
+                            handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits().value,
                                     ScheduledEvent.RESULTS_FIELD));
                         },
                         handler::onFailure),
@@ -1142,7 +1143,7 @@ public class JobResultsProvider {
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     Aggregations aggregations = searchResponse.getAggregations();
                     if (totalHits == 0 || aggregations == null) {
                         handler.accept(new ForecastStats());
@@ -1221,7 +1222,7 @@ public class JobResultsProvider {
                                 calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER, listener::onFailure).build());
                             }
 
-                            listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits(),
+                            listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));
                         },
                         listener::onFailure)

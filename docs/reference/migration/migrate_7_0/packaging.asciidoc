@@ -1,6 +1,8 @@
+[float]
 [[breaking_70_packaging_changes]]
 === Packaging changes
 
+[float]
 [[systemd-service-file-config]]
 ==== systemd service file is no longer configuration
 
@@ -9,6 +11,7 @@ was previously marked as a configuration file in rpm and deb packages.
 Overrides to the systemd elasticsearch service should be made
 in `/etc/systemd/system/elasticsearch.service.d/override.conf`.
 
+[float]
 ==== tar package no longer includes windows specific files
 
 The tar package previously included files in the `bin` directory meant only

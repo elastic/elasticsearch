@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
@@ -83,7 +82,7 @@ public class ValueCountIT extends ESIntegTestCase {
                 .addAggregation(count("count").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());

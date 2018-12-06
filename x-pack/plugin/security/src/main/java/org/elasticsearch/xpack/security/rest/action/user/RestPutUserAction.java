@@ -36,10 +36,11 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
-    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    private final Hasher passwordHasher;
 
     public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
+        passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
     }
@@ -58,10 +59,8 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK,
-                        builder.startObject()
-                                .field("user", putUserResponse)
-                                .endObject());
+                putUserResponse.toXContent(builder, request);
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

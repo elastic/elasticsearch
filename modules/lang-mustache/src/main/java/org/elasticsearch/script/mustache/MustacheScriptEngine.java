@@ -23,10 +23,10 @@ import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -51,7 +51,7 @@ import java.util.Map;
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
 public final class MustacheScriptEngine implements ScriptEngine {
-    private static final Logger logger = ESLoggerFactory.getLogger(MustacheScriptEngine.class);
+    private static final Logger logger = LogManager.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
 

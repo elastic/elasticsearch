@@ -18,12 +18,18 @@
  */
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
+import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matchers;
 
 import java.util.Collections;
 
@@ -34,7 +40,7 @@ public class SimilarityServiceTests extends ESTestCase {
         Settings settings = Settings.builder().build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
-        assertThat(service.getDefaultSimilarity(), instanceOf(BM25Similarity.class));
+        assertThat(service.getDefaultSimilarity(), instanceOf(LegacyBM25Similarity.class));
     }
 
     // Tests #16594
@@ -56,4 +62,76 @@ public class SimilarityServiceTests extends ESTestCase {
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof BooleanSimilarity);
     }
+
+    public void testSimilarityValidation() {
+        Similarity negativeScoresSim = new Similarity() {
+
+            @Override
+            public long computeNorm(FieldInvertState state) {
+                return state.getLength();
+            }
+
+            @Override
+            public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+                return new SimScorer() {
+
+                    @Override
+                    public float score(float freq, long norm) {
+                        return -1;
+                    }
+
+                };
+            }
+        };
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> SimilarityService.validateSimilarity(Version.V_7_0_0, negativeScoresSim));
+        assertThat(e.getMessage(), Matchers.containsString("Similarities should not return negative scores"));
+
+        Similarity decreasingScoresWithFreqSim = new Similarity() {
+
+            @Override
+            public long computeNorm(FieldInvertState state) {
+                return state.getLength();
+            }
+
+            @Override
+            public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+                return new SimScorer() {
+
+                    @Override
+                    public float score(float freq, long norm) {
+                        return 1 / (freq + norm);
+                    }
+
+                };
+            }
+        };
+        e = expectThrows(IllegalArgumentException.class,
+                () -> SimilarityService.validateSimilarity(Version.V_7_0_0, decreasingScoresWithFreqSim));
+        assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not decrease when term frequency increases"));
+
+        Similarity increasingScoresWithNormSim = new Similarity() {
+
+            @Override
+            public long computeNorm(FieldInvertState state) {
+                return state.getLength();
+            }
+
+            @Override
+            public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+                return new SimScorer() {
+
+                    @Override
+                    public float score(float freq, long norm) {
+                        return freq + norm;
+                    }
+
+                };
+            }
+        };
+        e = expectThrows(IllegalArgumentException.class,
+                () -> SimilarityService.validateSimilarity(Version.V_7_0_0, increasingScoresWithNormSim));
+        assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not increase when norm increases"));
+    }
+
 }

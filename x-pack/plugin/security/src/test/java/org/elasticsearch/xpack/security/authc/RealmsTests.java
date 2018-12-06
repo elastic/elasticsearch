@@ -69,7 +69,6 @@ public class RealmsTests extends ESTestCase {
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.ALL);
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
     }
@@ -84,8 +83,7 @@ public class RealmsTests extends ESTestCase {
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < randomRealmTypesCount; i++) {
-            builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
-            builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
+            builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
         Settings settings = builder.build();
@@ -120,11 +118,10 @@ public class RealmsTests extends ESTestCase {
         TreeMap<String, Integer> nameToRealmId = new TreeMap<>();
         for (int i = 0; i < randomRealmTypesCount; i++) {
             int randomizedRealmId = randomSeq.get(i);
-            String randomizedRealmName = randomAlphaOfLengthBetween(12,32);
+            String randomizedRealmName = randomAlphaOfLengthBetween(12, 32);
             nameToRealmId.put("realm_" + randomizedRealmName, randomizedRealmId);
-            builder.put("xpack.security.authc.realms.realm_" + randomizedRealmName + ".type", "type_" + randomizedRealmId);
             // set same order for all realms
-            builder.put("xpack.security.authc.realms.realm_" + randomizedRealmName + ".order", 1);
+            builder.put("xpack.security.authc.realms.type_" + randomizedRealmId + ".realm_" + randomizedRealmName + ".order", 1);
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -149,10 +146,8 @@ public class RealmsTests extends ESTestCase {
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.realm_1.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_1.order", 0)
-                .put("xpack.security.authc.realms.realm_2.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_2.order", 1)
+                .put("xpack.security.authc.realms.file.realm_1.order", 0)
+                .put("xpack.security.authc.realms.file.realm_2.order", 1)
                 .put("path.home", createTempDir())
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -192,8 +187,7 @@ public class RealmsTests extends ESTestCase {
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < randomRealmTypesCount; i++) {
-            builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
-            builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
+            builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
         Settings settings = builder.build();
@@ -253,13 +247,11 @@ public class RealmsTests extends ESTestCase {
         assertThat(factories.get("type_0"), notNullValue());
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.foo.type", "ldap")
-                .put("xpack.security.authc.realms.foo.order", "0")
-                .put("xpack.security.authc.realms.custom.type", "type_0")
-                .put("xpack.security.authc.realms.custom.order", "1");
+                .put("xpack.security.authc.realms.ldap.foo.order", "0")
+                .put("xpack.security.authc.realms.type_0.custom.order", "1");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
@@ -283,7 +275,7 @@ public class RealmsTests extends ESTestCase {
         i = 0;
         while (iter.hasNext()) {
             realm = iter.next();
-            assertThat(realm.getType(), is("ldap"));
+            assertThat(realm.type(), is("ldap"));
             i++;
         }
         assertThat(i, is(1));
@@ -304,15 +296,13 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
     }
 
-    public void testUnlicensedWithNativeRealmSettingss() throws Exception {
+    public void testUnlicensedWithNativeRealmSettings() throws Exception {
         factories.put(LdapRealmSettings.LDAP_TYPE, config -> new DummyRealm(LdapRealmSettings.LDAP_TYPE, config));
         final String type = randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE);
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.foo.type", "ldap")
-                .put("xpack.security.authc.realms.foo.order", "0")
-                .put("xpack.security.authc.realms.native.type", type)
-                .put("xpack.security.authc.realms.native.order", "1");
+                .put("xpack.security.authc.realms.ldap.foo.order", "0")
+                .put("xpack.security.authc.realms." + type + ".native.order", "1");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -344,8 +334,7 @@ public class RealmsTests extends ESTestCase {
         factories.put(selectedRealmType, config -> new DummyRealm(selectedRealmType, config));
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.foo.type", selectedRealmType)
-                .put("xpack.security.authc.realms.foo.order", "0");
+                .put("xpack.security.authc.realms." + selectedRealmType + ".foo.order", "0");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -395,10 +384,9 @@ public class RealmsTests extends ESTestCase {
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         for (int i = 0; i < randomRealmTypesCount; i++) {
-            builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
-            builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
+            builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
             boolean enabled = randomBoolean();
-            builder.put("xpack.security.authc.realms.realm_" + i + ".enabled", enabled);
+            builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".enabled", enabled);
             if (enabled) {
                 orderToIndex.put(orders.get(i), i);
                 logger.error("put [{}] -> [{}]", orders.get(i), i);
@@ -406,7 +394,7 @@ public class RealmsTests extends ESTestCase {
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         Iterator<Realm> iterator = realms.iterator();
         Realm realm = iterator.next();
         assertThat(realm, is(reservedRealm));
@@ -439,11 +427,10 @@ public class RealmsTests extends ESTestCase {
     public void testAuthcAuthzDisabled() throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.realm_1.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_1.order", 0)
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0)
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
         assertThat(realms.iterator().hasNext(), is(true));
 
@@ -455,10 +442,8 @@ public class RealmsTests extends ESTestCase {
         // test realms with duplicate values
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.foo.type", "type_0")
-                .put("xpack.security.authc.realms.foo.order", "0")
-                .put("xpack.security.authc.realms.bar.type", "type_0")
-                .put("xpack.security.authc.realms.bar.order", "1");
+                .put("xpack.security.authc.realms.type_0.foo.order", "0")
+                .put("xpack.security.authc.realms.type_0.bar.order", "1");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -526,10 +511,8 @@ public class RealmsTests extends ESTestCase {
 
     public void testInitRealmsFailsForMultipleKerberosRealms() throws IOException {
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        builder.put("xpack.security.authc.realms.realm_1.type", "kerberos");
-        builder.put("xpack.security.authc.realms.realm_1.order", 1);
-        builder.put("xpack.security.authc.realms.realm_2.type", "kerberos");
-        builder.put("xpack.security.authc.realms.realm_2.order", 2);
+        builder.put("xpack.security.authc.realms.kerberos.realm_1.order", 1);
+        builder.put("xpack.security.authc.realms.kerberos.realm_2.order", 2);
         final Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -541,7 +524,7 @@ public class RealmsTests extends ESTestCase {
     static class DummyRealm extends Realm {
 
         DummyRealm(String type, RealmConfig config) {
-            super(type, config);
+            super(config);
         }
 
         @Override

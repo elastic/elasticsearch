@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 
 /**
  * {@code NodeFailureListener} logs warnings for any node failure, but it can also notify a {@link Sniffer} and/or {@link HttpResource}
@@ -23,7 +23,7 @@ import org.elasticsearch.common.logging.Loggers;
  */
 class NodeFailureListener extends RestClient.FailureListener {
 
-    private static final Logger logger = Loggers.getLogger(NodeFailureListener.class);
+    private static final Logger logger = LogManager.getLogger(NodeFailureListener.class);
 
     /**
      * The optional {@link Sniffer} associated with the {@link RestClient}.

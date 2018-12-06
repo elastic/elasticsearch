@@ -91,6 +91,38 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class);
     }
 
+    public void testTieBreak() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        mapping.indexAnalyzer("keyword");
+        createIndexAndMapping(mapping);
+
+        int numDocs = randomIntBetween(3, 50);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        String[] entries = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            String value = "a" + randomAlphaOfLengthBetween(1, 10);
+            entries[i] = value;
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", value)
+                    .field("weight", 10)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        Arrays.sort(entries);
+        indexRandom(true, indexRequestBuilders);
+        for (int i = 1; i < numDocs; i++) {
+            CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
+                .prefix("a")
+                .size(i);
+            String[] topEntries = Arrays.copyOfRange(entries, 0, i);
+            assertSuggestions("foo", prefix, topEntries);
+        }
+    }
+
     public void testPrefix() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);
@@ -522,28 +554,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("b", "The Beatles");
     }
 
-    public void testThatSynonymsWork() throws Exception {
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
-                .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
-                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
-                .put("analysis.filter.my_synonyms.type", "synonym")
-                .putList("analysis.filter.my_synonyms.synonyms", "foo,renamed");
-        completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
-        createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input").value("Foo Fighters").endArray()
-                .endObject().endObject()
-        ).get();
-
-        refresh();
-
-        // get suggestions for renamed
-        assertSuggestions("r", "Foo Fighters");
-    }
-
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()
@@ -804,7 +814,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .putList("index.analysis.analyzer.stoptest.filter", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
@@ -1031,7 +1041,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits()));
+        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {

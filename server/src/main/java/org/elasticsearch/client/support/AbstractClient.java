@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -333,7 +335,6 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -342,16 +343,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-public abstract class AbstractClient extends AbstractComponent implements Client {
+public abstract class AbstractClient implements Client {
 
+    protected final Logger logger;
+
+    protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
     private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
-        super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
+        this.logger =LogManager.getLogger(this.getClass());
         this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
@@ -472,6 +477,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
+    }
+
+    @Override
     public ActionFuture<GetResponse> get(final GetRequest request) {
         return execute(GetAction.INSTANCE, request);
     }
@@ -569,30 +579,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
         return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
-    }
-
-    @Deprecated
-    @Override
-    public ActionFuture<TermVectorsResponse> termVector(final TermVectorsRequest request) {
-        return termVectors(request);
-    }
-
-    @Deprecated
-    @Override
-    public void termVector(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
-        termVectors(request, listener);
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector() {
-        return prepareTermVectors();
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
-        return prepareTermVectors(index, type, id);
     }
 
     @Override
@@ -752,7 +738,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void updateSettings(final ClusterUpdateSettingsRequest request, final ActionListener<ClusterUpdateSettingsResponse> listener) {
+        public void updateSettings(final ClusterUpdateSettingsRequest request,
+                                   final ActionListener<ClusterUpdateSettingsResponse> listener) {
             execute(ClusterUpdateSettingsAction.INSTANCE, request, listener);
         }
 
@@ -1256,6 +1243,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
             return new IndicesExistsRequestBuilder(this, IndicesExistsAction.INSTANCE, indices);
         }
 
+        @Deprecated
         @Override
         public ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request) {
             return execute(TypesExistsAction.INSTANCE, request);

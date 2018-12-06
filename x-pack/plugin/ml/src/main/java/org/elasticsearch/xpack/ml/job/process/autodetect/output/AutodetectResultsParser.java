@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -26,12 +26,7 @@ import java.util.Iterator;
  * Expects an array of buckets so the first element will always be the
  * start array symbol and the data must be terminated with the end array symbol.
  */
-public class AutodetectResultsParser extends AbstractComponent {
-
-    public AutodetectResultsParser(Settings settings) {
-        super(settings);
-    }
-
+public class AutodetectResultsParser {
     public Iterator<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -64,7 +59,9 @@ public class AutodetectResultsParser extends AbstractComponent {
         }
     }
 
-    private class AutodetectResultIterator implements Iterator<AutodetectResult> {
+    private static class AutodetectResultIterator implements Iterator<AutodetectResult> {
+
+        private static final Logger logger = LogManager.getLogger(AutodetectResultIterator.class);
 
         private final InputStream in;
         private final XContentParser parser;

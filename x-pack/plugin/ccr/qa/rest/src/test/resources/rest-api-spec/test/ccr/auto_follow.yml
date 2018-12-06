@@ -1,0 +1,54 @@
+---
+"Test put and delete auto follow pattern":
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info: {}
+
+  - set: {nodes.$master.transport_address: local_ip}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.remote.local.seeds: $local_ip
+        flat_settings: true
+
+  - match: {transient: {cluster.remote.local.seeds: $local_ip}}
+
+  - do:
+      ccr.put_auto_follow_pattern:
+        name: my_pattern
+        body:
+          remote_cluster: local
+          leader_index_patterns: ['logs-*']
+          max_outstanding_read_requests: 2
+  - is_true: acknowledged
+
+  - do:
+      ccr.get_auto_follow_pattern:
+        name: my_pattern
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
+
+  - do:
+      ccr.get_auto_follow_pattern: {}
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
+
+  - do:
+      ccr.delete_auto_follow_pattern:
+        name: my_pattern
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      ccr.get_auto_follow_pattern:
+        name: my_pattern

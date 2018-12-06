@@ -16,10 +16,6 @@
         }
       },
       "params": {
-        "include_type_name": {
-          "type" : "string",
-          "description" : "Whether to add the type name to the response"
-        },
         "analyzer": {
           "type" : "string",
           "description" : "The analyzer to use for the query string"
@@ -57,6 +53,10 @@
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        },
+        "ignore_throttled": {
+          "type" : "boolean",
+          "description" : "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
         },
         "allow_no_indices": {
             "type" : "boolean",
@@ -105,11 +105,11 @@
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },
@@ -182,6 +182,11 @@
           "type" : "number",
           "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
           "default" : 128
+        },
+        "rest_total_hits_as_int" : {
+          "type" : "boolean",
+          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+          "default" : false
         }
       }
     },

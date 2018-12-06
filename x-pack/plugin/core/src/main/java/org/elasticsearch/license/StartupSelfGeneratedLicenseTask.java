@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.util.UUID;
 
 public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
+    private static final Logger logger = LogManager.getLogger(StartupSelfGeneratedLicenseTask.class);
 
     /**
      * Max number of nodes licensed by generated trial license
@@ -31,13 +32,11 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     private final Settings settings;
     private final Clock clock;
     private final ClusterService clusterService;
-    private final Logger logger;
 
     public StartupSelfGeneratedLicenseTask(Settings settings, Clock clock, ClusterService clusterService) {
         this.settings = settings;
         this.clock = clock;
         this.clusterService = clusterService;
-        this.logger = Loggers.getLogger(getClass(), settings);
     }
 
     @Override

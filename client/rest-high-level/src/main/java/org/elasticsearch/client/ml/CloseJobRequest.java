@@ -114,7 +114,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         this.timeout = timeout;
     }
 
-    public Boolean isForce() {
+    public Boolean getForce() {
         return force;
     }
 
@@ -129,16 +129,16 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         this.force = force;
     }
 
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return this.allowNoJobs;
     }
 
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
-     * This includes `_all` string or when no jobs have been specified
+     * This includes {@code _all} string or when no jobs have been specified
      *
-     * @param allowNoJobs When {@code true} ignore if wildcard or `_all` matches no jobs. Defaults to {@code true}
+     * @param allowNoJobs When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;

@@ -1,18 +1,23 @@
-[[java-rest-high-x-pack-ml-get-records]]
+--
+:api: get-records 
+:request: GetRecordsRequest
+:response: GetRecordsResponse
+--
+[id="{upid}-{api}"]
 === Get Records API
 
 The Get Records API retrieves one or more record results.
-It accepts a `GetRecordsRequest` object and responds
-with a `GetRecordsResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-get-records-request]]
+[id="{upid}-{api}-request"]
 ==== Get Records Request
 
-A `GetRecordsRequest` object gets created with an existing non-null `jobId`.
+A +{request}+ object gets created with an existing non-null `jobId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
@@ -21,93 +26,57 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-desc]
+include-tagged::{doc-tests-file}[{api}-desc]
 --------------------------------------------------
 <1> If `true`, the records are sorted in descending order. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-end]
+include-tagged::{doc-tests-file}[{api}-end]
 --------------------------------------------------
 <1> Records with timestamps earlier than this time will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-exclude-interim]
+include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
 <1> If `true`, interim results will be excluded. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-page]
+include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
 <1> The page parameters `from` and `size`. `from` specifies the number of records to skip.
 `size` specifies the maximum number of records to get. Defaults to `0` and `100` respectively.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-record-score]
+include-tagged::{doc-tests-file}[{api}-record-score]
 --------------------------------------------------
 <1> Records with record_score greater or equal than this value will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-sort]
+include-tagged::{doc-tests-file}[{api}-sort]
 --------------------------------------------------
 <1> The field to sort records on. Defaults to `record_score`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-start]
+include-tagged::{doc-tests-file}[{api}-start]
 --------------------------------------------------
 <1> Records with timestamps on or after this time will be returned.
 
-[[java-rest-high-x-pack-ml-get-records-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-execute]
---------------------------------------------------
-
-
-[[java-rest-high-x-pack-ml-get-records-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-execute-async]
---------------------------------------------------
-<1> The `GetRecordsRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back with the `onResponse` method
-if the execution is successful or the `onFailure` method if the execution
-failed.
-
-A typical listener for `GetRecordsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-snapshot-ml-get-records-response]]
+[id="{upid}-{api}-response"]
 ==== Get Records Response
 
-The returned `GetRecordsResponse` contains the requested records:
+The returned +{response}+ contains the requested records:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The count of records that were matched
 <2> The records retrieved

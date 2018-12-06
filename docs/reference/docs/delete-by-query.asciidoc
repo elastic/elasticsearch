@@ -147,7 +147,7 @@ and `scroll`.
 Sending the `refresh` will refresh all shards involved in the delete by query
 once the request completes. This is different than the Delete API's `refresh`
 parameter which causes just the shard that received the delete request
-to be refreshed.
+to be refreshed. Also unlike the Delete API it does not support `wait_for`.
 
 If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`
@@ -277,7 +277,7 @@ The number of requests per second effectively executed during the delete by quer
 
 `throttled_until_millis`::
 
-This field should always be equal to zero in a delete by query response. It only
+This field should always be equal to zero in a `_delete_by_query` response. It only
 has meaning when using the <<docs-delete-by-query-task-api, Task API>>, where it
 indicates the next time (in milliseconds since epoch) a throttled request will be
 executed again in order to conform to `requests_per_second`.
@@ -304,6 +304,7 @@ You can fetch the status of any running delete-by-query requests with the
 GET _tasks?detailed=true&actions=*/delete/byquery
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 The responses looks like:
 
@@ -344,9 +345,7 @@ The responses looks like:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
-
+// TESTRESPONSE
 <1> this object contains the actual status. It is just like the response json
 with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
@@ -357,10 +356,9 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/task_id
+GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -375,16 +373,15 @@ you to delete that document.
 [[docs-delete-by-query-cancel-task-api]]
 === Works with the Cancel Task API
 
-Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
+Any Delete By Query can be canceled using the <<tasks,task cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id/_cancel
+POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
-// TEST[s/task_id/node_id:1/]
 // CONSOLE
 
-The `task_id` can be found using the tasks API above.
+The task ID can be found using the <<tasks,tasks API>>.
 
 Cancellation should happen quickly but might take a few seconds. The task status
 API above will continue to list the task until it is wakes to cancel itself.
@@ -399,12 +396,11 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/task_id/_rethrottle?requests_per_second=-1
+POST _delete_by_query/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
-// TEST[s/task_id/node_id:1/]
 // CONSOLE
 
-The `task_id` can be found using the tasks API above.
+The task ID can be found using the <<tasks,tasks API>>.
 
 Just like when setting it on the `_delete_by_query` API `requests_per_second`
 can be either `-1` to disable throttling or any decimal number
@@ -487,7 +483,10 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 {
   "hits": {
-    "total": 0
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    }
   }
 }
 ----------------------------------------------------------------
@@ -541,7 +540,10 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 {
   "hits": {
-    "total": 0
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    }
   }
 }
 ----------------------------------------------------------------

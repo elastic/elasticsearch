@@ -48,21 +48,22 @@ teardown:
       cluster.get_settings:
         include_defaults: true
 
-  - set: { defaults.search.remote.my_remote_cluster.seeds.0: remote_ip }
+  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
 
   - do:
       cluster.put_settings:
         flat_settings: true
         body:
           transient:
-            search.remote.test_remote_cluster.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {search.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   # we do another search here since this will enforce the connection to be established
   # otherwise the cluster might not have been connected yet.
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
   - do:

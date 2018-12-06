@@ -19,36 +19,43 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SearchHitsTests extends ESTestCase {
-
+public class SearchHitsTests extends AbstractStreamableTestCase<SearchHits> {
     public static SearchHits createTestItem() {
         int searchHits = randomIntBetween(0, 5);
         SearchHit[] hits = new SearchHit[searchHits];
         for (int i = 0; i < searchHits; i++) {
             hits[i] = SearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
-        long totalHits = frequently() ? TestUtil.nextLong(random(), 0, Long.MAX_VALUE) : -1;
+        long totalHits = TestUtil.nextLong(random(), 0, Long.MAX_VALUE);
+        TotalHits.Relation relation = randomFrom(TotalHits.Relation.values());
         float maxScore = frequently() ? randomFloat() : Float.NaN;
-        return new SearchHits(hits, totalHits, maxScore);
+
+        return new SearchHits(hits, frequently() ? new TotalHits(totalHits, relation) : null, maxScore);
+    }
+
+    @Override
+    protected SearchHits createBlankInstance() {
+        return new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+    }
+
+    @Override
+    protected SearchHits createTestInstance() {
+        return createTestItem();
     }
 
     public void testFromXContent() throws IOException {
@@ -98,22 +105,4 @@ public class SearchHitsTests extends ESTestCase {
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, true), xcontentType);
     }
-
-    public void testToXContent() throws IOException {
-        SearchHit[] hits = new SearchHit[] {
-                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()) };
-
-        long totalHits = 1000;
-        float maxScore = 1.5f;
-        SearchHits searchHits = new SearchHits(hits, totalHits, maxScore);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        assertEquals("{\"hits\":{\"total\":1000,\"max_score\":1.5," +
-                "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":\"-Infinity\"},"+
-                          "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":\"-Infinity\"}]}}", Strings.toString(builder));
-    }
-
 }

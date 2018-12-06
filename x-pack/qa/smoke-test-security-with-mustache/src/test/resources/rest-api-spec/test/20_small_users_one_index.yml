@@ -62,7 +62,7 @@ teardown:
         ignore: 404
 
 ---
-"Test shared index seperating user by using DLS role query with user's username":
+"Test shared index separating user by using DLS role query with user's username":
   - do:
       xpack.security.put_role:
         name: "small_companies_role"
@@ -114,6 +114,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -124,13 +125,14 @@ teardown:
       headers:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
   - match: { hits.hits.0._source.user.username: john}
 
 ---
-"Test shared index seperating user by using DLS role query with user's metadata":
+"Test shared index separating user by using DLS role query with user's metadata":
   - do:
       xpack.security.put_role:
         name: "small_companies_role"
@@ -182,6 +184,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -192,6 +195,7 @@ teardown:
       headers:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}

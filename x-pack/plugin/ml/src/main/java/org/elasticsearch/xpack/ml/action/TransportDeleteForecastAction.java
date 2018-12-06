@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -73,8 +72,8 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         EnumSet.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED);
 
     @Inject
-    public TransportDeleteForecastAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, DeleteForecastAction.NAME, transportService, actionFilters, DeleteForecastAction.Request::new);
+    public TransportDeleteForecastAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(DeleteForecastAction.NAME, transportService, actionFilters, DeleteForecastAction.Request::new);
         this.client = client;
     }
 
@@ -211,6 +210,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
         QueryBuilder query = QueryBuilders.boolQuery().filter(innerBoolQuery);
         request.setQuery(query);
+        request.setRefresh(true);
         return request;
     }
 }

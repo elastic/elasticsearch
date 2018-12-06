@@ -8,25 +8,28 @@ package org.elasticsearch.xpack.security.authc.support;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -43,21 +46,20 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.rela
  * This class loads and monitors the file defining the mappings of DNs to internal ES Roles.
  */
 public class DnRoleMapper implements UserRoleMapper {
+    private static final Logger logger = LogManager.getLogger(DnRoleMapper.class);
 
-    protected final Logger logger;
     protected final RealmConfig config;
 
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
     private final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
-    private volatile Map<DN, Set<String>> dnRoles;
+    private volatile Map<String, List<String>> dnRoles;
 
     public DnRoleMapper(RealmConfig config, ResourceWatcherService watcherService) {
         this.config = config;
-        this.logger = config.logger(getClass());
 
-        useUnmappedGroupsAsRoles = DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.get(config.settings());
-        file = resolveFile(config.settings(), config.env());
+        useUnmappedGroupsAsRoles = config.getSetting(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
+        file = resolveFile(config);
         dnRoles = parseFileLenient(file, logger, config.type(), config.name());
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
@@ -77,9 +79,9 @@ public class DnRoleMapper implements UserRoleMapper {
         listeners.add(Objects.requireNonNull(listener, "listener cannot be null"));
     }
 
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.get(settings);
-        return XPackPlugin.resolveConfigFile(env, location);
+    public static Path resolveFile(RealmConfig realmConfig) {
+        String location = realmConfig.getSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING);
+        return XPackPlugin.resolveConfigFile(realmConfig.env(), location);
     }
 
     /**
@@ -87,7 +89,7 @@ public class DnRoleMapper implements UserRoleMapper {
      * logging the error and skipping/removing all mappings. This is aligned with how we handle other auto-loaded files
      * in security.
      */
-    public static Map<DN, Set<String>> parseFileLenient(Path path, Logger logger, String realmType, String realmName) {
+    public static Map<String, List<String>> parseFileLenient(Path path, Logger logger, String realmType, String realmName) {
         try {
             return parseFile(path, logger, realmType, realmName, false);
         } catch (Exception e) {
@@ -98,7 +100,7 @@ public class DnRoleMapper implements UserRoleMapper {
         }
     }
 
-    public static Map<DN, Set<String>> parseFile(Path path, Logger logger, String realmType, String realmName, boolean strict) {
+    public static Map<String, List<String>> parseFile(Path path, Logger logger, String realmType, String realmName, boolean strict) {
 
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
@@ -149,7 +151,10 @@ public class DnRoleMapper implements UserRoleMapper {
 
             logger.debug("[{}] role mappings found in file [{}] for realm [{}/{}]", dnToRoles.size(), path.toAbsolutePath(), realmType,
                     realmName);
-            return unmodifiableMap(dnToRoles);
+            Map<String, List<String>> normalizedMap = dnToRoles.entrySet().stream().collect(Collectors.toMap(
+                entry -> entry.getKey().toNormalizedString(),
+                entry -> Collections.unmodifiableList(new ArrayList<>(entry.getValue()))));
+            return unmodifiableMap(normalizedMap);
         } catch (IOException | SettingsException e) {
             throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" +
                     path.toAbsolutePath() + "]", e);
@@ -176,8 +181,9 @@ public class DnRoleMapper implements UserRoleMapper {
         Set<String> roles = new HashSet<>();
         for (String groupDnString : groupDns) {
             DN groupDn = dn(groupDnString);
-            if (dnRoles.containsKey(groupDn)) {
-                roles.addAll(dnRoles.get(groupDn));
+            String normalizedGroupDn = groupDn.toNormalizedString();
+            if (dnRoles.containsKey(normalizedGroupDn)) {
+                roles.addAll(dnRoles.get(normalizedGroupDn));
             } else if (useUnmappedGroupsAsRoles) {
                 roles.add(relativeName(groupDn));
             }
@@ -187,14 +193,14 @@ public class DnRoleMapper implements UserRoleMapper {
                     groupDns, file.getFileName(), config.type(), config.name());
         }
 
-        DN userDn = dn(userDnString);
-        Set<String> rolesMappedToUserDn = dnRoles.get(userDn);
+        String normalizedUserDn = dn(userDnString).toNormalizedString();
+        List<String> rolesMappedToUserDn = dnRoles.get(normalizedUserDn);
         if (rolesMappedToUserDn != null) {
             roles.addAll(rolesMappedToUserDn);
         }
         if (logger.isDebugEnabled()) {
             logger.debug("the roles [{}], are mapped from the user [{}] using file [{}] for realm [{}/{}]",
-                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, userDnString, file.getFileName(),
+                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, normalizedUserDn, file.getFileName(),
                     config.type(), config.name());
         }
         return roles;

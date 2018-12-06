@@ -156,7 +156,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery2() throws IOException {
@@ -166,7 +166,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        \"" + GEO_POINT_FIELD_NAME + "\":[-70, 40]\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery3() throws IOException {
@@ -176,7 +176,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        \"" + GEO_POINT_FIELD_NAME + "\":\"40, -70\"\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery4() throws IOException {
@@ -186,7 +186,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        \"" + GEO_POINT_FIELD_NAME + "\":\"drn5x1g8cu2y\"\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        GeoPoint geoPoint = GeoPoint.fromGeohash("drn5x1g8cu2y");
+        assertGeoDistanceRangeQuery(query, geoPoint.getLat(), geoPoint.getLon(), 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery5() throws IOException {
@@ -200,7 +201,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery6() throws IOException {
@@ -214,7 +215,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery7() throws IOException {
@@ -227,7 +228,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "      }\n" +
                 "  }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 0.012, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.DEFAULT);
     }
 
     public void testParsingAndToQuery8() throws IOException {
@@ -240,7 +241,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.KILOMETERS);
+        assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.DEFAULT);
     }
 
     public void testParsingAndToQuery9() throws IOException {
@@ -254,7 +255,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery10() throws IOException {
@@ -268,7 +269,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery11() throws IOException {
@@ -281,7 +282,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery12() throws IOException {
@@ -295,12 +296,16 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
-    private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
+    private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit)
+            throws IOException {
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        // TODO: what can we check?
+        // The parsedQuery contains IndexOrDocValuesQuery, which wraps LatLonPointDistanceQuery which in turn has default visibility,
+        // so we cannot access its fields directly to check and have to use toString() here instead.
+        assertEquals(parsedQuery.toString(),
+            "mapped_geo_point:" + lat + "," + lon + " +/- " + distanceUnit.toMeters(distance) + " meters");
     }
 
     public void testFromJson() throws IOException {
@@ -323,14 +328,16 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testIgnoreUnmapped() throws IOException {
-        final GeoDistanceQueryBuilder queryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
+        final GeoDistanceQueryBuilder queryBuilder =
+            new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         queryBuilder.ignoreUnmapped(true);
         QueryShardContext shardContext = createShardContext();
         Query query = queryBuilder.toQuery(shardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
-        final GeoDistanceQueryBuilder failingQueryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
+        final GeoDistanceQueryBuilder failingQueryBuilder =
+            new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));

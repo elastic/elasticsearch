@@ -13,14 +13,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.sql.JDBCType;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Information about a column returned with first query response
+ * Information about a column returned with first query response.
+ * As this represents the response for all drivers, it is important for it to be explicit about
+ * its structure, in particular types (using es_type and jdbc_type instead of DataType).
  */
 public class ColumnInfo implements ToXContentObject {
 
@@ -30,7 +31,7 @@ public class ColumnInfo implements ToXContentObject {
                 objects[0] == null ? "" : (String) objects[0],
                 (String) objects[1],
                 (String) objects[2],
-                objects[3] == null ? null : JDBCType.valueOf((int) objects[3]),
+                objects[3] == null ? null : (int) objects[3],
                 objects[4] == null ? 0 : (int) objects[4]));
 
     private static final ParseField TABLE = new ParseField("table");
@@ -51,10 +52,10 @@ public class ColumnInfo implements ToXContentObject {
     private final String name;
     private final String esType;
     @Nullable
-    private final JDBCType jdbcType;
+    private final Integer jdbcType;
     private final int displaySize;
 
-    public ColumnInfo(String table, String name, String esType, JDBCType jdbcType, int displaySize) {
+    public ColumnInfo(String table, String name, String esType, Integer jdbcType, int displaySize) {
         this.table = table;
         this.name = name;
         this.esType = esType;
@@ -79,7 +80,7 @@ public class ColumnInfo implements ToXContentObject {
         builder.field("name", name);
         builder.field("type", esType);
         if (jdbcType != null) {
-            builder.field("jdbc_type", jdbcType.getVendorTypeNumber());
+            builder.field("jdbc_type", jdbcType);
             builder.field("display_size", displaySize);
         }
         return builder.endObject();
@@ -114,7 +115,7 @@ public class ColumnInfo implements ToXContentObject {
     /**
      * The type of the column as it would be returned by a JDBC driver.
      */
-    public JDBCType jdbcType() {
+    public Integer jdbcType() {
         return jdbcType;
     }
 
@@ -127,14 +128,18 @@ public class ColumnInfo implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ColumnInfo that = (ColumnInfo) o;
         return displaySize == that.displaySize &&
             Objects.equals(table, that.table) &&
             Objects.equals(name, that.name) &&
             Objects.equals(esType, that.esType) &&
-            jdbcType == that.jdbcType;
+            Objects.equals(jdbcType, that.jdbcType);
     }
 
     @Override

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -48,7 +49,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                     Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until stopped state reached started state");
                 case "stopping":
                     throw new AssertionError("waiting until stopping state reached stopped state to start again");
                 case "starting":
@@ -87,7 +88,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                     Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
@@ -193,6 +194,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 builder.endObject();
 
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);

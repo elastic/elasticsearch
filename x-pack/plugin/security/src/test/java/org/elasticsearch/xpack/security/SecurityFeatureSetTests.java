@@ -55,7 +55,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
@@ -77,7 +76,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(true);
         featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
@@ -90,7 +89,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(this.settings);
 
         boolean enabled = randomBoolean();
-        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), enabled);
 
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);

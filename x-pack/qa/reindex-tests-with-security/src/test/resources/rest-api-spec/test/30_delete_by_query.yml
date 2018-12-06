@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Delete_by_query as same user works":
 
@@ -164,6 +167,7 @@
   # We only deleted one doc, presumably the one without the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:
@@ -174,6 +178,7 @@
   # We didn't delete the doc with the hidden field set to "true"
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:
@@ -188,6 +193,7 @@
   # But the doc with the hidden field set to "false" must have been deleted
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:

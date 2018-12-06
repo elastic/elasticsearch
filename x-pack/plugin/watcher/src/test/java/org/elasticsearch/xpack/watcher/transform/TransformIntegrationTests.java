@@ -18,6 +18,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +79,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         return config;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -144,13 +145,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
     }
@@ -191,12 +192,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
     }
 
@@ -235,13 +236,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
     }

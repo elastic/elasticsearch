@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
 
@@ -45,8 +46,8 @@ public abstract class BucketCollector implements Collector {
             // no-op
         }
         @Override
-        public boolean needsScores() {
-            return false;
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
     };
 

@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -46,6 +46,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Query sub phase which pulls data from doc values
@@ -54,7 +55,8 @@ import java.util.Objects;
  */
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DocValueFieldsFetchSubPhase.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -77,6 +79,15 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
+        List<String> noFormatFields = context.docValueFieldsContext().fields().stream().filter(f -> f.format == null).map(f -> f.field)
+                .collect(Collectors.toList());
+        if (noFormatFields.isEmpty() == false) {
+            deprecationLogger.deprecated("There are doc-value fields which are not using a format. The output will "
+                    + "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass "
+                    + "[format={}] with a doc value field in order to opt in for the future behaviour and ease the migration to "
+                    + "7.0: {}", DocValueFieldsContext.USE_DEFAULT_FORMAT, noFormatFields);
+        }
+
         for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
             String field = fieldAndFormat.field;
             MappedFieldType fieldType = context.mapperService().fullName(field);
@@ -84,10 +95,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 final DocValueFormat format;
                 if (fieldAndFormat.format == null) {
-                    DEPRECATION_LOGGER.deprecated("Doc-value field [" + fieldAndFormat.field + "] is not using a format. The output will " +
-                            "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass " +
-                            "[format={}] with the doc value field in order to opt in for the future behaviour and ease the migration to " +
-                            "7.0.", DocValueFieldsContext.USE_DEFAULT_FORMAT);
                     format = null;
                 } else {
                     String formatDesc = fieldAndFormat.format;
@@ -109,7 +116,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         data = indexFieldData.load(subReaderContext);
                         if (format == null) {
-                            scriptValues = data.getScriptValues();
+                            scriptValues = data.getLegacyFieldValues();
                         } else if (indexFieldData instanceof IndexNumericFieldData) {
                             if (((IndexNumericFieldData) indexFieldData).getNumericType().isFloatingPoint()) {
                                 doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();

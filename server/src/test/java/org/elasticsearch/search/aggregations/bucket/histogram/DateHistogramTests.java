@@ -26,7 +26,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -41,7 +41,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
     @Override
     protected DateHistogramAggregationBuilder createTestAggregatorBuilder() {
-        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder("foo");
+        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.interval(randomIntBetween(1, 100000));
@@ -137,7 +137,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
     }
 
     public void testRewriteTimeZone() throws IOException {
-        CompoundDateTimeFormatter format = DateFormatters.forPattern("strict_date_optional_time");
+        DateFormatter format = DateFormatters.forPattern("strict_date_optional_time");
 
         try (Directory dir = newDirectory();
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {

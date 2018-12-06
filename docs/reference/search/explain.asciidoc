@@ -5,8 +5,7 @@ The explain api computes a score explanation for a query and a specific
 document. This can give useful feedback whether a document matches or
 didn't match a specific query.
 
-The `index` and `type` parameters expect a single index and a single
-type respectively.
+Note that a single index must be provided to the `index` parameter.
 
 [float]
 === Usage
@@ -30,62 +29,67 @@ This will yield the following result:
 [source,js]
 --------------------------------------------------
 {
-   "_index": "twitter",
-   "_type": "_doc",
-   "_id": "0",
-   "matched": true,
-   "explanation": {
-      "value": 1.6943599,
-      "description": "weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
-      "details": [
+   "_index":"twitter",
+   "_type":"_doc",
+   "_id":"0",
+   "matched":true,
+   "explanation":{
+      "value":1.6943597,
+      "description":"weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
+      "details":[
          {
-            "value": 1.6943599,
-            "description": "score(doc=0,freq=1.0 = termFreq=1.0\n), product of:",
-            "details": [
+            "value":1.6943597,
+            "description":"score(freq=1.0), product of:",
+            "details":[
                {
-                  "value": 1.3862944,
-                  "description": "idf, computed as log(1 + (docCount - docFreq + 0.5) / (docFreq + 0.5)) from:",
-                  "details": [
-                     {
-                        "value": 1.0,
-                        "description": "docFreq",
-                        "details": []
-                     },
-                     {
-                        "value": 5.0,
-                        "description": "docCount",
-                        "details": []
-                      }
-                   ]
+                  "value":2.2,
+                  "description":"boost",
+                  "details":[]
                },
-                {
-                  "value": 1.2222223,
-                  "description": "tfNorm, computed as (freq * (k1 + 1)) / (freq + k1 * (1 - b + b * fieldLength / avgFieldLength)) from:",
-                  "details": [
+               {
+                  "value":1.3862944,
+                  "description":"idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                  "details":[
                      {
-                        "value": 1.0,
-                        "description": "termFreq=1.0",
-                        "details": []
+                        "value":1,
+                        "description":"n, number of documents containing term",
+                        "details":[]
                      },
                      {
-                        "value": 1.2,
-                        "description": "parameter k1",
-                        "details": []
+                        "value":5,
+                        "description":"N, total number of documents with field",
+                        "details":[]
+                     }
+                  ]
+               },
+               {
+                  "value":0.5555555,
+                  "description":"tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                  "details":[
+                     {
+                        "value":1.0,
+                        "description":"freq, occurrences of term within document",
+                        "details":[]
                      },
                      {
-                        "value": 0.75,
-                        "description": "parameter b",
-                        "details": []
+                        "value":1.2,
+                        "description":"k1, term saturation parameter",
+                        "details":[]
                      },
                      {
-                        "value": 5.4,
-                        "description": "avgFieldLength",
-                        "details": []
+                        "value":0.75,
+                        "description":"b, length normalization parameter",
+                        "details":[]
                      },
                      {
-                        "value": 3.0,
-                        "description": "fieldLength",
-                        "details": []
+                        "value":3.0,
+                        "description":"dl, length of field",
+                        "details":[]
+                     },
+                     {
+                        "value":5.4,
+                        "description":"avgdl, average length of field",
+                        "details":[]
                      }
                   ]
                }
@@ -118,7 +122,7 @@ This will yield the same result as the previous request.
 `_source`::
 
     Set to `true` to retrieve the `_source` of the document explained. You can also
-    retrieve part of the document by using `_source_include` & `_source_exclude` (see <<get-source-filtering,Get API>> for more details)
+    retrieve part of the document by using `_source_includes` & `_source_excludes` (see <<get-source-filtering,Get API>> for more details)
 
 `stored_fields`::
     Allows to control which stored fields to return as part of the

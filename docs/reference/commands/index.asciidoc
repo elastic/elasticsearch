@@ -12,6 +12,7 @@ tasks from the command line:
 * <<migrate-tool>>
 * <<saml-metadata>>
 * <<setup-passwords>>
+* <<shard-tool>>
 * <<syskeygen>>
 * <<users-command>>
 
@@ -22,5 +23,6 @@ include::certutil.asciidoc[]
 include::migrate-tool.asciidoc[]
 include::saml-metadata.asciidoc[]
 include::setup-passwords.asciidoc[]
+include::shard-tool.asciidoc[]
 include::syskeygen.asciidoc[]
 include::users-command.asciidoc[]

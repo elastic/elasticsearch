@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -69,6 +71,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -196,7 +204,7 @@ setup:
 "Validation failures":
 
   - do:
-      catch: /Could not find a \[numeric\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
+      catch: /Could not find a \[numeric\] or \[date\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.rollup.put_job:

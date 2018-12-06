@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
@@ -35,9 +36,9 @@ import java.util.Collection;
  */
 public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
-    final SearchScript script;
+    final AggregationScript script;
 
-    public ScriptDoubleValues(SearchScript script) {
+    public ScriptDoubleValues(AggregationScript script) {
         super();
         this.script = script;
     }
@@ -45,7 +46,7 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
     @Override
     public boolean advanceExact(int target) throws IOException {
         script.setDocument(target);
-        final Object value = script.run();
+        final Object value = script.execute();
 
         if (value == null) {
             return false;
@@ -95,6 +96,8 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             return ((ReadableInstant) o).getMillis();
         } else if (o instanceof ZonedDateTime) {
             return ((ZonedDateTime) o).toInstant().toEpochMilli();
+        } else if (o instanceof JodaCompatibleZonedDateTime) {
+            return ((JodaCompatibleZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean
@@ -107,7 +110,7 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         script.setScorer(scorer);
     }
 }

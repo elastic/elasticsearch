@@ -19,7 +19,10 @@
 
 package org.elasticsearch.discovery.single;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,9 +39,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -46,7 +47,9 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * A discovery implementation where the only member of the cluster is the local node.
  */
 public class SingleNodeDiscovery extends AbstractLifecycleComponent implements Discovery {
+    private static final Logger logger = LogManager.getLogger(SingleNodeDiscovery.class);
 
+    private final ClusterName clusterName;
     protected final TransportService transportService;
     private final ClusterApplier clusterApplier;
     private volatile ClusterState clusterState;
@@ -54,39 +57,32 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
                                final MasterService masterService, final ClusterApplier clusterApplier) {
         super(Objects.requireNonNull(settings));
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = Objects.requireNonNull(transportService);
         masterService.setClusterStateSupplier(() -> clusterState);
         this.clusterApplier = clusterApplier;
     }
 
     @Override
-    public synchronized void publish(final ClusterChangedEvent event,
+    public synchronized void publish(final ClusterChangedEvent event, ActionListener<Void> publishListener,
                                      final AckListener ackListener) {
         clusterState = event.state();
         ackListener.onCommit(TimeValue.ZERO);
-        CountDownLatch latch = new CountDownLatch(1);
 
-        ClusterApplyListener listener = new ClusterApplyListener() {
+        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, new ClusterApplyListener() {
             @Override
             public void onSuccess(String source) {
-                latch.countDown();
+                publishListener.onResponse(null);
                 ackListener.onNodeAck(transportService.getLocalNode(), null);
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                latch.countDown();
+                publishListener.onFailure(e);
                 ackListener.onNodeAck(transportService.getLocalNode(), e);
                 logger.warn(() -> new ParameterizedMessage("failed while applying cluster state locally [{}]", event.source()), e);
             }
-        };
-        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        });
     }
 
     @Override
@@ -114,7 +110,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     protected ClusterState createInitialState(DiscoveryNode localNode) {
-        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+        ClusterState.Builder builder = ClusterState.builder(clusterName);
         return builder.nodes(DiscoveryNodes.builder().add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(localNode.getId())
@@ -130,7 +126,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    protected void doClose() throws IOException {
+    protected void doClose() {
 
     }
 

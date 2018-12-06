@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -119,8 +119,8 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
 
     @Override
-    public Optional<Integer> forcedSearchSize() {
-        return Optional.of(k);
+    public OptionalInt forcedSearchSize() {
+        return OptionalInt.of(k);
     }
 
     @Override
@@ -130,9 +130,13 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
         int unratedResults = 0;
         for (RatedSearchHit hit : ratedHits) {
-            // unknownDocRating might be null, in which case unrated docs will be ignored in the dcg calculation.
-            // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
-            ratingsInSearchHits.add(hit.getRating().orElse(unknownDocRating));
+            if (hit.getRating().isPresent()) {
+                ratingsInSearchHits.add(hit.getRating().getAsInt());
+            } else {
+                // unknownDocRating might be null, in which case unrated docs will be ignored in the dcg calculation.
+                // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
+                ratingsInSearchHits.add(unknownDocRating);
+            }
             if (hit.getRating().isPresent() == false) {
                 unratedResults++;
             }

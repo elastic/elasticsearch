@@ -11,12 +11,12 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -73,7 +73,7 @@ public class MockWebServer implements Closeable {
      */
     public MockWebServer(SSLContext sslContext, boolean needClientAuth) {
         this.needClientAuth = needClientAuth;
-        this.logger = ESLoggerFactory.getLogger(this.getClass());
+        this.logger = LogManager.getLogger(this.getClass());
         this.sslContext = sslContext;
     }
 
@@ -247,10 +247,7 @@ public class MockWebServer implements Closeable {
         latches.forEach(CountDownLatch::countDown);
 
         if (server.getExecutor() instanceof ExecutorService) {
-            try {
-                terminate((ExecutorService) server.getExecutor());
-            } catch (InterruptedException e) {
-            }
+            terminate((ExecutorService) server.getExecutor());
         }
         server.stop(0);
     }

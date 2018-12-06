@@ -318,6 +318,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitPredicated(SqlBaseParser.PredicatedContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -423,13 +430,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitDereference(SqlBaseParser.DereferenceContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -452,6 +452,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -494,6 +501,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitNullLiteral(SqlBaseParser.NullLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -564,6 +578,20 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitBooleanValue(SqlBaseParser.BooleanValueContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInterval(SqlBaseParser.IntervalContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIntervalField(SqlBaseParser.IntervalFieldContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

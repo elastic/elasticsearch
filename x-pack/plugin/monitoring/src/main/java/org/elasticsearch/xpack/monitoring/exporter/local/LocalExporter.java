@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -26,12 +27,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -80,7 +80,7 @@ import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTOR
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener {
 
-    private static final Logger logger = Loggers.getLogger(LocalExporter.class);
+    private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
     public static final String TYPE = "local";
 
@@ -138,11 +138,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     @Override
-    public LocalBulk openBulk() {
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         if (state.get() != State.RUNNING) {
-            return null;
+            listener.onResponse(null);
+        } else {
+            listener.onResponse(resolveBulk(clusterService.state(), false));
         }
-        return resolveBulk(clusterService.state(), false);
     }
 
     @Override
@@ -158,13 +159,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     LocalBulk resolveBulk(ClusterState clusterState, boolean clusterStateChange) {
         if (clusterService.localNode() == null || clusterState == null) {
-            return null;
-        }
-
-        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we think may not have .monitoring-es-
-            // indices but they may not have been restored from the cluster state on disk
-            logger.debug("waiting until gateway has recovered from disk");
             return null;
         }
 

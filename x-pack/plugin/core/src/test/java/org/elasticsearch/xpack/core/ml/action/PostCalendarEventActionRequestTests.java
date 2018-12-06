@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests;
 
@@ -63,7 +62,6 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
 
     public void testParseRequest_throwsIfCalendarIdsAreDifferent() throws IOException {
         PostCalendarEventsAction.Request sourceRequest = createTestInstance("foo");
-        PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request("bar", sourceRequest.getScheduledEvents());
 
         StringBuilder requestString = new StringBuilder();
         requestString.append("{\"events\": [");

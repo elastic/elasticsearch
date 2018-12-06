@@ -19,9 +19,9 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -44,43 +44,32 @@ import java.util.stream.Stream;
  * 67.81.244.11:9305
  * 67.81.244.15:9400
  */
-public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+public class FileBasedUnicastHostsProvider implements UnicastHostsProvider {
+
+    private static final Logger logger = LogManager.getLogger(FileBasedUnicastHostsProvider.class);
 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
     private final Path unicastHostsFilePath;
-    private final Path legacyUnicastHostsFilePath;
 
-    public FileBasedUnicastHostsProvider(Settings settings, Path configFile) {
-        super(settings);
+    public FileBasedUnicastHostsProvider(Path configFile) {
         this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
-        this.legacyUnicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
     }
 
     private List<String> getHostsList() {
         if (Files.exists(unicastHostsFilePath)) {
-            return readFileContents(unicastHostsFilePath);
-        }
-
-        if (Files.exists(legacyUnicastHostsFilePath)) {
-            deprecationLogger.deprecated("Found dynamic hosts list at [{}] but this path is deprecated. This list should be at [{}] " +
-                "instead. Support for the deprecated path will be removed in future.", legacyUnicastHostsFilePath, unicastHostsFilePath);
-            return readFileContents(legacyUnicastHostsFilePath);
+            try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
+                return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
+                    .collect(Collectors.toList());
+            } catch (IOException e) {
+                logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+                return Collections.emptyList();
+            }
         }
 
         logger.warn("expected, but did not find, a dynamic hosts list at [{}]", unicastHostsFilePath);
 
         return Collections.emptyList();
-    }
-
-    private List<String> readFileContents(Path path) {
-        try (Stream<String> lines = Files.lines(path)) {
-            return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
-                .collect(Collectors.toList());
-        } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
-            return Collections.emptyList();
-        }
     }
 
     @Override

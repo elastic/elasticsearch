@@ -73,11 +73,6 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     }
 
     @Override
-    public boolean doesBucketExist(final String bucket) {
-        return this.bucket.equalsIgnoreCase(bucket);
-    }
-
-    @Override
     public boolean doesObjectExist(final String bucketName, final String objectName) throws SdkClientException {
         assertThat(bucketName, equalTo(bucket));
         return blobs.containsKey(objectName);

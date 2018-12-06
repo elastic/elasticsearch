@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A response containing the requested buckets
+ * A response containing the requested records
  */
 public class GetRecordsResponse extends AbstractResultResponse<AnomalyRecord> {
 
@@ -47,8 +47,8 @@ public class GetRecordsResponse extends AbstractResultResponse<AnomalyRecord> {
         return PARSER.parse(parser, null);
     }
 
-    GetRecordsResponse(List<AnomalyRecord> buckets, long count) {
-        super(RECORDS, buckets, count);
+    GetRecordsResponse(List<AnomalyRecord> records, long count) {
+        super(RECORDS, records, count);
     }
 
     /**

@@ -29,8 +29,6 @@ include::setup/bootstrap-checks-xes.asciidoc[]
 :edit_url:
 include::upgrade.asciidoc[]
 
-include::migration/index.asciidoc[]
-
 include::api-conventions.asciidoc[]
 
 include::docs.asciidoc[]
@@ -57,11 +55,15 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::ilm/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
 include::rollup/index.asciidoc[]
+
+include::frozen-indices.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 
@@ -75,6 +77,8 @@ include::testing.asciidoc[]
 include::glossary.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
+
+include::migration/index.asciidoc[]
 
 include::release-notes.asciidoc[]
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.junit.listeners;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
@@ -78,9 +78,9 @@ public class LoggingListener extends RunListener {
      */
     private static Logger resolveLogger(String loggerName) {
         if (loggerName.equalsIgnoreCase("_root")) {
-            return ESLoggerFactory.getRootLogger();
+            return LogManager.getRootLogger();
         }
-        return Loggers.getLogger(loggerName);
+        return LogManager.getLogger(loggerName);
     }
 
     /**

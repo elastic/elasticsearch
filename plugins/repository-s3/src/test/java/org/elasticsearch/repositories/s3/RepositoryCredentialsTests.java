@@ -19,10 +19,11 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -57,28 +58,22 @@ public class RepositoryCredentialsTests extends ESTestCase {
                 this.credentials = credentials;
             }
 
-            @Override
-            public boolean doesBucketExist(String bucketName) {
-                return true;
-            }
         }
 
         static final class ProxyS3Service extends S3Service {
-
-            ProxyS3Service(Settings settings) {
-                super(settings);
-            }
-
+            
+            private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
+            
             @Override
-            AmazonS3 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-                final AmazonS3 client = super.buildClient(credentials, configuration);
-                return new ClientAndCredentials(client, credentials);
+            AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+                final AmazonS3 client = super.buildClient(clientSettings);
+                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings));
             }
 
         }
 
         ProxyS3RepositoryPlugin(Settings settings) {
-            super(settings, new ProxyS3Service(settings));
+            super(settings, new ProxyS3Service());
         }
 
         @Override
@@ -108,7 +103,6 @@ public class RepositoryCredentialsTests extends ESTestCase {
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         // repository settings for credentials override node secure settings
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-                .put(S3Repository.CLIENT_NAME.getKey(), randomFrom(clientNames))
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret").build());
         try (S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(settings);
@@ -164,11 +158,13 @@ public class RepositoryCredentialsTests extends ESTestCase {
         secureSettings.setString("s3.client." + clientName + ".secret_key", "secure_aws_secret");
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         // repository settings
-        final Settings.Builder builder = Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName);
+        final Settings.Builder builder = Settings.builder();
         final boolean repositorySettings = randomBoolean();
         if (repositorySettings) {
             builder.put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key");
             builder.put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
+        } else {
+            builder.put(S3Repository.CLIENT_NAME.getKey(), clientName);
         }
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", builder.build());
         try (S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(settings);
@@ -203,8 +199,13 @@ public class RepositoryCredentialsTests extends ESTestCase {
             try (AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
                 final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) s3Ref.client()).credentials
                         .getCredentials();
-                assertThat(newCredentials.getAWSAccessKeyId(), is("new_secret_aws_key"));
-                assertThat(newCredentials.getAWSSecretKey(), is("new_secret_aws_secret"));
+                if (repositorySettings) {
+                    assertThat(newCredentials.getAWSAccessKeyId(), is("insecure_aws_key"));
+                    assertThat(newCredentials.getAWSSecretKey(), is("insecure_aws_secret"));
+                } else {
+                    assertThat(newCredentials.getAWSAccessKeyId(), is("new_secret_aws_key"));
+                    assertThat(newCredentials.getAWSSecretKey(), is("new_secret_aws_secret"));
+                }
             }
         }
         if (repositorySettings) {

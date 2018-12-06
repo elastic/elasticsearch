@@ -33,8 +33,9 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,13 +60,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class HttpClient extends AbstractComponent implements Closeable {
+public class HttpClient implements Closeable {
 
     private static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
     // picking a reasonable high value here to allow for setups with lots of watch executions or many http inputs/actions
     // this is also used as the value per route, if you are connecting to the same endpoint a lot, which is likely, when
     // you are querying a remote Elasticsearch cluster
     private static final int MAX_CONNECTIONS = 500;
+    private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;
@@ -75,11 +77,10 @@ public class HttpClient extends AbstractComponent implements Closeable {
     private final CryptoService cryptoService;
 
     public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
-        super(settings);
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
-        this.settingsProxy = getProxyFromSettings();
+        this.settingsProxy = getProxyFromSettings(settings);
         this.cryptoService = cryptoService;
 
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
@@ -224,11 +225,11 @@ public class HttpClient extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Creates a HTTP proxy from the system wide settings
+     * Creates an HTTP proxy from the system wide settings
      *
-     * @return A http proxy instance, if no settings are configured this will be a HttpProxy.NO_PROXY instance
+     * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings() {
+    private HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;

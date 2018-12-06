@@ -554,7 +554,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     }
                     double value = distance.doubleValue();
                     return Explanation.match(
-                            (float) score(docId, subQueryScore.getValue()),
+                            (float) score(docId, subQueryScore.getValue().floatValue()),
                             "Function for field " + getFieldName() + ":",
                             func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }

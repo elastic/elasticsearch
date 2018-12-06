@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -42,7 +42,7 @@ import java.util.Objects;
  */
 public class CompositeAggregationCursor implements Cursor {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     public static final String NAME = "c";
 
@@ -168,7 +168,7 @@ public class CompositeAggregationCursor implements Cursor {
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
         if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().get(0);
+            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
             // update after-key with the new value
             if (aggBuilder instanceof CompositeAggregationBuilder) {
                 CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.common.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,8 +33,21 @@ public class ValidationException extends IllegalArgumentException {
      * Add a new validation error to the accumulating validation errors
      * @param error the error to add
      */
-    public void addValidationError(String error) {
+    public void addValidationError(final String error) {
         validationErrors.add(error);
+    }
+
+    /**
+     * Adds validation errors from an existing {@link ValidationException} to
+     * the accumulating validation errors
+     * @param exception the {@link ValidationException} to add errors from
+     */
+    public final void addValidationErrors(final @Nullable ValidationException exception) {
+        if (exception != null) {
+            for (String error : exception.validationErrors()) {
+                addValidationError(error);
+            }
+        }
     }
 
     /**

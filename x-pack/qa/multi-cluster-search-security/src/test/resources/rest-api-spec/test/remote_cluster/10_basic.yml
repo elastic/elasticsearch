@@ -149,6 +149,7 @@ setup:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           aggs:
@@ -165,6 +166,7 @@ setup:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: aliased_test_index
 
   - match: { _shards.total: 3 }
@@ -175,6 +177,7 @@ setup:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: secure_alias
 
   - match: { _shards.total: 2 }
@@ -195,4 +198,4 @@ setup:
               "password": "s3krit",
               "roles" : [ ]
             }
-  - match: { user: { created: false } }
+  - match: { created: false }

@@ -79,6 +79,10 @@ This highlighter can be used on fields with `term_vector` set to
   for things like phrase matches being sorted above term matches when
   highlighting a Boosting Query that boosts phrase matches over term matches
 
+[WARNING]
+The `fvh` highlighter does not support span queries. If you need support for
+span queries, try an alternative highlighter, such as the `unified` highlighter.
+
 [[offsets-strategy]]
 ==== Offsets Strategy
 To create meaningful search snippets from the terms being queried,
@@ -856,7 +860,10 @@ Response:
 {
     ...
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.601195,
         "hits": [
             {
@@ -912,7 +919,10 @@ Response:
 {
     ...
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.601195,
         "hits": [
             {

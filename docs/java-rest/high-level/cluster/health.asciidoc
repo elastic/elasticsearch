@@ -1,16 +1,22 @@
-[[java-rest-high-cluster-health]]
+--
+:api: health
+:request: ClusterHealthRequest
+:response: ClusterHealthResponse
+--
+
+[id="{upid}-{api}"]
 === Cluster Health API
 
 The Cluster Health API allows getting cluster health.
 
-[[java-rest-high-cluster-health-request]]
+[id="{upid}-{api}-request"]
 ==== Cluster Health Request
 
-A `ClusterHealthRequest`:
+A +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 There are no required parameters. By default, the client will check all indices and will not wait
 for any events.
@@ -21,14 +27,14 @@ Indices which should be checked can be passed in the constructor:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-indices-ctr]
+include-tagged::{doc-tests-file}[{api}-request-indices-ctr]
 --------------------------------------------------
 
 Or using the corresponding setter method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-indices-setter]
+include-tagged::{doc-tests-file}[{api}-request-indices-setter]
 --------------------------------------------------
 
 ==== Other parameters
@@ -37,53 +43,53 @@ Other parameters can be passed only through setter methods:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout for the request as a `TimeValue`. Defaults to 30 seconds
 <2> As a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-master-timeout]
+include-tagged::{doc-tests-file}[{api}-request-master-timeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`. Defaults to the same as `timeout`
 <2> As a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-status]
+include-tagged::{doc-tests-file}[{api}-request-wait-status]
 --------------------------------------------------
 <1> The status to wait (e.g. `green`, `yellow`, or `red`). Accepts a `ClusterHealthStatus` value.
 <2> Using predefined method
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-events]
+include-tagged::{doc-tests-file}[{api}-request-wait-events]
 --------------------------------------------------
 <1> The priority of the events to wait for. Accepts a `Priority` value.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-level]
+include-tagged::{doc-tests-file}[{api}-request-level]
 --------------------------------------------------
-<1> The level of detail of the returned health information. Accepts a `ClusterHealthRequest.Level` value.
+<1> The level of detail of the returned health information. Accepts a +{request}.Level+ value.
 Default value is `cluster`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-relocation]
+include-tagged::{doc-tests-file}[{api}-request-wait-relocation]
 --------------------------------------------------
 <1> Wait for 0 relocating shards. Defaults to `false`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-initializing]
+include-tagged::{doc-tests-file}[{api}-request-wait-initializing]
 --------------------------------------------------
 <1> Wait for 0 initializing shards. Defaults to `false`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-nodes]
+include-tagged::{doc-tests-file}[{api}-request-wait-nodes]
 --------------------------------------------------
 <1> Wait for `N` nodes in the cluster. Defaults to `0`
 <2> Using `>=N`, `<=N`, `>N` and `<N` notation
@@ -91,7 +97,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wai
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-active]
+include-tagged::{doc-tests-file}[{api}-request-wait-active]
 --------------------------------------------------
 
 <1> Wait for all shards to be active in the cluster
@@ -99,77 +105,42 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wai
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-local]
+include-tagged::{doc-tests-file}[{api}-request-local]
 --------------------------------------------------
 <1> Non-master node can be used for this request. Defaults to `false`
 
-[[java-rest-high-cluster-health-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-execute]
---------------------------------------------------
-
-[[java-rest-high-cluster-health-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a cluster health request requires both the
-`ClusterHealthRequest` instance and an `ActionListener` instance to be
-passed to the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-execute-async]
---------------------------------------------------
-<1> The `ClusterHealthRequest` to execute and the `ActionListener` to use
-when the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `ClusterHealthResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of a failure. The raised exception is provided as an argument
-
-[[java-rest-high-cluster-health-response]]
+[id="{upid}-{api}-response"]
 ==== Cluster Health Response
 
-The returned `ClusterHealthResponse` contains the next information about the
+The returned +{response}+ contains the next information about the
 cluster:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-general]
+include-tagged::{doc-tests-file}[{api}-response-general]
 --------------------------------------------------
 <1> Name of the cluster
 <2> Cluster status (`green`, `yellow` or `red`)
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-request-status]
+include-tagged::{doc-tests-file}[{api}-response-request-status]
 --------------------------------------------------
 <1> Whether request was timed out while processing
 <2> Status of the request (`OK` or `REQUEST_TIMEOUT`). Other errors will be thrown as exceptions
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-nodes]
+include-tagged::{doc-tests-file}[{api}-response-nodes]
 --------------------------------------------------
 <1> Number of nodes in the cluster
 <2> Number of data nodes in the cluster
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-shards]
+include-tagged::{doc-tests-file}[{api}-response-shards]
 --------------------------------------------------
 <1> Number of active shards
 <2> Number of primary active shards
@@ -181,7 +152,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-sh
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-task]
+include-tagged::{doc-tests-file}[{api}-response-task]
 --------------------------------------------------
 <1> Maximum wait time of all tasks in the queue
 <2> Number of currently pending tasks
@@ -189,18 +160,18 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-ta
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-indices]
+include-tagged::{doc-tests-file}[{api}-response-indices]
 --------------------------------------------------
 <1> Detailed information about indices in the cluster
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-index]
+include-tagged::{doc-tests-file}[{api}-response-index]
 --------------------------------------------------
 <1> Detailed information about a specific index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-shard-details]
+include-tagged::{doc-tests-file}[{api}-response-shard-details]
 --------------------------------------------------
 <1> Detailed information about a specific shard

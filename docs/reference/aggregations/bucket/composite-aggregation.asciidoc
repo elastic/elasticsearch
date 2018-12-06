@@ -1,8 +1,6 @@
 [[search-aggregations-bucket-composite-aggregation]]
 === Composite Aggregation
 
-beta[]
-
 A multi-bucket aggregation that creates composite buckets from different sources.
 
 Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
@@ -21,7 +19,7 @@ a composite bucket.
 PUT /sales
 {
     "mappings": {
-        "docs": {
+        "_doc": {
             "properties": {
                 "product": {
                     "type": "keyword"
@@ -40,7 +38,7 @@ PUT /sales
     }
 }
 
-POST /sales/docs/_bulk?refresh
+POST /sales/_doc/_bulk?refresh
 {"index":{"_id":0}}
 {"product": "mad max", "price": "20", "timestamp": "2017-05-09T14:35"}
 {"index":{"_id":1}}
@@ -348,7 +346,7 @@ GET /_search
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
 
-====== Missing bucket
+==== Missing bucket
 
 By default documents without a value for a given source are ignored.
 It is possible to include them in the response by setting `missing_bucket` to

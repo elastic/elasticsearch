@@ -263,7 +263,10 @@ Which yields:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
@@ -295,27 +298,27 @@ Which yields:
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "field.docCount",
                   "details": []
                 },
                 {
-                  "value": 4.0,
+                  "value": 4,
                   "description": "field.sumDocFreq",
                   "details": []
                 },
                 {
-                  "value": 5.0,
+                  "value": 5,
                   "description": "field.sumTotalTermFreq",
                   "details": []
                 },
                 {
-                  "value": 1.0,
+                  "value": 1,
                   "description": "term.docFreq",
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "term.totalTermFreq",
                   "details": []
                 },
@@ -325,7 +328,7 @@ Which yields:
                   "details": []
                 },
                 {
-                  "value": 3.0,
+                  "value": 3,
                   "description": "doc.length",
                   "details": []
                 }
@@ -437,7 +440,10 @@ GET /index/_search?explain=true
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
@@ -469,27 +475,27 @@ GET /index/_search?explain=true
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "field.docCount",
                   "details": []
                 },
                 {
-                  "value": 4.0,
+                  "value": 4,
                   "description": "field.sumDocFreq",
                   "details": []
                 },
                 {
-                  "value": 5.0,
+                  "value": 5,
                   "description": "field.sumTotalTermFreq",
                   "details": []
                 },
                 {
-                  "value": 1.0,
+                  "value": 1,
                   "description": "term.docFreq",
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "term.totalTermFreq",
                   "details": []
                 },
@@ -499,7 +505,7 @@ GET /index/_search?explain=true
                   "details": []
                 },
                 {
-                  "value": 3.0,
+                  "value": 3,
                   "description": "doc.length",
                   "details": []
                 }

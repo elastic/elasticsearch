@@ -40,7 +40,7 @@ public interface Processor {
     /**
      * Introspect and potentially modify the incoming data.
      */
-    void execute(IngestDocument ingestDocument) throws Exception;
+    IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
     /**
      * Gets the type of a processor

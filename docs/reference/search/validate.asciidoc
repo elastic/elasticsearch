@@ -60,7 +60,7 @@ The query may also be sent in the request body:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query
+GET twitter/_validate/query
 {
   "query" : {
     "bool" : {
@@ -87,7 +87,7 @@ due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query
+GET twitter/_validate/query
 {
   "query": {
     "query_string": {
@@ -110,7 +110,7 @@ about why a query failed:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query?explain=true
+GET twitter/_validate/query?explain=true
 {
   "query": {
     "query_string": {
@@ -150,7 +150,7 @@ For More Like This:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query?rewrite=true
+GET twitter/_validate/query?rewrite=true
 {
   "query": {
     "more_like_this": {
@@ -180,7 +180,7 @@ Response:
       {
          "index": "twitter",
          "valid": true,
-         "explanation": "((user:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_id:2)) #(ConstantScore(_type:tweet))^0.0"
+         "explanation": "((user:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_id:2)) #(ConstantScore(_type:_doc))^0.0"
       }
    ]
 }
@@ -197,7 +197,7 @@ For Fuzzy Queries:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query?rewrite=true&all_shards=true
+GET twitter/_validate/query?rewrite=true&all_shards=true
 {
   "query": {
     "match": {

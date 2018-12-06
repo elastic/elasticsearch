@@ -1,7 +1,7 @@
 :version:               7.0.0-alpha1
 :major-version:         7.x
-:lucene_version:        7.5.0
-:lucene_version_path:   7_5_0
+:lucene_version:        8.0.0
+:lucene_version_path:   8_0_0
 :branch:                master
 :jdk:                   1.8.0_131
 :jdk_major:             8
@@ -11,7 +11,7 @@
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   unreleased
+:release-state:   prerelease
 
 :issue:           https://github.com/elastic/elasticsearch/issues/
 :pull:            https://github.com/elastic/elasticsearch/pull/
@@ -53,6 +53,11 @@ ifeval::["{release-state}"!="unreleased"]
 :matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}
 :rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
 endif::[]
+
+:javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client
+:javadoc-xpack: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack
+:javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
+:javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
 Shared attribute values are pulled from elastic/docs

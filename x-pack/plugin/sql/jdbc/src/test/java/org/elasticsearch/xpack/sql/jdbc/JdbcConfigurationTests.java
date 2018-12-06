@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 
 import java.sql.SQLException;
 import java.util.Properties;
@@ -73,14 +72,39 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
 
-    public void testHttpWithSSLEnabled() throws Exception {
+    public void testHttpWithSSLEnabledFromProperty() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://test?ssl=true");
         assertThat(ci.baseUri().toString(), is("https://test:9200/"));
     }
+    
+    public void testHttpWithSSLEnabledFromPropertyAndDisabledFromProtocol() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://http://test?ssl=true");
+        assertThat(ci.baseUri().toString(), is("https://test:9200/"));
+    }
+    
+    public void testHttpWithSSLEnabledFromProtocol() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://https://test:9200");
+        assertThat(ci.baseUri().toString(), is("https://test:9200/"));
+    }
+    
+    public void testHttpWithSSLEnabledFromProtocolAndProperty() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://https://test:9200?ssl=true");
+        assertThat(ci.baseUri().toString(), is("https://test:9200/"));
+    }
 
-    public void testHttpWithSSLDisabled() throws Exception {
+    public void testHttpWithSSLDisabledFromProperty() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://test?ssl=false");
         assertThat(ci.baseUri().toString(), is("http://test:9200/"));
+    }
+    
+    public void testHttpWithSSLDisabledFromPropertyAndProtocol() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://http://test?ssl=false");
+        assertThat(ci.baseUri().toString(), is("http://test:9200/"));
+    }
+    
+    public void testHttpWithSSLDisabledFromPropertyAndEnabledFromProtocol() throws Exception {
+        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://https://test?ssl=false"));
+        assertEquals("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties", e.getMessage());
     }
 
     public void testTimoutOverride() throws Exception {

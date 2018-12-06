@@ -18,12 +18,56 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryShardContext;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexFieldTypeTests extends FieldTypeTestCase {
+
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new IndexFieldMapper.IndexFieldType();
+    }
+
+    public void testPrefixQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("ind", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("other_ind", null, createContext()));
+    }
+
+    public void testRegexpQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("ind?x", 0, 10, null, createContext()));
+    }
+
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
+    }
+
+    private QueryShardContext createContext() {
+        QueryShardContext context = mock(QueryShardContext.class);
+
+        Index index = new Index("index", "123");
+        when(context.getFullyQualifiedIndex()).thenReturn(index);
+        when(context.index()).thenReturn(index);
+
+        return context;
     }
 }

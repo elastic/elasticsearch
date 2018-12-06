@@ -19,17 +19,30 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.client.migration.IndexUpgradeRequest;
+import org.elasticsearch.client.migration.UpgradeActionRequired;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
-import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This class is used to generate the Java Migration API documentation.
@@ -79,5 +92,67 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
             UpgradeActionRequired actionRequired = entry.getValue(); // <2>
         }
         // end::get-assistance-response
+    }
+
+    public void testUpgrade() throws IOException {
+
+        RestHighLevelClient client = highLevelClient();
+        createIndex("test", Settings.EMPTY);
+
+
+        // tag::upgrade-request
+        IndexUpgradeRequest request = new IndexUpgradeRequest("test"); // <1>
+        // end::upgrade-request
+
+        try {
+
+            // tag::upgrade-execute
+            BulkByScrollResponse response = client.migration().upgrade(request, RequestOptions.DEFAULT);
+            // end::upgrade-execute
+
+        } catch (ElasticsearchStatusException e) {
+            assertThat(e.getMessage(), containsString("cannot be upgraded"));
+        }
+    }
+
+    public void testUpgradeAsync() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        createIndex("test", Settings.EMPTY);
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        // tag::upgrade-async-listener
+        ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::upgrade-async-listener
+
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::upgrade-async-execute
+        client.migration().upgradeAsync(new IndexUpgradeRequest("test"), RequestOptions.DEFAULT, listener); // <1>
+        // end::upgrade-async-execute
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testUpgradeWithTaskApi() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+        // tag::upgrade-task-api
+        IndexUpgradeRequest request = new IndexUpgradeRequest("test");
+
+        TaskSubmissionResponse response = client.migration()
+            .submitUpgradeTask(request, RequestOptions.DEFAULT);
+        String taskId = response.getTask();
+        // end::upgrade-task-api
+        assertThat(taskId, not(isEmptyOrNullString()));
     }
 }

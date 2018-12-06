@@ -108,4 +108,13 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
     public double getSegmentsPerTier() {
         return regularMergePolicy.getSegmentsPerTier();
     }
+
+    public void setDeletesPctAllowed(double deletesPctAllowed) {
+        regularMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        forcedMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+    }
+
+    public double getDeletesPctAllowed() {
+        return regularMergePolicy.getDeletesPctAllowed();
+    }
 }

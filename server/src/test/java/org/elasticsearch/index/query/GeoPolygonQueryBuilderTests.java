@@ -70,7 +70,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         while (shapeBuilder == null) {
             shapeBuilder = RandomShapeGenerator.createShapeWithin(random(), null, ShapeType.POLYGON);
         }
-        JtsGeometry shape = (JtsGeometry) shapeBuilder.build();
+        JtsGeometry shape = (JtsGeometry) shapeBuilder.buildS4J();
         Coordinate[] coordinates = shape.getGeom().getCoordinates();
         ArrayList<GeoPoint> polygonPoints = new ArrayList<>();
         for (Coordinate coord : coordinates) {
@@ -197,8 +197,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     private void assertGeoPolygonQuery(String query) throws IOException {
         QueryShardContext context = createShardContext();
-        Query parsedQuery = parseQuery(query).toQuery(context);
-        // todo LatLonPointInPolygon is package private, need a closeTo check on the query
+        parseQuery(query).toQuery(context);
+        // TODO LatLonPointInPolygon is package private, need a closeTo check on the query
         // since some points can be computed from the geohash
     }
 

@@ -48,7 +48,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-flush-job,Flush job>>
 * <<ml-post-data,Post data to job>>
 * <<ml-update-job,Update job>>
-* <<ml-forecast,Forecast job behavior>>
+* <<ml-forecast,Forecast job behavior>>, <<ml-delete-forecast,Delete forecasts>>
 
 [float]
 [[ml-api-snapshot-endpoint]]
@@ -70,6 +70,24 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
 
+[float]
+[[ml-api-file-structure-endpoint]]
+=== File Structure
+
+* <<ml-find-file-structure,Find file structure>>
+
+[float]
+[[ml-api-ml-info-endpoint]]
+=== Info
+
+* <<get-ml-info,Machine learning info>>
+
+[float]
+[[ml-api-delete-expired-data-endpoint]]
+=== Delete Expired Data
+
+* <<ml-delete-expired-data,Delete expired data>>
+
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
@@ -85,9 +103,13 @@ include::delete-calendar.asciidoc[]
 include::delete-datafeed.asciidoc[]
 include::delete-calendar-event.asciidoc[]
 include::delete-filter.asciidoc[]
+include::delete-forecast.asciidoc[]
 include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
+include::delete-expired-data.asciidoc[]
+//FIND
+include::find-file-structure.asciidoc[]
 //FLUSH
 include::flush-job.asciidoc[]
 //FORECAST
@@ -102,6 +124,7 @@ include::get-datafeed-stats.asciidoc[]
 include::get-influencer.asciidoc[]
 include::get-job.asciidoc[]
 include::get-job-stats.asciidoc[]
+include::get-ml-info.asciidoc[]
 include::get-snapshot.asciidoc[]
 include::get-calendar-event.asciidoc[]
 include::get-filter.asciidoc[]
@@ -125,3 +148,4 @@ include::update-snapshot.asciidoc[]
 //VALIDATE
 //include::validate-detector.asciidoc[]
 //include::validate-job.asciidoc[]
+

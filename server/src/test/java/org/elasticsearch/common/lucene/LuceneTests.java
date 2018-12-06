@@ -37,6 +37,7 @@ import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -205,10 +206,10 @@ public class LuceneTests extends ESTestCase {
         assertEquals(3, open.maxDoc());
 
         IndexSearcher s = new IndexSearcher(open);
-        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits, 0);
+        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value, 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value, 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value, 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value, 0);
 
         for (String file : dir.listAll()) {
             assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
@@ -381,7 +382,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             IndexSearcher searcher = newSearcher(reader);
-            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false, 1f);
+            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
             assertEquals(1, reader.leaves().size());
             LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
             Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorerSupplier(leafReaderContext));

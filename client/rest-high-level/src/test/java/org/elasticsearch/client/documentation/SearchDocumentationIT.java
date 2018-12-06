@@ -20,6 +20,7 @@
 package org.elasticsearch.client.documentation;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -49,6 +50,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
@@ -86,7 +89,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -140,10 +143,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-request-basic
         }
         {
-            // tag::search-request-indices-types
+            // tag::search-request-indices
             SearchRequest searchRequest = new SearchRequest("posts"); // <1>
-            searchRequest.types("doc"); // <2>
-            // end::search-request-indices-types
+            // end::search-request-indices
             // tag::search-request-routing
             searchRequest.routing("routing"); // <1>
             // end::search-request-routing
@@ -173,8 +175,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.fetchSource(false);
             // end::search-source-filtering-off
             // tag::search-source-filtering-includes
-            String[] includeFields = new String[] {"title", "user", "innerObject.*"};
-            String[] excludeFields = new String[] {"_type"};
+            String[] includeFields = new String[] {"title", "innerObject.*"};
+            String[] excludeFields = new String[] {"user"};
             sourceBuilder.fetchSource(includeFields, excludeFields);
             // end::search-source-filtering-includes
             sourceBuilder.fetchSource(true);
@@ -234,7 +236,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchHits hits = searchResponse.getHits();
             // end::search-hits-get
             // tag::search-hits-info
-            long totalHits = hits.getTotalHits();
+            TotalHits totalHits = hits.getTotalHits();
+            // the total number of hits, must be interpreted in the context of totalHits.relation
+            long numHits = totalHits.value;
+            // whether the number of hits is accurate (EQUAL_TO) or a lower bound of the total (GREATER_THAN_OR_EQUAL_TO)
+            TotalHits.Relation relation = totalHits.relation;
             float maxScore = hits.getMaxScore();
             // end::search-hits-info
             // tag::search-hits-singleHit
@@ -246,7 +252,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             for (SearchHit hit : searchHits) {
                 // tag::search-hits-singleHit-properties
                 String index = hit.getIndex();
-                String type = hit.getType();
                 String id = hit.getId();
                 float score = hit.getScore();
                 // end::search-hits-singleHit-properties
@@ -259,11 +264,12 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                         (Map<String, Object>) sourceAsMap.get("innerObject");
                 // end::search-hits-singleHit-source
             }
-            assertEquals(3, totalHits);
+            assertEquals(3, numHits);
+            assertEquals(TotalHits.Relation.EQUAL_TO, relation);
             assertNotNull(hits.getHits()[0].getSourceAsString());
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
-            assertNotNull(hits.getHits()[0].getSourceAsMap().get("user"));
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));
+            assertNull(hits.getHits()[0].getSourceAsMap().get("user"));
         }
     }
 
@@ -413,6 +419,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSearchRequestHighlighting() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -576,7 +583,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             String scrollId = searchResponse.getScrollId(); // <3>
             SearchHits hits = searchResponse.getHits();  // <4>
             // end::search-scroll-init
-            assertEquals(3, hits.getTotalHits());
+            assertEquals(3, hits.getTotalHits().value);
             assertEquals(1, hits.getHits().length);
             assertNotNull(scrollId);
 
@@ -586,7 +593,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchResponse searchScrollResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchScrollResponse.getScrollId();  // <2>
             hits = searchScrollResponse.getHits(); // <3>
-            assertEquals(3, hits.getTotalHits());
+            assertEquals(3, hits.getTotalHits().value);
             assertEquals(1, hits.getHits().length);
             assertNotNull(scrollId);
             // end::search-scroll2
@@ -616,7 +623,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-scroll-execute-sync
 
             assertEquals(0, searchResponse.getFailedShards());
-            assertEquals(3L, searchResponse.getHits().getTotalHits());
+            assertEquals(3L, searchResponse.getHits().getTotalHits().value);
 
             // tag::search-scroll-execute-listener
             ActionListener<SearchResponse> scrollListener =
@@ -753,7 +760,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::search-template-response
 
         assertNotNull(searchResponse);
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
         // tag::render-search-template-request
         request.setSimulate(true); // <1>
@@ -804,7 +811,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         SearchResponse searchResponse = response.getResponse();
         assertNotNull(searchResponse);
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
         // tag::search-template-execute-listener
         ActionListener<SearchTemplateResponse> listener = new ActionListener<SearchTemplateResponse>() {
@@ -831,6 +838,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+
+    @SuppressWarnings("unused")
     public void testMultiSearchTemplateWithInlineScript() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();
@@ -880,7 +889,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertEquals(searchTerms.length, multiResponse.getResponses().length);
         assertNotNull(multiResponse.getResponses()[0]);
         SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
     }
 
@@ -923,7 +932,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertEquals(searchTerms.length, multiResponse.getResponses().length);
         assertNotNull(multiResponse.getResponses()[0]);
         SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
         // tag::multi-search-template-execute-listener
         ActionListener<MultiSearchTemplateResponse> listener = new ActionListener<MultiSearchTemplateResponse>() {
@@ -1207,11 +1216,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];   // <1>
             assertNull(firstResponse.getFailure());                                // <2>
             SearchResponse searchResponse = firstResponse.getResponse();           // <3>
-            assertEquals(4, searchResponse.getHits().getTotalHits());
+            assertEquals(4, searchResponse.getHits().getTotalHits().value);
             MultiSearchResponse.Item secondResponse = response.getResponses()[1];  // <4>
             assertNull(secondResponse.getFailure());
             searchResponse = secondResponse.getResponse();
-            assertEquals(1, searchResponse.getHits().getTotalHits());
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
             // end::multi-search-response
 
             // tag::multi-search-execute-listener
@@ -1237,18 +1246,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::multi-search-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-        {
-            // tag::multi-search-request-index
-            MultiSearchRequest request = new MultiSearchRequest();
-            request.add(new SearchRequest("posts")  // <1>
-                    .types("doc"));                 // <2>
-            // end::multi-search-request-index
-            MultiSearchResponse response = client.msearch(request, RequestOptions.DEFAULT);
-            MultiSearchResponse.Item firstResponse = response.getResponses()[0];
-            assertNull(firstResponse.getFailure());
-            SearchResponse searchResponse = firstResponse.getResponse();
-            assertEquals(3, searchResponse.getHits().getTotalHits());
         }
     }
 
@@ -1285,4 +1282,117 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertSame(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
     }
+
+
+    @SuppressWarnings({"unused", "unchecked"})
+    public void testCount() throws Exception {
+        indexCountTestData();
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::count-request-basic
+            CountRequest countRequest = new CountRequest(); // <1>
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
+            countRequest.source(searchSourceBuilder); // <4>
+            // end::count-request-basic
+        }
+        {
+            // tag::count-request-args
+            CountRequest countRequest = new CountRequest("blog") // <1>
+                .routing("routing") // <2>
+                .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
+                .preference("_local"); // <4>
+            // end::count-request-args
+            assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
+        }
+        {
+            // tag::count-source-basics
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // <1>
+            sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
+            // end::count-source-basics
+
+            // tag::count-source-setter
+            CountRequest countRequest = new CountRequest();
+            countRequest.indices("blog", "author");
+            countRequest.source(sourceBuilder);
+            // end::count-source-setter
+
+            // tag::count-execute
+            CountResponse countResponse = client
+                .count(countRequest, RequestOptions.DEFAULT);
+            // end::count-execute
+
+            // tag::count-execute-listener
+            ActionListener<CountResponse> listener =
+                new ActionListener<CountResponse>() {
+
+                    @Override
+                    public void onResponse(CountResponse countResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::count-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::count-execute-async
+            client.countAsync(countRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::count-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+            // tag::count-response-1
+            long count = countResponse.getCount();
+            RestStatus status = countResponse.status();
+            Boolean terminatedEarly = countResponse.isTerminatedEarly();
+            // end::count-response-1
+
+            // tag::count-response-2
+            int totalShards = countResponse.getTotalShards();
+            int skippedShards = countResponse.getSkippedShards();
+            int successfulShards = countResponse.getSuccessfulShards();
+            int failedShards = countResponse.getFailedShards();
+            for (ShardSearchFailure failure : countResponse.getShardFailures()) {
+                // failures should be handled here
+            }
+            // end::count-response-2
+            assertNotNull(countResponse);
+            assertEquals(4, countResponse.getCount());
+        }
+    }
+
+    private static void indexCountTestData() throws IOException {
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("author")
+            .mapping("doc", "user", "type=keyword,doc_values=false");
+        CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
+        assertTrue(authorsResponse.isAcknowledged());
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("blog", "doc", "1")
+            .source(XContentType.JSON, "title", "Doubling Down on Open?", "user",
+                Collections.singletonList("kimchy"), "innerObject", Collections.singletonMap("key", "value")));
+        bulkRequest.add(new IndexRequest("blog", "doc", "2")
+            .source(XContentType.JSON, "title", "Swiftype Joins Forces with Elastic", "user",
+                Arrays.asList("kimchy", "matt"), "innerObject", Collections.singletonMap("key", "value")));
+        bulkRequest.add(new IndexRequest("blog", "doc", "3")
+            .source(XContentType.JSON, "title", "On Net Neutrality", "user",
+                Arrays.asList("tyler", "kimchy"), "innerObject", Collections.singletonMap("key", "value")));
+
+        bulkRequest.add(new IndexRequest("author", "doc", "1")
+            .source(XContentType.JSON, "user", "kimchy"));
+
+
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+        assertSame(RestStatus.OK, bulkResponse.status());
+        assertFalse(bulkResponse.hasFailures());
+    }
+
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -33,7 +33,8 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
     @Override
     protected BoostingQueryBuilder doCreateTestQueryBuilder() {
-        BoostingQueryBuilder query = new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), RandomQueryBuilder.createQuery(random()));
+        BoostingQueryBuilder query = new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()),
+            RandomQueryBuilder.createQuery(random()));
         query.negativeBoost(2.0f / randomIntBetween(1, 20));
         return query;
     }
@@ -45,7 +46,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
         } else {
-            assertThat(query, instanceOf(BoostingQuery.class));
+            assertThat(query, instanceOf(FunctionScoreQuery.class));
         }
     }
 
@@ -90,8 +91,10 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     public void testRewrite() throws IOException {
-        QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
-        QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
+        QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() :
+            new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
+        QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() :
+            new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
         BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
         QueryBuilder rewrite = qb.rewrite(createShardContext());
         if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {

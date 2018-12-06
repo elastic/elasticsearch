@@ -30,7 +30,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -47,16 +46,15 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.joda.time.DateTimeZone;
@@ -130,16 +128,81 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedField() throws Exception {
-        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10))
-            .field("unknown");
-        CompositeAggregationBuilder builder = new CompositeAggregationBuilder("test", Collections.singletonList(terms));
-        IndexSearcher searcher = new IndexSearcher(new MultiReader());
-        QueryShardException exc =
-            expectThrows(QueryShardException.class, () -> createAggregatorFactory(builder, searcher));
-        assertThat(exc.getMessage(), containsString("failed to find field [unknown] and [missing_bucket] is not set"));
-        // should work when missing_bucket is set
-        terms.missingBucket(true);
-        createAggregatorFactory(builder, searcher);
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "a"),
+                createDocument("keyword", "c"),
+                createDocument("keyword", "a"),
+                createDocument("keyword", "d"),
+                createDocument("keyword", "c")
+            )
+        );
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped")
+                )
+            ),
+            (result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true)
+                )
+            ),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{unmapped=null}", result.afterKey().toString());
+                assertEquals("{unmapped=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(5L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true)
+                )).aggregateAfter(Collections.singletonMap("unmapped", null)),
+            (result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword"),
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped")
+                )
+            ),
+            (result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword"),
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true)
+                )
+            ),
+            (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=d, unmapped=null}", result.afterKey().toString());
+                assertEquals("{keyword=a, unmapped=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=c, unmapped=null}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=d, unmapped=null}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            }
+        );
     }
 
     public void testWithKeyword() throws Exception {
@@ -1445,19 +1508,19 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
                 topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);
+                assertEquals(topHits.getHits().getTotalHits().value, 1L);
             }
         );
 
@@ -1475,13 +1538,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);
+                assertEquals(topHits.getHits().getTotalHits().value, 1L);
             }
         );
     }

@@ -37,7 +37,7 @@ public class MapperTests extends ESTestCase {
     }
 
     public void testBuilderContextWithIndexSettingsAsNull() {
-        NullPointerException e = expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
+        expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
     }
 
 }

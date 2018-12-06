@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.morelikethis;
 
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
@@ -213,7 +214,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
-        Client client = client();
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
@@ -673,6 +673,45 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         moreLikeThisQueryBuilder.minTermFreq(1);
         moreLikeThisQueryBuilder.minDocFreq(1);
         SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
-        assertEquals(2, searchResponse.getHits().totalHits);
+        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+    }
+
+    //Issue #29678
+    public void testWithMissingRouting() throws IOException {
+        logger.info("Creating index test with routing required for type1");
+        assertAcked(prepareCreate("test").addMapping("type1",
+            jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
+                .startObject("_routing").field("required", true).endObject()
+            .endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        {
+            logger.info("Running moreLikeThis with one item without routing attribute");
+            SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+                client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
+                    new Item("test", "type1", "1")
+                }).minTermFreq(1).minDocFreq(1)).get());
+
+            Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(RoutingMissingException.class));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+        }
+
+        {
+            logger.info("Running moreLikeThis with one item with routing attribute and two items without routing attribute");
+            SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
+                new Item("test", "type1", "1").routing("1"),
+                new Item("test", "type1", "2"),
+                new Item("test", "type1", "3")
+            }).minTermFreq(1).minDocFreq(1)).get());
+
+            Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(RoutingMissingException.class));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+        }
     }
 }

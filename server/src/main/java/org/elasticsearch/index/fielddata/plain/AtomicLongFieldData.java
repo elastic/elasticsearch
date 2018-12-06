@@ -25,6 +25,11 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
 
 /**
  * Specialization of {@link AtomicNumericFieldData} for integers.
@@ -45,6 +50,34 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     @Override
     public long ramBytesUsed() {
         return ramBytesUsed;
+    }
+
+    @Override
+    public final ScriptDocValues<?> getLegacyFieldValues() {
+        switch (numericType) {
+            case DATE:
+                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues());
+                return new ScriptDocValues<DateTime>() {
+
+                    @Override
+                    public int size() {
+                        return realDV.size();
+                    }
+
+                    @Override
+                    public DateTime get(int index) {
+                        JodaCompatibleZonedDateTime dt = realDV.get(index);
+                        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC);
+                    }
+
+                    @Override
+                    public void setNextDocId(int docId) throws IOException {
+                        realDV.setNextDocId(docId);
+                    }
+                };
+            default:
+                return getScriptValues();
+        }
     }
 
     @Override

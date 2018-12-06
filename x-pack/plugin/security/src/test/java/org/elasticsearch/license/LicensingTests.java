@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -40,7 +41,8 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -52,8 +54,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -227,7 +232,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Settings settings = internalCluster().transportClient().settings();
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            new SecurityClient(client).prepareGetUsers().get();
+            new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
             fail("security actions should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -238,10 +243,10 @@ public class LicensingTests extends SecurityIntegTestCase {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
                 License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        // security actions should not work!
+        // security actions should work!
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            GetUsersResponse response = new SecurityClient(client).prepareGetUsers().get();
+            PutUserResponse response = new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
             assertNotNull(response);
         }
     }
@@ -278,6 +283,10 @@ public class LicensingTests extends SecurityIntegTestCase {
         enableLicensing(mode);
         ensureGreen();
 
+        final List<String> unicastHostsList = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
+            .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
+            .collect(Collectors.toList());
+
         Path home = createTempDir();
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
@@ -291,7 +300,9 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put("path.home", home)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
+            .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
+            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
             .build();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
             MockHttpTransport.TestPlugin.class);

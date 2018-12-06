@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,6 +37,16 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return AutoDateHistogramAggregationBuilder.NAME;
     }
 
+    private String interval;
+
+    public String getInterval() {
+        return interval;
+    }
+
+    public void setInterval(String interval) {
+        this.interval = interval;
+    }
+
     @Override
     public List<? extends Histogram.Bucket> getBuckets() {
         return buckets;
@@ -47,6 +58,8 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         declareMultiBucketAggregationFields(PARSER,
                 parser -> ParsedBucket.fromXContent(parser, false),
                 parser -> ParsedBucket.fromXContent(parser, true));
+        PARSER.declareString((parsed, value) -> parsed.interval = value,
+            new ParseField("interval"));
     }
 
     public static ParsedAutoDateHistogram fromXContent(XContentParser parser, String name) throws IOException {
@@ -54,6 +67,14 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         aggregation.setName(name);
         return aggregation;
     }
+
+    @Override
+    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder = super.doXContentBody(builder, params);
+        builder.field("interval", getInterval());
+        return builder;
+    }
+
 
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 

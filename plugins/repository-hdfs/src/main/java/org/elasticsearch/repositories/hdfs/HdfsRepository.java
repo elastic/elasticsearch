@@ -18,15 +18,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.UnknownHostException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Locale;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
@@ -36,13 +27,13 @@ import org.apache.hadoop.io.retry.FailoverProxyProvider;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,9 +41,18 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.UnknownHostException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Locale;
+
 public final class HdfsRepository extends BlobStoreRepository {
 
-    private static final Logger LOGGER = Loggers.getLogger(HdfsRepository.class);
+    private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
     private static final String CONF_SECURITY_PRINCIPAL = "security.principal";
 
@@ -82,7 +82,9 @@ public final class HdfsRepository extends BlobStoreRepository {
         uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
+                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
+                uri.getScheme(),
+                uriSetting));
         }
         if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
@@ -103,7 +105,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         final Settings confSettings = repositorySettings.getByPrefix("conf.");
         for (String key : confSettings.keySet()) {
-            LOGGER.debug("Adding configuration to HDFS Client Configuration : {} = {}", key, confSettings.get(key));
+            logger.debug("Adding configuration to HDFS Client Configuration : {} = {}", key, confSettings.get(key));
             hadoopConfiguration.set(key, confSettings.get(key));
         }
 
@@ -134,7 +136,10 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
         });
 
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), path);
+        logger.debug("Using file-system [{}] for URI [{}], path [{}]",
+            fileContext.getDefaultFileSystem(),
+            fileContext.getDefaultFileSystem().getUri(),
+            path);
 
         try {
             return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
@@ -156,7 +161,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Check to see if the authentication method is compatible
         if (kerberosPrincipal != null && authMethod.equals(AuthenticationMethod.SIMPLE)) {
-            LOGGER.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
+            logger.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
                 "specified. Continuing with [KERBEROS] authentication.");
             SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, hadoopConfiguration);
         } else if (kerberosPrincipal == null && authMethod.equals(AuthenticationMethod.KERBEROS)) {
@@ -169,15 +174,15 @@ public final class HdfsRepository extends BlobStoreRepository {
         UserGroupInformation.setConfiguration(hadoopConfiguration);
 
         // Debugging
-        LOGGER.debug("Hadoop security enabled: [{}]", UserGroupInformation.isSecurityEnabled());
-        LOGGER.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(hadoopConfiguration));
+        logger.debug("Hadoop security enabled: [{}]", UserGroupInformation.isSecurityEnabled());
+        logger.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(hadoopConfiguration));
 
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper around a Java Subject
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
                 String principal = preparePrincipal(kerberosPrincipal);
                 String keytab = HdfsSecurityContext.locateKeytabFile(environment).toString();
-                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
+                logger.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
                 return UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal, keytab);
             }
             return UserGroupInformation.getCurrentUser();
@@ -198,7 +203,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
 
             if (originalPrincipal.equals(finalPrincipal) == false) {
-                LOGGER.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
+                logger.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
                     originalPrincipal, finalPrincipal);
             }
         }

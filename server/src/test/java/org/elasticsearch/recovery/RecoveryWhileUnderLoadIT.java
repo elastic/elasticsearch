@@ -19,6 +19,7 @@
 
 package org.elasticsearch.recovery;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -55,7 +55,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 
 @TestLogging("_root:DEBUG,org.elasticsearch.index.shard:TRACE,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.index.seqno:TRACE,org.elasticsearch.indices.recovery:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
-    private final Logger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
+    private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
 
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
@@ -276,7 +276,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery()).addSort("id", SortOrder.ASC).get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
-            if (searchResponse.getHits().getTotalHits() != numberOfDocs) {
+            if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
                 error = true;
             }
         }
@@ -312,7 +312,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                                 boolean errorOccurred = false;
                                 for (int i = 0; i < iterations; i++) {
                                     SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                                    if (searchResponse.getHits().getTotalHits() != numberOfDocs) {
+                                    if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
                                         errorOccurred = true;
                                     }
                                 }
@@ -337,7 +337,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
             logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
         }
-        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, searchResponse.getHits().getTotalHits(), numberOfDocs);
+        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, searchResponse.getHits().getTotalHits().value, numberOfDocs);
     }
 
     private void refreshAndAssert() throws Exception {

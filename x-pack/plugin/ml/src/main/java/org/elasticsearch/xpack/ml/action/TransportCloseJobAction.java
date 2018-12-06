@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,12 +37,9 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -65,12 +62,12 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportCloseJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    ClusterService clusterService, Client client, Auditor auditor,
                                    PersistentTasksService persistentTasksService) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
-        super(settings, CloseJobAction.NAME, clusterService, transportService, actionFilters,
-            CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
+        super(CloseJobAction.NAME, clusterService, transportService, actionFilters,
+            CloseJobAction.Request::new, CloseJobAction.Response::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
@@ -99,7 +96,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         Consumer<String> jobIdProcessor = id -> {
             validateJobAndTaskState(id, mlMetadata, tasksMetaData);
             Job job = mlMetadata.getJobs().get(id);
-            if (job.isDeleted()) {
+            if (job.isDeleting()) {
                 return;
             }
             addJobAccordingToState(id, tasksMetaData, openJobIds, closingJobIds, failedJobs);
@@ -297,11 +294,6 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }
 
         return new CloseJobAction.Response(tasks.stream().allMatch(CloseJobAction.Response::isClosed));
-    }
-
-    @Override
-    protected CloseJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new CloseJobAction.Response(in);
     }
 
     private void forceCloseJob(ClusterState currentState, CloseJobAction.Request request, List<String> jobIdsToForceClose,

@@ -21,6 +21,7 @@ package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Field;
+import java.util.Objects;
 
 public final class PainlessField {
 
@@ -36,5 +37,26 @@ public final class PainlessField {
 
         this.getterMethodHandle = getterMethodHandle;
         this.setterMethodHandle = setterMethodHandle;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
+
+        PainlessField that = (PainlessField)object;
+
+        return Objects.equals(javaField, that.javaField) &&
+                Objects.equals(typeParameter, that.typeParameter);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(javaField, typeParameter);
     }
 }

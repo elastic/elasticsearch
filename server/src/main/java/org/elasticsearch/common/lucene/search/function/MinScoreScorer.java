@@ -19,13 +19,12 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import java.io.IOException;
-
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+
+import java.io.IOException;
 
 /** A {@link Scorer} that filters out documents that have a score that is
  *  lower than a configured constant. */
@@ -34,13 +33,10 @@ final class MinScoreScorer extends Scorer {
     private final Scorer in;
     private final float minScore;
 
+    private float curScore;
+
     MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
         super(weight);
-        if (scorer instanceof ScoreCachingWrappingScorer == false) {
-            // when minScore is set, scores might be requested twice: once
-            // to verify the match, and once by the collector
-            scorer = new ScoreCachingWrappingScorer(scorer);
-        }
         this.in = scorer;
         this.minScore = minScore;
     }
@@ -55,8 +51,18 @@ final class MinScoreScorer extends Scorer {
     }
 
     @Override
-    public float score() throws IOException {
-        return in.score();
+    public float score() {
+        return curScore;
+    }
+
+    @Override
+    public int advanceShallow(int target) throws IOException {
+        return in.advanceShallow(target);
+    }
+
+    @Override
+    public float getMaxScore(int upTo) throws IOException {
+        return in.getMaxScore(upTo);
     }
 
     @Override
@@ -77,7 +83,8 @@ final class MinScoreScorer extends Scorer {
                 if (inTwoPhase != null && inTwoPhase.matches() == false) {
                     return false;
                 }
-                return in.score() >= minScore;
+                curScore = in.score();
+                return curScore >= minScore;
             }
 
             @Override

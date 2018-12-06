@@ -21,13 +21,23 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Assertions;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -45,75 +55,126 @@ public class GlobalCheckpointListeners implements Closeable {
     public interface GlobalCheckpointListener {
         /**
          * Callback when the global checkpoint is updated or the shard is closed. If the shard is closed, the value of the global checkpoint
-         * will be set to {@link org.elasticsearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} and the exception will be non-null. If the
-         * global checkpoint is updated, the exception will be null.
+         * will be set to {@link org.elasticsearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} and the exception will be non-null and an
+         * instance of {@link IndexShardClosedException }. If the listener timed out waiting for notification then the exception will be
+         * non-null and an instance of {@link TimeoutException}. If the global checkpoint is updated, the exception will be null.
          *
          * @param globalCheckpoint the updated global checkpoint
-         * @param e                if non-null, the shard is closed
+         * @param e                if non-null, the shard is closed or the listener timed out
          */
-        void accept(long globalCheckpoint, IndexShardClosedException e);
+        void accept(long globalCheckpoint, Exception e);
     }
 
     // guarded by this
     private boolean closed;
-    private volatile List<GlobalCheckpointListener> listeners;
+    private final Map<GlobalCheckpointListener, Tuple<Long, ScheduledFuture<?>>> listeners = new LinkedHashMap<>();
     private long lastKnownGlobalCheckpoint = UNASSIGNED_SEQ_NO;
 
     private final ShardId shardId;
     private final Executor executor;
+    private final ScheduledExecutorService scheduler;
     private final Logger logger;
 
     /**
      * Construct a global checkpoint listeners collection.
      *
-     * @param shardId  the shard ID on which global checkpoint updates can be listened to
-     * @param executor the executor for listener notifications
-     * @param logger   a shard-level logger
+     * @param shardId   the shard ID on which global checkpoint updates can be listened to
+     * @param executor  the executor for listener notifications
+     * @param scheduler the executor used for scheduling timeouts
+     * @param logger    a shard-level logger
      */
     GlobalCheckpointListeners(
             final ShardId shardId,
             final Executor executor,
+            final ScheduledExecutorService scheduler,
             final Logger logger) {
-        this.shardId = Objects.requireNonNull(shardId);
-        this.executor = Objects.requireNonNull(executor);
-        this.logger = Objects.requireNonNull(logger);
+        this.shardId = Objects.requireNonNull(shardId, "shardId");
+        this.executor = Objects.requireNonNull(executor, "executor");
+        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
+        this.logger = Objects.requireNonNull(logger, "logger");
     }
 
     /**
-     * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
-     * listener will be asynchronously notified on the executor used to construct this collection of global checkpoint listeners. If the
-     * shard is closed then the listener will be asynchronously notified on the executor used to construct this collection of global
-     * checkpoint listeners. The listener will only be notified of at most one event, either the global checkpoint is updated or the shard
-     * is closed. A listener must re-register after one of these events to receive subsequent events.
+     * Add a global checkpoint listener. If the global checkpoint is equal to or above the global checkpoint the listener is waiting for,
+     * then the listener will be asynchronously notified on the executor used to construct this collection of global checkpoint listeners.
+     * If the shard is closed then the listener will be asynchronously notified on the executor used to construct this collection of global
+     * checkpoint listeners. The listener will only be notified of at most one event, either the global checkpoint is updated above the
+     * global checkpoint the listener is waiting for, or the shard is closed. A listener must re-register after one of these events to
+     * receive subsequent events. Callers may add a timeout to be notified after if the timeout elapses. In this case, the listener will be
+     * notified with a {@link TimeoutException}. Passing null fo the timeout means no timeout will be associated to the listener.
      *
-     * @param currentGlobalCheckpoint the current global checkpoint known to the listener
-     * @param listener                the listener
+     * @param waitingForGlobalCheckpoint the current global checkpoint known to the listener
+     * @param listener                   the listener
+     * @param timeout                    the listener timeout, or null if no timeout
      */
-    synchronized void add(final long currentGlobalCheckpoint, final GlobalCheckpointListener listener) {
+    synchronized void add(final long waitingForGlobalCheckpoint, final GlobalCheckpointListener listener, final TimeValue timeout) {
         if (closed) {
             executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
             return;
         }
-        if (lastKnownGlobalCheckpoint > currentGlobalCheckpoint) {
+        if (lastKnownGlobalCheckpoint >= waitingForGlobalCheckpoint) {
             // notify directly
             executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
-            return;
         } else {
-            if (listeners == null) {
-                listeners = new ArrayList<>();
+            if (timeout == null) {
+                listeners.put(listener, Tuple.tuple(waitingForGlobalCheckpoint, null));
+            } else {
+                listeners.put(
+                        listener,
+                        Tuple.tuple(
+                                waitingForGlobalCheckpoint,
+                                scheduler.schedule(
+                                        () -> {
+                                            final boolean removed;
+                                            synchronized (this) {
+                                                /*
+                                                 * We know that this listener has a timeout associated with it (otherwise we would not be
+                                                 * here) so the future component of the return value from remove being null is an indication
+                                                 * that we are not in the map. This can happen if a notification collected us into listeners
+                                                 * to be notified and removed us from the map, and then our scheduled execution occurred
+                                                 * before we could be cancelled by the notification. In this case, our listener here would
+                                                 * not be in the map and we should not fire the timeout logic.
+                                                 */
+                                                removed = listeners.remove(listener).v2() != null;
+                                            }
+                                            if (removed) {
+                                                final TimeoutException e = new TimeoutException(timeout.getStringRep());
+                                                logger.trace("global checkpoint listener timed out", e);
+                                                executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, e));
+                                            }
+                                        },
+                                        timeout.nanos(),
+                                        TimeUnit.NANOSECONDS)));
             }
-            listeners.add(listener);
         }
     }
 
     @Override
     public synchronized void close() throws IOException {
+        if (closed) {
+            assert listeners.isEmpty() : listeners;
+        }
         closed = true;
         notifyListeners(UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId));
     }
 
+    /**
+     * The number of listeners currently pending for notification.
+     *
+     * @return the number of listeners pending notification
+     */
     synchronized int pendingListeners() {
-        return listeners == null ? 0 : listeners.size();
+        return listeners.size();
+    }
+
+    /**
+     * The scheduled future for a listener that has a timeout associated with it, otherwise null.
+     *
+     * @param listener the listener to get the scheduled future for
+     * @return a scheduled future representing the timeout future for the listener, otherwise null
+     */
+    synchronized ScheduledFuture<?> getTimeoutFuture(final GlobalCheckpointListener listener) {
+        return listeners.get(listener).v2();
     }
 
     /**
@@ -131,23 +192,39 @@ public class GlobalCheckpointListeners implements Closeable {
     }
 
     private void notifyListeners(final long globalCheckpoint, final IndexShardClosedException e) {
-        assert Thread.holdsLock(this);
-        assert (globalCheckpoint == UNASSIGNED_SEQ_NO && e != null) || (globalCheckpoint >= NO_OPS_PERFORMED && e == null);
-        if (listeners != null) {
-            // capture the current listeners
-            final List<GlobalCheckpointListener> currentListeners = listeners;
-            listeners = null;
-            if (currentListeners != null) {
-                executor.execute(() -> {
-                    for (final GlobalCheckpointListener listener : currentListeners) {
-                        notifyListener(listener, globalCheckpoint, e);
-                    }
-                });
-            }
+        assert Thread.holdsLock(this) : Thread.currentThread();
+        assertNotification(globalCheckpoint, e);
+
+        final Map<GlobalCheckpointListener, Tuple<Long, ScheduledFuture<?>>> listenersToNotify;
+        if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
+            listenersToNotify =
+                    listeners
+                            .entrySet()
+                            .stream()
+                            .filter(entry -> entry.getValue().v1() <= globalCheckpoint)
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            listenersToNotify.keySet().forEach(listeners::remove);
+        } else {
+            listenersToNotify = new HashMap<>(listeners);
+            listeners.clear();
+        }
+        if (listenersToNotify.isEmpty() == false) {
+            executor.execute(() ->
+                    listenersToNotify
+                            .forEach((listener, t) -> {
+                                /*
+                                 * We do not want to interrupt any timeouts that fired, these will detect that the listener has been
+                                 * notified and not trigger the timeout.
+                                 */
+                                FutureUtils.cancel(t.v2());
+                                notifyListener(listener, globalCheckpoint, e);
+                            }));
         }
     }
 
-    private void notifyListener(final GlobalCheckpointListener listener, final long globalCheckpoint, final IndexShardClosedException e) {
+    private void notifyListener(final GlobalCheckpointListener listener, final long globalCheckpoint, final Exception e) {
+        assertNotification(globalCheckpoint, e);
+
         try {
             listener.accept(globalCheckpoint, e);
         } catch (final Exception caught) {
@@ -157,8 +234,22 @@ public class GlobalCheckpointListeners implements Closeable {
                                 "error notifying global checkpoint listener of updated global checkpoint [{}]",
                                 globalCheckpoint),
                         caught);
-            } else {
+            } else if (e instanceof IndexShardClosedException) {
                 logger.warn("error notifying global checkpoint listener of closed shard", caught);
+            } else {
+                logger.warn("error notifying global checkpoint listener of timeout", caught);
+            }
+        }
+    }
+
+    private void assertNotification(final long globalCheckpoint, final Exception e) {
+        if (Assertions.ENABLED) {
+            assert globalCheckpoint >= UNASSIGNED_SEQ_NO : globalCheckpoint;
+            if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
+                assert e == null : e;
+            } else {
+                assert e != null;
+                assert e instanceof IndexShardClosedException || e instanceof TimeoutException : e;
             }
         }
     }

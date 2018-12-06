@@ -5,6 +5,7 @@ apply plugin: 'elasticsearch.standalone-test'
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
+    testCompile project(':x-pack:plugin:ccr:qa')
 }
 
 task leaderClusterTest(type: RestIntegTestTask) {
@@ -17,7 +18,7 @@ leaderClusterTestCluster {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'false'
-    extraConfigFile 'roles.yml', 'roles.yml'
+    extraConfigFile 'roles.yml', 'leader-roles.yml'
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setupCommand 'setupCcrUser',
@@ -35,7 +36,7 @@ leaderClusterTestCluster {
 }
 
 leaderClusterTestRunner {
-    systemProperty 'tests.is_leader_cluster', 'true'
+    systemProperty 'tests.target_cluster', 'leader'
 }
 
 task followClusterTest(type: RestIntegTestTask) {}
@@ -44,11 +45,11 @@ followClusterTestCluster {
     dependsOn leaderClusterTestRunner
     numNodes = 1
     clusterName = 'follow-cluster'
-    setting 'search.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
+    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.enabled', 'false'
-    extraConfigFile 'roles.yml', 'roles.yml'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+    extraConfigFile 'roles.yml', 'follower-roles.yml'
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setupCommand 'setupCcrUser',
@@ -66,7 +67,7 @@ followClusterTestCluster {
 }
 
 followClusterTestRunner {
-    systemProperty 'tests.is_leader_cluster', 'false'
+    systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
     finalizedBy 'leaderClusterTestCluster#stop'
 }

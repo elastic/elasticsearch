@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -56,10 +55,10 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportHasPrivilegesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportHasPrivilegesAction(ThreadPool threadPool, TransportService transportService,
                                         ActionFilters actionFilters, AuthorizationService authorizationService,
                                         NativePrivilegeStore privilegeStore) {
-        super(settings, HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
+        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
@@ -169,7 +168,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             privilegesByApplication.put(applicationName, appPrivilegesByResource.values());
         }
 
-        listener.onResponse(new HasPrivilegesResponse(allMatch, cluster, indices.values(), privilegesByApplication));
+        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices.values(), privilegesByApplication));
     }
 
     private boolean testIndexMatch(String checkIndex, String checkPrivilegeName, Role userRole,

@@ -57,8 +57,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, transportService,
-            mock(ActionFilters.class), licenseService, featureSets);
+        TransportXPackInfoAction action = new TransportXPackInfoAction(transportService, mock(ActionFilters.class),
+            licenseService, featureSets);
 
         License license = mock(License.class);
         long expiryDate = randomLong();

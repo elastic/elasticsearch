@@ -50,8 +50,8 @@ public class ClusterBlock implements Streamable, ToXContentFragment {
     ClusterBlock() {
     }
 
-    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, boolean allowReleaseResources, RestStatus status,
-                        EnumSet<ClusterBlockLevel> levels) {
+    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, boolean allowReleaseResources,
+                        RestStatus status, EnumSet<ClusterBlockLevel> levels) {
         this.id = id;
         this.description = description;
         this.retryable = retryable;

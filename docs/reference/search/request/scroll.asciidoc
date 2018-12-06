@@ -67,8 +67,8 @@ POST <1> /_search/scroll <2>
 // TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
 <1> `GET` or `POST` can be used.
-<2> The URL should not include the `index` or `type` name -- these
-    are specified in the original `search` request instead.
+<2> The URL should not include the `index` name -- this
+    is specified in the original `search` request instead.
 <3> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
 <4> The `scroll_id` parameter
@@ -79,8 +79,8 @@ next batch of results until there are no more results left to return, ie the
 `hits` array is empty.
 
 IMPORTANT: The initial search request and each subsequent scroll request each 
-return a `_scroll_id`, which may change with each request -- only the most 
-recent `_scroll_id` should be used.
+return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t 
+always change — in any case, only the most recently received `_scroll_id` should be used.
 
 NOTE: If the request specifies aggregations, only the initial search response
 will contain the aggregations results.
@@ -109,7 +109,9 @@ request) tells Elasticsearch how long it should keep the search context alive.
 Its value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
 process all data -- it just needs to be long enough to process the previous
 batch of results. Each `scroll` request (with the `scroll` parameter) sets a
-new  expiry time.
+new  expiry time. If a `scroll` request doesn't pass in the `scroll`
+parameter, then the search context will be freed as part of _that_ `scroll`
+request.
 
 Normally, the background merge process optimizes the
 index by merging together smaller segments to create new bigger segments, at
@@ -122,6 +124,11 @@ changes to documents.
 TIP: Keeping older segments alive means that more file handles are needed.
 Ensure that you have configured your nodes to have ample free file handles.
 See <<file-descriptors>>.
+
+NOTE: To prevent against issues caused by having too many scrolls open, the
+user is not allowed to open scrolls past a certain limit. By default, the
+maximum number of open scrolls is 500. This limit can be updated with the
+`search.max_open_scroll_context` cluster setting.
 
 You can check how many search contexts are open with the
 <<cluster-nodes-stats,nodes stats API>>:

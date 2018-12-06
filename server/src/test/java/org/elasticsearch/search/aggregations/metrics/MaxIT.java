@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
@@ -41,6 +40,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -65,7 +65,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(max("max").field("value")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -84,7 +84,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(max("max").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         Max max = searchResponse.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -294,7 +294,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .script(new Script(ScriptType.INLINE,
-                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap())))
+                                    AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -392,5 +392,23 @@ public class MaxIT extends AbstractNumericTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    public void testEarlyTermination() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+            .setTrackTotalHits(false)
+            .setQuery(matchAllQuery())
+            .addAggregation(max("max").field("values"))
+            .addAggregation(count("count").field("values"))
+            .execute().actionGet();
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(12.0));
+
+        ValueCount count = searchResponse.getAggregations().get("count");
+        assertThat(count.getName(), equalTo("count"));
+        assertThat(count.getValue(), equalTo(20L));
     }
 }

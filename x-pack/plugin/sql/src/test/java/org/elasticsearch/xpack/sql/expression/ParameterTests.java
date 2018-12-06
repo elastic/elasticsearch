@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -28,7 +28,7 @@ public class ParameterTests extends ESTestCase {
     public void testSingleParameter() {
         Expression expression = new SqlParser().createExpression("a = \n?",
                 Collections.singletonList(
-                        new SqlTypedParamValue(DataType.KEYWORD, "foo")
+                        new SqlTypedParamValue(DataType.KEYWORD.esType, "foo")
                 ));
         logger.info(expression);
         assertThat(expression, instanceOf(Equals.class));
@@ -42,10 +42,10 @@ public class ParameterTests extends ESTestCase {
 
     public void testMultipleParameters() {
         Expression expression = new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                new SqlTypedParamValue(DataType.LONG, 1L),
-                new SqlTypedParamValue(DataType.LONG, 2L),
-                new SqlTypedParamValue(DataType.LONG, 3L),
-                new SqlTypedParamValue(DataType.LONG, 4L)
+                new SqlTypedParamValue(DataType.LONG.esType, 1L),
+                new SqlTypedParamValue(DataType.LONG.esType, 2L),
+                new SqlTypedParamValue(DataType.LONG.esType, 3L),
+                new SqlTypedParamValue(DataType.LONG.esType, 4L)
                 ));
         assertThat(expression, instanceOf(Sub.class));
         Sub sub = (Sub) expression;
@@ -62,9 +62,9 @@ public class ParameterTests extends ESTestCase {
     public void testNotEnoughParameters() {
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                        new SqlTypedParamValue(DataType.LONG, 1L),
-                        new SqlTypedParamValue(DataType.LONG, 2L),
-                        new SqlTypedParamValue(DataType.LONG, 3L)
+                        new SqlTypedParamValue(DataType.LONG.esType, 1L),
+                        new SqlTypedParamValue(DataType.LONG.esType, 2L),
+                        new SqlTypedParamValue(DataType.LONG.esType, 3L)
                 )));
         assertThat(ex.getMessage(), containsString("Not enough actual parameters"));
     }

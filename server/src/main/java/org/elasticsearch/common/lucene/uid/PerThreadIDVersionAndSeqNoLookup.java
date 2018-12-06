@@ -140,16 +140,36 @@ final class PerThreadIDVersionAndSeqNoLookup {
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context.reader().getLiveDocs());
-        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-            long seqNo;
-            if (seqNos != null && seqNos.advanceExact(docID)) {
-                seqNo = seqNos.longValue();
-            } else {
-                seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
+        if (termsEnum != null && termsEnum.seekExact(id)) {
+            docsEnum = termsEnum.postings(docsEnum, 0);
+            final Bits liveDocs = context.reader().getLiveDocs();
+            DocIdAndSeqNo result = null;
+            int docID = docsEnum.nextDoc();
+            if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                final NumericDocValues seqNoDV = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                for (; docID != DocIdSetIterator.NO_MORE_DOCS; docID = docsEnum.nextDoc()) {
+                    final long seqNo;
+                    if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
+                        seqNo = seqNoDV.longValue();
+                    } else {
+                        seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    }
+                    final boolean isLive = (liveDocs == null || liveDocs.get(docID));
+                    if (isLive) {
+                        // The live document must always be the latest copy, thus we can early terminate here.
+                        // If a nested docs is live, we return the first doc which doesn't have term (only the last doc has term).
+                        // This should not be an issue since we no longer use primary term as tier breaker when comparing operations.
+                        assert result == null || result.seqNo <= seqNo :
+                            "the live doc does not have the highest seq_no; live_seq_no=" + seqNo + " < deleted_seq_no=" + result.seqNo;
+                        return new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                    if (result == null || result.seqNo < seqNo) {
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                }
             }
-            return new DocIdAndSeqNo(docID, seqNo, context);
+            return result;
         } else {
             return null;
         }

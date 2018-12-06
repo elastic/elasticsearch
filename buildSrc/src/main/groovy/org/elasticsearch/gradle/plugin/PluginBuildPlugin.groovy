@@ -98,7 +98,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                     project.pluginProperties.extension.name + "-client"
             )
             project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.version}.pom"
+                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
             }
         } else {
             project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
@@ -129,7 +129,6 @@ public class PluginBuildPlugin extends BuildPlugin {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
         project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
-        project.check.dependsOn(integTest)
     }
 
     /**

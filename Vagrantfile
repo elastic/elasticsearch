@@ -61,6 +61,15 @@ Vagrant.configure(2) do |config|
       SHELL
     end
   end
+  'ubuntu-1804'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/ubuntu-18.04-x86_64'
+      deb_common config, box, extra: <<-SHELL
+       # Install Jayatana so we can work around it being present.
+       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+      SHELL
+    end
+  end
   # Wheezy's backports don't contain Openjdk 8 and the backflips
   # required to get the sun jdk on there just aren't worth it. We have
   # jessie and stretch for testing debian and it works fine.

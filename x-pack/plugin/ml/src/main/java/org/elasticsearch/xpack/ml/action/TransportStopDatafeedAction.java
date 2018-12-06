@@ -17,11 +17,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,11 +32,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -52,11 +49,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportStopDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, ClusterService clusterService,
-                                       PersistentTasksService persistentTasksService) {
-        super(settings, StopDatafeedAction.NAME, clusterService, transportService, actionFilters,
-            StopDatafeedAction.Request::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
+    public TransportStopDatafeedAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+                                       ClusterService clusterService, PersistentTasksService persistentTasksService) {
+        super(StopDatafeedAction.NAME, clusterService, transportService, actionFilters, StopDatafeedAction.Request::new,
+            StopDatafeedAction.Response::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
     }
@@ -316,11 +312,6 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         }
 
         return new StopDatafeedAction.Response(tasks.stream().allMatch(StopDatafeedAction.Response::isStopped));
-    }
-
-    @Override
-    protected StopDatafeedAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StopDatafeedAction.Response(in);
     }
 
 }

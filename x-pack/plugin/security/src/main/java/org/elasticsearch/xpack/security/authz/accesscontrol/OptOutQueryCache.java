@@ -59,8 +59,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        // TODO: this is not concurrently safe since the license state can change between reads
-        if (licenseState.isSecurityEnabled() == false || licenseState.isAuthAllowed() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             logger.debug("not opting out of the query cache; authorization is not allowed");
             return indicesQueryCache.doCache(weight, policy);
         }

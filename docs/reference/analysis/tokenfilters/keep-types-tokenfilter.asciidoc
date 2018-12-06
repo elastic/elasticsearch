@@ -26,7 +26,7 @@ PUT /keep_types_example
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "extract_numbers"]
+                    "filter" : ["lowercase", "extract_numbers"]
                 }
             },
             "filter" : {
@@ -87,7 +87,7 @@ PUT /keep_types_exclude_example
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "remove_numbers"]
+                    "filter" : ["lowercase", "remove_numbers"]
                 }
             },
             "filter" : {

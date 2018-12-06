@@ -6,6 +6,7 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -24,12 +25,14 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -59,20 +62,20 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 String state = objectPath.evaluate("stats.0.watcher_state");
 
                 switch (state) {
-                case "stopped":
-                    Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
-                    String body = EntityUtils.toString(startResponse.getEntity());
-                    assertThat(body, containsString("\"acknowledged\":true"));
-                    break;
-                case "stopping":
-                    throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                case "starting":
-                    throw new AssertionError("waiting until starting state reached started state");
-                case "started":
-                    // all good here, we are done
-                    break;
-                default:
-                    throw new AssertionError("unknown state[" + state + "]");
+                    case "stopped":
+                        Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
+                        Map<String, Object> responseMap = entityAsMap(startResponse);
+                        assertThat(responseMap, hasEntry("acknowledged", true));
+                        throw new AssertionError("waiting until stopped state reached started state");
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -108,7 +111,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
                     String body = EntityUtils.toString(stopResponse.getEntity());
                     assertThat(body, containsString("\"acknowledged\":true"));
-                    break;
+                    throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
                 }
@@ -135,7 +138,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchInputHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -159,7 +161,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29893")
     public void testSearchInputWithInsufficientPrivileges() throws Exception {
         String indexName = "index_not_allowed_to_read";
         try (XContentBuilder builder = jsonBuilder()) {
@@ -186,7 +187,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchTransformHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -216,7 +216,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(value, is("15"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33291")
     public void testSearchTransformInsufficientPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -244,7 +243,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30777")
     public void testIndexActionHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -269,7 +267,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(spam, is("eggs"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testIndexActionInsufficientPrivileges() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -299,6 +296,8 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
+        assertThat(responseMap, hasEntry("created", true));
+        assertThat(responseMap, hasEntry("_version", 1));
     }
 
     private ObjectPath getWatchHistoryEntry(String watchId) throws Exception {
@@ -325,6 +324,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 builder.endObject();
 
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);

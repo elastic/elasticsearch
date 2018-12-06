@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -39,9 +38,8 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     private final Client client;
 
     @Inject
-    public TransportPutCalendarAction(Settings settings, TransportService transportService,
-                                      ActionFilters actionFilters, Client client) {
-        super(settings, PutCalendarAction.NAME, transportService, actionFilters,
+    public TransportPutCalendarAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(PutCalendarAction.NAME, transportService, actionFilters,
             (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
         this.client = client;
     }

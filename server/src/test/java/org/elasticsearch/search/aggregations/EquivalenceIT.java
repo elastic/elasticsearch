@@ -39,7 +39,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -319,7 +319,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                     .subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
         assertAllSuccessful(resp);
-        assertEquals(numDocs, resp.getHits().getTotalHits());
+        assertEquals(numDocs, resp.getHits().getTotalHits().value);
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
@@ -449,7 +449,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                                 .subAggregation(percentiles("pcts").field("double_value")))
                 .execute().actionGet();
         assertAllSuccessful(response);
-        assertEquals(numDocs, response.getHits().getTotalHits());
+        assertEquals(numDocs, response.getHits().getTotalHits().value);
     }
 
     // https://github.com/elastic/elasticsearch/issues/6435

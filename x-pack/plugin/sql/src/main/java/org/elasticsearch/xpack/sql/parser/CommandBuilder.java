@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
@@ -157,9 +158,9 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
             if (value != null) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
-                    // since % is the same as not specifying a value, choose
+                    // convert % to enumeration
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments?view=ssdt-18vs2017
-                    // that is skip the value
+                    types.addAll(IndexType.VALID);
                 }
                 // special case for legacy apps (like msquery) that always asks for 'TABLE'
                 // which we manually map to all concrete tables supported
@@ -190,7 +191,13 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public SysTypes visitSysTypes(SysTypesContext ctx) {
-        return new SysTypes(source(ctx));
+        int type = 0;
+        if (ctx.type != null) {
+            Literal value = (Literal) visit(ctx.type);
+            type = ((Number) value.fold()).intValue();
+        }
+
+        return new SysTypes(source(ctx), Integer.valueOf(type));
     }
 
     @Override

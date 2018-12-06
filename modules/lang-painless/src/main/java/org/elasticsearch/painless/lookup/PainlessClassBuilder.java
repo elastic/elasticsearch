@@ -22,6 +22,7 @@ package org.elasticsearch.painless.lookup;
 import java.lang.invoke.MethodHandle;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 final class PainlessClassBuilder {
 
@@ -56,5 +57,30 @@ final class PainlessClassBuilder {
     PainlessClass build() {
         return new PainlessClass(constructors, staticMethods, methods, staticFields, fields,
                 getterMethodHandles, setterMethodHandles, functionalInterfaceMethod);
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
+
+        PainlessClassBuilder that = (PainlessClassBuilder)object;
+
+        return Objects.equals(constructors, that.constructors) &&
+                Objects.equals(staticMethods, that.staticMethods) &&
+                Objects.equals(methods, that.methods) &&
+                Objects.equals(staticFields, that.staticFields) &&
+                Objects.equals(fields, that.fields) &&
+                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod);
     }
 }

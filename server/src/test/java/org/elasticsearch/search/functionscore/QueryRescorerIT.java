@@ -126,7 +126,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         new QueryRescorerBuilder(matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f))
                                 .setRescoreQueryWeight(2), 5).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
@@ -156,13 +156,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
@@ -234,13 +230,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescore window smaller than number of hits:
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
@@ -306,13 +298,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescorer that penalizes the scores:
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
@@ -378,7 +366,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
+        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
@@ -742,7 +730,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setTrackScores(true)
             .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50)
             .get();
-        assertThat(resp.getHits().totalHits, equalTo(5L));
+        assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
         assertThat(resp.getHits().getHits().length, equalTo(5));
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));

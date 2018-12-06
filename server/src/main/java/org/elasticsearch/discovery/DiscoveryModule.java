@@ -19,13 +19,14 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -37,6 +38,7 @@ import org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -60,6 +62,7 @@ import java.util.stream.Collectors;
  * A module for loading classes for node discovery.
  */
 public class DiscoveryModule {
+    private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
@@ -71,11 +74,11 @@ public class DiscoveryModule {
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService, Path configFile) {
+                           AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState) {
         final Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
-        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(settings, configFile));
+        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(configFile));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
                 if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
@@ -116,22 +119,23 @@ public class DiscoveryModule {
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put("zen",
             () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, hostsProvider, allocationService, Collections.unmodifiableCollection(joinValidators)));
+                clusterSettings, hostsProvider, allocationService, Collections.unmodifiableCollection(joinValidators), gatewayMetaState));
         discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry,
-                masterService, clusterApplier, clusterSettings, hostsProvider, allocationService).entrySet().forEach(entry -> {
-                if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
-                }
-            });
+                masterService, clusterApplier, clusterSettings, hostsProvider, allocationService, gatewayMetaState).entrySet()
+                    .forEach(entry -> {
+                        if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
+                            throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
+                        }
+                    });
         }
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         Supplier<Discovery> discoverySupplier = discoveryTypes.get(discoveryType);
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
-        Loggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
+        logger.info("using discovery type [{}] and host providers {}", discoveryType, hostsProviderNames);
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 

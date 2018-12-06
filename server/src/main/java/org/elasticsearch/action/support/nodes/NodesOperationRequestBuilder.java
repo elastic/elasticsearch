@@ -24,7 +24,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
-public abstract class NodesOperationRequestBuilder<Request extends BaseNodesRequest<Request>, Response extends BaseNodesResponse, RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>>
+public abstract class NodesOperationRequestBuilder<Request extends BaseNodesRequest<Request>, Response extends BaseNodesResponse,
+        RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
     protected NodesOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {

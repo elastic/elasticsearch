@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[xpack-sql]]
-= SQL Access
+= SQL access
 
-:sql-tests: {xes-repo-dir}/../../qa/sql
+:sql-tests: {xes-repo-dir}/../../plugin/sql/qa
 :sql-specs: {sql-tests}/src/main/resources
-:jdbc-tests: {sql-tests}/src/main/java/org/elasticsearch/xpack/qa/sql/jdbc
-:security-tests: {sql-tests}/security/src/test/java/org/elasticsearch/xpack/qa/sql/security
+:jdbc-tests: {sql-tests}/src/main/java/org/elasticsearch/xpack/sql/qa/jdbc
+:security-tests: {sql-tests}/security/src/test/java/org/elasticsearch/xpack/sql/qa/security
 :es-sql: Elasticsearch SQL
 
 [partintro]
@@ -36,8 +36,12 @@ indices and return results in tabular format.
     SQL and print tabular results.
 <<sql-jdbc,JDBC>>::
     A JDBC driver for {es}.
+{sql-odbc}[ODBC]::
+    An ODBC driver for {es}.
+<<sql-client-apps,Client Applications>>::
+    Documentation for configuring various SQL/BI tools with {es-sql}.
 <<sql-spec,SQL Language>>::
-    Overview of the {es-sql} language, such as supported data types, commands and 
+    Overview of the {es-sql} language, such as supported data types, commands and
     syntax.
 <<sql-functions,Functions and Operators>>::
     List of functions and operators supported.

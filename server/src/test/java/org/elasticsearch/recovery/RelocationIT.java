@@ -102,7 +102,8 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
-        assertSeqNos();
+        internalCluster().assertSeqNos();
+        internalCluster().assertSameDocIdsOnShards();
     }
 
     public void testSimpleRelocationNoIndexing() {
@@ -128,7 +129,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -145,7 +146,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
     @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
@@ -219,7 +220,7 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.info("--> START search test round {}", i + 1);
                     SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
                     ranOnce = true;
-                    if (hits.getTotalHits() != indexer.totalIndexedDocs()) {
+                    if (hits.getTotalHits().value != indexer.totalIndexedDocs()) {
                         int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
                         for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                             hitIds[hit] = hit + 1;
@@ -235,7 +236,7 @@ public class RelocationIT extends ESIntegTestCase {
                             logger.error("Missing id [{}]", value);
                         });
                     }
-                    assertThat(hits.getTotalHits(), equalTo(indexer.totalIndexedDocs()));
+                    assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
                     logger.info("--> DONE search test round {}", i + 1);
 
             }
@@ -335,9 +336,9 @@ public class RelocationIT extends ESIntegTestCase {
                 SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
                 assertNoFailures(response);
                 if (expectedCount < 0) {
-                    expectedCount = response.getHits().getTotalHits();
+                    expectedCount = response.getHits().getTotalHits().value;
                 } else {
-                    assertEquals(expectedCount, response.getHits().getTotalHits());
+                    assertEquals(expectedCount, response.getHits().getTotalHits().value);
                 }
             }
 

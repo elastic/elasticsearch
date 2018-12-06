@@ -15,16 +15,17 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
+import javax.security.auth.login.LoginException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
@@ -38,11 +39,12 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
-import javax.security.auth.login.LoginException;
-
+import static org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmTestCase.buildKerberosRealmSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -71,10 +73,13 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String username = randomPrincipalName();
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final String expectedUsername = maybeRemoveRealmName(username);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 
@@ -93,8 +98,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String username = randomPrincipalName();
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>("does-not-exist@REALM", "out-token"), null);
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -155,9 +160,10 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     }
 
     private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
-        settings = KerberosTestCase.buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
-        config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        final String realmName = "test-kerb-realm";
+        settings = buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
+        config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName), settings,
+            TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -168,8 +174,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     public void testDelegatedAuthorization() throws Exception {
         final String username = randomPrincipalName();
         final String expectedUsername = maybeRemoveRealmName(username);
-        final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig("other_realm", Settings.EMPTY, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings))));
+        final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings))));
         final User lookupUser = new User(expectedUsername, new String[] { "admin-role" }, expectedUsername,
                 expectedUsername + "@example.com", Collections.singletonMap("k1", "v1"), true);
         otherRealm.registerUser(lookupUser);
@@ -178,8 +184,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final KerberosRealm kerberosRealm = createKerberosRealm(Collections.singletonList(otherRealm), username);
         final User expectedUser = lookupUser;
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 

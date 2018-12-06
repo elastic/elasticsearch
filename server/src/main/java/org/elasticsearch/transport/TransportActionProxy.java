@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * TransportActionProxy allows an arbitrary action to be executed on a defined target node while the initial request is sent to a second
@@ -43,10 +42,10 @@ public final class TransportActionProxy {
 
         private final TransportService service;
         private final String action;
-        private final Function<TransportRequest, Supplier<TransportResponse>> responseFunction;
+        private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
 
         ProxyRequestHandler(TransportService service, String action, Function<TransportRequest,
-                Supplier<TransportResponse>> responseFunction) {
+                Writeable.Reader<? extends TransportResponse>> responseFunction) {
             this.service = service;
             this.action = action;
             this.responseFunction = responseFunction;
@@ -63,17 +62,17 @@ public final class TransportActionProxy {
 
     private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
-        private final Supplier<T> responseFactory;
+        private final Writeable.Reader<T> reader;
         private final TransportChannel channel;
 
-        ProxyResponseHandler(TransportChannel channel, Supplier<T> responseFactory) {
-            this.responseFactory = responseFactory;
+        ProxyResponseHandler(TransportChannel channel, Writeable.Reader<T> reader) {
+            this.reader = reader;
             this.channel = channel;
-
         }
+
         @Override
-        public T newInstance() {
-            return responseFactory.get();
+        public T read(StreamInput in) throws IOException {
+            return reader.read(in);
         }
 
         @Override
@@ -101,24 +100,23 @@ public final class TransportActionProxy {
     }
 
     static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
-        T wrapped;
-        Writeable.Reader<T> reader;
-        DiscoveryNode targetNode;
-
-        ProxyRequest(Writeable.Reader<T> reader) {
-            this.reader = reader;
-        }
+        final T wrapped;
+        final DiscoveryNode targetNode;
 
         ProxyRequest(T wrapped, DiscoveryNode targetNode) {
             this.wrapped = wrapped;
             this.targetNode = targetNode;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        ProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+            super(in);
             targetNode = new DiscoveryNode(in);
             wrapped = reader.read(in);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -133,21 +131,23 @@ public final class TransportActionProxy {
      * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
      * response type changes based on the upcoming request (quite rare)
      */
-    public static void registerProxyAction(TransportService service, String action,
-                                           Function<TransportRequest, Supplier<TransportResponse>> responseFunction) {
-        RequestHandlerRegistry requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), () -> new ProxyRequest(requestHandler::newRequest), ThreadPool.Names.SAME,
-            true, false, new ProxyRequestHandler<>(service, action, responseFunction));
+    public static void registerProxyActionWithDynamicResponseType(TransportService service, String action,
+                                                                  Function<TransportRequest,
+                                                                      Writeable.Reader<? extends TransportResponse>> responseFunction) {
+        RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
+        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
+            in -> new ProxyRequest<>(in, requestHandler::newRequest), new ProxyRequestHandler<>(service, action, responseFunction));
     }
 
     /**
      * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
      * response type is always the same (most of the cases).
      */
-    public static void registerProxyAction(TransportService service, String action, Supplier<TransportResponse> responseSupplier) {
-        RequestHandlerRegistry requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), () -> new ProxyRequest(requestHandler::newRequest), ThreadPool.Names.SAME,
-                true, false, new ProxyRequestHandler<>(service, action, request -> responseSupplier));
+    public static void registerProxyAction(TransportService service, String action,
+                                           Writeable.Reader<? extends TransportResponse> reader) {
+        RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
+        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
+            in -> new ProxyRequest<>(in, requestHandler::newRequest), new ProxyRequestHandler<>(service, action, request -> reader));
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

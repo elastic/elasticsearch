@@ -20,7 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -89,6 +89,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
+        }
         return builder.build();
     }
 
@@ -155,6 +158,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
+        update.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
@@ -163,12 +167,14 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
-        assertThat(updatedDatafeed.getQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
+        assertThat(updatedDatafeed.getParsedQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),
                 equalTo(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(8000));
         assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
+        assertThat(updatedDatafeed.getDelayedDataCheckConfig().isEnabled(), equalTo(true));
+        assertThat(updatedDatafeed.getDelayedDataCheckConfig().getCheckWindow(), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testApply_givenAggregations() {
@@ -186,7 +192,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
         assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_1")));
-        assertThat(updatedDatafeed.getAggregations(),
+        assertThat(updatedDatafeed.getParsedAggregations(),
                 equalTo(new AggregatorFactories.Builder().addAggregator(
                         AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime))));
     }

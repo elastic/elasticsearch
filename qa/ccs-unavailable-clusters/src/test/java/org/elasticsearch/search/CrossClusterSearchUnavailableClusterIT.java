@@ -114,7 +114,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                             builder.add(node);
                         }
                         ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                        channel.sendResponse(new ClusterStateResponse(clusterName, build, 0L));
+                        channel.sendResponse(new ClusterStateResponse(clusterName, build, 0L, false));
                     });
             newService.start();
             newService.acceptIncomingRequests();
@@ -143,7 +143,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("index"), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
-                assertEquals(10, response.getHits().totalHits);
+                assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
@@ -151,7 +151,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().totalHits);
+                assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
@@ -159,7 +159,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(0, response.getHits().totalHits);
+                assertEquals(0, response.getHits().getTotalHits().value);
             }
 
             {
@@ -168,12 +168,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().totalHits);
+                assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
-                assertEquals(10, scrollResponse.getHits().totalHits);
+                assertEquals(10, scrollResponse.getHits().getTotalHits().value);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
 
@@ -186,7 +186,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().totalHits);
+                assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
@@ -194,7 +194,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(0, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(0, response.getHits().totalHits);
+                assertEquals(0, response.getHits().getTotalHits().value);
             }
 
             {
@@ -203,12 +203,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().totalHits);
+                assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
-                assertEquals(10, scrollResponse.getHits().totalHits);
+                assertEquals(10, scrollResponse.getHits().getTotalHits().value);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
 
@@ -235,8 +235,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(),
-                        containsString("Missing required setting [search.remote.remote1.seeds] " +
-                                "for setting [search.remote.remote1.skip_unavailable]"));
+                        containsString("missing required setting [cluster.remote.remote1.seeds] " +
+                                "for setting [cluster.remote.remote1.skip_unavailable]"));
             }
 
             Map<String, Object> settingsMap = new HashMap<>();
@@ -251,8 +251,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class,
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(), containsString("Missing required setting [search.remote.remote1.seeds] " +
-                        "for setting [search.remote.remote1.skip_unavailable]"));
+                assertThat(responseException.getMessage(), containsString("missing required setting [cluster.remote.remote1.seeds] " +
+                        "for setting [cluster.remote.remote1.skip_unavailable]"));
             }
 
             if (randomBoolean()) {
@@ -304,7 +304,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             {
                 builder.startObject("persistent");
                 {
-                    builder.startObject("search.remote.remote1");
+                    builder.startObject("cluster.remote.remote1");
                     {
                         for (Map.Entry<String, Object> entry : settings.entrySet()) {
                             builder.field(entry.getKey(), entry.getValue());

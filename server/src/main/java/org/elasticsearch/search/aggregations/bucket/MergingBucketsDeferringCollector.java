@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
@@ -66,11 +67,11 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public boolean needsScores() {
+    public ScoreMode scoreMode() {
         if (collector == null) {
             throw new IllegalStateException();
         }
-        return collector.needsScores();
+        return collector.scoreMode();
     }
 
     @Override
@@ -158,10 +159,12 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        boolean needsScores = collector.needsScores();
+        boolean needsScores = collector.scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            weight = searchContext.searcher().createNormalizedWeight(searchContext.query(), true);
+            weight = searchContext.searcher().createWeight(
+                    searchContext.searcher().rewrite(searchContext.query()),
+                    ScoreMode.COMPLETE, 1f);
         }
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

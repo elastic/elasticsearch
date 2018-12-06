@@ -63,7 +63,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String node2 = nodeNames.get(1);
 
         String index = "index";
-        assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0).put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
+        assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0)
+            .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
         index(index, "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
@@ -72,7 +73,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
 
         logger.debug("relocating index...");
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2)).get();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
+            .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2)).get();
         client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
@@ -109,11 +111,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()).get();
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+            .get("integer_field"));
 
         // make sure it was also written on red node although index is closed
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties")))
+            .get("integer_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         /* Try the same and see if this also works if node was just restarted.
@@ -134,11 +138,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()).get();
 
         getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+            .get("float_field"));
 
         // make sure it was also written on red node although index is closed
         indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
+        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties")))
+            .get("float_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // finally check that meta data is also written of index opened again
@@ -152,7 +158,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     protected void assertIndexDirectoryDeleted(final String nodeName, final Index index) throws Exception {
         assertBusy(() -> {
             logger.info("checking if index directory exists...");
-            assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName, indexDirectoryExists(nodeName, index));
+            assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
+                indexDirectoryExists(nodeName, index));
         }
         );
     }
@@ -161,7 +168,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertBusy(() -> {
             logger.info("checking if meta state exists...");
             try {
-                assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName, getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
+                assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName,
+                    getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
             } catch (Exception e) {
                 logger.info("failed to load meta state", e);
                 fail("could not load meta state");
@@ -181,9 +189,9 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         return false;
     }
 
-    private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) throws Exception {
+    private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) {
         GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = nodeMetaState.loadMetaState();
+        MetaData nodeMetaData = nodeMetaState.getMetaData();
         return nodeMetaData.getIndices();
     }
 }

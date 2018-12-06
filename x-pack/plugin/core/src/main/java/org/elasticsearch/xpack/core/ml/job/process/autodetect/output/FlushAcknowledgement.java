@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -36,15 +35,9 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LAST_FINALIZED_BUCKET_END.getPreferredName() + "]");
-        }, LAST_FINALIZED_BUCKET_END, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                p -> TimeUtils.parseTimeField(p, LAST_FINALIZED_BUCKET_END.getPreferredName()),
+                LAST_FINALIZED_BUCKET_END, ObjectParser.ValueType.VALUE);
     }
 
     private String id;

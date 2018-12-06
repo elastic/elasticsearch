@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Exists;
@@ -18,16 +19,25 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
+import org.elasticsearch.xpack.sql.plan.logical.Limit;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.stats.FeatureMetric;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -39,8 +49,25 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 
-abstract class Verifier {
+/**
+ * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
+ * It is created in the plan executor along with the metrics instance passed as constructor parameter.
+ */
+public final class Verifier {
+    private final Metrics metrics;
+    
+    public Verifier(Metrics metrics) {
+        this.metrics = metrics;
+    }
 
     static class Failure {
         private final Node<?> source;
@@ -88,7 +115,12 @@ abstract class Verifier {
         return new Failure(source, format(Locale.ROOT, message, args));
     }
 
-    static Collection<Failure> verify(LogicalPlan plan) {
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
+        Collection<Failure> failures = verify(plan);
+        return failures.stream().collect(toMap(Failure::source, Failure::message));
+    }
+
+    Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -98,7 +130,7 @@ abstract class Verifier {
                 return;
             }
 
-            // if the children are unresolved, this node will also so counting it will only add noise
+            // if the children are unresolved, so will this node; counting it will only add noise
             if (!p.childrenResolved()) {
                 return;
             }
@@ -138,7 +170,7 @@ abstract class Verifier {
                                     for (Attribute a : p.intputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
-                                        if (!(a.dataType() == DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
+                                        if ((a.dataType() != DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
                                             potentialMatches.add(nameCandidate);
                                         }
                                     }
@@ -188,6 +220,9 @@ abstract class Verifier {
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
+                validateInExpression(p, localFailures);
+                validateConditional(p, localFailures);
+
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
                 }
@@ -204,6 +239,33 @@ abstract class Verifier {
 
                 failures.addAll(localFailures);
             });
+        }
+        
+        // gather metrics
+        if (failures.isEmpty()) {
+            BitSet b = new BitSet(FeatureMetric.values().length);
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    b.set(GROUPBY.ordinal());
+                } else if (p instanceof OrderBy) {
+                    b.set(ORDERBY.ordinal());
+                } else if (p instanceof Filter) {
+                    if (((Filter) p).child() instanceof Aggregate) {
+                        b.set(HAVING.ordinal());
+                    } else {
+                        b.set(WHERE.ordinal());
+                    }
+                } else if (p instanceof Limit) {
+                    b.set(LIMIT.ordinal());
+                } else if (p instanceof LocalRelation) {
+                    b.set(LOCAL.ordinal());
+                } else if (p instanceof Command) {
+                    b.set(COMMAND.ordinal());
+                }
+            });
+            for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+                metrics.inc(FeatureMetric.values()[i]);
+            }
         }
 
         return failures;
@@ -222,18 +284,26 @@ abstract class Verifier {
      */
     private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
             Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
-        return checkGroupByAgg(p, localFailures, groupingFailures, resolvedFunctions)
-                && checkGroupByOrder(p, localFailures, groupingFailures, resolvedFunctions)
+        return checkGroupByAgg(p, localFailures, resolvedFunctions)
+                && checkGroupByOrder(p, localFailures, groupingFailures)
                 && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
     }
 
     // check whether an orderBy failed or if it occurs on a non-key
-    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures,
-            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures) {
         if (p instanceof OrderBy) {
             OrderBy o = (OrderBy) p;
-            if (o.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) o.child();
+            LogicalPlan child = o.child();
+
+            if (child instanceof Project) {
+                child = ((Project) child).child();
+            }
+            if (child instanceof Filter) {
+                child = ((Filter) child).child();
+            }
+
+            if (child instanceof Aggregate) {
+                Aggregate a = (Aggregate) child;
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
                 o.order().forEach(oe -> {
@@ -244,9 +314,25 @@ abstract class Verifier {
                         return;
                     }
 
-                    // make sure to compare attributes directly
-                    if (Expressions.anyMatch(a.groupings(),
-                            g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
+                    // take aliases declared inside the aggregates which point to the grouping (but are not included in there)
+                    // to correlate them to the order
+                    List<Expression> groupingAndMatchingAggregatesAliases = new ArrayList<>(a.groupings());
+
+                    a.aggregates().forEach(as -> {
+                        if (as instanceof Alias) {
+                            Alias al = (Alias) as;
+                            if (Expressions.anyMatch(a.groupings(), g -> Expressions.equalsAsAttribute(al.child(), g))) {
+                                groupingAndMatchingAggregatesAliases.add(al);
+                            }
+                        }
+                    });
+
+                    // Make sure you can apply functions on top of the grouped by expressions in the ORDER BY:
+                    // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
+                    //
+                    // Also, make sure to compare attributes directly
+                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)))) {
                         return;
                     }
 
@@ -268,7 +354,6 @@ abstract class Verifier {
         }
         return true;
     }
-
 
     private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
             Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
@@ -348,8 +433,7 @@ abstract class Verifier {
 
 
     // check whether plain columns specified in an agg are mentioned in the group-by
-    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures,
-            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Map<String, Function> functions) {
         if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
 
@@ -486,6 +570,54 @@ abstract class Verifier {
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+        }
+    }
+
+    private static void validateInExpression(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressions(e ->
+            e.forEachUp((In in) -> {
+                    DataType dt = in.value().dataType();
+                    for (Expression value : in.list()) {
+                        if (areTypesCompatible(dt, value.dataType()) == false) {
+                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
+                                dt, value.dataType()));
+                            return;
+                        }
+                    }
+                },
+                In.class));
+    }
+
+    private static void validateConditional(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressions(e ->
+            e.forEachUp((ConditionalFunction cf) -> {
+                    DataType dt = DataType.NULL;
+
+                    for (Expression child : cf.children()) {
+                        if (dt == DataType.NULL) {
+                            if (Expressions.isNull(child) == false) {
+                                dt = child.dataType();
+                            }
+                        } else {
+                            if (areTypesCompatible(dt, child.dataType()) == false) {
+                                localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
+                                    dt, child.dataType()));
+                                return;
+                            }
+                        }
+                    }
+                },
+                ConditionalFunction.class));
+    }
+
+    private static boolean areTypesCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == DataType.NULL || right == DataType.NULL) ||
+                (left.isString() && right.isString()) ||
+                (left.isNumeric() && right.isNumeric());
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 
@@ -39,10 +39,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
+    private final Logger logger = LogManager.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
 
     public void testBackupIsAllocatedAfterPrimary() {
-        AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(Settings.builder()
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -54,7 +55,8 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
@@ -65,7 +67,8 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shards().get(1).currentNodeId(), nullValue());
 
         logger.info("Adding one node and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode("node1")).add(newNode("node2"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -86,7 +89,8 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         logger.info("Start all the primary shards");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node(nodeHoldingPrimary).shardsWithState(INITIALIZING)).routingTable();
+        routingTable = strategy.applyStartedShards(clusterState,
+            routingNodes.node(nodeHoldingPrimary).shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         final String nodeHoldingReplica = routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId();
         assertThat(nodeHoldingPrimary, not(equalTo(nodeHoldingReplica)));

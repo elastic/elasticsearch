@@ -108,7 +108,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
                 BigArrays bigArrays,
                 NamedWriteableRegistry namedWriteableRegistry,
                 CircuitBreakerService circuitBreakerService) {
-            super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+            super(settings, Version.CURRENT, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
         @Override

@@ -21,7 +21,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -98,7 +98,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         HistogramAggregationBuilder histogramAggregation = AggregationBuilders.histogram("time").interval(60000)
                 .subAggregation(maxAggregation).field("time");
 
-        configBuilder.setAggregations(AggregatorFactories.builder().addAggregator(histogramAggregation));
+        configBuilder.setParsedAggregations(AggregatorFactories.builder().addAggregator(histogramAggregation));
         configBuilder.setFrequency(TimeValue.timeValueMinutes(2));
         DatafeedConfig config = configBuilder.build();
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
@@ -184,7 +184,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     @TestLogging("org.elasticsearch.xpack.persistent:TRACE,org.elasticsearch.cluster.service:DEBUG,org.elasticsearch.xpack.ml.action:DEBUG")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
-        // start 2 non ml node that will never get a job allocated. (but ml apis are accessable from this node)
+        // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
         // start ml node

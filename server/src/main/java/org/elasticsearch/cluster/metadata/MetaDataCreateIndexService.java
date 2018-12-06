@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -50,9 +51,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -82,6 +83,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -97,10 +99,13 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 /**
  * Service responsible for submitting create index requests
  */
-public class MetaDataCreateIndexService extends AbstractComponent {
+public class MetaDataCreateIndexService {
+    private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
+    private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
@@ -122,14 +127,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final ThreadPool threadPool,
             final NamedXContentRegistry xContentRegistry,
             final boolean forbidPrivateIndexSettings) {
-        super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
@@ -333,7 +338,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 continue;
                             }
 
-                            //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
+                            // Allow templatesAliases to be templated by replacing a token with the
+                            // name of the index that we are applying it to
                             if (aliasMetaData.alias().contains("{index}")) {
                                 String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
                                 aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
@@ -463,7 +469,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                 // timestamp
-                final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
+                final QueryShardContext queryShardContext =
+                    indexService.newQueryShardContext(0, null, () -> 0L, null);
 
                 for (Alias alias : request.aliases()) {
                     if (Strings.hasLength(alias.filter())) {
@@ -479,7 +486,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // now, update the mappings with the actual source
                 Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                     if (mapper != null) {
                         MappingMetaData mappingMd = new MappingMetaData(mapper);
                         mappingsMetaData.put(mapper.type(), mappingMd);
@@ -566,7 +574,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final int numberOfShards;
             final Version indexVersionCreated =
                     Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
-            if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
+            if (indexVersionCreated.before(Version.V_7_0_0)) {
                 numberOfShards = 5;
             } else {
                 numberOfShards = 1;
@@ -587,17 +595,35 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), state, forbidPrivateIndexSettings);
     }
 
-    public void validateIndexSettings(
-            final String indexName, final Settings settings, final boolean forbidPrivateIndexSettings) throws IndexCreationException {
+    public void validateIndexSettings(String indexName, final Settings settings, final ClusterState clusterState,
+                                      final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+
+        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
+        shardAllocation.ifPresent(validationErrors::add);
+
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
             throw new IndexCreationException(indexName, validationException);
         }
+    }
+
+    /**
+     * Checks whether an index can be created without going over the cluster shard limit.
+     *
+     * @param settings The settings of the index to be created.
+     * @param clusterState The current cluster state.
+     * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
+     */
+    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
+        int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
+            * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+
+        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
@@ -608,7 +634,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         } else if (Strings.isEmpty(customPath) == false) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
-                validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+                validationErrors.add("custom path [" + customPath +
+                                     "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
         if (forbidPrivateIndexSettings) {
@@ -749,7 +776,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         } else {
             final Predicate<String> sourceSettingsPredicate =
-                    (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") || s.startsWith("index.sort."))
+                    (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") ||
+                            s.startsWith("index.sort.") || s.equals("index.soft_deletes.enabled"))
                             && indexSettingsBuilder.keys().contains(s) == false;
             builder.put(sourceMetaData.getSettings().filter(sourceSettingsPredicate));
         }
@@ -769,7 +797,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
             // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
             // will always have the behavior of the min node in the cluster.

@@ -107,6 +107,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * search for each query.  It then does some basic sanity checking of score and hits
      * to make sure the profiling doesn't interfere with the hits being returned
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32492")
     public void testProfileMatchesRegular() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -165,10 +166,10 @@ public class QueryProfilerIT extends ESIntegTestCase {
                         vanillaMaxScore, profileMaxScore, 0.001);
             }
 
-            if (vanillaResponse.getHits().totalHits != profileResponse.getHits().totalHits) {
+            if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
                 Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
                 Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-                if (vanillaResponse.getHits().totalHits > profileResponse.getHits().totalHits) {
+                if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
                     vanillaSet.removeAll(profileSet);
                     fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: "
                         + vanillaSet.toString());

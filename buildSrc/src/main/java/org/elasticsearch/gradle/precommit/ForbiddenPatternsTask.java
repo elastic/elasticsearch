@@ -33,20 +33,16 @@ import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * Checks for patterns in source files for the project which are forbidden.
@@ -102,7 +98,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", patterns.values()) + ")");
         List<String> failures = new ArrayList<>();
         for (File f : files()) {
-            List<String> lines = getLines(f.toPath());
+            List<String> lines = Files.lines(f.toPath(), StandardCharsets.UTF_8).collect(Collectors.toList());
             List<Integer> invalidLines = IntStream.range(0, lines.size())
                 .filter(i -> allPatterns.matcher(lines.get(i)).find())
                 .boxed()
@@ -149,17 +145,5 @@ public class ForbiddenPatternsTask extends DefaultTask {
         }
         // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern);
-    }
-
-    private List<String> getLines(Path path) throws IOException {
-        for (Charset encoding : Arrays.asList(StandardCharsets.UTF_8, StandardCharsets.ISO_8859_1)) {
-            try (Stream<String> stream = Files.lines(path, encoding)) {
-                return stream.collect(Collectors.toList());
-            } catch (Exception e){
-                continue;
-            }
-        }
-
-        throw new IOException("Unable to read lines from source file: " + path);
     }
 }

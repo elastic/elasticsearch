@@ -1550,4 +1550,21 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals("Could not dynamically add mapping for field [alias-field.dynamic-field]. "
             + "Existing mapping for [alias-field] must be of type object but found [alias].", exception.getMessage());
     }
+
+    public void testTypeless() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject().startObject("type").startObject("properties")
+                .startObject("foo").field("type", "keyword").endObject()
+                .endObject().endObject().endObject());
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("foo", "1234")
+                .endObject());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "_doc", "1", bytes, XContentType.JSON));
+        assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
+    }
 }

@@ -87,15 +87,19 @@ The API returns the following result:
 [source,js]
 --------------------------------------------------
 {
-  "my_auto_follow_pattern" :
-  {
-    "remote_cluster" : "remote_cluster",
-    "leader_index_patterns" :
-    [
-      "leader_index*"
-    ],
-    "follow_index_pattern" : "{{leader_index}}-follower"
-  }
+  "patterns": [
+    {
+      "name": "my_auto_follow_pattern",
+      "pattern": {
+        "remote_cluster" : "remote_cluster",
+        "leader_index_patterns" :
+        [
+          "leader_index*"
+        ],
+        "follow_index_pattern" : "{{leader_index}}-follower"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TESTRESPONSE

@@ -146,7 +146,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                                 .get();
 
                 // exactly 3 results are expected
-                assertThat("No monitoring documents yet", response.getHits().getTotalHits(), equalTo(3L));
+                assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
 
                 final List<Map<String, Object>> sources =
                         Arrays.stream(response.getHits().getHits())
@@ -162,7 +162,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             final SearchResponse response = client().prepareSearch(monitoringIndex).get();
             final SearchHits hits = response.getHits();
 
-            assertThat(response.getHits().getTotalHits(), equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
             assertThat("Monitoring documents must have the same timestamp",
                        Arrays.stream(hits.getHits())
                              .map(hit -> extractValue("timestamp", hit.getSourceAsMap()))
@@ -606,7 +606,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             assertThat("No monitoring documents yet",
                        client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*")
                                .setSize(0)
-                               .get().getHits().getTotalHits(),
+                               .get().getHits().getTotalHits().value,
                        greaterThan(0L));
         });
     }

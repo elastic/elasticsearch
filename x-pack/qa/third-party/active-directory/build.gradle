@@ -29,5 +29,3 @@ test {
   include '**/*Tests.class'
 }
 
-// these are just tests, no need to audit
-thirdPartyAudit.enabled = false

@@ -60,4 +60,4 @@ followClusterTestRunner {
 }
 
 check.dependsOn followClusterTest
-test.enabled = false
+unitTest.enabled = false

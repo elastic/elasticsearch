@@ -73,4 +73,4 @@ followClusterTestRunner {
 }
 
 check.dependsOn followClusterTest
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+unitTest.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

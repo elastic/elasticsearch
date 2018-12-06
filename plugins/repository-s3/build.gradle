@@ -75,7 +75,7 @@ task testRepositoryCreds(type: RandomizedTestingTask) {
   systemProperty 'es.allow_insecure_settings', 'true'
 }
 
-test {
+unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'

@@ -23,7 +23,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-try"
 task internalClusterTest(type: RandomizedTestingTask,
         group: JavaBasePlugin.VERIFICATION_GROUP,
         description: 'Java fantasy integration tests',
-        dependsOn: test.dependsOn) {
+        dependsOn: unitTest.dependsOn) {
     include '**/*IT.class'
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }

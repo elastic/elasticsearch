@@ -71,7 +71,7 @@ forbiddenApisMain {
 }
 
 // we don't have additional tests for the tests themselves
-tasks.test.enabled = false
+tasks.unitTest.enabled = false
 
 // this project doesn't get published
 tasks.dependencyLicenses.enabled = false

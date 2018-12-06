@@ -23,7 +23,7 @@ dependencyLicenses {
 }
 
 if (project.inFipsJvm) {
-    test.enabled = false
+    tesunitTestt.enabled = false
     // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
     // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
     tasks.withType(CheckForbiddenApis) {

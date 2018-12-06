@@ -33,4 +33,4 @@ restTestCluster {
 }
 
 check.dependsOn restTest
-test.enabled = false
+unitTest.enabled = false

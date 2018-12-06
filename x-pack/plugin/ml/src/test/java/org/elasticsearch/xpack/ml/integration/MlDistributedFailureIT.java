@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -46,13 +45,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
-            .build();
-    }
 
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -250,7 +242,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
                 .get();
-        if (searchResponse.getHits().getTotalHits() != 1) {
+        if (searchResponse.getHits().getTotalHits().value != 1) {
             return new DataCounts(jobId);
         }
 

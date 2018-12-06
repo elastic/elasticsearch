@@ -265,7 +265,10 @@ GET /my_ip_locations/_search
     "failed" : 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+      "value": 1,
+      "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {

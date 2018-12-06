@@ -69,6 +69,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -98,6 +99,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -147,6 +149,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -188,6 +191,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -218,6 +222,7 @@ setup:
   - do:
       catch:      /\[composite\] aggregation cannot be used with a parent aggregation/
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -245,6 +250,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -271,6 +277,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test
           body:
             aggregations:
@@ -304,6 +311,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test
           body:
             aggregations:
@@ -332,6 +340,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test
           body:
             aggregations:

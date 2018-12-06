@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -87,6 +87,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME;
+import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
@@ -221,7 +222,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
             coordinationState.get().handleCommit(applyCommitRequest);
-            final ClusterState committedState = coordinationState.get().getLastAcceptedState();
+            final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(committedState) : committedState;
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // master node applies the committed state at the end of the publication process, not here.
@@ -755,7 +756,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(this::hasJoinVoteFrom).filter(discoveryNode -> isZen1Node(discoveryNode) == false).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
-            clusterState.getVotingTombstones().stream().map(VotingTombstone::getNodeId).collect(Collectors.toSet()),
+            clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
             clusterState.getLastAcceptedConfiguration());
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);

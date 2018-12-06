@@ -46,7 +46,12 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -132,7 +137,7 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        private boolean isolated;
+        private final boolean isolated;
 
         public Response(boolean isolated) {
             super(null, null);
@@ -140,17 +145,7 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         }
 
         public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
-        }
-
-        public Response() {
-            super(null, null);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             isolated = in.readBoolean();
         }
 

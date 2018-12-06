@@ -9,7 +9,6 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -114,8 +113,8 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         assertEquals("done", result.get());
     }
 
-    private Project createProject() throws IOException {
-        Project project = ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder()).build();
+    private Project createProject() {
+        Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
 
         return project;

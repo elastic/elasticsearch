@@ -75,7 +75,7 @@ void addBuildDockerImage(final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
     dependsOn taskName("copy", oss, "DockerContext")
     dependsOn taskName("copy", oss, "Dockerfile")
-    final List<String> tags
+    List<String> tags
     if (oss) {
       tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
     } else {

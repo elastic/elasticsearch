@@ -51,6 +51,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
+import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -258,7 +259,7 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 // check if the Docker binary exists and record its path
-                final String dockerBinary
+                String dockerBinary
                 if (new File('/usr/bin/docker').exists()) {
                     dockerBinary = '/usr/bin/docker'
                 } else if (new File('/usr/local/bin/docker').exists()) {
@@ -266,22 +267,24 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     dockerBinary = null
                 }
-                final int exitCode
-                final String dockerErrorOutput
+                int exitCode
+                String dockerErrorOutput
                 if (dockerBinary == null) {
                     exitCode = -1
                     dockerErrorOutput = null
                 } else {
                     // the Docker binary executes, check that we can execute a privileged command
-                    final Process process = new ProcessBuilder(dockerBinary, "images").start()
-                    exitCode = process.waitFor()
-                    if (exitCode == 0) {
+                    final ByteArrayOutputStream output = new ByteArrayOutputStream()
+                    final ExecResult result = rootProject.exec({ ExecSpec it ->
+                        it.commandLine dockerBinary, "images"
+                        it.errorOutput = output
+                        it.ignoreExitValue = true
+                    })
+                    if (result.exitValue == 0) {
                         return
                     }
-                    // capture the standard error output into a single token using the beginning of input delimiter
-                    final Scanner scanner = new Scanner(process.errorStream).useDelimiter("\\A")
-                    dockerErrorOutput = scanner.hasNext() ? scanner.next() : ""
-                    process.closeStreams()
+                    exitCode = result.exitValue
+                    dockerErrorOutput = output.toString()
                 }
                 final List<String> tasks =
                         ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}

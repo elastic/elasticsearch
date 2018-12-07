@@ -176,6 +176,7 @@ import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -909,7 +910,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 } else {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
-                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration,
+                        // if rollback happens we roll translog twice: one when we flush a commit before opening a read-only engine
+                        // and one after replaying translog (upto the global checkpoint); otherwise we roll translog once.
+                        either(equalTo(translogGen + 1)).or(equalTo(translogGen + 2)));
                     assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                     assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }

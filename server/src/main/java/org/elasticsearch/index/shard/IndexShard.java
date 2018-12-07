@@ -1390,24 +1390,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        Engine newEngine = null;
-        try {
+        trimUnsafeCommits();
+        synchronized (mutex) {
+            verifyNotClosed();
             assert currentEngineReference.get() == null : "engine is running";
-            trimUnsafeCommits();
-            newEngine = engineFactory.newReadWriteEngine(config);
-            synchronized (mutex) {
-                verifyNotClosed();
-                currentEngineReference.set(newEngine);
-                onNewEngine(newEngine);
-                // We set active because we are now writing operations to the engine; this way,
-                // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
-                active.set(true);
-            }
-            newEngine.onSettingsChanged();
-            newEngine = null;
-        } finally {
-            IOUtils.close(newEngine);
+            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+            final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            onNewEngine(newEngine);
+            currentEngineReference.set(newEngine);
+            // We set active because we are now writing operations to the engine; this way,
+            // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
+            active.set(true);
         }
+        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
+        // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
+        onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
@@ -2845,29 +2842,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void resetEngineToGlobalCheckpoint() throws IOException {
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
         sync(); // persist the global checkpoint to disk
-        Engine readOnlyEngine = null;
-        try {
-            final SeqNoStats seqNoStats = seqNoStats();
-            final TranslogStats translogStats = translogStats();
-            // flush to make sure the latest commit, which will be opened by the read-only engine, includes all operations.
-            flush(new FlushRequest());
-            readOnlyEngine = new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity());
-            synchronized (mutex) {
-                verifyNotClosed();
-                IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
-                readOnlyEngine = null;
-            }
-        } finally {
-            IOUtils.close(readOnlyEngine);
+        final SeqNoStats seqNoStats = seqNoStats();
+        final TranslogStats translogStats = translogStats();
+        // flush to make sure the latest commit, which will be opened by the read-only engine, includes all operations.
+        flush(new FlushRequest());
+        synchronized (mutex) {
+            verifyNotClosed();
+            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+            final Engine readOnlyEngine = new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity());
+            IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
         }
 
         Engine newEngine = null;
         try {
             final long globalCheckpoint = getGlobalCheckpoint();
             trimUnsafeCommits();
-            newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
-            onNewEngine(newEngine);
-            newEngine.onSettingsChanged();
+            synchronized (mutex) {
+                // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+                newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
+                onNewEngine(newEngine);
+            }
             newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(globalCheckpoint);
             final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
                 engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
@@ -2877,9 +2871,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (mutex) {
                 verifyNotClosed();
                 IOUtils.close(currentEngineReference.getAndSet(newEngine));
+                // We set active because we are now writing operations to the engine; this way,
+                // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
                 active.set(true);
                 newEngine = null;
             }
+            // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
+            // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
+            onSettingsChanged();
         } finally {
             IOUtils.close(newEngine);
         }

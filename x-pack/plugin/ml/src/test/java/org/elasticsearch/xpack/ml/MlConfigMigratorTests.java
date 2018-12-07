@@ -289,12 +289,12 @@ public class MlConfigMigratorTests extends ESTestCase {
                         .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
                 .build();
 
-        assertFalse(MlConfigMigrator.datafeedIdEligibleForMigration("pre-min-version", clusterState));
+        assertFalse(MlConfigMigrator.datafeedIsEligibleForMigration("pre-min-version", clusterState));
     }
 
     public void testDatafeedIsEligibleForMigration_givenDatafeedNotInClusterState() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests")).build();
-        assertFalse(MlConfigMigrator.datafeedIdEligibleForMigration("not-in-state", clusterState));
+        assertFalse(MlConfigMigrator.datafeedIsEligibleForMigration("not-in-state", clusterState));
     }
 
     public void testDatafeedIsEligibleForMigration_givenStartedDatafeed() {
@@ -315,7 +315,7 @@ public class MlConfigMigratorTests extends ESTestCase {
                 )
                 .build();
 
-        assertFalse(MlConfigMigrator.datafeedIdEligibleForMigration(datafeedId, clusterState));
+        assertFalse(MlConfigMigrator.datafeedIsEligibleForMigration(datafeedId, clusterState));
     }
 
     public void testDatafeedIsEligibleForMigration_givenStoppedDatafeed() {
@@ -330,7 +330,7 @@ public class MlConfigMigratorTests extends ESTestCase {
                 )
                 .build();
 
-        assertTrue(MlConfigMigrator.datafeedIdEligibleForMigration(datafeedId, clusterState));
+        assertTrue(MlConfigMigrator.datafeedIsEligibleForMigration(datafeedId, clusterState));
     }
 
     private DatafeedConfig createCompatibleDatafeed(String jobId) {

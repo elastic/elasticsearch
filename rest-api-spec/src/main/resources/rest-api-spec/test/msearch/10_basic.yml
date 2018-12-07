@@ -142,7 +142,7 @@ setup:
   - match:  { responses.2.hits.total.relation:  eq   }
 
   - do:
-      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits is accurate or disabled, got 10/
+      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits is not accurate, got 10/
       msearch:
         rest_total_hits_as_int: true
         body:

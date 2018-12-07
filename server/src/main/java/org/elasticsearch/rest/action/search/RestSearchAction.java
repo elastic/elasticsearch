@@ -296,7 +296,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false)) {
             throw new IllegalArgumentException("[" + TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
-                "if the tracking of total hits is not accurate or disabled, got " + trackTotalHitsUpTo);
+                "if the tracking of total hits is not accurate, got " + trackTotalHitsUpTo);
         }
     }
 

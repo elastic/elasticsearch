@@ -22,6 +22,7 @@ public class RestValidateDetectorAction extends BaseRestHandler {
     public RestValidateDetectorAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/_validate/detector", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "anomaly_detectors/_validate/detector", this);
     }
 
     @Override

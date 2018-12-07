@@ -34,11 +34,11 @@ This will yield the following result:
    "_id":"0",
    "matched":true,
    "explanation":{
-      "value":1.6943597,
+      "value":0.7701635,
       "description":"weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
       "details":[
          {
-            "value":1.6943597,
+            "value":0.7701635,
             "description":"score(freq=1.0), product of:",
             "details":[
                {

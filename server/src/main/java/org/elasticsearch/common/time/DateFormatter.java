@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
@@ -38,6 +39,10 @@ public interface DateFormatter {
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);
+
+    default long parseMillis(String input) {
+        return Instant.from(parse(input)).toEpochMilli();
+    }
 
     /**
      * Create a copy of this formatter that is configured to parse dates in the specified time zone
@@ -63,6 +68,10 @@ public interface DateFormatter {
      */
     String format(TemporalAccessor accessor);
 
+    default String formatMillis(long millis) {
+        return format(Instant.ofEpochMilli(millis));
+    }
+
     /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
@@ -76,14 +85,14 @@ public interface DateFormatter {
      *
      * @return The locale of this formatter
      */
-    Locale getLocale();
+    Locale locale();
 
     /**
      * Returns the configured time zone of the date formatter
      *
      * @return The time zone of this formatter
      */
-    ZoneId getZone();
+    ZoneId zone();
 
     /**
      * Return a {@link DateMathParser} built from this formatter.
@@ -152,13 +161,13 @@ public interface DateFormatter {
         }
 
         @Override
-        public Locale getLocale() {
-            return formatters[0].getLocale();
+        public Locale locale() {
+            return formatters[0].locale();
         }
 
         @Override
-        public ZoneId getZone() {
-            return formatters[0].getZone();
+        public ZoneId zone() {
+            return formatters[0].zone();
         }
 
         @Override

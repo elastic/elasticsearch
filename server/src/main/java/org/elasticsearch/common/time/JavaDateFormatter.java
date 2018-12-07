@@ -146,12 +146,12 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     @Override
-    public Locale getLocale() {
+    public Locale locale() {
         return this.printer.getLocale();
     }
 
     @Override
-    public ZoneId getZone() {
+    public ZoneId zone() {
         return this.printer.getZone();
     }
 
@@ -162,7 +162,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getLocale(), printer.getZone(), format);
+        return Objects.hash(locale(), printer.getZone(), format);
     }
 
     @Override
@@ -173,12 +173,12 @@ class JavaDateFormatter implements DateFormatter {
         JavaDateFormatter other = (JavaDateFormatter) obj;
 
         return Objects.equals(format, other.format) &&
-               Objects.equals(getLocale(), other.getLocale()) &&
+               Objects.equals(locale(), other.locale()) &&
                Objects.equals(this.printer.getZone(), other.printer.getZone());
     }
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "format[%s] locale[%s]", format, getLocale());
+        return String.format(Locale.ROOT, "format[%s] locale[%s]", format, locale());
     }
 }

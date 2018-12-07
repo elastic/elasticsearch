@@ -151,7 +151,7 @@ subprojects {
   }
 
   // sanity checks if archives can be extracted
-  final File archiveExtractionDir
+  File archiveExtractionDir
   if (project.name.contains('tar')) {
     archiveExtractionDir = new File(buildDir, 'tar-extracted')
   } else {
@@ -179,7 +179,7 @@ subprojects {
     }
   }
 
-  final Closure toolExists
+  Closure toolExists
   if (project.name.contains('tar')) {
     toolExists = tarExists
   } else {
@@ -192,7 +192,7 @@ subprojects {
     dependsOn buildDist, checkExtraction
     onlyIf toolExists
     doLast {
-      final String licenseFilename
+      String licenseFilename = null
       if (project.name.contains('oss-') || project.name == 'integ-test-zip') {
         licenseFilename = "APACHE-LICENSE-2.0.txt"
       } else {

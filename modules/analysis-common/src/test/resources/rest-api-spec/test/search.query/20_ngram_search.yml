@@ -33,6 +33,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -80,6 +81,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -89,6 +91,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -98,6 +101,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -107,6 +111,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             term:
@@ -116,6 +121,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -126,6 +132,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:

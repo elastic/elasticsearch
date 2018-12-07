@@ -27,6 +27,7 @@ if (project.rootProject.vagrantSupported) {
   test.finalizedBy idpFixtureProject.halt
 } else {
   test.enabled = false
+  testingConventions.enabled = false
 }
 
 namingConventions {

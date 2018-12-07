@@ -38,6 +38,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:

@@ -96,7 +96,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertEquals(0L, searchResponse.getHits().getTotalHits());
+        assertEquals(0L, searchResponse.getHits().getTotalHits().value);
 
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(job.getId());
         CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
@@ -106,6 +106,6 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertEquals(1L, searchResponse.getHits().getTotalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
     }
 }

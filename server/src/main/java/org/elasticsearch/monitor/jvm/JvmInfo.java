@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,6 +36,7 @@ import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.PlatformManagedObject;
 import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Method;
+import java.security.Security;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +96,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         String useCompressedOops = "unknown";
         String useG1GC = "unknown";
         String useSerialGC = "unknown";
+        String dnsCacheExpiration = "unlimited";
         long configuredInitialHeapSize = -1;
         long configuredMaxHeapSize = -1;
         try {
@@ -146,6 +149,14 @@ public class JvmInfo implements Writeable, ToXContentFragment {
             } catch (Exception ignored) {
             }
 
+            try {
+                dnsCacheExpiration = Security.getProperty("networkaddress.cache.ttl");
+                if (dnsCacheExpiration == null) {
+                    dnsCacheExpiration = "unlimited";
+                }
+            } catch (Exception ignored) {
+            }
+
         } catch (Exception ignored) {
 
         }
@@ -153,7 +164,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
                 runtimeMXBean.getVmVendor(), runtimeMXBean.getStartTime(), configuredInitialHeapSize, configuredMaxHeapSize,
                 mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError, onOutOfMemoryError,
-                useCompressedOops, useG1GC, useSerialGC);
+                useCompressedOops, useG1GC, useSerialGC, dnsCacheExpiration);
     }
 
     public static JvmInfo jvmInfo() {
@@ -185,11 +196,12 @@ public class JvmInfo implements Writeable, ToXContentFragment {
     private final String useCompressedOops;
     private final String useG1GC;
     private final String useSerialGC;
+    private final String dnsCacheExpiration;
 
     private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, long startTime,
                    long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments, String bootClassPath,
                    String classPath, Map<String, String> systemProperties, String[] gcCollectors, String[] memoryPools, String onError,
-                   String onOutOfMemoryError, String useCompressedOops, String useG1GC, String useSerialGC) {
+                   String onOutOfMemoryError, String useCompressedOops, String useG1GC, String useSerialGC, String dnsCacheExpiration) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
@@ -210,6 +222,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         this.useCompressedOops = useCompressedOops;
         this.useG1GC = useG1GC;
         this.useSerialGC = useSerialGC;
+        this.dnsCacheExpiration = dnsCacheExpiration;
     }
 
     public JvmInfo(StreamInput in) throws IOException {
@@ -230,6 +243,11 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
         useCompressedOops = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            this.dnsCacheExpiration = in.readString();
+        } else {
+            this.dnsCacheExpiration = "unconfigured";
+        }
         //the following members are only used locally for bootstrap checks, never serialized nor printed out
         this.configuredMaxHeapSize = -1;
         this.configuredInitialHeapSize = -1;
@@ -262,6 +280,9 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
         out.writeString(useCompressedOops);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeString(dnsCacheExpiration);
+        }
     }
 
     /**
@@ -428,6 +449,10 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         return memoryPools;
     }
 
+    public String getDnsCacheExpiration() {
+        return dnsCacheExpiration;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
@@ -452,6 +477,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
 
         builder.field(Fields.INPUT_ARGUMENTS, inputArguments);
+        builder.field(Fields.DNS_CACHE_EXPIRATION, dnsCacheExpiration);
 
         builder.endObject();
         return builder;
@@ -482,6 +508,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         static final String MEMORY_POOLS = "memory_pools";
         static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
         static final String INPUT_ARGUMENTS = "input_arguments";
+        static final String DNS_CACHE_EXPIRATION = "dns_cache_expiration";
     }
 
     public static class Mem implements Writeable {

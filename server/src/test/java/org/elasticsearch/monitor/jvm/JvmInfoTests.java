@@ -21,6 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 public class JvmInfoTests extends ESTestCase {
@@ -33,6 +34,15 @@ public class JvmInfoTests extends ESTestCase {
             assertEquals(Boolean.toString(isG1GCEnabled()), JvmInfo.jvmInfo().useG1GC());
         } else {
             assertEquals("unknown", JvmInfo.jvmInfo().useG1GC());
+        }
+    }
+
+    public void testDnsTtl() {
+        String propertyValue = System.getProperty("networkaddress.cache.ttl");
+        if (Strings.isNullOrEmpty(propertyValue)) {
+            assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), "unlimited");
+        } else {
+            assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), propertyValue);
         }
     }
 

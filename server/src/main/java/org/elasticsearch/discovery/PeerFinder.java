@@ -152,11 +152,8 @@ public abstract class PeerFinder {
     }
 
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
-        if (peersRequest.getSourceNode().equals(getLocalNode())) {
-            throw new IllegalArgumentException("ignoring peers request from the local node");
-        }
-
         synchronized (mutex) {
+            assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;
@@ -407,6 +404,11 @@ public abstract class PeerFinder {
 
             final DiscoveryNode discoveryNode = getDiscoveryNode();
             assert discoveryNode != null : "cannot request peers without first connecting";
+
+            if (discoveryNode.equals(getLocalNode())) {
+                logger.trace("{} not requesting peers from local node", this);
+                return;
+            }
 
             logger.trace("{} requesting peers", this);
             peersRequestInFlight = true;

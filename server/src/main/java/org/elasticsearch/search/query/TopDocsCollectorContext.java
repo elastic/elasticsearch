@@ -281,9 +281,10 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                                                  int numHits,
                                                  boolean trackMaxScore,
                                                  int numberOfShards,
+                                                 int trackTotalHitsUpTo,
                                                  boolean hasFilterCollector) throws IOException {
             super(reader, query, sortAndFormats, scrollContext.lastEmittedDoc, numHits, trackMaxScore,
-                SearchContext.TRACK_TOTAL_HITS_ACCURATE, hasFilterCollector);
+                trackTotalHitsUpTo, hasFilterCollector);
             this.scrollContext = Objects.requireNonNull(scrollContext);
             this.numberOfShards = numberOfShards;
         }
@@ -363,7 +364,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
             return new ScrollingTopDocsCollectorContext(reader, query, searchContext.scrollContext(),
-                searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(), hasFilterCollector);
+                searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(),
+                searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);

@@ -776,6 +776,12 @@ public final class SearchPhaseController {
                 if (totalHits < trackTotalHitsUpTo) {
                     return new TotalHits(totalHits, totalHitsRelation);
                 } else {
+                    /**
+                     * The user requested to count the total hits up to <code>trackTotalHitsUpTo</code>
+                     * so we return this lower bound when the total hits is greater than this value.
+                     * This can happen when multiple shards are merged since the limit to track total hits
+                     * is applied per shard.
+                     */
                     return new TotalHits(trackTotalHitsUpTo, Relation.GREATER_THAN_OR_EQUAL_TO);
                 }
             }

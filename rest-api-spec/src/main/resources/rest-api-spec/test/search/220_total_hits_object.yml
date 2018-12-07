@@ -124,7 +124,7 @@ setup:
   - match: {hits.total.relation: gte}
 
   - do:
-      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits is not accurate \(true\) or disabled \(false\)/
+      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits )/
       search:
         rest_total_hits_as_int: true
         index: test_2

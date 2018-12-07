@@ -1,19 +1,22 @@
 [[search-request-track-total-hits]]
 === Track total hits
 
-The total hit count can't be computed accurately without visiting all matches,
-which is costly for queries that match lots of documents. The `track_total_hits`
-parameter allows you to control how the total number of hits should be tracked.
-When set to `true` the search response will track the number of hits that match
-the query accurately:
+Generally the total hit count can't be computed accurately without visiting all
+matches, which is costly for queries that match lots of documents. The
+`track_total_hits` parameter allows you to control how the total number of hits
+should be tracked. When set to `true` the search response will always track the
+number of hits that match the query accurately (e.g. `total.relation` will always
+be equal to `"eq"` when `track_total_hits is set to true).
 
 [source,js]
 --------------------------------------------------
 GET /_search
 {
     "track_total_hits": true,
-    "query" : {
-        "match_all" : {}
+    "query": {
+        "term": {
+            "title": "fast"
+        }
     }
 }
 --------------------------------------------------
@@ -78,7 +81,7 @@ GET /_search
 <1> The total number of hits is unknown.
 
 Given that it is often enough to have a lower bound of the number of hits,
-such as "there are more than 1000 hits", it is also possible to set
+such as "there are at least 1000 hits", it is also possible to set
 `track_total_hits` as an integer that represents the number of hits to count
 accurately. The search can efficiently skip non-competitive document as soon
 as  collecting at least $`track_total_hits` documents. This is a good trade

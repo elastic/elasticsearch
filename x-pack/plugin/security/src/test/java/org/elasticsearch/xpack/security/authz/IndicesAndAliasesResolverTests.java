@@ -188,13 +188,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     );
                 }
                 return Void.TYPE;
-            }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+            }).when(rolesStore).roles(any(Set.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
-                new AnonymousUser(settings), mock(ApiKeyService.class));
+                new AnonymousUser(settings), mock(ApiKeyService.class), new FieldPermissionsCache(settings));
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }
 

@@ -361,11 +361,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // no matter what the value of from is
             return new EmptyTopDocsCollectorContext(reader, query, searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else if (searchContext.scrollContext() != null) {
+            // we can disable the tracking of total hits after the initial scroll query
+            // since the total hits is preserved in the scroll context.
+            int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null ?
+                SearchContext.TRACK_TOTAL_HITS_DISABLED : searchContext.trackTotalHitsUpTo();
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
             return new ScrollingTopDocsCollectorContext(reader, query, searchContext.scrollContext(),
                 searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(),
-                searchContext.trackTotalHitsUpTo(), hasFilterCollector);
+                trackTotalHitsUpTo, hasFilterCollector);
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);

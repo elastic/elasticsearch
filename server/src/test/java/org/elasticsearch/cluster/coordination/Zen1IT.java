@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -118,7 +117,8 @@ public class Zen1IT extends ESIntegTestCase {
         }
     }
 
-    private void testRollingMigrationFromZen1ToZen2(final int nodeCount) throws Exception {
+    public void testRollingMigrationFromZen1ToZen2() throws Exception {
+        final int nodeCount = randomIntBetween(2, 5);
         final List<String> zen1Nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
         createIndex("test",
@@ -150,23 +150,8 @@ public class Zen1IT extends ESIntegTestCase {
         assertThat(internalCluster().size(), equalTo(nodeCount));
     }
 
-    public void testMigratingFromZen1ToZen2ClusterWithTwoNodes() throws Exception {
-        testRollingMigrationFromZen1ToZen2(2);
-    }
-
-    public void testMigratingFromZen1ToZen2ClusterWithThreeNodes() throws Exception {
-        testRollingMigrationFromZen1ToZen2(3);
-    }
-
-    public void testMigratingFromZen1ToZen2ClusterWithFourNodes() throws Exception {
-        testRollingMigrationFromZen1ToZen2(4);
-    }
-
-    public void testMigratingFromZen1ToZen2ClusterWithFiveNodes() throws Exception {
-        testRollingMigrationFromZen1ToZen2(5);
-    }
-
-    private void testRollingUpgradeFromZen1ToZen2(final int nodeCount) throws Exception {
+    public void testRollingUpgradeFromZen1ToZen2() throws Exception {
+        final int nodeCount = randomIntBetween(2, 5);
         final List<String> nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
         createIndex("test",
@@ -204,22 +189,6 @@ public class Zen1IT extends ESIntegTestCase {
         ensureStableCluster(nodeCount);
         ensureGreen("test");
         assertThat(internalCluster().size(), equalTo(nodeCount));
-    }
-
-    public void testUpgradingFromZen1ToZen2ClusterWithTwoNodes() throws Exception {
-        testRollingUpgradeFromZen1ToZen2(2);
-    }
-
-    public void testUpgradingFromZen1ToZen2ClusterWithThreeNodes() throws Exception {
-        testRollingUpgradeFromZen1ToZen2(3);
-    }
-
-    public void testUpgradingFromZen1ToZen2ClusterWithFourNodes() throws Exception {
-        testRollingUpgradeFromZen1ToZen2(4);
-    }
-
-    public void testUpgradingFromZen1ToZen2ClusterWithFiveNodes() throws Exception {
-        testRollingUpgradeFromZen1ToZen2(5);
     }
 
     private void testMultipleNodeMigrationFromZen1ToZen2(int nodeCount) throws Exception {

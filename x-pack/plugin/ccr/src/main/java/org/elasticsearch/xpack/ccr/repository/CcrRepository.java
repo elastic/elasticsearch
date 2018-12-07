@@ -119,7 +119,14 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
         assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
-        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get();
+        ClusterStateResponse response = remoteClient
+            .admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetaData(true)
+            .setIndices("dummy_index_name") // We set a single dummy index name to avoid fetching all the index data
+            .get();
         return response.getState().metaData();
     }
 

@@ -323,7 +323,8 @@ public class CoordinationState {
                 getCurrentTerm());
         }
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
-            if (clusterState.term() == ZEN1_BWC_TERM) {
+            if (clusterState.term() == ZEN1_BWC_TERM
+                && clusterState.nodes().getMasterNode().equals(getLastAcceptedState().nodes().getMasterNode()) == false) {
                 logger.debug("handling publish request in compatibility mode despite version mismatch (expected: >[{}], actual: [{}])",
                     getLastAcceptedVersion(), clusterState.version());
             } else {

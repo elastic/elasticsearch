@@ -738,7 +738,8 @@ public final class SearchPhaseController {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs, trackTotalHitsUpTo);
+                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(),
+                    hasTopDocs, hasAggs, trackTotalHitsUpTo);
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {

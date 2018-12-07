@@ -278,12 +278,17 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     private static class Total implements Writeable, ToXContentFragment {
         final TotalHits in;
 
+        Total(TotalHits in) {
+            this.in = Objects.requireNonNull(in);
+        }
+
         Total(StreamInput in) throws IOException {
             this.in = Lucene.readTotalHits(in);
         }
 
-        Total(TotalHits in) {
-            this.in = Objects.requireNonNull(in);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Lucene.writeTotalHits(out, in);
         }
 
         @Override
@@ -298,11 +303,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         @Override
         public int hashCode() {
             return Objects.hash(in.value, in.relation);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Lucene.writeTotalHits(out, in);
         }
 
         @Override

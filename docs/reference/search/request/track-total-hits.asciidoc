@@ -10,16 +10,17 @@ be equal to `"eq"` when `track_total_hits is set to true).
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET twitter/_search
 {
     "track_total_hits": true,
-    "query": {
-        "term": {
-            "title": "fast"
+     "query": {
+        "match" : {
+            "message" : "Elasticsearch"
         }
-    }
+     }
 }
 --------------------------------------------------
+// TEST[setup:twitter]
 // CONSOLE
 
 \... returns:
@@ -28,19 +29,23 @@ GET /_search
 --------------------------------------------------
 {
     "_shards": ...
-    "hits" : {
+    "timed_out": false,
+    "took": 100,
+    "hits": {
+        "max_score": 1.0,
         "total" : {
             "value": 2048,    <1>
             "relation": "eq"  <2>
         },
-        "max_score" : 1.0,
-        "hits" : []
+        "hits": ...
     }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"took": 100/"took": $body.took/]
 // TESTRESPONSE[s/"max_score": 1\.0/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"value": 2048/"total": $body.hits.total.value/]
+// TESTRESPONSE[s/"value": 2048/"value": $body.hits.total.value/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": "$body.hits.hits"/]
 
 <1> The total number of hits that match the query.
 <2> The count is accurate (e.g. `"eq"` means equals).
@@ -51,17 +56,18 @@ non-competitive hits because it doesn't need to count all matches:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET twitter/_search
 {
     "track_total_hits": false,
-    "query": {
-        "term": {
-            "title": "fast"
+     "query": {
+        "match" : {
+            "message" : "Elasticsearch"
         }
-    }
+     }
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 \... returns:
 
@@ -69,14 +75,18 @@ GET /_search
 --------------------------------------------------
 {
     "_shards": ...
+    "timed_out": false,
+    "took": 10,
     "hits" : { <1>
-        "max_score" : 1.0,
-        "hits" : []
+        "max_score": 1.0,
+        "hits": ...
     }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"took": 10/"took": $body.took/]
 // TESTRESPONSE[s/"max_score": 1\.0/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": "$body.hits.hits"/]
 
 <1> The total number of hits is unknown.
 
@@ -94,17 +104,18 @@ the query accurately up to 100 documents:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET twitter/_search
 {
     "track_total_hits": 100,
-    "query": {
-        "term": {
-            "title": "fast"
+     "query": {
+        "match" : {
+            "message" : "Elasticsearch"
         }
-    }
+     }
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 The `hits.total.relation` in the response will indicate if the
 value returned in `hits.total.value` is accurate (`eq`) or a lower
@@ -116,19 +127,23 @@ For instance the following response:
 --------------------------------------------------
 {
     "_shards": ...
+    "timed_out": false,
+    "took": 30,
     "hits" : {
+        "max_score": 1.0,
         "total" : {
             "value": 42,         <1>
             "relation": "eq"     <2>
         },
-        "max_score" : 1.0,
-        "hits" : []
+        "hits": ...
     }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"took": 30/"took": $body.took/]
 // TESTRESPONSE[s/"max_score": 1\.0/"max_score": $body.hits.max_score/]
 // TESTRESPONSE[s/"value": 42/"value": $body.hits.total.value/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": "$body.hits.hits"/]
 
 <1> 42 documents match the query
 <2> and the count is accurate (`"eq"`)
@@ -145,12 +160,12 @@ will indicate that the returned value is a lower bound:
 {
     "_shards": ...
     "hits" : {
+        "max_score": 1.0,
         "total" : {
             "value": 100,         <1>
             "relation": "gte"     <2>
         },
-        "max_score" : 1.0,
-        "hits" : []
+        "hits": ...
     }
 }
 --------------------------------------------------

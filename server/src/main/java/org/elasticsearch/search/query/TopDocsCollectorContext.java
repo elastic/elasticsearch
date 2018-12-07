@@ -189,11 +189,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             }
         }
 
-        private final @Nullable SortAndFormats sortAndFormats;
         private final Collector collector;
-        private final Supplier<TotalHits> totalHitsSupplier;
-        private final Supplier<TopDocs> topDocsSupplier;
-        private final Supplier<Float> maxScoreSupplier;
+        protected final @Nullable SortAndFormats sortAndFormats;
+        protected final Supplier<TotalHits> totalHitsSupplier;
+        protected final Supplier<TopDocs> topDocsSupplier;
+        protected final Supplier<Float> maxScoreSupplier;
 
         /**
          * Ctr
@@ -266,7 +266,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         void postProcess(QuerySearchResult result) throws IOException {
             final TopDocs topDocs = topDocsSupplier.get();
             topDocs.totalHits = totalHitsSupplier.get();
-            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortAndFormats == null ? null : sortAndFormats.formats);
+            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()),
+                sortAndFormats == null ? null : sortAndFormats.formats);
         }
     }
 
@@ -291,26 +292,28 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            super.postProcess(result);
-            final TopDocsAndMaxScore topDocs = result.topDocs();
+            final TopDocs topDocs = topDocsSupplier.get();
+            topDocs.totalHits = totalHitsSupplier.get();
+            float maxScore = maxScoreSupplier.get();
             if (scrollContext.totalHits == null) {
                 // first round
-                scrollContext.totalHits = topDocs.topDocs.totalHits;
-                scrollContext.maxScore = topDocs.maxScore;
+                scrollContext.totalHits = topDocs.totalHits;
+                scrollContext.maxScore = maxScore;
             } else {
                 // subsequent round: the total number of hits and
                 // the maximum score were computed on the first round
-                topDocs.topDocs.totalHits = scrollContext.totalHits;
-                topDocs.maxScore = scrollContext.maxScore;
+                topDocs.totalHits = scrollContext.totalHits;
+                maxScore = scrollContext.maxScore;
             }
             if (numberOfShards == 1) {
                 // if we fetch the document in the same roundtrip, we already know the last emitted doc
-                if (topDocs.topDocs.scoreDocs.length > 0) {
+                if (topDocs.scoreDocs.length > 0) {
                     // set the last emitted doc
-                    scrollContext.lastEmittedDoc = topDocs.topDocs.scoreDocs[topDocs.topDocs.scoreDocs.length - 1];
+                    scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
                 }
             }
-            result.topDocs(topDocs, result.sortValueFormats());
+            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScore),
+                sortAndFormats == null ? null : sortAndFormats.formats);
         }
     }
 

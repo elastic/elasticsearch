@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.function.LongSupplier;
@@ -67,15 +66,9 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
         newLifecycleState.setIndexCreationDate(newIndexTime);
 
         IndexMetaData.Builder newIndexMetadata = IndexMetaData.builder(indexMetaData);
-        if (indexingComplete == false) {
-            newIndexMetadata
-                .settings(Settings.builder().put(indexMetaData.getSettings()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
-                .settingsVersion(indexMetaData.getSettingsVersion() + 1);
-        }
         newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
-        return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.metaData())
-                .put(newIndexMetadata)).build();
+        return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+            .put(newIndexMetadata)).build();
     }
 
     @Override

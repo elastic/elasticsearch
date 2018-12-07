@@ -94,7 +94,10 @@ public class TermVectorsResponse {
 
     /**
      * Returns the type for the response
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public String getType() {
         return type;
     }

@@ -255,7 +255,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             trackTotalHitsUpTo = in.readInt();
         } else {
-            trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : 0;
+            trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
         }
     }
 

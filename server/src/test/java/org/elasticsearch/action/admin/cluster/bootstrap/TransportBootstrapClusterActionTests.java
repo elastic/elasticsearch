@@ -117,7 +117,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             public void handleException(TransportException exp) {
                 final Throwable rootCause = exp.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-                assertThat(rootCause.getMessage(), equalTo("cluster bootstrapping is not supported by discovery type [zen]"));
+                assertThat(rootCause.getMessage(), equalTo("cluster bootstrapping is not supported by discovery type [zen2]"));
                 countDownLatch.countDown();
             }
         });

@@ -50,7 +50,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
         final int numShards = between(1, 20);
         client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
-                .addMapping("type", "loc", "type=geo_point", "test", "type=text").execute().actionGet();
+                .addMapping("type", "loc", "type=geo_point", "test", "type=text").get();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);
@@ -113,7 +113,8 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
+            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForYellowStatus()
+                    .setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
             assertNoTimeout(resp);
             // if we hit only non-critical exceptions we make sure that the post search works
             if (!nonCriticalExceptions.isEmpty()) {

@@ -52,6 +52,8 @@
                   host: $hostname
                   port: $port
                   path: "/{{#url}}{{ctx.metadata.index}}{{/url}}/_search"
+                  params:
+                    rest_total_hits_as_int: "true"
             condition:
               compare:
                 "ctx.payload.hits.total":

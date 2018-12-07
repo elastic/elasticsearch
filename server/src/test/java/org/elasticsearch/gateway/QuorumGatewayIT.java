@@ -38,6 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
+
     @Override
     protected int numberOfReplicas() {
         return 2;

@@ -70,6 +70,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
             mv(originalJavaPath, relocatedJavaPath);
             final Result installResult = runInstallCommand(distribution());
             assertThat(installResult.exitCode, is(1));
+            assertThat(installResult.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
         } finally {
             mv(relocatedJavaPath, originalJavaPath);
         }

@@ -45,6 +45,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
@@ -440,6 +441,15 @@ final class IndicesRequestConverters {
         parameters.withMasterTimeout(unfreezeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(unfreezeIndexRequest.indicesOptions());
         parameters.withWaitForActiveShards(unfreezeIndexRequest.getWaitForActiveShards());
+        return request;
+    }
+
+    static Request deleteTemplate(DeleteIndexTemplateRequest deleteIndexTemplateRequest) {
+        String name = deleteIndexTemplateRequest.name();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template").addPathPart(name).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withMasterTimeout(deleteIndexTemplateRequest.masterNodeTimeout());
         return request;
     }
 }

@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.test.TestSearchContext;
 
@@ -453,7 +454,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         {
             contextSearcher = getAssertingEarlyTerminationSearcher(reader, 1);
-            context.trackTotalHits(false);
+            context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
             QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));

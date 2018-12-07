@@ -110,7 +110,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HITS);
-        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, false);
+        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
             long total = totalHits == null ? -1 : totalHits.in.value;
             builder.field(Fields.TOTAL, total);

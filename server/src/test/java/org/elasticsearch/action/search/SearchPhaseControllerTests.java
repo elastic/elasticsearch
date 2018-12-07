@@ -41,6 +41,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -149,7 +150,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        for (boolean trackTotalHits : new boolean[] {true, false}) {
+        for (int trackTotalHits : new int[] {SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE}) {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
                 searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits);
             AtomicArray<SearchPhaseResult> searchPhaseResultAtomicArray = generateFetchResults(nShards, reducedQueryPhase.scoreDocs,
@@ -157,8 +158,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
                 reducedQueryPhase,
                 searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
-            if (trackTotalHits == false) {
+            if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 assertNull(mergedResponse.hits.getTotalHits());
+            } else {
+                assertThat(mergedResponse.hits.getTotalHits().value, equalTo(0L));
+                assertEquals(mergedResponse.hits.getTotalHits().relation, Relation.EQUAL_TO);
             }
             int suggestSize = 0;
             for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
@@ -190,7 +194,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex,
                 new SearchShardTarget("", new Index("", ""), shardIndex, null));
-            TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+            TopDocs topDocs = new TopDocs(
+                new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]
+            );
             float maxScore = 0;
             if (searchHitsSize > 0) {
                 int nDocs = randomIntBetween(0, searchHitsSize);

@@ -166,7 +166,7 @@ public class QueryPhase implements SearchPhase {
                         }
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
-                        searchContext.trackTotalHits(false);
+                        searchContext.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
                     } else if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
@@ -177,7 +177,7 @@ public class QueryPhase implements SearchPhase {
                                 .build();
                             query = bq;
                         }
-                        searchContext.trackTotalHits(false);
+                        searchContext.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
                     }
                 }
             }

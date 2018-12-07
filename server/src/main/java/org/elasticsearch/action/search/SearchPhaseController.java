@@ -49,6 +49,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -410,7 +411,7 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest) {
-        return reducedQueryPhase(queryResults, isScrollRequest, true);
+        return reducedQueryPhase(queryResults, isScrollRequest, SearchContext.TRACK_TOTAL_HITS_ACCURATE);
     }
 
     /**
@@ -418,8 +419,8 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                               boolean isScrollRequest, boolean trackTotalHits) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
+                                               boolean isScrollRequest, int trackTotalHitsUpTo) {
+        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsUpTo), 0, isScrollRequest);
     }
 
 
@@ -730,7 +731,7 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final boolean trackTotalHits = source == null || source.trackTotalHits();
+        final int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
@@ -742,34 +743,45 @@ public final class SearchPhaseController {
         return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo);
             }
         };
     }
 
     static final class TopDocsStats {
-        final boolean trackTotalHits;
+        final int trackTotalHitsUpTo;
         private long totalHits;
         private TotalHits.Relation totalHitsRelation;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
         TopDocsStats() {
-            this(true);
+            this(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         }
 
-        TopDocsStats(boolean trackTotalHits) {
-            this.trackTotalHits = trackTotalHits;
+        TopDocsStats(int trackTotalHitsUpTo) {
+            this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
-            this.totalHitsRelation = trackTotalHits ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
+            this.totalHitsRelation = Relation.EQUAL_TO;
         }
 
         TotalHits getTotalHits() {
-            return trackTotalHits ? new TotalHits(totalHits, totalHitsRelation) : null;
+            if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                return null;
+            } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                assert totalHitsRelation == Relation.EQUAL_TO;
+                return new TotalHits(totalHits, totalHitsRelation);
+            } else {
+                if (totalHits < trackTotalHitsUpTo) {
+                    return new TotalHits(totalHits, totalHitsRelation);
+                } else {
+                    return new TotalHits(trackTotalHitsUpTo, Relation.GREATER_THAN_OR_EQUAL_TO);
+                }
+            }
         }
 
         void add(TopDocsAndMaxScore topDocs) {
-            if (trackTotalHits) {
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
                     totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;

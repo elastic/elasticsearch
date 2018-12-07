@@ -1,0 +1,158 @@
+[[search-request-track-total-hits]]
+=== Track total hits
+
+The total hit count can't be computed accurately without visiting all matches,
+which is costly for queries that match lots of documents. The `track_total_hits`
+parameter allows you to control how the total number of hits should be tracked.
+When set to `true` the search response will track the number of hits that match
+the query accurately:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "track_total_hits": true,
+    "query" : {
+        "match_all" : {}
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : {
+        "value": 2048,    <1>
+        "relation": "eq"  <2>
+      },
+      "max_score" : 1.0,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"value": 2048/"total": $body.hits.total.value/]
+
+<1> The total number of hits that match the query.
+<2> The count is accurate (e.g. `"eq"` means equals).
+
+If you don't need to track the total number of hits you can improve query times
+by setting this option to `false`. In such case the search can efficiently skip
+non-competitive hits because it doesn't need to count all matches:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "track_total_hits": false,
+    "query": {
+        "term": {
+            "title": "fast"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : { <1>
+      "max_score" : 0.42,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+
+<1> The total number of hits is unknown.
+
+Given that it is often enough to have a lower bound of the number of hits,
+such as "there are more than 1000 hits", it is also possible to set
+`track_total_hits` as an integer that represents the number of hits to count
+accurately. The search can efficiently skip non-competitive document as soon
+as  collecting at least $`track_total_hits` documents. This is a good trade
+off to speed up searches if you don't need the accurate number of hits after
+a certain threshold.
+
+
+For instance the following query will track the total hit count that match
+the query accurately up to 100 documents:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "track_total_hits": 100,
+    "query": {
+        "term": {
+            "title": "fast"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `hits.total.relation` in the response will indicate if the
+value returned in `hits.total.value` is accurate (`eq`) or a lower
+bound of the total (`gte`).
+
+For instance the following response:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : {
+        "value": 42,         <1>
+        "relation": "eq"     <2>
+      },
+      "max_score" : 0.42,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"value": 100/"value": $body.hits.total.value/]
+
+<1> 42 documents match the query
+<2> and the count is accurate
+
+\... indicates that the number of hits returned in the `total`
+is accurate.
+
+If the total number of his that match the query is greater than the
+value set in `track_total_hits`, the total hits in the response
+will indicate that the returned value is a lower bound:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : {
+        "value": 100,         <1>
+        "relation": "gte"
+      },
+      "max_score" : 0.42,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"value": 100/"value": $body.hits.total.value/]
+
+<1> There are at least 100 documents that match the query
+<2> This is a lower bound (`gte`).

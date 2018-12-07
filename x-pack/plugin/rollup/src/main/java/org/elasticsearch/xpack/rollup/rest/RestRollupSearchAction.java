@@ -25,7 +25,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             RestSearchAction.TYPED_KEYS_PARAM,
-            RestSearchAction.TOTAL_HIT_AS_INT_PARAM)));
+            RestSearchAction.TOTAL_HITS_AS_INT_PARAM)));
 
     public RestRollupSearchAction(Settings settings, RestController controller) {
         super(settings);
@@ -40,6 +40,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest();
         restRequest.withContentOrSourceParamParserOrNull(parser ->
                 RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, size -> searchRequest.source().size(size)));
+        RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
         return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestToXContentListener<>(channel));
     }
 

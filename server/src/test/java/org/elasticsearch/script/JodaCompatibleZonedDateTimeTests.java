@@ -237,4 +237,14 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
     public void testDayOfWeekEnum() {
         assertThat(javaTime.getDayOfWeekEnum(), equalTo(DayOfWeek.of(jodaTime.getDayOfWeek())));
     }
+
+    public void testToStringWithLocaleAndZeroOffset() {
+        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
+        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm", Locale.ROOT), "toString(String,Locale)", "a DateTimeFormatter");
+    }
+
+    public void testToStringAndZeroOffset() {
+        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
+        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm"), "toString(String)", "a DateTimeFormatter");
+    }
 }

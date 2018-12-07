@@ -48,6 +48,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.is;
@@ -77,8 +78,14 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        clusterBootstrapService = new ClusterBootstrapService(Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build(),
-            transportService);
+        final Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build();
+        } else {
+            settings = Settings.builder()
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build();
+        }
+        clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {

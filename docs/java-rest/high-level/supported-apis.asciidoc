@@ -148,6 +148,7 @@ include::indices/get_templates.asciidoc[]
 include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
+include::indices/delete_template.asciidoc[]
 
 == Cluster APIs
 
@@ -334,13 +335,18 @@ include::ml/delete-expired-data.asciidoc[]
 
 == Migration APIs
 
+:upid: {mainid}-migration
+:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
+
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
-* <<java-rest-high-migration-upgrade>>
+* <<{upid}-upgrade>>
+* <<{upid}-get-deprecation-info>>
 
 include::migration/get-assistance.asciidoc[]
 include::migration/upgrade.asciidoc[]
+include::migration/get-deprecation-info.asciidoc[]
 
 == Rollup APIs
 
@@ -427,6 +433,7 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
+* <<{upid}-execute-watch>>
 * <<{upid}-watcher-stats>>
 
 include::watcher/start-watch-service.asciidoc[]
@@ -437,6 +444,7 @@ include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
 include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
+include::watcher/execute-watch.asciidoc[]
 include::watcher/watcher-stats.asciidoc[]
 
 == Graph APIs
@@ -473,6 +481,7 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-put-auto-follow-pattern>>
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
+* <<{upid}-ccr-get-stats>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
@@ -481,6 +490,7 @@ include::ccr/unfollow.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
+include::ccr/get_stats.asciidoc[]
 
 == Index Lifecycle Management APIs
 

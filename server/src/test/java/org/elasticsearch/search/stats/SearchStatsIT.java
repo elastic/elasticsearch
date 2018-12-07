@@ -85,7 +85,7 @@ public class SearchStatsIT extends ESIntegTestCase {
 
     public void testSimpleStats() throws Exception {
         // clear all stats first
-        client().admin().indices().prepareStats().clear().execute().actionGet();
+        client().admin().indices().prepareStats().clear().get();
         final int numNodes = cluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
@@ -96,7 +96,7 @@ public class SearchStatsIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)));
         int docsTest1 = scaledRandomIntBetween(3*shardsIdx1, 5*shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
-            client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -106,7 +106,7 @@ public class SearchStatsIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)));
         int docsTest2 = scaledRandomIntBetween(3*shardsIdx2, 5*shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
-            client().prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -124,12 +124,12 @@ public class SearchStatsIT extends ESIntegTestCase {
                     .addScriptField("script1",
                         new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
                     .setSize(100)
-                    .execute().actionGet();
+                    .get();
             assertHitCount(searchResponse, docsTest1 + docsTest2);
             assertAllSuccessful(searchResponse);
         }
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
         logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));
@@ -137,13 +137,13 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), nullValue());
 
-        indicesStats = client().admin().indices().prepareStats().setGroups("group1").execute().actionGet();
+        indicesStats = client().admin().indices().prepareStats().setGroups("group1").get();
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), notNullValue());
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchTimeInMillis(), greaterThan(0L));
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
 
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
@@ -164,7 +164,7 @@ public class SearchStatsIT extends ESIntegTestCase {
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
@@ -193,13 +193,12 @@ public class SearchStatsIT extends ESIntegTestCase {
                         .prepareIndex(index, "type", Integer.toString(s * docs + i))
                         .setSource("field", "value")
                         .setRouting(Integer.toString(s))
-                        .execute()
-                        .actionGet();
+                        .get();
             }
         }
-        client().admin().indices().prepareRefresh(index).execute().actionGet();
+        client().admin().indices().prepareRefresh(index).get();
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(index).execute().actionGet();
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(index).get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
@@ -207,11 +206,11 @@ public class SearchStatsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .setScroll(TimeValue.timeValueMinutes(2))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(searchResponse);
 
         // refresh the stats now that scroll contexts are opened
-        indicesStats = client().admin().indices().prepareStats(index).execute().actionGet();
+        indicesStats = client().admin().indices().prepareStats(index).get();
 
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long) numAssignedShards(index)));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getScrollCurrent(), equalTo((long) numAssignedShards(index)));
@@ -224,23 +223,23 @@ public class SearchStatsIT extends ESIntegTestCase {
             hits += searchResponse.getHits().getHits().length;
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
                     .setScroll(TimeValue.timeValueMinutes(2))
-                    .execute().actionGet();
+                    .get();
         }
         long expected = 0;
 
         // the number of queries executed is equal to at least the sum of number of pages in shard over all shards
-        IndicesStatsResponse r = client().admin().indices().prepareStats(index).execute().actionGet();
+        IndicesStatsResponse r = client().admin().indices().prepareStats(index).get();
         for (int s = 0; s < numAssignedShards(index); s++) {
             expected += (long)Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
         }
-        indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        indicesStats = client().admin().indices().prepareStats().get();
         Stats stats = indicesStats.getTotal().getSearch().getTotal();
         assertEquals(hits, docs * numAssignedShards(index));
         assertThat(stats.getQueryCount(), greaterThanOrEqualTo(expected));
 
         clearScroll(searchResponse.getScrollId());
 
-        indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        indicesStats = client().admin().indices().prepareStats().get();
         stats = indicesStats.getTotal().getSearch().getTotal();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards(index)));
@@ -248,7 +247,7 @@ public class SearchStatsIT extends ESIntegTestCase {
     }
 
     protected int numAssignedShards(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }

@@ -88,6 +88,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -99,6 +100,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -121,6 +123,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: _doc
@@ -138,6 +141,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -154,6 +158,7 @@
   - do:
       catch:      /disabling \[track_total_hits\] is not allowed in a scroll context/
       search:
+        rest_total_hits_as_int: true
         index: test
         scroll: 1m
         body:

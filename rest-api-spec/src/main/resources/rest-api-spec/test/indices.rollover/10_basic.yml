@@ -69,6 +69,7 @@
   # check alias points to the new index
   - do:
       search:
+        rest_total_hits_as_int: true
         index: logs_search
 
   - match: { hits.total: 1 }

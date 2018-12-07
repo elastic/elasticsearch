@@ -49,7 +49,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
 
     /**
      * Creates a random instance to use in the xcontent tests.
-     * Overrides this method if the random instance that you build
+     * Override this method if the random instance that you build
      * should be aware of the {@link XContentType} used in the test.
      */
     protected T createXContextTestInstance(XContentType xContentType) {

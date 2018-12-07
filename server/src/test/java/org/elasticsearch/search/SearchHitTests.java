@@ -126,11 +126,11 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
                 hit.setInnerHits(innerHits);
             }
         }
-        if (withShardTarget) {
+        if (withShardTarget && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), clusterAlias, OriginalIndices.NONE));
+                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE));
         }
         return hit;
     }

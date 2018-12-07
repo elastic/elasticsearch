@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +34,9 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHits> {
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
@@ -107,11 +111,23 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
 
     @Override
     protected SearchHits createTestInstance() {
+        /**
+         * This instance is used to test the transport serialization so it's fine
+         * to produce shard targets (withShardTarget is true) since they are serialized
+         * in this layer.
+         */
         return createTestItem(randomFrom(XContentType.values()), true, true);
     }
 
     @Override
     protected SearchHits createXContextTestInstance(XContentType xContentType) {
+        /**
+         * We don't set {@link SearchHit#shard} (withShardTarget is false) in this test
+         * because the rest serialization does not render this information so the deserialized
+         * hit cannot be equal to the original instance.
+         * There is another test ({@link #testFromXContentWithShards}) that checks the
+         * rest serialization with shard targets.
+         */
         return createTestItem(xContentType,true, false);
     }
 
@@ -142,5 +158,24 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
         assertEquals("{\"hits\":{\"total\":{\"value\":1000,\"relation\":\"eq\"},\"max_score\":1.5," +
             "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":null},"+
             "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
+    }
+
+    public void testFromXContentWithShards() throws IOException {
+        SearchHits searchHits = createTestItem(true, true);
+        XContentType xcontentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toShuffledXContent(searchHits, xcontentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        SearchHits parsed;
+        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(SearchHits.Fields.HITS, parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = SearchHits.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, humanReadable), xcontentType);
     }
 }

@@ -705,7 +705,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new IllegalStateException("Cannot upgrade, term is " + getCurrentTerm());
             }
 
-            logger.info("automatically bootstrapping during upgrade, using initial configuration {}", votingConfiguration);
+            logger.info("automatically bootstrapping during rolling upgrade, using initial configuration {}", votingConfiguration);
 
             final long newTerm = 1;
             final ClusterState currentState = getStateForMasterService();

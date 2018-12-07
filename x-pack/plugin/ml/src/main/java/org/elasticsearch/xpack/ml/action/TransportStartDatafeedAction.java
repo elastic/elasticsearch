@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,7 +51,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,13 +76,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final PersistentTasksService persistentTasksService;
     private final JobManager jobManager;
     private final DatafeedConfigReader datafeedConfigReader;
+    private final Auditor auditor;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                         ClusterService clusterService, XPackLicenseState licenseState,
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Client client, JobManager jobManager, DatafeedConfigProvider datafeedConfigProvider) {
+                                        Client client, JobManager jobManager, DatafeedConfigProvider datafeedConfigProvider,
+                                        Auditor auditor) {
         super(settings, StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDatafeedAction.Request::new);
         this.licenseState = licenseState;
@@ -87,6 +92,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.client = client;
         this.jobManager = jobManager;
         this.datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
+        this.auditor = auditor;
     }
 
     static void validate(Job job, DatafeedConfig datafeedConfig, PersistentTasksCustomMetaData tasks) {
@@ -97,6 +103,19 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedConfig.getId() +
                     "] because job [" + job.getId() + "] is " + jobState);
         }
+    }
+
+    //Get the deprecation warnings from the parsed query and aggs to audit
+    static void auditDeprecations(DatafeedConfig datafeed, Job job, Auditor auditor) {
+        List<String> deprecationWarnings = new ArrayList<>();
+        deprecationWarnings.addAll(datafeed.getAggDeprecations());
+        deprecationWarnings.addAll(datafeed.getQueryDeprecations());
+        if (deprecationWarnings.isEmpty() == false) {
+            String msg = "datafeed [" + datafeed.getId() +"] configuration has deprecations. [" +
+                Strings.collectionToDelimitedString(deprecationWarnings, ", ") + "]";
+            auditor.warning(job.getId(), msg);
+        }
+
     }
 
     @Override
@@ -172,6 +191,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 job -> {
                     try {
                         validate(job, datafeedConfigHolder.get(), tasks);
+                        auditDeprecations(datafeedConfigHolder.get(), job, auditor);
                         createDataExtrator.accept(job);
                     } catch (Exception e) {
                         listener.onFailure(e);

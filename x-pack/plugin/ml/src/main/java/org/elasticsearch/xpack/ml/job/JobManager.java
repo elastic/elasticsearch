@@ -328,49 +328,63 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
 
-        ActionListener<Job> postUpdateAction;
+        Runnable doUpdate = () -> {
+                jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
+                        this::validate, ActionListener.wrap(
+                                updatedJob -> postJobUpdate(request, updatedJob, actionListener),
+                                actionListener::onFailure
+                        ));
+        };
 
-        // Autodetect must be updated if the fields that the C++ uses are changed
-        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
-            postUpdateAction = ActionListener.wrap(
-                    updatedJob -> {
-                        JobUpdate jobUpdate = request.getJobUpdate();
-                        if (isJobOpen(clusterService.state(), request.getJobId())) {
-                            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
-                                    isUpdated -> {
-                                        if (isUpdated) {
-                                            auditJobUpdatedIfNotInternal(request);
-                                        }
-                                    }, e -> {
-                                        // No need to do anything
-                                    }
-                            ));
+        if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
+
+            // check the new groups are not job Ids
+            jobConfigProvider.jobIdMatches(request.getJobUpdate().getGroups(), ActionListener.wrap(
+                    matchingIds -> {
+                        if (matchingIds.isEmpty()) {
+                            doUpdate.run();
+                        } else {
+                            actionListener.onFailure(new ResourceAlreadyExistsException(
+                                    Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchingIds.get(0))));
                         }
-                        actionListener.onResponse(new PutJobAction.Response(updatedJob));
                     },
                     actionListener::onFailure
-            );
+            ));
         } else {
-            postUpdateAction = ActionListener.wrap(job -> {
-                        logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
-                            try {
-                                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                                request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                                return Strings.toString(jsonBuilder);
-                            } catch (IOException e) {
-                                return "(unprintable due to " + e.getMessage() + ")";
-                            }
-                        });
+            doUpdate.run();
+        }
+    }
 
-                        auditJobUpdatedIfNotInternal(request);
-                        actionListener.onResponse(new PutJobAction.Response(job));
-                    },
-                    actionListener::onFailure);
+    private void postJobUpdate(UpdateJobAction.Request request, Job updatedJob, ActionListener<PutJobAction.Response> actionListener) {
+        // Autodetect must be updated if the fields that the C++ uses are changed
+        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
+            JobUpdate jobUpdate = request.getJobUpdate();
+            if (isJobOpen(clusterService.state(), request.getJobId())) {
+                updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
+                        isUpdated -> {
+                            if (isUpdated) {
+                                auditJobUpdatedIfNotInternal(request);
+                            }
+                        }, e -> {
+                            // No need to do anything
+                        }
+                ));
+            }
+        } else {
+            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
+                try {
+                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                    request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                    return Strings.toString(jsonBuilder);
+                } catch (IOException e) {
+                    return "(unprintable due to " + e.getMessage() + ")";
+                }
+            });
+
+            auditJobUpdatedIfNotInternal(request);
         }
 
-
-        jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
-                this::validate, postUpdateAction);
+        actionListener.onResponse(new PutJobAction.Response(updatedJob));
     }
 
     private void validate(Job job, JobUpdate jobUpdate, ActionListener<Void> handler) {

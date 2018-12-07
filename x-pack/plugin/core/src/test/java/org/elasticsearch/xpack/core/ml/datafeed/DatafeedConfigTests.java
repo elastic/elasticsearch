@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -697,6 +696,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                     streamedDatafeedConfig.getParsedAggregations());
                 assertEquals(terms, streamedDatafeedConfig.getParsedQuery());
             }
+        }
+    }
+
+    public void testCopyingDatafeedDoesNotCauseStackOverflow() {
+        DatafeedConfig datafeed = createTestInstance();
+        for (int i = 0; i < 100000; i++) {
+            datafeed = new DatafeedConfig.Builder(datafeed).build();
         }
     }
 

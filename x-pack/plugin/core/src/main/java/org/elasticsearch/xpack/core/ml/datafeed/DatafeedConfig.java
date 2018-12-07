@@ -42,6 +42,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -232,8 +234,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.frequency = frequency;
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
         this.types = types == null ? null : Collections.unmodifiableList(types);
-        this.query = query;
-        this.aggregations = aggregations;
+        this.query = query == null ? null : Collections.unmodifiableMap(query);
+        this.aggregations = aggregations == null ? null : Collections.unmodifiableMap(aggregations);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
@@ -595,8 +597,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
 
-
-
         public Builder() {
             try {
                 this.query = QUERY_TRANSFORMER.toMap(QueryBuilders.matchAllQuery());
@@ -614,14 +614,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.jobId = config.jobId;
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
-            this.indices = config.indices;
-            this.types = config.types;
-            this.query = config.query;
-            this.aggregations = config.aggregations;
-            this.scriptFields = config.scriptFields;
+            this.indices = new ArrayList<>(config.indices);
+            this.types = new ArrayList<>(config.types);
+            this.query = config.query == null ? null : new LinkedHashMap<>(config.query);
+            this.aggregations = config.aggregations == null ? null : new LinkedHashMap<>(config.aggregations);
+            this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
-            this.headers = config.headers;
+            this.headers = new HashMap<>(config.headers);
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
         }
 

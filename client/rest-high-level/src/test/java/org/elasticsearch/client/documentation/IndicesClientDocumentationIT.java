@@ -59,6 +59,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -2685,5 +2686,65 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             // end::unfreeze-index-notfound
         }
+    }
+
+    public void testDeleteTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-template-request
+        DeleteIndexTemplateRequest request = new DeleteIndexTemplateRequest();
+        request.name("my-template"); // <1>
+        // end::delete-template-request
+
+        // tag::delete-template-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::delete-template-request-masterTimeout
+
+        // tag::delete-template-execute
+        AcknowledgedResponse deleteTemplateAcknowledge = client.indices().deleteTemplate(request, RequestOptions.DEFAULT);
+        // end::delete-template-execute
+
+        // tag::delete-template-response
+        boolean acknowledged = deleteTemplateAcknowledge.isAcknowledged(); // <1>
+        // end::delete-template-response
+        assertThat(acknowledged, equalTo(true));
+
+        {
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+        // tag::delete-template-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::delete-template-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::delete-template-execute-async
+        client.indices().deleteTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-templates-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

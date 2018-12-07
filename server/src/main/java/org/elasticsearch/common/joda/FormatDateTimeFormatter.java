@@ -89,7 +89,7 @@ public class FormatDateTimeFormatter {
         return parser.getLocale();
     }
 
-    public ZoneId zoneId() {
+    public ZoneId zone() {
         return DateUtils.dateTimeZoneToZoneId(parser.getZone());
     }
 

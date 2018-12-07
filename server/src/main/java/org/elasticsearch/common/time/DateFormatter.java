@@ -20,9 +20,11 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.joda.time.DateTime;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
@@ -40,8 +42,18 @@ public interface DateFormatter {
      */
     TemporalAccessor parse(String input);
 
+    /**
+     * Parse the given input into millis-since-epoch.
+     */
     default long parseMillis(String input) {
         return Instant.from(parse(input)).toEpochMilli();
+    }
+
+    /**
+     * Parse the given input into a Joda {@link DateTime}.
+     */
+    default DateTime parseJoda(String input) {
+        new DateTime()
     }
 
     /**
@@ -68,8 +80,19 @@ public interface DateFormatter {
      */
     String format(TemporalAccessor accessor);
 
+    /**
+     * Return the given millis-since-epoch formatted with this format.
+     */
     default String formatMillis(long millis) {
         return format(Instant.ofEpochMilli(millis));
+    }
+
+    /**
+     * Return the given Joda {@link DateTime} formatted with this format.
+     */
+    default String formatJoda(DateTime dateTime) {
+        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateTime.getMillis()),
+            DateUtils.dateTimeZoneToZoneId(dateTime.getZone())));
     }
 
     /**

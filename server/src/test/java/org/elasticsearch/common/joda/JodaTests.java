@@ -32,11 +32,11 @@ public class JodaTests extends ESTestCase {
     public void testBasicTTimePattern() {
         FormatDateTimeFormatter formatter1 = Joda.forPattern("basic_t_time");
         assertEquals(formatter1.pattern(), "basic_t_time");
-        assertEquals(formatter1.zoneId(), ZoneOffset.UTC);
+        assertEquals(formatter1.zone(), ZoneOffset.UTC);
 
         FormatDateTimeFormatter formatter2 = Joda.forPattern("basicTTime");
         assertEquals(formatter2.pattern(), "basicTTime");
-        assertEquals(formatter2.zoneId(), ZoneOffset.UTC);
+        assertEquals(formatter2.zone(), ZoneOffset.UTC);
 
         DateTime dt = new DateTime(2004, 6, 9, 10, 20, 30, 40, DateTimeZone.UTC);
         assertEquals("T102030.040Z", formatter1.formatJoda(dt));

@@ -270,16 +270,11 @@ Response not included in text but tested for completeness sake.
 {
   ...,
   "hits": {
-<<<<<<< HEAD
     "total" : {
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 1.0444684,
-=======
-    "total": 1,
     "max_score": 0.47475836,
->>>>>>> update scores in docs
     "hits": [
       {
         "_index": "test",
@@ -396,16 +391,11 @@ Which would look like:
 {
   ...,
   "hits": {
-<<<<<<< HEAD
     "total" : {
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.6931472,
-=======
-    "total": 1,
     "max_score": 0.3150669,
->>>>>>> update scores in docs
     "hits": [
       {
         "_index": "test",
@@ -416,16 +406,11 @@ Which would look like:
         "inner_hits": {
           "comments.votes": { <1>
             "hits": {
-<<<<<<< HEAD
               "total" : {
                   "value": 1,
                   "relation": "eq"
               },
-              "max_score": 0.6931472,
-=======
-              "total": 1,
               "max_score": 0.3150669,
->>>>>>> update scores in docs
               "hits": [
                 {
                   "_index": "test",

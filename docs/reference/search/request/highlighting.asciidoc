@@ -860,16 +860,11 @@ Response:
 {
     ...
     "hits": {
-<<<<<<< HEAD
         "total" : {
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.601195,
-=======
-        "total": 1,
         "max_score": 0.72781587,
->>>>>>> update scores in docs
         "hits": [
             {
                 "_index": "twitter",

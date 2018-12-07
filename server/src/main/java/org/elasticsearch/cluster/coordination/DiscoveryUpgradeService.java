@@ -136,7 +136,7 @@ public class DiscoveryUpgradeService {
      * Waits for some number of calls to {@link ListenableCountDown#countDown()} and then notifies a listener. The listener
      * is only ever notified once, whether successful or not.
      */
-    private class ListenableCountDown {
+    private static class ListenableCountDown {
         private final CountDown countDown;
         private final ActionListener<Void> listener;
 

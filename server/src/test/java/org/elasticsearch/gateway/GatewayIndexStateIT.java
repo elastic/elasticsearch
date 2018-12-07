@@ -282,12 +282,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         Consider adding term to JoinRequest, so that master node can bump its term if its current term is less than JoinRequest#term.
         */
         logger.info("--> starting two nodes");
-        String masterNode = internalCluster().startNode(Settings.builder()
-                .put(Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build())
-                .build());
-        internalCluster().startDataOnlyNode(Settings.builder()
-                .put(Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build())
-                .build());
+
+        final String node_1 = internalCluster().startNodes(2,
+                Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build()).get(0);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -301,11 +298,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
-        logger.info("--> restarting master node, while clearing its data");
-        internalCluster().restartNode(masterNode, new RestartCallback() {
+        logger.info("--> restarting the nodes");
+        internalCluster().fullRestart(new RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
-                return true;
+                return node_1.equals(nodeName);
             }
         });
 
@@ -362,6 +359,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
                 assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                logger.info("--> index deleted");
                 return super.onNodeStopped(nodeName);
             }
         });

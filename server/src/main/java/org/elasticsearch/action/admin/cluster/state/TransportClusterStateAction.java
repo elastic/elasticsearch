@@ -127,6 +127,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
+
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
@@ -150,6 +151,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         MetaData.Builder mdBuilder = MetaData.builder();
         mdBuilder.clusterUUID(currentState.metaData().clusterUUID());
+        mdBuilder.coordinationMetaData(currentState.coordinationMetaData());
 
         if (request.metaData()) {
             if (request.indices().length > 0) {

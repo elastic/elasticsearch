@@ -43,6 +43,7 @@ setup:
 "Sliced scroll":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_sliced_scroll
         scroll: 1m
         sort: foo
@@ -62,6 +63,7 @@ setup:
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 
@@ -74,6 +76,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_sliced_scroll
         scroll: 1m
         sort: foo
@@ -91,6 +94,7 @@ setup:
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 
@@ -110,6 +114,7 @@ setup:
   - do:
         catch: bad_request
         search:
+          rest_total_hits_as_int: true
           index: test_sliced_scroll
           size: 1
           scroll: 1m
@@ -128,6 +133,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test_sliced_scroll
           size: 1
           scroll: 1m

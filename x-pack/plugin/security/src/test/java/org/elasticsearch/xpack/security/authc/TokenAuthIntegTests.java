@@ -155,7 +155,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .setSize(1)
                     .setTerminateAfter(1)
                     .get();
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
 
@@ -187,7 +187,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .setSize(0)
                     .setTerminateAfter(1)
                     .get();
-            assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         }, 30, TimeUnit.SECONDS);
     }
 

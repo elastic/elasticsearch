@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +31,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.common.time.DateUtils;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -191,7 +192,11 @@ public interface DocValueFormat extends NamedWriteable {
             // as returning a date having UTC is always returning Z as timezone in all
             // versions, this is a hack around the java time behaviour
             String zoneId = in.readString();
-            this.timeZone = zoneId.equals("UTC") ? ZoneOffset.UTC : ZoneId.of(zoneId);
+            if (in.getVersion().before(Version.V_7_0_0)) {
+                this.timeZone = zoneId.equals("UTC") ? ZoneOffset.UTC : DateUtils.of(zoneId);
+            } else {
+                this.timeZone = ZoneId.of(zoneId);
+            }
         }
 
         @Override
@@ -202,8 +207,12 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            // joda does not understand "Z" for utc, so we must special case
-            out.writeString(timeZone.getId().equals("Z") ? DateTimeZone.UTC.getID() : timeZone.getId());
+            if (out.getVersion().before(Version.V_7_0_0)) {
+                // joda does not understand "Z" for utc, so we must special case
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            } else {
+                out.writeString(timeZone.getId());
+            }
         }
 
         @Override

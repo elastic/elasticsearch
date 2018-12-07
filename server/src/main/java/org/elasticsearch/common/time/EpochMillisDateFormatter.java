@@ -25,9 +25,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -42,7 +40,8 @@ import java.util.regex.Pattern;
 class EpochMillisDateFormatter implements DateFormatter {
 
     private static final Pattern SPLIT_BY_DOT_PATTERN = Pattern.compile("\\.");
-    static DateFormatter INSTANCE = new EpochMillisDateFormatter();
+    static final DateFormatter INSTANCE = new EpochMillisDateFormatter();
+    static final DateMathParser DATE_MATH_INSTANCE = new JavaDateMathParser(INSTANCE, INSTANCE);
 
     private EpochMillisDateFormatter() {
     }
@@ -104,11 +103,6 @@ class EpochMillisDateFormatter implements DateFormatter {
     }
 
     @Override
-    public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
-        return this;
-    }
-
-    @Override
     public Locale getLocale() {
         return Locale.ROOT;
     }
@@ -116,5 +110,10 @@ class EpochMillisDateFormatter implements DateFormatter {
     @Override
     public ZoneId getZone() {
         return ZoneOffset.UTC;
+    }
+
+    @Override
+    public DateMathParser toDateMathParser() {
+        return DATE_MATH_INSTANCE;
     }
 }

@@ -108,7 +108,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
-            CcrRepository.SNAPSHOT_NAME, new String[]{leaderIndex}, indicesOptions,
+            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
             "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
             false, true, settingsBuilder.build(), new String[0],
             "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");

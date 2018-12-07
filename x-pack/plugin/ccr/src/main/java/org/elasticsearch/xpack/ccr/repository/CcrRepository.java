@@ -52,7 +52,7 @@ import java.util.Set;
  */
 public class CcrRepository extends AbstractLifecycleComponent implements Repository {
 
-    public static final String SNAPSHOT_NAME = "_latest_";
+    public static final String LATEST = "_latest_";
     public static final String TYPE = "_ccr_";
     public static final String NAME_PREFIX = "_ccr_";
 
@@ -92,7 +92,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert SNAPSHOT_NAME.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
+        assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
+        assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).setNodes(true).get();
         ImmutableOpenMap<String, IndexMetaData> indicesMap = response.getState().metaData().indices();
@@ -115,7 +116,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
-        assert SNAPSHOT_NAME.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
+        assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
+        assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get();
         return response.getState().metaData();
@@ -123,7 +125,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        assert SNAPSHOT_NAME.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
+        assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
+        assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
         String leaderIndex = index.getName();
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
 
@@ -167,7 +170,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ImmutableOpenMap<String, IndexMetaData> remoteIndices = remoteMetaData.getIndices();
         for (String indexName : remoteMetaData.getConcreteAllIndices()) {
             // Both the Snapshot name and UUID are set to _latest_
-            SnapshotId snapshotId = new SnapshotId(SNAPSHOT_NAME, SNAPSHOT_NAME);
+            SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
             copiedSnapshotIds.put(indexName, snapshotId);
             snapshotStates.put(indexName, SnapshotState.SUCCESS);
             Index index = remoteIndices.get(indexName).getIndex();

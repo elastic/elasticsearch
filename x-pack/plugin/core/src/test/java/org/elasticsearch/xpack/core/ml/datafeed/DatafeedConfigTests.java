@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -488,6 +487,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601)));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+    }
+
+    public void testCopyingDatafeedDoesNotCauseStackOverflow() {
+        DatafeedConfig datafeed = createTestInstance();
+        for (int i = 0; i < 100000; i++) {
+            datafeed = new DatafeedConfig.Builder(datafeed).build();
+        }
     }
 
     public static String randomValidDatafeedId() {

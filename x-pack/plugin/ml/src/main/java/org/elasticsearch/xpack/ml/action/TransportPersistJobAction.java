@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,8 +22,6 @@ import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
-import java.io.IOException;
-
 public class TransportPersistJobAction extends TransportJobTaskAction<PersistJobAction.Request, PersistJobAction.Response> {
 
     @Inject
@@ -33,13 +30,6 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
         super(PersistJobAction.NAME, clusterService, transportService, actionFilters,
             PersistJobAction.Request::new, PersistJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
-    }
-
-    @Override
-    protected PersistJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        PersistJobAction.Response response = new PersistJobAction.Response();
-        response.readFrom(in);
-        return response;
     }
 
     @Override

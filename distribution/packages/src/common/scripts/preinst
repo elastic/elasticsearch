@@ -1,3 +1,4 @@
+#!/bin/bash
 #
 # This script is executed in the pre-installation phase
 #
@@ -9,16 +10,22 @@
 #       $1=1       : indicates an new install
 #       $1=2       : indicates an upgrade
 
+err_exit() {
+    echo "$@" >&2
+    exit 1
+}
+
 # Check for these at preinst time due to failures in postinst if they do not exist
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
+elif command -v java; then
+    JAVA=`command -v java`
 else
-    JAVA=`which java`
+    JAVA=""
 fi
 
 if [ -z "$JAVA" ]; then
-    echo "could not find java; set JAVA_HOME or ensure java is in PATH"
-    exit 1
+    err_exit "could not find java; set JAVA_HOME or ensure java is in PATH"
 fi
 
 case "$1" in
@@ -75,8 +82,7 @@ case "$1" in
     ;;
 
     *)
-        echo "pre install script called with unknown argument \`$1'" >&2
-        exit 1
+        err_exit "pre install script called with unknown argument \`$1'"
     ;;
 esac
 

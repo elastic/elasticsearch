@@ -28,7 +28,7 @@ following snippet:
       }
     },
     {
-      "script" : "return [ error_count : ctx.payload.hits.total ]"  <3>
+      "script" : "return [ error_count : ctx.payload.hits.total.value ]"  <3>
     }
   ]
 }

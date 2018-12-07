@@ -160,15 +160,22 @@ public final class CcrLicenseChecker {
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
             final Consumer<ClusterState> leaderClusterStateConsumer) {
-        checkRemoteClusterLicenseAndFetchClusterState(
+        try {
+            Client remoteClient = systemClient(client.getRemoteClusterClient(clusterAlias));
+            checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,
-                systemClient(client.getRemoteClusterClient(clusterAlias)),
+                remoteClient,
                 request,
                 onFailure,
                 leaderClusterStateConsumer,
                 CcrLicenseChecker::clusterStateNonCompliantRemoteLicense,
                 e -> clusterStateUnknownRemoteLicense(clusterAlias, e));
+        } catch (Exception e) {
+            // client.getRemoteClusterClient(...) can fail with a IllegalArgumentException if remote
+            // connection is unknown
+            onFailure.accept(e);
+        }
     }
 
     /**

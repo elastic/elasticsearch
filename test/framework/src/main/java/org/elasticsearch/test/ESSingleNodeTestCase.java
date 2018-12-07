@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -190,6 +191,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
@@ -199,6 +201,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
@@ -213,20 +216,24 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
-            build.start();
+            node.start();
         } catch (NodeValidationException e) {
             throw new RuntimeException(e);
         }
-        return build;
+        return node;
     }
 
     /**
      * Returns a client to the single-node cluster.
      */
     public Client client() {
-        return NODE.client();
+        return wrapClient(NODE.client());
+    }
+
+    public Client wrapClient(final Client client) {
+        return client;
     }
 
     /**

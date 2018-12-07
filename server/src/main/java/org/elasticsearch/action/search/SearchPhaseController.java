@@ -402,8 +402,7 @@ public final class SearchPhaseController {
                 hits.add(searchHit);
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits,
-            reducedQueryPhase.maxScore);
+        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits, reducedQueryPhase.maxScore);
     }
 
     /**
@@ -443,7 +442,8 @@ public final class SearchPhaseController {
         boolean timedOut = false;
         Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
-            return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
+            final TotalHits totalHits = topDocsStats.getTotalHits();
+            return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
                 timedOut, terminatedEarly, null, null, null, EMPTY_DOCS, null,
                 null, numReducePhases, false, 0, 0, true);
         }
@@ -508,7 +508,8 @@ public final class SearchPhaseController {
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs scoreDocs = this.sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
-        return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
+        final TotalHits totalHits = topDocsStats.getTotalHits();
+        return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
             timedOut, terminatedEarly, suggest, aggregations, shardResults, scoreDocs.scoreDocs, scoreDocs.sortFields,
             firstResult != null ? firstResult.sortValueFormats() : null,
             numReducePhases, scoreDocs.isSortedByField, size, from, firstResult == null);
@@ -543,7 +544,7 @@ public final class SearchPhaseController {
 
     public static final class ReducedQueryPhase {
         // the sum of all hits across all reduces shards
-        final long totalHits;
+        final TotalHits totalHits;
         // the number of returned hits (doc IDs) across all reduces shards
         final long fetchHits;
         // the max score across all reduces hits or {@link Float#NaN} if no hits returned
@@ -575,7 +576,7 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         final DocValueFormat[] sortValueFormats;
 
-        ReducedQueryPhase(long totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
+        ReducedQueryPhase(TotalHits totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
                           InternalAggregations aggregations, SearchProfileShardResults shardResults, ScoreDoc[] scoreDocs,
                           SortField[] sortFields, DocValueFormat[] sortValueFormats, int numReducePhases, boolean isSortedByField, int size,
                           int from, boolean isEmptyResult) {
@@ -748,8 +749,8 @@ public final class SearchPhaseController {
 
     static final class TopDocsStats {
         final boolean trackTotalHits;
-        long totalHits;
-        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
+        private long totalHits;
+        private TotalHits.Relation totalHitsRelation;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
@@ -759,7 +760,12 @@ public final class SearchPhaseController {
 
         TopDocsStats(boolean trackTotalHits) {
             this.trackTotalHits = trackTotalHits;
-            this.totalHits = trackTotalHits ? 0 : -1;
+            this.totalHits = 0;
+            this.totalHitsRelation = trackTotalHits ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
+        }
+
+        TotalHits getTotalHits() {
+            return trackTotalHits ? new TotalHits(totalHits, totalHitsRelation) : null;
         }
 
         void add(TopDocsAndMaxScore topDocs) {

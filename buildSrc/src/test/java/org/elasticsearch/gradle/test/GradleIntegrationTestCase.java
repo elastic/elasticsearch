@@ -154,10 +154,11 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         for (String each : text) {
             int i = output.indexOf(each);
             if (i == -1 ) {
-                fail("Expected `" + text + "` to appear at most once, but it didn't at all.\n\nOutout is:\n"+ output);
+                fail("Expected \n```" + each + "```\nto appear at most once, but it didn't at all.\n\nOutout is:\n"+ output
+                );
             }
             if(output.indexOf(each) !=  output.lastIndexOf(each)) {
-                fail("Expected `" + text + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"+ output);
+                fail("Expected `" + each + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"+ output);
             }
         }
     }

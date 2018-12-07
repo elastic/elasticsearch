@@ -275,7 +275,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(index).setQuery(nestedQuery("nested1", termQuery("nested1.n_field1",
             "n_value1_1"), ScoreMode.Avg)).get();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo((long)numDocs));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long)numDocs));
     }
 
     public void assertAllUniqueDocs(SearchResponse response, int numDocs) {

@@ -318,7 +318,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeInt(trackTotalHitsUpTo);
         } else {
-            out.writeBoolean(trackTotalHitsUpTo > 0);
+            out.writeBoolean(trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
         }
     }
 
@@ -1254,7 +1254,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(TRACK_SCORES_FIELD.getPreferredName(), true);
         }
 
-        if (trackTotalHitsUpTo != TRACK_TOTAL_HITS_ACCURATE) {
+        if (trackTotalHitsUpTo != SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO) {
             builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHitsUpTo);
         }
 

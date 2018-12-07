@@ -630,7 +630,7 @@ public final class SearchPhaseController {
         private int index;
         private final SearchPhaseController controller;
         private int numReducePhases = 0;
-        private final TopDocsStats topDocsStats = new TopDocsStats();
+        private final TopDocsStats topDocsStats;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
@@ -640,7 +640,7 @@ public final class SearchPhaseController {
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
         private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize,
-                                         boolean hasTopDocs, boolean hasAggs) {
+                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -658,6 +658,7 @@ public final class SearchPhaseController {
             this.hasTopDocs = hasTopDocs;
             this.hasAggs = hasAggs;
             this.bufferSize = bufferSize;
+            this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
         }
 
@@ -737,7 +738,7 @@ public final class SearchPhaseController {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs);
+                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs, trackTotalHitsUpTo);
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {

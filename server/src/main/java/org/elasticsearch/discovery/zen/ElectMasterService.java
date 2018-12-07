@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -217,20 +216,14 @@ public class ElectMasterService {
         return possibleNodes;
     }
 
-    /** master nodes go before other nodes, preferring Zen1 nodes, tiebreaking by id **/
-    private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
-        final int compareMasterEligibility = Boolean.compare(o2.isMasterNode(), o1.isMasterNode());
-        // NB reverse order, false < true
-        if (compareMasterEligibility != 0) {
-            return compareMasterEligibility;
+    /** master nodes go before other nodes, with a secondary sort by id **/
+     private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
+        if (o1.isMasterNode() && !o2.isMasterNode()) {
+            return -1;
         }
-
-        final int compareZenVersion = Boolean.compare(Coordinator.isZen1Node(o2), Coordinator.isZen1Node(o1));
-        // NB reverse order, false < true
-        if (compareZenVersion != 0) {
-            return compareZenVersion;
+        if (!o1.isMasterNode() && o2.isMasterNode()) {
+            return 1;
         }
-
         return o1.getId().compareTo(o2.getId());
     }
 }

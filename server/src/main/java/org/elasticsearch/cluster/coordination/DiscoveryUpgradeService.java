@@ -253,7 +253,8 @@ public class DiscoveryUpgradeService {
                             foundOldMaster = true;
                             transportService.sendRequest(discoveryNode, UnicastZenPing.ACTION_NAME,
                                 new UnicastPingRequest(0, TimeValue.ZERO,
-                                    new PingResponse(transportService.getLocalNode(), null, clusterName, UNKNOWN_VERSION)),
+                                    new PingResponse(createDiscoveryNodeWithImpossiblyHighId(transportService.getLocalNode()),
+                                        null, clusterName, UNKNOWN_VERSION)),
                                 TransportRequestOptions.builder().withTimeout(bwcPingTimeout).build(),
                                 new TransportResponseHandler<UnicastPingResponse>() {
                                     @Override
@@ -288,7 +289,8 @@ public class DiscoveryUpgradeService {
                                 });
 
                         } else {
-                            masterCandidates.add(new MasterCandidate(discoveryNode, UNKNOWN_VERSION));
+                            masterCandidates.add(
+                                new MasterCandidate(createDiscoveryNodeWithImpossiblyHighId(discoveryNode), UNKNOWN_VERSION));
                             listenableCountDown.countDown();
                         }
                     }
@@ -301,5 +303,19 @@ public class DiscoveryUpgradeService {
                 }
             });
         }
+    }
+
+    /**
+     * Pre-7.0 nodes select the best master by comparing their IDs (as strings) and selecting the lowest one amongst those nodes with
+     * the best cluster state version. We want 7.0+ nodes to participate in these elections in a mixed cluster but never to win one, so
+     * we lie and claim to have an impossible ID that compares above all genuine IDs.
+     */
+    public static DiscoveryNode createDiscoveryNodeWithImpossiblyHighId(DiscoveryNode node) {
+        // IDs are base-64-encoded UUIDs, which means they the character set [0-9A-Za-z_-]. The highest character in this set is 'z', and
+        // 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
+        final String fakeId = "{zen2}" + node.getId();
+        assert node.getId().compareTo(fakeId) < 0 : node + " vs " + fakeId;
+        return new DiscoveryNode(node.getName(), fakeId, node.getEphemeralId(), node.getHostName(),
+            node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
     }
 }

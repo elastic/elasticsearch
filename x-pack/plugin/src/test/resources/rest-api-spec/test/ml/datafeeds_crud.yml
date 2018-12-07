@@ -325,7 +325,7 @@ setup:
 ---
 "Test put datafeed with aggregations":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-aggs-1
         body:  >
           {
@@ -369,7 +369,7 @@ setup:
             }
           }
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: test-datafeed-aggs-1
   - match: { datafeeds.0.datafeed_id: "test-datafeed-aggs-1" }
   - match: { datafeeds.0.aggregations.histogram_buckets.date_histogram.field: "@timestamp" }

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.set.Sets;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -84,9 +85,11 @@ public class CoordinationMetaDataTests extends ESTestCase {
 
     public void testVotingConfigurationSerializationEqualsHashCode() {
         VotingConfiguration initialConfig = randomVotingConfig();
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialConfig,
-            orig -> ESTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), VotingConfiguration::new),
-            cfg -> randomlyChangeVotingConfiguration(cfg));
+                (CopyFunction<VotingConfiguration>) orig -> ESTestCase.copyWriteable(orig,
+                        new NamedWriteableRegistry(Collections.emptyList()), VotingConfiguration::new),
+                cfg -> randomlyChangeVotingConfiguration(cfg));
     }
 
     private static VotingConfiguration randomVotingConfig() {
@@ -95,8 +98,10 @@ public class CoordinationMetaDataTests extends ESTestCase {
 
     public void testVotingTombstoneSerializationEqualsHashCode() {
         VotingConfigExclusion tombstone = new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(tombstone,
-                orig -> ESTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), VotingConfigExclusion::new),
+                (CopyFunction<VotingConfigExclusion>) orig -> ESTestCase.copyWriteable(orig,
+                        new NamedWriteableRegistry(Collections.emptyList()), VotingConfigExclusion::new),
                 orig -> randomlyChangeVotingTombstone(orig));
     }
 
@@ -148,8 +153,10 @@ public class CoordinationMetaDataTests extends ESTestCase {
     public void testCoordinationMetaDataSerializationEqualsHashCode() {
         CoordinationMetaData initialMetaData = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
                 randomVotingTombstones());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialMetaData,
-            orig -> ESTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), CoordinationMetaData::new),
+                (CopyFunction<CoordinationMetaData>) orig -> ESTestCase.copyWriteable(orig,
+                        new NamedWriteableRegistry(Collections.emptyList()), CoordinationMetaData::new),
             meta -> {
                 CoordinationMetaData.Builder builder = CoordinationMetaData.builder(meta);
                 switch (randomInt(3)) {

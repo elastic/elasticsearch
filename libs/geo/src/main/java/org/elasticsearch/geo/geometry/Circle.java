@@ -19,41 +19,32 @@
 
 package org.elasticsearch.geo.geometry;
 
-import java.io.IOException;
-
-import org.elasticsearch.geo.geometry.Predicate.DistancePredicate;
-import org.apache.lucene.store.OutputStreamDataOutput;
+import org.elasticsearch.geo.GeoUtils;
 
 /**
- * Created by nknize on 9/25/17.
+ * Circle geometry (not part of WKT standard, but used in elasticsearch)
  */
-public class Circle extends GeoShape {
+public class Circle implements Geometry {
+    public static final Circle EMPTY = new Circle();
     private final double lat;
     private final double lon;
     private final double radiusMeters;
-    private DistancePredicate predicate;
+
+    private Circle() {
+        lat = 0;
+        lon = 0;
+        radiusMeters = -1;
+    }
 
     public Circle(final double lat, final double lon, final double radiusMeters) {
         this.lat = lat;
         this.lon = lon;
         this.radiusMeters = radiusMeters;
-        this.boundingBox = Rectangle.fromPointDistance(lat, lon, radiusMeters);
-    }
-
-    public double getCenterLat() {
-        return lat;
-    }
-
-    public double getCenterLon() {
-        return lon;
-    }
-
-    public double getRadiusMeters() {
-        return radiusMeters;
-    }
-
-    protected double computeArea() {
-        return radiusMeters * radiusMeters * StrictMath.PI;
+        if (radiusMeters < 0 ) {
+            throw new IllegalArgumentException("Circle radius [" + radiusMeters + "] cannot be negative");
+        }
+        GeoUtils.checkLatitude(lat);
+        GeoUtils.checkLongitude(lon);
     }
 
     @Override
@@ -61,74 +52,55 @@ public class Circle extends GeoShape {
         return ShapeType.CIRCLE;
     }
 
-    @Override
-    public boolean hasArea() {
-        return true;
+    public double getLat() {
+        return lat;
     }
 
-    @Override
-    public Relation relate(double minLat, double maxLat, double minLon, double maxLon) {
-        return predicate().relate(minLat, maxLat, minLon, maxLon);
+    public double getLon() {
+        return lon;
     }
 
-    @Override
-    public Relation relate(GeoShape shape) {
-        throw new UnsupportedOperationException("not yet able to relate other GeoShape types to circles");
-    }
-
-    public boolean pointInside(final int encodedLat, final int encodedLon) {
-        return predicate().test(encodedLat, encodedLon);
-    }
-
-    private DistancePredicate predicate() {
-        if (predicate == null) {
-            predicate = Predicate.DistancePredicate.create(lat, lon, radiusMeters);
-        }
-        return predicate;
+    public double getRadiusMeters() {
+        return radiusMeters;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
 
         Circle circle = (Circle) o;
         if (Double.compare(circle.lat, lat) != 0) return false;
         if (Double.compare(circle.lon, lon) != 0) return false;
-        if (Double.compare(circle.radiusMeters, radiusMeters) != 0) return false;
-        return predicate.equals(circle.predicate);
+        return (Double.compare(circle.radiusMeters, radiusMeters) == 0);
     }
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
+        int result;
         long temp;
         temp = Double.doubleToLongBits(lat);
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = (int) (temp ^ (temp >>> 32));
         temp = Double.doubleToLongBits(lon);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = Double.doubleToLongBits(radiusMeters);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
-        result = 31 * result + predicate.hashCode();
         return result;
     }
 
     @Override
-    public String toWKT() {
-        throw new UnsupportedOperationException("The WKT spec does not support CIRCLE geometry");
-    }
-
-
-    @Override
-    protected StringBuilder contentToWKT() {
-        throw new UnsupportedOperationException("The WKT spec does not support CIRCLE geometry");
+    public <T> T visit(GeometryVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 
     @Override
-    protected void appendWKBContent(OutputStreamDataOutput out) throws IOException {
-        out.writeVLong(Double.doubleToRawLongBits(lat));
-        out.writeVLong(Double.doubleToRawLongBits(lon));
-        out.writeVLong(Double.doubleToRawLongBits(radiusMeters));
+    public boolean isEmpty() {
+        return radiusMeters < 0;
     }
+
+    @Override
+    public String toString() {
+        return "lat=" + lat + ", lon=" + lon + ", radius=" + radiusMeters;
+    }
+
 }

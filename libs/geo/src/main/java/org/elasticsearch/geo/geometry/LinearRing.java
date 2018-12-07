@@ -19,29 +19,37 @@
 
 package org.elasticsearch.geo.geometry;
 
-import java.util.List;
-
 /**
- * Represents a MultiPoint object on the earth's surface in decimal degrees.
+ * Represents a closed line on the earth's surface in lat/lon decimal degrees.
+ * <p>
+ * Cannot be serialized by WKT directly but used as a part of polygon
  */
-public class MultiPoint extends GeometryCollection<Point> {
-    public static final MultiPoint EMPTY = new MultiPoint();
+public class LinearRing extends Line {
+    public static final LinearRing EMPTY = new LinearRing();
 
-    private MultiPoint() {
+
+    private LinearRing() {
+
     }
 
-    public MultiPoint(List<Point> points) {
-        super(points);
+    public LinearRing(double[] lats, double[] lons) {
+        super(lats, lons);
+        if (lats.length < 2) {
+            throw new IllegalArgumentException("linear ring cannot contain less than 2 points, found " + lats.length);
+        }
+        if (lats[0] != lats[lats.length - 1] || lons[0] != lons[lons.length - 1]) {
+            throw new IllegalArgumentException("first and last points of the linear ring must be the same (it must close itself): lats[0]="
+                + lats[0] + " lats[" + (lats.length - 1) + "]=" + lats[lats.length - 1]);
+        }
     }
 
     @Override
     public ShapeType type() {
-        return ShapeType.MULTIPOINT;
+        return ShapeType.LINEARRING;
     }
 
     @Override
     public <T> T visit(GeometryVisitor<T> visitor) {
         return visitor.visit(this);
     }
-
 }

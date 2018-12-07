@@ -730,12 +730,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             logger.info("automatically bootstrapping during rolling upgrade, using initial configuration {}", votingConfiguration);
 
-            final long newTerm = 1;
             final ClusterState currentState = getStateForMasterService();
             final Builder builder = masterService.incrementVersion(currentState);
             builder.metaData(MetaData.builder(currentState.metaData()).coordinationMetaData(
                 CoordinationMetaData.builder(currentState.metaData().coordinationMetaData())
-                    .term(newTerm)
+                    .term(1)
                     .lastAcceptedConfiguration(votingConfiguration)
                     .lastCommittedConfiguration(votingConfiguration)
                     .build()));

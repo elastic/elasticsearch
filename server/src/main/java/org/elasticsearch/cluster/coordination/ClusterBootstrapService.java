@@ -179,7 +179,6 @@ public class ClusterBootstrapService {
     }
 
     public void stop() {
-        assert running == true;
         running = false;
     }
 

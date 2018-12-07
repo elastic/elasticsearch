@@ -188,6 +188,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
+        builder.put(TestZenDiscovery.USE_ZEN2.getKey(), false); // some tests do full cluster restarts
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
@@ -467,7 +468,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             SearchRequest request = new SearchRequest(index);
             request.source(new SearchSourceBuilder().size(0));
             SearchResponse response = client.search(request).actionGet();
-            return response.getHits().getTotalHits() >= numDocsReplicated;
+            return response.getHits().getTotalHits().value >= numDocsReplicated;
         }, 60, TimeUnit.SECONDS);
     }
 

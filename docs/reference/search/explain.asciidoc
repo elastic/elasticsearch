@@ -43,7 +43,7 @@ This will yield the following result:
             "details":[
                {
                   "value":2.2,
-                  "description":"scaling factor, k1 + 1",
+                  "description":"boost",
                   "details":[]
                },
                {

@@ -69,7 +69,7 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
                                 clusterState.set(clusterStateSupplier.get());
                                 listener.onSuccess(source);
                             }
-                        });
+                    });
             discovery.start();
             discovery.startInitialJoin();
             final DiscoveryNodes nodes = clusterState.get().nodes();

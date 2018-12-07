@@ -48,6 +48,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "double_range" : { "range" : { "field" : "double", "ranges": [ { "to": 50 }, { "from": 50, "to": 150 }, { "from": 150 } ] } } } }
 
   - match: { hits.total: 3 }
@@ -80,6 +81,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "double_range" : { "range" : { "field" : "double", "ranges": [ { "from": null, "to": 50 }, { "from": 50, "to": 150 }, { "from": 150, "to": null } ] } } } }
 
   - match: { hits.total: 3 }
@@ -138,6 +140,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0" } ] } } } }
 
   - match: { hits.total: 3 }
@@ -164,6 +167,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "from": null, "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0", "to": null } ] } } } }
 
   - match: { hits.total: 3 }
@@ -190,6 +194,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "mask": "::/24" }, { "mask": "192.168.0.0/16" } ] } } } }
 
   - match: { hits.total: 3 }
@@ -218,6 +223,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0" } ] } } } }
 
   - length: { aggregations.ip_range.buckets: 3 }
@@ -253,6 +259,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_range" : { "date_range" : { "field" : "date", "ranges": [ { "from" : 1000, "to": 3000 }, { "from": 3000, "to": 4000 } ] } } } }
 
   - match: { hits.total: 3 }
@@ -311,6 +318,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             age_groups:

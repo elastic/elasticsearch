@@ -33,6 +33,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -1080,7 +1081,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         int ptr = 9;
         for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
             InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-            assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
+            assertThat(topHits.getHits().getTotalHits().value, equalTo((long) ptr));
+            assertEquals(TotalHits.Relation.EQUAL_TO, topHits.getHits().getTotalHits().relation);
             if (withScore) {
                 assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
             } else {

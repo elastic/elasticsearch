@@ -169,7 +169,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
                 ActionListener callback =
-                        (ActionListener) i.getArguments()[2];
+                        (ActionListener) i.getArguments()[1];
                 Set<String> names = (Set<String>) i.getArguments()[0];
                 assertNotNull(names);
                 Set<RoleDescriptor> roleDescriptors = new HashSet<>();

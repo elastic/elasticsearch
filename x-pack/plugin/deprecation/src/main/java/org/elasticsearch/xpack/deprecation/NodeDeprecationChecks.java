@@ -49,4 +49,20 @@ public class NodeDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue fileDiscoveryPluginRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo ->
+                nodeInfo.getPlugins().getPluginInfos().stream()
+                    .anyMatch(pluginInfo -> "discovery-file".equals(pluginInfo.getName()))
+            ).map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "File-based discovery is no longer a plugin and uses a different path",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "#_file_based_discovery_plugin",
+                "nodes with discovery-file installed: " + nodesFound);
+        }
+        return null;
+    }
 }

@@ -84,6 +84,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36339")
     public void testIndexFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
 

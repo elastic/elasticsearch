@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -48,7 +49,9 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,18 +70,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final Client client;
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
+    private final Auditor auditor;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                         ClusterService clusterService, XPackLicenseState licenseState,
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Client client) {
+                                        Client client, Auditor auditor) {
         super(settings, StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
+        this.auditor = auditor;
     }
 
     static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks) {
@@ -97,6 +102,19 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +
                     "] is " + jobState);
         }
+    }
+
+    //Get the deprecation warnings from the parsed query and aggs to audit
+    static void auditDeprecations(DatafeedConfig datafeed, Job job, Auditor auditor) {
+        List<String> deprecationWarnings = new ArrayList<>();
+        deprecationWarnings.addAll(datafeed.getAggDeprecations());
+        deprecationWarnings.addAll(datafeed.getQueryDeprecations());
+        if (deprecationWarnings.isEmpty() == false) {
+            String msg = "datafeed [" + datafeed.getId() +"] configuration has deprecations. [" +
+                Strings.collectionToDelimitedString(deprecationWarnings, ", ") + "]";
+            auditor.warning(job.getId(), msg);
+        }
+
     }
 
     @Override
@@ -142,6 +160,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             validate(params.getDatafeedId(), mlMetadata, tasks);
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
             Job job = mlMetadata.getJobs().get(datafeed.getJobId());
+
+            auditDeprecations(datafeed, job, auditor);
 
             if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker =

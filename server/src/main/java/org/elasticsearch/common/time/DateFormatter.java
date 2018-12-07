@@ -53,7 +53,8 @@ public interface DateFormatter {
      * Parse the given input into a Joda {@link DateTime}.
      */
     default DateTime parseJoda(String input) {
-        new DateTime()
+        ZonedDateTime dateTime = ZonedDateTime.from(parse(input));
+        return new DateTime(dateTime.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dateTime.getZone()));
     }
 
     /**

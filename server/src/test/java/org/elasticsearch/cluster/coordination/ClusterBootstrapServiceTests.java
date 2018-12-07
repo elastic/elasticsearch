@@ -23,12 +23,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterRequest;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterResponse;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration.NodeDescription;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesRequest;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
@@ -48,8 +50,13 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterBootstrapServiceTests extends ESTestCase {
 
@@ -64,7 +71,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         otherNode1 = newDiscoveryNode("other1");
         otherNode2 = newDiscoveryNode("other2");
 
-        deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue(builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
 
         final MockTransport transport = new MockTransport() {
             @Override
@@ -76,8 +83,17 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        clusterBootstrapService = new ClusterBootstrapService(Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build(),
+        clusterBootstrapService = new ClusterBootstrapService(builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build(),
             transportService);
+
+        final Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build();
+        } else {
+            settings = Settings.builder()
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build();
+        }
+        clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
@@ -102,14 +118,54 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNothingIfSettingIsUnset() {
-        clusterBootstrapService = new ClusterBootstrapService(Settings.EMPTY, transportService);
+    public void testDoesNothingByDefaultIfHostsProviderConfigured() {
+        testConfiguredIfSettingSet(builder().putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
+    }
+
+    public void testDoesNothingByDefaultIfUnicastHostsConfigured() {
+        testConfiguredIfSettingSet(builder().putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
+    }
+
+    public void testDoesNothingByDefaultIfMasterNodeCountConfigured() {
+        testConfiguredIfSettingSet(builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 0));
+    }
+
+    public void testDoesNothingByDefaultIfMasterNodesConfigured() {
+        testConfiguredIfSettingSet(builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()));
+    }
+
+    private void testConfiguredIfSettingSet(Builder builder) {
+        clusterBootstrapService = new ClusterBootstrapService(builder.build(), transportService);
         transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
             (request, channel, task) -> {
                 throw new AssertionError("should not make a discovery request");
             });
         startServices();
         deterministicTaskQueue.runAllTasks();
+    }
+
+    public void testBootstrapsAutomaticallyWithDefaultConfiguration() {
+        clusterBootstrapService = new ClusterBootstrapService(Settings.EMPTY, transportService);
+
+        final Set<DiscoveryNode> discoveredNodes = Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toSet());
+        transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
+            (request, channel, task) -> channel.sendResponse(new GetDiscoveredNodesResponse(discoveredNodes)));
+
+        final AtomicBoolean bootstrapped = new AtomicBoolean();
+        transportService.registerRequestHandler(BootstrapClusterAction.NAME, Names.SAME, BootstrapClusterRequest::new,
+            (request, channel, task) -> {
+                assertThat(request.getBootstrapConfiguration().getNodeDescriptions().stream()
+                        .map(NodeDescription::getId).collect(Collectors.toSet()),
+                    equalTo(discoveredNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())));
+
+                channel.sendResponse(new BootstrapClusterResponse(randomBoolean()));
+                assertTrue(bootstrapped.compareAndSet(false, true));
+            });
+
+        startServices();
+        deterministicTaskQueue.runAllTasks();
+
+        assertTrue(bootstrapped.get());
     }
 
     public void testDoesNotRetryOnDiscoveryFailure() {

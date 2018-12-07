@@ -300,8 +300,7 @@ public class RestClient implements Closeable {
                     Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
-                        if (response.hasWarnings()
-                                && thisWarningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+                        if (thisWarningsHandler.warningsShouldFailRequest(response.getWarnings())) {
                             listener.onDefinitiveFailure(new ResponseException(response));
                         } else {
                             listener.onSuccess(response);

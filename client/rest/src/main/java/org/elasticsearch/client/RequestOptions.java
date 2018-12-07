@@ -75,8 +75,21 @@ public final class RequestOptions {
     }
 
     /**
-     * Handler for warnings or null if the request should use
+     * How this request should handle warnings. If null (the default) then
+     * this request will default to the behavior dictacted by
      * {@link RestClientBuilder#setStrictDeprecationMode}.
+     * <p>
+     * This can be set to {@link WarningsHandler#PERMISSIVE} if the client
+     * should ignore all warnings which is the same behavior as setting
+     * strictDeprecationMode to true. It can be set to
+     * {@link WarningsHandler#STRICT} if the client should fail if there are
+     * any warnings which is the same behavior as settings
+     * strictDeprecationMode to false.
+     * <p>
+     * It can also be set to a custom implementation of
+     * {@linkplain WarningsHandler} to permit only certain warnings or to
+     * fail the request if the warnings returned don't
+     * <strong>exactly</strong> match some set.
      */
     public WarningsHandler getWarningsHandler() {
         return warningsHandler;
@@ -175,8 +188,21 @@ public final class RequestOptions {
         }
 
         /**
-         * Handler for warnings or null if the request should use
+         * How this request should handle warnings. If null (the default) then
+         * this request will default to the behavior dictacted by
          * {@link RestClientBuilder#setStrictDeprecationMode}.
+         * <p>
+         * This can be set to {@link WarningsHandler#PERMISSIVE} if the client
+         * should ignore all warnings which is the same behavior as setting
+         * strictDeprecationMode to true. It can be set to
+         * {@link WarningsHandler#STRICT} if the client should fail if there are
+         * any warnings which is the same behavior as settings
+         * strictDeprecationMode to false.
+         * <p>
+         * It can also be set to a custom implementation of
+         * {@linkplain WarningsHandler} to permit only certain warnings or to
+         * fail the request if the warnings returned don't
+         * <strong>exactly</strong> match some set.
          */
         public void setWarningsHandler(WarningsHandler warningsHandler) {
             this.warningsHandler = warningsHandler;

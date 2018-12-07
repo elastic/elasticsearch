@@ -332,12 +332,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      */
     public void testIndexDeletionWhenNodeRejoins() throws Exception {
         final String indexName = "test-index-del-on-node-rejoin-idx";
-        // We need at least 3 nodes to make sure, that once one node is stopped, remaining nodes can elect a new master
-        final int numNodes = 3;
+        final int numNodes = 2;
 
         final List<String> nodes;
         logger.info("--> starting a cluster with " + numNodes + " nodes");
-
         nodes = internalCluster().startNodes(numNodes,
             Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100)).build());
         logger.info("--> create an index");

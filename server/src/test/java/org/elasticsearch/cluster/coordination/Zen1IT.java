@@ -71,13 +71,13 @@ public class Zen1IT extends ESIntegTestCase {
         final int zen1NodeCount = randomIntBetween(1, 3);
         final int zen2NodeCount = randomIntBetween(zen1NodeCount == 1 ? 2 : 1, 3);
         logger.info("starting cluster of [{}] Zen1 nodes and [{}] Zen2 nodes", zen1NodeCount, zen2NodeCount);
-        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2))
+        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount)
             .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
 
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, zen1NodeCount + zen2NodeCount) // causes rebalancing
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2)) // causes rebalancing
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");

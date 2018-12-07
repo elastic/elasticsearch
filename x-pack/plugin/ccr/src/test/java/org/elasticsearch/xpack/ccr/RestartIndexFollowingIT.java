@@ -42,7 +42,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(followerClient().prepareSearch("index2").get().getHits().totalHits, equalTo(firstBatchNumDocs));
+            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
         });
 
         getFollowerCluster().fullRestart();
@@ -54,7 +54,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(followerClient().prepareSearch("index2").get().getHits().totalHits,
+            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs));
         });
     }

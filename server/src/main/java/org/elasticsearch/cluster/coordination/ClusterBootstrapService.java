@@ -137,7 +137,7 @@ public class ClusterBootstrapService {
                 });
 
             }
-        } else if (initialMasterNodeCount > 0) {
+        } else if (initialMasterNodeCount > 0 || initialMasterNodes.isEmpty() == false) {
             logger.debug("unsafely waiting for discovery of [{}] master-eligible nodes", initialMasterNodeCount);
 
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -145,7 +145,9 @@ public class ClusterBootstrapService {
                 threadContext.markAsSystemContext();
 
                 final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
-                request.setWaitForNodes(initialMasterNodeCount);
+                if (initialMasterNodeCount > 0) {
+                    request.setWaitForNodes(initialMasterNodeCount);
+                }
                 request.setRequiredNodes(initialMasterNodes);
                 request.setTimeout(null);
                 logger.trace("sending {}", request);

@@ -85,6 +85,15 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         clusterBootstrapService = new ClusterBootstrapService(builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build(),
             transportService);
+
+        final Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build();
+        } else {
+            settings = Settings.builder()
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build();
+        }
+        clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {

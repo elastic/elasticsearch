@@ -298,7 +298,7 @@ public class Lucene {
         return false;
     }
 
-    private static TotalHits readTotalHits(StreamInput in) throws IOException {
+    public static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
         TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
         if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
@@ -418,7 +418,7 @@ public class Lucene {
 
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
-    private static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
+    public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             out.writeEnum(totalHits.relation);

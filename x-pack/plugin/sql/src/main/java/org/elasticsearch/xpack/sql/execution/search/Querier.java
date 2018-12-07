@@ -253,7 +253,7 @@ public class Querier {
             List<FieldExtraction> refs = query.columns();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
-            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits());
+            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
             for (FieldExtraction ref : refs) {
                 exts.add(createExtractor(ref, totalCount));
             }
@@ -324,7 +324,7 @@ public class Querier {
                 if (scrollId != null &&
                         // is all the content already retrieved?
                         (Boolean.TRUE.equals(response.isTerminatedEarly()) 
-                                || response.getHits().getTotalHits() == hits.length
+                                || response.getHits().getTotalHits().value == hits.length
                                 || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(

@@ -512,8 +512,9 @@ final class RequestConverters {
     }
 
     static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
-        String endpoint =
-            endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        String endpoint = updateByQueryRequest.isNoTypeRequest()
+            ? endpoint(updateByQueryRequest.indices(), "_update_by_query")
+            : endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request)
             .withRouting(updateByQueryRequest.getRouting())
@@ -540,8 +541,9 @@ final class RequestConverters {
     }
 
     static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        String endpoint =
-            endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        String endpoint = deleteByQueryRequest.isNoTypeRequest()
+            ? endpoint(deleteByQueryRequest.indices(), "_delete_by_query")
+            : endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request)
             .withRouting(deleteByQueryRequest.getRouting())

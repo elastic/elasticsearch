@@ -538,4 +538,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", source=" + source + '}';
     }
+
+    public boolean isNoTypeRequest() {
+        return types.length == 0;
+    }
 }

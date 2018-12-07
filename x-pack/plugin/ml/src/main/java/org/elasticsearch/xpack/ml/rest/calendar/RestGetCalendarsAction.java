@@ -26,12 +26,18 @@ public class RestGetCalendarsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "calendars/{" +
                         Calendar.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH + "calendars/{" +
+                        Calendar.ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "calendars/", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH + "calendars/", this);
 
         // endpoints that support body parameters must also accept POST
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "calendars/{" +
                         Calendar.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "calendars/{" +
+                        Calendar.ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "calendars/", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "calendars/", this);
     }
 
     @Override

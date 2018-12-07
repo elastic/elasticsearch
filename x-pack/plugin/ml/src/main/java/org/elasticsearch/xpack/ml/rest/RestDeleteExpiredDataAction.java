@@ -21,6 +21,7 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
     public RestDeleteExpiredDataAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH + "_delete_expired_data", this);
+        controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.V7_BASE_PATH + "_delete_expired_data", this);
     }
 
     @Override

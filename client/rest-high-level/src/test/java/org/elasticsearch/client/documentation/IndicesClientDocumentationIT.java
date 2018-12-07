@@ -2743,7 +2743,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::delete-template-execute-async
         client.indices().deleteTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
-        // end::get-templates-execute-async
+        // end::delete-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

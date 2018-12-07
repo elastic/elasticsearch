@@ -731,10 +731,12 @@ final class BootstrapChecks {
             if (ClusterBootstrapService.discoveryIsConfigured(context.settings)) {
                 return BootstrapCheckResult.success();
             }
-            return BootstrapCheckResult.failure("the default discovery settings are unsuitable for production use; at least one of ["
-                + Stream.of(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, DISCOVERY_HOSTS_PROVIDER_SETTING, INITIAL_MASTER_NODES_SETTING)
-                .map(Setting::getKey).collect(Collectors.joining(", "))
-                + "] must be configured");
+
+            return BootstrapCheckResult.failure(String.format(
+                Locale.ROOT,
+                "the default discovery settings are unsuitable for production use; at least one of [%s] must be configured",
+                Stream.of(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, DISCOVERY_HOSTS_PROVIDER_SETTING, INITIAL_MASTER_NODES_SETTING)
+                    .map(Setting::getKey).collect(Collectors.joining(", "))));
         }
     }
 }

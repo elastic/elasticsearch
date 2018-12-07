@@ -150,7 +150,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                    ActionListener<AcknowledgedResponse> listener) {
 
         if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete job", request.getJobId()));
             return;
         }
 

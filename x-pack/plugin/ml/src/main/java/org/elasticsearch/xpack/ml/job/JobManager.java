@@ -439,7 +439,7 @@ public class JobManager {
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         ClusterState clusterState = clusterService.state();
         if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
-            actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update job", request.getJobId()));
             return;
         }
 

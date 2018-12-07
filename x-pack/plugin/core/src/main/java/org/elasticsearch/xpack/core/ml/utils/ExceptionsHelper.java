@@ -58,8 +58,9 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
     }
 
-    public static ElasticsearchStatusException configHasNotBeenMigrated() {
-        return new ElasticsearchStatusException("the X is pending migration", RestStatus.SERVICE_UNAVAILABLE);
+    public static ElasticsearchStatusException configHasNotBeenMigrated(String verb, String id) {
+        return new ElasticsearchStatusException("cannot {} as the configuration [{}] is temporarily pending migration",
+                RestStatus.SERVICE_UNAVAILABLE, verb, id);
     }
 
     /**

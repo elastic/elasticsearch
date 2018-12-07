@@ -141,7 +141,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         if (MlConfigMigrator.datafeedIdEligibleForMigration(request.getParams().getDatafeedId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("start datafeed", request.getParams().getDatafeedId()));
             return;
         }
 

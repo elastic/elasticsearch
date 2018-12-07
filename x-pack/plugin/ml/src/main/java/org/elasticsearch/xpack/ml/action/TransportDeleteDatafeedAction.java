@@ -75,7 +75,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                                    ActionListener<AcknowledgedResponse> listener) {
 
         if (MlConfigMigrator.datafeedIdEligibleForMigration(request.getDatafeedId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete datafeed", request.getDatafeedId()));
             return;
         }
 

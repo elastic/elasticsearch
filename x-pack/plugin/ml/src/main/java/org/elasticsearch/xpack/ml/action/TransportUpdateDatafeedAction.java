@@ -71,7 +71,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                                    ActionListener<PutDatafeedAction.Response> listener) throws Exception {
 
         if (MlConfigMigrator.datafeedIdEligibleForMigration(request.getUpdate().getId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update datafeed", request.getUpdate().getId()));
             return;
         }
 

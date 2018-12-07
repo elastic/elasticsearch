@@ -70,7 +70,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     protected void masterOperation(RevertModelSnapshotAction.Request request, ClusterState state,
                                    ActionListener<RevertModelSnapshotAction.Response> listener) {
         if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", request.getJobId()));
             return;
         }
 

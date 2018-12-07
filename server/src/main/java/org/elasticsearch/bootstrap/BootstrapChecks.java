@@ -26,6 +26,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -47,6 +48,12 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
@@ -718,10 +725,16 @@ final class BootstrapChecks {
     static class DiscoveryConfiguredCheck implements BootstrapCheck {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
+            if (DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings)) == false) {
+                return BootstrapCheckResult.success();
+            }
             if (ClusterBootstrapService.discoveryIsConfigured(context.settings)) {
                 return BootstrapCheckResult.success();
             }
-            return BootstrapCheckResult.failure("the default discovery settings are unsuitable for production use");
+            return BootstrapCheckResult.failure("the default discovery settings are unsuitable for production use; at least one of ["
+                + Stream.of(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, DISCOVERY_HOSTS_PROVIDER_SETTING, INITIAL_MASTER_NODES_SETTING)
+                .map(Setting::getKey).collect(Collectors.joining(", "))
+                + "] must be configured");
         }
     }
 }

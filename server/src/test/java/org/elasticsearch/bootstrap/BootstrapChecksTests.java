@@ -706,15 +706,28 @@ public class BootstrapChecksTests extends ESTestCase {
 
     public void testDiscoveryConfiguredCheck() throws NodeValidationException {
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
-        final NodeValidationException e = expectThrows(
-            NodeValidationException.class,
-            () -> BootstrapChecks.check(defaultContext, true, checks));
-        assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use")));
 
-        BootstrapChecks.check(defaultContext, false, checks); // not always enforced
+        final BootstrapContext zen2Context = new BootstrapContext(Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+
+        // not always enforced
+        BootstrapChecks.check(zen2Context, false, checks);
+
+        // not enforced for non-zen2 discovery
+        BootstrapChecks.check(new BootstrapContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
+            randomFrom(ZEN_DISCOVERY_TYPE, "single-node", randomAlphaOfLength(5))).build(), MetaData.EMPTY_META_DATA), true, checks);
+
+        final NodeValidationException e = expectThrows(NodeValidationException.class,
+            () -> BootstrapChecks.check(zen2Context, true, checks));
+        assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use; at least one " +
+            "of [discovery.zen.ping.unicast.hosts, discovery.zen.hosts_provider, cluster.initial_master_nodes] must be configured")));
 
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
-            BootstrapChecks.check(new BootstrapContext(b.build(), MetaData.EMPTY_META_DATA), true, checks);
+        {
+            final BootstrapContext context = new BootstrapContext(b
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+            BootstrapChecks.check(context, true, checks);
+        };
 
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));

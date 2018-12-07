@@ -54,11 +54,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -70,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -242,6 +245,33 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             getResponse = execute(new GetRollupJobRequest(id), rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
             assertThat(getResponse.getJobs(), hasSize(1));
             assertThat(getResponse.getJobs().get(0).getStatus().getState(), equalTo(IndexerState.STOPPED));
+        }
+    }
+
+    public void testSearch() throws Exception {
+        testPutAndGetRollupJob();
+        SearchRequest search = new SearchRequest(rollupIndex);
+        search.source(new SearchSourceBuilder()
+                .size(0)
+                .aggregation(new AvgAggregationBuilder("avg").field("value")));
+        SearchResponse response = highLevelClient().rollup().search(search, RequestOptions.DEFAULT);
+        assertEquals(0, response.getFailedShards());
+        assertEquals(0, response.getHits().getTotalHits());
+        NumericMetricsAggregation.SingleValue avg = response.getAggregations().get("avg");
+        assertThat(avg.value(), closeTo(sum / numDocs, 0.00000001));
+    }
+
+    public void testSearchWithType() throws Exception {
+        SearchRequest search = new SearchRequest(rollupIndex);
+        search.types("a", "b", "c");
+        search.source(new SearchSourceBuilder()
+                .size(0)
+                .aggregation(new AvgAggregationBuilder("avg").field("value")));
+        try {
+            highLevelClient().rollup().search(search, RequestOptions.DEFAULT);
+            fail("types are not allowed but didn't fail");
+        } catch (ValidationException e) {
+            assertEquals("Validation Failed: 1: types are not allowed in rollup search;", e.getMessage());
         }
     }
 

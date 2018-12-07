@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -24,9 +25,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -92,7 +96,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         client().performRequest(createTestIndex);
     }
 
-    public void testConfigMigration() throws IOException {
+    public void testConfigMigration() throws Exception {
         if (UPGRADED_FROM_VERSION.onOrAfter(Version.V_6_6_0)) {
             // We are testing migration of ml config defined in the clusterstate
             // in versions before V6.6.0. There is no point testing later versions
@@ -172,20 +176,19 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
 
     private void mixedClusterTests() throws IOException {
         assertConfigInClusterState();
-        checkJobs();
+        checkJobs(false);
         checkDatafeeds();
     }
 
-    private void upgradedClusterTests() throws IOException {
-        checkJobs();
+    private void upgradedClusterTests() throws Exception {
+        tryUpdate();
+        waitFromMigration();
+        checkJobs(true);
         checkDatafeeds();
-
-        // try to update and catch potential response exception
-
     }
 
     @SuppressWarnings("unchecked")
-    private void checkJobs() throws IOException {
+    private void checkJobs(boolean checkMigrated) throws IOException {
         // Wildcard expansion of jobs and datafeeds was added in 6.1.0
         if (UPGRADED_FROM_VERSION.before(Version.V_6_1_0) && CLUSTER_TYPE != ClusterType.UPGRADED) {
             return;
@@ -201,6 +204,17 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         assertThat(jobConfigs, hasSize(2));
         assertEquals(OLD_CLUSTER_CLOSED_JOB_ID, jobConfigs.get(0).get("job_id"));
         assertEquals(OLD_CLUSTER_OPEN_JOB_ID, jobConfigs.get(1).get("job_id"));
+        if (checkMigrated) {
+            // closed job will have been migrated
+            assertJobIsMigrated(jobConfigs.get(0));
+
+            // open job will not
+            Map<String, Object> customSettings = (Map<String, Object>)jobConfigs.get(1).get("custom_settings");
+            if (customSettings != null) {
+                assertNull(customSettings.get("migrated from version"));
+            }
+        }
+
 
         Request getJobStats = new Request("GET", "_xpack/ml/anomaly_detectors/migration*/_stats");
         response = client().performRequest(getJobStats);
@@ -211,7 +225,9 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         assertThat(jobStats, hasSize(2));
 
         assertEquals(OLD_CLUSTER_CLOSED_JOB_ID, XContentMapValues.extractValue("job_id", jobStats.get(0)));
-        assertEquals("closed", XContentMapValues.extractValue("state", jobStats.get(0)));
+        if (checkMigrated == false) {
+            assertEquals("closed", XContentMapValues.extractValue("state", jobStats.get(0)));
+        }
         assertThat((String)XContentMapValues.extractValue("assignment_explanation", jobStats.get(0)), isEmptyOrNullString());
 
         assertEquals(OLD_CLUSTER_OPEN_JOB_ID, XContentMapValues.extractValue("job_id", jobStats.get(1)));
@@ -248,9 +264,10 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     private void assertConfigInClusterState() throws IOException {
         Request getClusterState = new Request("GET", "/_cluster/state/metadata");
         Response response = client().performRequest(getClusterState);
+        Map<String, Object> responseMap = entityAsMap(response);
 
         List<Map<String, Object>> jobs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", entityAsMap(response));
+                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", responseMap);
         assertThat(jobs, not(empty()));
         Optional<Object> job = jobs.stream().map(map -> map.get("job_id")).filter(id -> id.equals(OLD_CLUSTER_OPEN_JOB_ID)).findFirst();
         assertTrue(job.isPresent());
@@ -258,7 +275,8 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         assertTrue(job.isPresent());
 
         List<Map<String, Object>> datafeeds =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", entityAsMap(response));
+                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", responseMap);
+        assertNotNull(datafeeds);
         assertThat(datafeeds, not(empty()));
         Optional<Object> datafeed = datafeeds.stream().map(map -> map.get("datafeed_id"))
                 .filter(id -> id.equals(OLD_CLUSTER_STARTED_DATAFEED_ID)).findFirst();
@@ -268,5 +286,69 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         assertTrue(datafeed.isPresent());
     }
 
+    @SuppressWarnings("unchecked")
+    private void waitFromMigration() throws Exception {
+        assertBusy(() -> {
+            try {
+                // wait for the eligible configs to be moved from the clusterstate
+                Request getClusterState = new Request("GET", "/_cluster/state/metadata");
+                Response response = client().performRequest(getClusterState);
+                Map<String, Object> responseMap = entityAsMap(response);
+
+                List<Map<String, Object>> jobs =
+                        (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", responseMap);
+                assertNotNull(jobs);
+                // closed job should be migrated
+                Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
+                        .filter(id -> id.equals(OLD_CLUSTER_CLOSED_JOB_ID)).findFirst();
+                assertFalse(config.isPresent());
+                // open is not
+                config = jobs.stream().map(map -> map.get("job_id"))
+                        .filter(id -> id.equals(OLD_CLUSTER_OPEN_JOB_ID)).findFirst();
+                assertTrue(config.isPresent());
+
+
+                List<Map<String, Object>> datafeeds =
+                        (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", responseMap);
+                assertNotNull(datafeeds);
+                // stopped datafeed should be migrated
+                config = datafeeds.stream().map(map -> map.get("datafeed_id"))
+                        .filter(id -> id.equals(OLD_CLUSTER_STOPPED_DATAFEED_ID)).findFirst();
+                assertFalse(config.isPresent());
+                // started is not
+                config = datafeeds.stream().map(map -> map.get("datafeed_id"))
+                        .filter(id -> id.equals(OLD_CLUSTER_STARTED_DATAFEED_ID)).findFirst();
+                assertTrue(config.isPresent());
+
+            } catch (IOException e) {
+
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void tryUpdate() throws IOException {
+        // update to jobs and datafeeds should be rejected
+        try {
+            Request openJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_ID + "/_open");
+            client().performRequest(openJob);
+            // if the request was successful the job should have been migrated
+            Request getJob = new Request("GET", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_ID);
+            Response response = client().performRequest(getJob);
+
+            List<Map<String, Object>> jobConfigs =
+                    (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", entityAsMap(response));
+            assertJobIsMigrated(jobConfigs.get(0));
+        } catch (ResponseException e) {
+            assertEquals(503, e.getResponse().getStatusLine().getStatusCode());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertJobIsMigrated(Map<String, Object> job) {
+        Map<String, Object> customSettings = (Map<String, Object>)job.get("custom_settings");
+        assertThat(customSettings.keySet(), contains("migrated from version"));
+        assertEquals(UPGRADED_FROM_VERSION.toString(), customSettings.get("migrated from version").toString());
+    }
 
 }

@@ -276,11 +276,18 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     }
 
     public void testDanglingIndices() throws Exception {
+        /*TODO This test test does not work with Zen2, because once master node looses its cluster state during restart
+        it will start with term = 1, which is the same as the term data node has. Data node won't accept cluster state from master
+        after the restart, because the term is the same, but version of the cluster state is greater on the data node.
+        Consider adding term to JoinRequest, so that master node can bump its term if its current term is less than JoinRequest#term.
+        */
         logger.info("--> starting two nodes");
-
-        final String node_1 = internalCluster().startNodes(2,
-                //TODO fails wih Zen2
-                Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build()).get(0);
+        String masterNode = internalCluster().startNode(Settings.builder()
+                .put(Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build())
+                .build());
+        internalCluster().startDataOnlyNode(Settings.builder()
+                .put(Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build())
+                .build());
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -294,11 +301,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
-        logger.info("--> restarting the nodes");
-        internalCluster().fullRestart(new RestartCallback() {
+        logger.info("--> restarting master node, while clearing its data");
+        internalCluster().restartNode(masterNode, new RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
-                return node_1.equals(nodeName);
+                return true;
             }
         });
 
@@ -328,14 +335,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      */
     public void testIndexDeletionWhenNodeRejoins() throws Exception {
         final String indexName = "test-index-del-on-node-rejoin-idx";
-        final int numNodes = 2;
+        // We need at least 3 nodes to make sure, that once one node is stopped, remaining nodes can elect a new master
+        final int numNodes = 3;
 
         final List<String> nodes;
         logger.info("--> starting a cluster with " + numNodes + " nodes");
+
         nodes = internalCluster().startNodes(numNodes,
-            Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100))
-                    //TODO fails with Zen2
-                    .put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+            Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100)).build());
         logger.info("--> create an index");
         createIndex(indexName);
 
@@ -355,6 +362,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
                 assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                logger.info("--> deleted");
                 return super.onNodeStopped(nodeName);
             }
         });

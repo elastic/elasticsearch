@@ -70,7 +70,6 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -101,13 +100,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
-            .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -260,7 +252,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
-        internalCluster().startNodes(2, Settings.EMPTY);
+        internalCluster().startNodes(2);
 
         final String node1 = internalCluster().getNodeNames()[0];
         final String node2 = internalCluster().getNodeNames()[1];
@@ -436,10 +428,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
-        internalCluster().startNodes(2, Settings.EMPTY);
+        internalCluster().startMasterOnlyNode();
 
-        final String node1 = internalCluster().getNodeNames()[0];
-        final String node2 = internalCluster().getNodeNames()[1];
+        final String node1 = internalCluster().startDataOnlyNode();
+        final String node2 = internalCluster().startDataOnlyNode();
         logger.info("--> nodes name: {}, {}", node1, node2);
 
         final String indexName = "test";
@@ -481,12 +473,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final Set<Path> translogDirs = getDirs(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        // stop the cluster nodes. we don't use full restart so the node start up order will be the same
-        // and shard roles will be maintained
+        // stop data nodes. After the restart the 1st node will be primary and the 2nd node will be replica
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
 
-        // Corrupt the translog file(s)
+        // Corrupt the translog file(s) on the replica
         logger.info("--> corrupting translog");
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
 
@@ -555,8 +546,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public void testResolvePath() throws Exception {
+        internalCluster().startMasterOnlyNode();
+
         final int numOfNodes = randomIntBetween(1, 5);
-        final List<String> nodeNames = internalCluster().startNodes(numOfNodes, Settings.EMPTY);
+        final List<String> nodeNames = internalCluster().startNodes(numOfNodes);
 
         final String indexName = "test" + randomInt(100);
         assertAcked(prepareCreate(indexName).setSettings(Settings.builder()

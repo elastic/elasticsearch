@@ -148,8 +148,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNode(Settings.builder()
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            .build());
+        String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
         ensureGreen("test");
@@ -193,6 +197,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
             .build();
         final List<String> nodeNames = internalCluster().startNodes(2, settings);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
@@ -309,6 +314,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             Settings.builder()
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
                 .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 

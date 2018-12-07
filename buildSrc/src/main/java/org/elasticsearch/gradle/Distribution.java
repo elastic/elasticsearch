@@ -20,17 +20,23 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("integ-test"),
-    ZIP("elasticsearch"),
-    ZIP_OSS("elasticsearch-oss");
+    INTEG_TEST("integ-test", "zip"),
+    ZIP("elasticsearch", "zip"),
+    ZIP_OSS("elasticsearch-oss", "zip");
 
     private final String fileName;
+    private final String fileExtension;
 
-    Distribution(String name) {
+    Distribution(String name, String fileExtension) {
         this.fileName = name;
+        this.fileExtension = fileExtension;
     }
 
     public String getFileName() {
         return fileName;
+    }
+
+    public String getFileExtension() {
+        return fileExtension;
     }
 }

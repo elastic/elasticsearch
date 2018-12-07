@@ -27,7 +27,12 @@ public class KillProcessAction extends Action<KillProcessAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -46,19 +51,19 @@ public class KillProcessAction extends Action<KillProcessAction.Response> {
         public Request() {
             super();
         }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        private boolean killed;
-
-        public Response() {
-            super(null, null);
-        }
+        private final boolean killed;
 
         public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
+            super(in);
+            killed = in.readBoolean();
         }
 
         public Response(boolean killed) {
@@ -68,12 +73,6 @@ public class KillProcessAction extends Action<KillProcessAction.Response> {
 
         public boolean isKilled() {
             return killed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            killed = in.readBoolean();
         }
 
         @Override

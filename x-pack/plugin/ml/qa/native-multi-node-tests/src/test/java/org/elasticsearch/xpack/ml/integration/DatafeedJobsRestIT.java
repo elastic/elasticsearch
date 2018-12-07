@@ -396,7 +396,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        Request createRollupRequest = new Request("PUT", "/_xpack/rollup/job/" + rollupJobId);
         createRollupRequest.setJsonEntity("{\n"
             + "\"index_pattern\": \"airline-data-aggs\",\n"
             + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
@@ -764,7 +764,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        Request createRollupRequest = new Request("PUT", "/_xpack/rollup/job/" + rollupJobId);
         createRollupRequest.setJsonEntity("{\n"
             + "\"index_pattern\": \"airline-data-aggs\",\n"
             + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
@@ -792,18 +792,18 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    ]\n"
             + "}");
         client().performRequest(createRollupRequest);
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
+        client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_start"));
 
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
             String body = EntityUtils.toString(getRollup.getEntity());
             assertThat(body, containsString("\"job_state\":\"started\""));
             assertThat(body, containsString("\"rollups_indexed\":4"));
         }, 60, TimeUnit.SECONDS);
 
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop"));
+        client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_stop"));
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
             assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
         }, 60, TimeUnit.SECONDS);
 
@@ -849,7 +849,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        Request createRollupRequest = new Request("PUT", "/_xpack/rollup/job/" + rollupJobId);
         createRollupRequest.setJsonEntity("{\n"
             + "\"index_pattern\": \"airline-data-aggs\",\n"
             + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
@@ -955,7 +955,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"stopped\":true}"));
 
-        client().performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close"));
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
 
         response = client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -992,7 +992,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
 
         expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request("GET", "/_xpack/ml/datafeeds/" + datafeedId)));
+                () -> client().performRequest(new Request("GET", "/_ml/datafeeds/" + datafeedId)));
     }
 
     private class LookbackOnlyTestHelper {

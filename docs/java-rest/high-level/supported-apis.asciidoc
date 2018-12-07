@@ -148,6 +148,7 @@ include::indices/get_templates.asciidoc[]
 include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
+include::indices/delete_template.asciidoc[]
 
 == Cluster APIs
 
@@ -334,13 +335,18 @@ include::ml/delete-expired-data.asciidoc[]
 
 == Migration APIs
 
+:upid: {mainid}-migration
+:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
+
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
-* <<java-rest-high-migration-upgrade>>
+* <<{upid}-upgrade>>
+* <<{upid}-get-deprecation-info>>
 
 include::migration/get-assistance.asciidoc[]
 include::migration/upgrade.asciidoc[]
+include::migration/get-deprecation-info.asciidoc[]
 
 == Rollup APIs
 
@@ -354,6 +360,7 @@ The Java High Level REST Client supports the following Rollup APIs:
 * <<{upid}-rollup-stop-job>>
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
+* <<{upid}-search>>
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
 * <<{upid}-x-pack-rollup-get-rollup-index-caps>>
 
@@ -362,6 +369,7 @@ include::rollup/start_job.asciidoc[]
 include::rollup/stop_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
+include::rollup/search.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
 include::rollup/get_rollup_index_caps.asciidoc[]
 
@@ -373,6 +381,7 @@ include::rollup/get_rollup_index_caps.asciidoc[]
 The Java High Level REST Client supports the following Security APIs:
 
 * <<java-rest-high-security-put-user>>
+* <<{upid}-delete-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
@@ -392,6 +401,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
+include::security/delete-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
@@ -420,19 +430,23 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<{upid}-start-watch-service>>
 * <<{upid}-stop-watch-service>>
 * <<java-rest-high-x-pack-watcher-put-watch>>
+* <<{upid}-get-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
+* <<{upid}-execute-watch>>
 * <<{upid}-watcher-stats>>
 
 include::watcher/start-watch-service.asciidoc[]
 include::watcher/stop-watch-service.asciidoc[]
 include::watcher/put-watch.asciidoc[]
+include::watcher/get-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
 include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
+include::watcher/execute-watch.asciidoc[]
 include::watcher/watcher-stats.asciidoc[]
 
 == Graph APIs
@@ -467,12 +481,18 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-resume-follow>>
 * <<{upid}-ccr-unfollow>>
 * <<{upid}-ccr-put-auto-follow-pattern>>
+* <<{upid}-ccr-delete-auto-follow-pattern>>
+* <<{upid}-ccr-get-auto-follow-pattern>>
+* <<{upid}-ccr-get-stats>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
 include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
+include::ccr/delete_auto_follow_pattern.asciidoc[]
+include::ccr/get_auto_follow_pattern.asciidoc[]
+include::ccr/get_stats.asciidoc[]
 
 == Index Lifecycle Management APIs
 

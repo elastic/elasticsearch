@@ -51,8 +51,8 @@ public final class Role {
     public static final ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Tuple<Role, Map<String, Object>>, String> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
-        (constructorObjects, roleName) -> {
+    public static final ConstructingObjectParser<Tuple<Role, Map<String, Object>>, String> PARSER =
+        new ConstructingObjectParser<>("role_descriptor", false, (constructorObjects, roleName) -> {
                 // Don't ignore unknown fields. It is dangerous if the object we parse is also
                 // part of a request that we build later on, and the fields that we now ignore
                 // will end up being implicitly set to null in that request.

@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -156,7 +157,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, client));
+        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, (NodeClient) client));
 
         return Arrays.asList(
             ccrLicenseChecker,

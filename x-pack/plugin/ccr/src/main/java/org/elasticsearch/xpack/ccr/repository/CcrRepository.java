@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +54,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public static final String LATEST = "_latest_";
     public static final String TYPE = "_ccr_";
     public static final String NAME_PREFIX = "_ccr_";
+    private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
 
     private final RepositoryMetaData metadata;
     private final String remoteClusterAlias;
@@ -64,7 +64,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
         super(settings);
         this.metadata = metadata;
-        assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository name must start with: " + NAME_PREFIX;
+        assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
@@ -92,32 +92,19 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
-        assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
+        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).setNodes(true).get();
         ImmutableOpenMap<String, IndexMetaData> indicesMap = response.getState().metaData().indices();
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        Iterator<DiscoveryNode> dataNodes = response.getState().getNodes().getDataNodes().valuesIt();
-        if (dataNodes.hasNext() == false) {
-            throw new IllegalStateException("Leader cluster has no data nodes in cluster state.");
-        }
-        Version maxVersion = dataNodes.next().getVersion();
-        while (dataNodes.hasNext()) {
-            Version nodeVersion = dataNodes.next().getVersion();
-            if (nodeVersion.after(maxVersion)) {
-                maxVersion = nodeVersion;
-            }
-        }
-        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, maxVersion);
+        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
     }
 
     @Override
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
-        assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
-        assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
+        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         ClusterStateResponse response = remoteClient
             .admin()
@@ -132,8 +119,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        assert LATEST.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports _latest_ as the UUID";
-        assert LATEST.equals(snapshotId.getName()) : "RemoteClusterRepository only supports _latest_ as the name";
+        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         String leaderIndex = index.getName();
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
 

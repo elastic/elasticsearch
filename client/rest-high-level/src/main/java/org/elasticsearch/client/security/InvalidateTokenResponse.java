@@ -19,44 +19,56 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.security.support.TokensInvalidationResult;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response when invalidating an OAuth2 token. Returns a
  * single boolean field for whether the invalidation record was created or updated.
  */
 public final class InvalidateTokenResponse {
-    private final TokensInvalidationResult result;
 
-    public InvalidateTokenResponse(TokensInvalidationResult result) {
-        this.result = result;
+    private final boolean created;
+
+    public InvalidateTokenResponse(boolean created) {
+        this.created = created;
     }
 
-    public TokensInvalidationResult getResult() {
-        return result;
+    public boolean isCreated() {
+        return created;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         InvalidateTokenResponse that = (InvalidateTokenResponse) o;
-        return Objects.equals(result, that.result);
+        return created == that.created;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(result);
+        return Objects.hash(created);
+    }
+
+    private static final ConstructingObjectParser<InvalidateTokenResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "invalidate_token_response", true, args -> new InvalidateTokenResponse((boolean) args[0]));
+
+    static {
+        PARSER.declareBoolean(constructorArg(), new ParseField("created"));
     }
 
     public static InvalidateTokenResponse fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        TokensInvalidationResult result = TokensInvalidationResult.fromXContent(parser);
-        return new InvalidateTokenResponse(result);
+        return PARSER.parse(parser, null);
     }
 }

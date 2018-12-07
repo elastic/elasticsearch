@@ -1539,7 +1539,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testDateProvidedAsNumber() throws InterruptedException {
         createIndex("test");
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(true,
                 client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L),
                 client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L),

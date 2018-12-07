@@ -233,7 +233,7 @@ public class DiscoveryUpgradeService {
                             // Do we ever need to elect a freshly-started Zen1 node?
                             if (isRunning()) {
                                 final MasterCandidate electedMaster = electMasterService.electMaster(masterCandidates);
-                                logger.trace("elected {}, sending join", electedMaster);
+                                logger.debug("elected {}, sending join", electedMaster);
                                 joinHelper.sendJoinRequest(electedMaster.getNode(), Optional.empty(),
                                     JoiningRound.this::scheduleNextAttempt);
                             }

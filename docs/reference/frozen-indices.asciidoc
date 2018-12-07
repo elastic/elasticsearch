@@ -31,7 +31,6 @@ Since indices that are eligible for freezing are unlikely to change in the futur
 
 It's highly recommended to <<indices-forcemerge,`_forcemerge`>> your indices prior to freezing to ensure that each shard has only a single
 segment on disk. This will not only provide much better compression but also simplify the data structures needed to service aggregation requests.
-aggregation to be build on every request.
 
 [source,js]
 --------------------------------------------------

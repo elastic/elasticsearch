@@ -26,7 +26,7 @@ public class DeleteInternalCcrRepositoryAction extends GenericAction<DeleteInter
     DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse> {
 
     public static final DeleteInternalCcrRepositoryAction INSTANCE = new DeleteInternalCcrRepositoryAction();
-    public static final String NAME = "cluster:admin/ccr/internal_repository/delete";
+    public static final String NAME = "internal:admin/ccr/internal_repository/delete";
 
     private DeleteInternalCcrRepositoryAction() {
         super(NAME);

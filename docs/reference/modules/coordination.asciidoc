@@ -320,6 +320,15 @@ WARNING: You must put exactly the same set of master nodes in each
 configuration file in order to be sure that only a single cluster forms during
 bootstrapping and therefore to avoid the risk of data loss.
 
+It is also possible to set the initial set of master nodes on the command-line
+used to start Elasticsearch:
+
+[source]
+--------------------------------------------------
+$ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
+--------------------------------------------------
+
+
 If the cluster is running with a completely default configuration then it will
 automatically bootstrap based on the nodes that could be discovered within a
 short time after startup. Since nodes may not always reliably discover each

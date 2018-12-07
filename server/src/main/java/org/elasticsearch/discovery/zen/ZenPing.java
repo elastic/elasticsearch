@@ -67,7 +67,7 @@ public interface ZenPing extends Releasable {
          * @param clusterStateVersion the current cluster state version of that node
          *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
-        PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = idGenerator.incrementAndGet();
             this.node = node;
             this.master = master;

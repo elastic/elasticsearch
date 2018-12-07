@@ -52,6 +52,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -66,6 +67,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -79,6 +81,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -92,6 +95,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -104,6 +108,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -118,6 +123,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -131,6 +137,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -142,6 +149,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -155,6 +163,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -168,6 +177,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -182,6 +192,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -195,6 +206,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             multi_match:
@@ -225,6 +237,7 @@
                     tokenizer: standard
                     filter: lowercase
                   search:
+                    rest_total_hits_as_int: true
                     type: custom
                     tokenizer: standard
                     filter: [ lowercase, synonym ]
@@ -247,6 +260,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -257,6 +271,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -267,6 +282,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -286,6 +302,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -296,6 +313,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:

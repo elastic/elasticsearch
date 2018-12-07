@@ -22,6 +22,8 @@ apply plugin: 'elasticsearch.rest-test'
 
 integTestCluster {
   setting 'node.name', null
+  // TODO: Run this using zen2
+  setting 'discovery.type', 'zen'
 }
 
 integTestRunner {

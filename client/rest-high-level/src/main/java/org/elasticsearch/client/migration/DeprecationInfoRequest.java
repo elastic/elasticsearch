@@ -17,16 +17,27 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+package org.elasticsearch.client.migration;
 
-integTestCluster {
-  setting 'node.name', null
-  // TODO: Run this using zen2, with no discovery configuration at all, demonstrating that the node forms a cluster on its own without help
-  setting 'discovery.type', 'zen'
-}
+import org.elasticsearch.client.Validatable;
 
-integTestRunner {
-  systemProperty 'tests.logfile',
-    "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
+public class DeprecationInfoRequest implements Validatable {
+
+    private final List<String> indices;
+
+    public DeprecationInfoRequest(List<String> indices) {
+        this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices, "indices cannot be null"));
+    }
+
+    public DeprecationInfoRequest() {
+        this.indices = Collections.unmodifiableList(Collections.emptyList());
+    }
+
+    public List<String> getIndices() {
+        return indices;
+    }
 }

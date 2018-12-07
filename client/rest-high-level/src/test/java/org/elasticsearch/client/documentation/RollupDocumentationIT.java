@@ -359,7 +359,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         NumericMetricsAggregation.SingleValue maxTemperature =
                 response.getAggregations().get("max_temperature");
         assertThat(maxTemperature.value(), closeTo(49.0, .00001));
-        // end::search-response-response
+        // end::search-response
 
         ActionListener<SearchResponse> listener;
         // tag::search-execute-listener

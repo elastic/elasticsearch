@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -138,6 +139,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
                 "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
         assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
                 "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
 
@@ -177,6 +179,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
         assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
             "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
 
@@ -501,7 +504,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         SearchHit[] hits = new SearchHit[(int)totalHits];
-        SearchHits searchHits = new SearchHits(hits, totalHits, 1);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();
@@ -522,7 +525,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         SearchHit[] hits = new SearchHit[0];
-        SearchHits searchHits = new SearchHits(hits, 0, 1);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();

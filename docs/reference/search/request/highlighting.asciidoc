@@ -860,7 +860,10 @@ Response:
 {
     ...
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.601195,
         "hits": [
             {
@@ -916,7 +919,10 @@ Response:
 {
     ...
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.601195,
         "hits": [
             {

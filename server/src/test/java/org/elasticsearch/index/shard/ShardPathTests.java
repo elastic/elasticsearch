@@ -43,10 +43,10 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.write(new ShardStateMetaData(true, "0xDEADBEEF",
-                AllocationId.newInitializing()), path);
+            ShardStateMetaData.FORMAT.writeAndCleanup(
+                    new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
             ShardPath shardPath =
-                ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
+                    ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
             assertEquals(path, shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
             assertEquals("foo", shardPath.getShardId().getIndexName());
@@ -64,7 +64,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             assumeTrue("This test tests multi data.path but we only got one", paths.length > 1);
-            ShardStateMetaData.FORMAT.write(new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), paths);
+            ShardStateMetaData.FORMAT.writeAndCleanup(
+                    new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), paths);
             Exception e = expectThrows(IllegalStateException.class, () ->
                 ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings)));
             assertThat(e.getMessage(), containsString("more than one shard state found"));
@@ -79,7 +80,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", "foobar", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.write(new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            ShardStateMetaData.FORMAT.writeAndCleanup(
+                    new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
             Exception e = expectThrows(IllegalStateException.class, () ->
                 ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings)));
             assertThat(e.getMessage(), containsString("expected: foobar on shard path"));
@@ -127,7 +129,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.write(new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), path);
+            ShardStateMetaData.FORMAT.writeAndCleanup(
+                    new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), path);
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId,
                 IndexSettingsModule.newIndexSettings(shardId.getIndex(), indexSettings, nodeSettings));
             boolean found = false;

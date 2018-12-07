@@ -362,7 +362,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
                 assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
-                logger.info("--> deleted");
                 return super.onNodeStopped(nodeName);
             }
         });

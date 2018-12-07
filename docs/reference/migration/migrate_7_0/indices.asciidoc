@@ -5,7 +5,7 @@
 [float]
 ==== Index creation no longer defaults to five shards
 Previous versions of Elasticsearch defaulted to creating five shards per index.
-Starting with 7.0.0, the default is now one index per shard.
+Starting with 7.0.0, the default is now one shard per index.
 
 [float]
 ==== `:` is no longer allowed in index name

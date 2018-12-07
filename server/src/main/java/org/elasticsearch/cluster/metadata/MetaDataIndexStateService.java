@@ -274,8 +274,9 @@ public class MetaDataIndexStateService {
         final CountDown countDown = new CountDown(shards.size());
 
         for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-            final ShardId shardId = shard.value.shardId();
-            sendShardCloseRequest(shardId, timeout, new ActionListener<ReplicationResponse>() {
+            final IndexShardRoutingTable shardRoutingTable = shard.value;
+            final ShardId shardId = shardRoutingTable.shardId();
+            sendShardCloseRequest(shardRoutingTable, timeout, new ActionListener<ReplicationResponse>() {
                 @Override
                 public void onResponse(final ReplicationResponse replicationResponse) {
                     ReplicationResponse.ShardInfo shardInfo = replicationResponse.getShardInfo();
@@ -299,8 +300,16 @@ public class MetaDataIndexStateService {
         }
     }
 
-    private void sendShardCloseRequest(final ShardId shardId, @Nullable final TimeValue timeout,
+    private void sendShardCloseRequest(final IndexShardRoutingTable shardRoutingTable, @Nullable final TimeValue timeout,
                                        final ActionListener<ReplicationResponse> listener) {
+        final ShardId shardId = shardRoutingTable.shardId();
+        if (shardRoutingTable.primaryShard().unassigned()) {
+            logger.debug("primary shard {} is unassigned, ignoring", shardId);
+            final ReplicationResponse response = new ReplicationResponse();
+            response.setShardInfo(new ReplicationResponse.ShardInfo(shardRoutingTable.size(), shardRoutingTable.size()));
+            listener.onResponse(response);
+            return;
+        }
         final TransportVerifyShardBeforeCloseAction.ShardCloseRequest shardRequest =
             new TransportVerifyShardBeforeCloseAction.ShardCloseRequest(shardId);
         if (timeout != null) {

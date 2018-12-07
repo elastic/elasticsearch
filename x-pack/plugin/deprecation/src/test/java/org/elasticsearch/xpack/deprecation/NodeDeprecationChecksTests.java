@@ -59,6 +59,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testHttpEnabledCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "HTTP Enabled setting removed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#remove-http-enabled",
+            "nodes with http.enabled set: [node_check]");
+        assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
+    }
+
     public void testAzurePluginCheck() {
         Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         PluginInfo deprecatedPlugin = new PluginInfo(

@@ -98,7 +98,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     @Override
@@ -546,10 +546,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public void testResolvePath() throws Exception {
-        internalCluster().startMasterOnlyNode();
-
         final int numOfNodes = randomIntBetween(1, 5);
-        final List<String> nodeNames = internalCluster().startNodes(numOfNodes);
+        final List<String> nodeNames = internalCluster().startNodes(numOfNodes, Settings.EMPTY);
 
         final String indexName = "test" + randomInt(100);
         assertAcked(prepareCreate(indexName).setSettings(Settings.builder()

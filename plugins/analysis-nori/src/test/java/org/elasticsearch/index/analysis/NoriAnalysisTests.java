@@ -92,16 +92,6 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         }
     }
 
-    public void testNoriAnalyzerUserDictWithDuplicates() throws Exception {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.my_analyzer.type", "nori")
-            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "세종", "C샤프", "세종", "세종 세 종")
-            .build();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("Found duplicate term: [세종]"));
-
-    }
-
     public void testNoriAnalyzerUserDictPath() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "nori")
@@ -116,6 +106,17 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
             assertTokenStreamContents(stream, new String[] {"c++", "world"});
         }
+    }
+
+    public void testNoriAnalyzerInvalidUserDictOption() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .put("index.analysis.analyzer.my_analyzer.user_dictionary", "user_dict.txt")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C샤프", "세종", "세종시 세종 시")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("It is not allowed to use [user_dictionary] in conjunction " +
+            "with [user_dictionary_rules]"));
     }
 
     public void testNoriTokenizer() throws Exception {

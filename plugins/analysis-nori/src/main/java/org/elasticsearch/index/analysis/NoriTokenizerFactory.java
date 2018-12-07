@@ -30,10 +30,8 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
@@ -49,18 +47,16 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
+        if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
+            throw new IllegalArgumentException("It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" +
+                " with [" + USER_DICT_RULES_OPTION + "]");
+        }
         List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION);
         StringBuilder sb = new StringBuilder();
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }
-        // check for duplicate terms
-        Set<String> terms = new HashSet<>();
         for (String line : ruleList) {
-            String[] split = line.split("\\s+");
-            if (terms.add(split[0]) == false) {
-                throw new IllegalArgumentException("Found duplicate term: [" + split[0] + "] in user dictionary. ");
-            }
             sb.append(line).append(System.lineSeparator());
         }
         try (Reader rulesReader = new StringReader(sb.toString())) {

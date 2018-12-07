@@ -43,7 +43,6 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class Zen1IT extends ESIntegTestCase {
 
     private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()

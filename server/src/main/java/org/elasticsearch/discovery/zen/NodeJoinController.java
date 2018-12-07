@@ -24,13 +24,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -68,13 +65,6 @@ public class NodeJoinController {
             @Override
             public void clusterStatePublished(ClusterChangedEvent event) {
                 electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
-            }
-
-            @Override
-            protected Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
-                // Pre-7.0 nodes do not track coordination metadata, so drop it from Zen1-emulating 7.0 nodes too:
-                return super.becomeMasterAndTrimConflictingNodes(currentState, joiningNodes)
-                    .metaData(MetaData.builder(currentState.metaData()).coordinationMetaData(CoordinationMetaData.EMPTY_META_DATA).build());
             }
         };
     }

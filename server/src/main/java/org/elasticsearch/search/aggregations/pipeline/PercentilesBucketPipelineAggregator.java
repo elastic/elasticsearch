@@ -34,12 +34,14 @@ import java.util.Map;
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
     private final double[] percents;
+    private final boolean keyed;
     private List<Double> data;
 
-    PercentilesBucketPipelineAggregator(String name, double[] percents, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                  DocValueFormat formatter, Map<String, Object> metaData) {
+    PercentilesBucketPipelineAggregator(String name, double[] percents, boolean keyed, String[] bucketsPaths,
+                                        GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
         this.percents = percents;
+        this.keyed = keyed;
     }
 
     /**
@@ -48,11 +50,13 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     public PercentilesBucketPipelineAggregator(StreamInput in) throws IOException {
         super(in);
         percents = in.readDoubleArray();
+        keyed = in.readBoolean();
     }
 
     @Override
     public void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
+        out.writeBoolean(keyed);
     }
 
     @Override
@@ -91,6 +95,6 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         // todo need postCollection() to clean up temp sorted data?
 
-        return new InternalPercentilesBucket(name(), percents, percentiles, format, pipelineAggregators, metadata);
+        return new InternalPercentilesBucket(name(), percents, percentiles, keyed, format, pipelineAggregators, metadata);
     }
 }

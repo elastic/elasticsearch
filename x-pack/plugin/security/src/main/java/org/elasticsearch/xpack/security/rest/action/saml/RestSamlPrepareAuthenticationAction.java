@@ -45,6 +45,7 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
     public RestSamlPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/saml/prepare", this);
+        controller.registerHandler(POST, "/_security/saml/prepare", this);
     }
 
     @Override

@@ -33,9 +33,13 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
     public RestSetEnabledAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_enable", this);
+        controller.registerHandler(POST, "/_security/user/{username}/_enable", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_enable", this);
+        controller.registerHandler(PUT, "/_security/user/{username}/_enable", this);
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_disable", this);
+        controller.registerHandler(POST, "/_security/user/{username}/_disable", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_disable", this);
+        controller.registerHandler(PUT, "/_security/user/{username}/_disable", this);
     }
 
     @Override

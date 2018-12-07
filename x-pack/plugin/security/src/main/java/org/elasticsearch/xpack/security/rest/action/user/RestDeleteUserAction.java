@@ -36,6 +36,7 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
     public RestDeleteUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(DELETE, "/_security/user/{username}", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(DELETE, "/_shield/user/{username}", this,

@@ -223,11 +223,13 @@ public class RestoreService implements ClusterStateApplier {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    // Check if another restore process is already running - cannot run two restore processes at the
-                    // same time
                     RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-                    if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
-                        throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
+                    if (currentState.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
+                        // Check if another restore process is already running - cannot run two restore processes at the
+                        // same time in versions prior to 7.0
+                        if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
+                            throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
+                        }
                     }
                     // Check if the snapshot to restore is currently being deleted
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
@@ -330,7 +332,14 @@ public class RestoreService implements ClusterStateApplier {
 
                         shards = shardsBuilder.build();
                         RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshot, overallState(RestoreInProgress.State.INIT, shards), Collections.unmodifiableList(new ArrayList<>(indices.keySet())), shards);
-                        builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
+                        List<RestoreInProgress.Entry> newEntries;
+                        if (restoreInProgress != null) {
+                            newEntries = new ArrayList<>(restoreInProgress.entries());
+                        } else {
+                            newEntries = new ArrayList<>(1);
+                        }
+                        newEntries.add(restoreEntry);
+                        builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(newEntries.toArray(new RestoreInProgress.Entry[0])));
                     } else {
                         shards = ImmutableOpenMap.of();
                     }
@@ -617,7 +626,7 @@ public class RestoreService implements ClusterStateApplier {
                 for (RestoreInProgress.Entry entry : oldRestore.entries()) {
                     Snapshot snapshot = entry.snapshot();
                     Updates updates = shardChanges.get(snapshot);
-                    if (updates.shards.isEmpty() == false) {
+                    if (updates != null && updates.shards.isEmpty() == false) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
                         for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.shards.entrySet()) {
                             shardsBuilder.put(shard.getKey(), shard.getValue());
@@ -630,7 +639,7 @@ public class RestoreService implements ClusterStateApplier {
                         entries.add(entry);
                     }
                 }
-                return new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[entries.size()]));
+                return new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[0]));
             } else {
                 return oldRestore;
             }

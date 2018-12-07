@@ -106,7 +106,8 @@ final class DocumentParser {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        if (Objects.equals(source.type(), docMapper.type()) == false) {
+        if (Objects.equals(source.type(), docMapper.type()) == false &&
+                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
                 + docMapper.type() + "]");
         }

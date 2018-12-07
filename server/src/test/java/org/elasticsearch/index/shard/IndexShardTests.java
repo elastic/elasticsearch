@@ -67,6 +67,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -80,9 +81,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.DeleteResult;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -200,7 +203,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public static void write(ShardStateMetaData shardStateMetaData,
                              Path... shardPaths) throws IOException {
-        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
+        ShardStateMetaData.FORMAT.writeAndCleanup(shardStateMetaData, shardPaths);
     }
 
     public static Engine getEngineFromShard(IndexShard shard) {
@@ -736,7 +739,6 @@ public class IndexShardTests extends IndexShardTestCase {
         return fut.get();
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testOperationPermitOnReplicaShards() throws Exception {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
@@ -1027,7 +1029,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -1092,7 +1093,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(indexShard, false);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRollbackReplicaEngineOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
 
@@ -1436,7 +1436,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test", "test",
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         }
@@ -2136,7 +2136,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.refresh("test");
 
         try (Engine.GetResult getResult = shard
-                .get(new Engine.Get(false, false, "test", "1",
+                .get(new Engine.Get(false, false, "_doc", "1",
                     new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
@@ -2178,7 +2178,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(search.totalHits.value, 1);
         }
         try (Engine.GetResult getResult = newShard
-                .get(new Engine.Get(false, false, "test", "1",
+                .get(new Engine.Get(false, false, "_doc", "1",
                     new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
@@ -3627,9 +3627,123 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
     }
 
+    public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {
+        final IndexShard replica = newStartedShard(false);
+        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));
+
+        final int nbTermUpdates = randomIntBetween(1, 5);
+
+        for (int i = 0; i < nbTermUpdates; i++) {
+            long opPrimaryTerm = replica.getOperationPrimaryTerm() + 1;
+            final long globalCheckpoint = replica.getGlobalCheckpoint();
+            final long maxSeqNoOfUpdatesOrDeletes = replica.getMaxSeqNoOfUpdatesOrDeletes();
+
+            final int operations = scaledRandomIntBetween(5, 32);
+            final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
+            final CountDownLatch latch = new CountDownLatch(operations);
+
+            final Thread[] threads = new Thread[operations];
+            for (int j = 0; j < operations; j++) {
+                threads[j] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                    } catch (final BrokenBarrierException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    replica.acquireAllReplicaOperationsPermits(
+                        opPrimaryTerm,
+                        globalCheckpoint,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(final Releasable releasable) {
+                                try (Releasable ignored = releasable) {
+                                    assertThat(replica.getPendingPrimaryTerm(), greaterThanOrEqualTo(opPrimaryTerm));
+                                    assertThat(replica.getOperationPrimaryTerm(), equalTo(opPrimaryTerm));
+                                } finally {
+                                    latch.countDown();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(final Exception e) {
+                                try {
+                                    throw new RuntimeException(e);
+                                } finally {
+                                    latch.countDown();
+                                }
+                            }
+                        }, TimeValue.timeValueMinutes(30L));
+                });
+                threads[j].start();
+            }
+            barrier.await();
+            latch.await();
+
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
+
+        closeShard(replica, false);
+    }
+
     @Override
     public Settings threadPoolSettings() {
         return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.estimated_time_interval", "5ms").build();
+    }
+
+    public void testTypelessDelete() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder("index")
+                .putMapping("some_type", "{ \"properties\": {}}")
+                .settings(settings)
+                .build();
+        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(shard);
+        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "id", "{}");
+        assertTrue(indexResult.isCreated());
+
+        DeleteResult deleteResult = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, "some_other_type", "id", VersionType.INTERNAL);
+        assertFalse(deleteResult.isFound());
+
+        deleteResult = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, "_doc", "id", VersionType.INTERNAL);
+        assertTrue(deleteResult.isFound());
+
+        closeShards(shard);
+    }
+
+    public void testTypelessGet() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder("index")
+                .putMapping("some_type", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .settings(settings)
+                .primaryTerm(0, 1).build();
+        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(shard);
+        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(indexResult.isCreated());
+
+        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(
+                new Engine.Get(true, true, "some_type", "0", new Term("_id", Uid.encodeId("0"))));
+        assertTrue(getResult.exists());
+        getResult.close();
+
+        getResult = shard.get(new Engine.Get(true, true, "some_other_type", "0", new Term("_id", Uid.encodeId("0"))));
+        assertFalse(getResult.exists());
+        getResult.close();
+
+        getResult = shard.get(new Engine.Get(true, true, "_doc", "0", new Term("_id", Uid.encodeId("0"))));
+        assertTrue(getResult.exists());
+        getResult.close();
+
+        closeShards(shard);
     }
 
     /**

@@ -1161,7 +1161,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36283")
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
         logger.info("-->  starting a master node and two data nodes");
         internalCluster().startMasterOnlyNode();
@@ -1203,7 +1202,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
-        }, 30, TimeUnit.SECONDS);
+        }, 60L, TimeUnit.SECONDS);
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

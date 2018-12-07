@@ -117,7 +117,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        logger.trace("migrating ml configurations");
+        logger.debug("migrating ml configurations");
 
         Collection<DatafeedConfig> datafeedsToMigrate = stoppedDatafeedConfigs(clusterState);
         List<Job> jobsToMigrate = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
@@ -431,7 +431,7 @@ public class MlConfigMigrator {
      * @param clusterState clusterstate
      * @return A boolean depending on the conditions listed above
      */
-    public static boolean datafeedIdEligibleForMigration(String datafeedId, ClusterState clusterState) {
+    public static boolean datafeedIsEligibleForMigration(String datafeedId, ClusterState clusterState) {
         Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
         if (minNodeVersion.before(MIN_NODE_VERSION)) {
             return false;

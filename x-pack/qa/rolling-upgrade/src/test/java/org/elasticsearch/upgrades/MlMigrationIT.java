@@ -40,7 +40,8 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-old-cluster-started-datafeed";
     private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-old-cluster-closed-job";
     private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-old-cluster-stopped-datafeed";
-
+    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = "migration-old-cluster-closed-job-extra";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = "migration-old-cluster-stopped-datafeed-extra";
 
     @Override
     protected Collection<String> templatesToWaitFor() {
@@ -49,13 +50,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         // If upgrading from a version prior to v6.6.0 the set of templates
         // to wait for is different
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            String versionProperty = System.getProperty("tests.upgrade_from_version");
-            if (versionProperty == null) {
-                throw new IllegalStateException("System property 'tests.upgrade_from_version' not set, cannot start tests");
-            }
-
-            Version upgradeFromVersion = Version.fromString(versionProperty);
-            if (upgradeFromVersion.before(Version.V_6_6_0)) {
+            if (UPGRADED_FROM_VERSION.before(Version.V_6_6_0)) {
                 templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
             }
         }
@@ -124,6 +119,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     }
 
     private void oldClusterTests() throws IOException {
+        // create jobs and datafeeds
         Detector.Builder d = new Detector.Builder("metric", "responsetime");
         d.setByFieldName("airline");
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
@@ -171,6 +167,20 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         putStoppedDatafeed.setJsonEntity(Strings.toString(stoppedDfBuilder.build()));
         client().performRequest(putStoppedDatafeed);
 
+        Job.Builder extraJob = new Job.Builder(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
+        extraJob.setAnalysisConfig(analysisConfig);
+        extraJob.setDataDescription(new DataDescription.Builder());
+
+        Request putExtraJob = new Request("PUT", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
+        putExtraJob.setJsonEntity(Strings.toString(extraJob));
+        client().performRequest(putExtraJob);
+
+        putStoppedDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID);
+        stoppedDfBuilder.setId(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID);
+        stoppedDfBuilder.setJobId(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
+        putStoppedDatafeed.setJsonEntity(Strings.toString(stoppedDfBuilder.build()));
+        client().performRequest(putStoppedDatafeed);
+
         assertConfigInClusterState();
     }
 
@@ -186,7 +196,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     }
 
     private void upgradedClusterTests() throws Exception {
-        tryUpdate();
+        tryUpdates();
 
         // These requests may fail because the configs have not been migrated
         // and open is disallowed prior to migration.
@@ -231,6 +241,8 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
                 Collections.emptyList());
 
         checkJobsMarkedAsMigrated(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID));
+
+        // TODO delete
     }
 
     @SuppressWarnings("unchecked")
@@ -247,9 +259,10 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         List<Map<String, Object>> jobConfigs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
 
-        assertThat(jobConfigs, hasSize(2));
+        assertThat(jobConfigs, hasSize(3));
         assertEquals(OLD_CLUSTER_CLOSED_JOB_ID, jobConfigs.get(0).get("job_id"));
-        assertEquals(OLD_CLUSTER_OPEN_JOB_ID, jobConfigs.get(1).get("job_id"));
+        assertEquals(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, jobConfigs.get(1).get("job_id"));
+        assertEquals(OLD_CLUSTER_OPEN_JOB_ID, jobConfigs.get(2).get("job_id"));
 
         Map<String, Object> customSettings = (Map<String, Object>)jobConfigs.get(0).get("custom_settings");
         if (customSettings != null) {
@@ -266,15 +279,15 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         Map<String, Object> stats = entityAsMap(response);
         List<Map<String, Object>> jobStats =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
-        assertThat(jobStats, hasSize(2));
+        assertThat(jobStats, hasSize(3));
 
         assertEquals(OLD_CLUSTER_CLOSED_JOB_ID, XContentMapValues.extractValue("job_id", jobStats.get(0)));
         assertEquals("closed", XContentMapValues.extractValue("state", jobStats.get(0)));
         assertThat((String)XContentMapValues.extractValue("assignment_explanation", jobStats.get(0)), isEmptyOrNullString());
 
-        assertEquals(OLD_CLUSTER_OPEN_JOB_ID, XContentMapValues.extractValue("job_id", jobStats.get(1)));
-        assertEquals("opened", XContentMapValues.extractValue("state", jobStats.get(1)));
-        assertThat((String)XContentMapValues.extractValue("assignment_explanation", jobStats.get(1)), isEmptyOrNullString());
+        assertEquals(OLD_CLUSTER_OPEN_JOB_ID, XContentMapValues.extractValue("job_id", jobStats.get(2)));
+        assertEquals("opened", XContentMapValues.extractValue("state", jobStats.get(2)));
+        assertThat((String)XContentMapValues.extractValue("assignment_explanation", jobStats.get(2)), isEmptyOrNullString());
     }
 
     @SuppressWarnings("unchecked")
@@ -288,18 +301,21 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         Response response = client().performRequest(getDatafeeds);
         List<Map<String, Object>> configs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", entityAsMap(response));
-        assertThat(configs, hasSize(2));
+        assertThat(configs, hasSize(3));
         assertEquals(OLD_CLUSTER_STARTED_DATAFEED_ID, XContentMapValues.extractValue("datafeed_id", configs.get(0)));
         assertEquals(OLD_CLUSTER_STOPPED_DATAFEED_ID, XContentMapValues.extractValue("datafeed_id", configs.get(1)));
+        assertEquals(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID, XContentMapValues.extractValue("datafeed_id", configs.get(2)));
 
         Request getDatafeedStats = new Request("GET", "_xpack/ml/datafeeds/migration*/_stats");
         response = client().performRequest(getDatafeedStats);
         configs = (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", entityAsMap(response));
-        assertThat(configs, hasSize(2));
+        assertThat(configs, hasSize(3));
         assertEquals(OLD_CLUSTER_STARTED_DATAFEED_ID, XContentMapValues.extractValue("datafeed_id", configs.get(0)));
         assertEquals("started", XContentMapValues.extractValue("state", configs.get(0)));
         assertEquals(OLD_CLUSTER_STOPPED_DATAFEED_ID, XContentMapValues.extractValue("datafeed_id", configs.get(1)));
         assertEquals("stopped", XContentMapValues.extractValue("state", configs.get(1)));
+        assertEquals(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID, XContentMapValues.extractValue("datafeed_id", configs.get(2)));
+        assertEquals("stopped", XContentMapValues.extractValue("state", configs.get(2)));
     }
 
     @SuppressWarnings("unchecked")
@@ -414,43 +430,81 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void tryUpdate() {
+    private boolean openMigratedJob(String jobId) throws IOException {
+        // opening a job should be rejected prior to migration
+        Request openJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + jobId + "/_open");
+        return updateJobExpectingSuccessOr503(jobId, openJob, "cannot open job as the configuration [" + jobId + "] is temporarily pending migration", false);
+    }
+
+    private boolean startMigratedDatafeed(String datafeedId) throws IOException {
+        Request startDatafeed = new Request("POST", "_xpack/ml/datafeeds/" + datafeedId + "/_start");
+        return updateDatafeedExpectingSuccessOr503(datafeedId, startDatafeed, "cannot start datafeed as the configuration [" +
+                datafeedId + "] is temporarily pending migration", false);
+    }
+
+    private void tryUpdates() throws IOException {
         // in the upgraded cluster updates should be rejected prior
         // to migration. Either the config is migrated or the update
         // is rejected with the expected error
+
+        if (randomBoolean()) {
+            // update job
+            Request updateJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "/_update");
+            updateJob.setJsonEntity("{\"description\" : \"updated description\"}");
+            updateJobExpectingSuccessOr503(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, updateJob, "cannot update job as the configuration ["
+                    + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "] is temporarily pending migration", false);
+        } else {
+            // delete job
+            Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
+            updateJobExpectingSuccessOr503(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, deleteJob, "cannot update job as the configuration ["
+                    + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "] is temporarily pending migration", true);
+        }
+
+        // delete datafeed
+        Request deleteDatafeed = new Request("DELETE", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID);
+        updateDatafeedExpectingSuccessOr503(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID, deleteDatafeed,
+                "cannot delete datafeed as the configuration [" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID
+                        + "] is temporarily pending migration", true);
     }
 
     @SuppressWarnings("unchecked")
-    private boolean openMigratedJob(String jobId) throws IOException {
-        // opening a job should be rejected prior to migration
+    private boolean updateJobExpectingSuccessOr503(String jobId, Request request,
+                                                   String expectedErrorMessage, boolean deleting) throws IOException {
         try {
-            Request openJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + jobId + "/_open");
-            client().performRequest(openJob);
+            client().performRequest(request);
 
-            // the request was successful the job should have been migrated
-            // check teh job is marked as migrated
+            // the request was successful so the job should have been migrated
+            // ...unless it was deleted
+            if (deleting) {
+                return true;
+            }
+
             Request getJob = new Request("GET", "_xpack/ml/anomaly_detectors/" + jobId);
             Response response = client().performRequest(getJob);
-
             List<Map<String, Object>> jobConfigs =
                     (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", entityAsMap(response));
             assertJobIsMarkedAsMigrated(jobConfigs.get(0));
             return true;
         } catch (ResponseException e) {
             // a fail request is ok if the error was that the config has not been migrated
+            assertEquals(expectedErrorMessage, e.getMessage());
             assertEquals(503, e.getResponse().getStatusLine().getStatusCode());
-            assertEquals("cannot open job as the configuration [" + jobId + "] is temporarily pending migration",
-                    e.getMessage());
             return false;
         }
     }
 
     @SuppressWarnings("unchecked")
-    private boolean startMigratedDatafeed(String datafeedId) throws IOException {
+    private boolean updateDatafeedExpectingSuccessOr503(String datafeedId, Request request,
+                                                        String expectedErrorMessage, boolean deleting) throws IOException {
         // starting a datafeed should be rejected prior to migration
         try {
-            Request startDatafeed = new Request("POST", "_xpack/ml/datafeeds/" + datafeedId + "/_start");
-            client().performRequest(startDatafeed);
+            client().performRequest(request);
+
+            // the request was successful so the job should have been migrated
+            // ...unless it was deleted
+            if (deleting) {
+                return true;
+            }
 
             // if the request succeeded the config must have been migrated out of clusterstate
             Request getClusterState = new Request("GET", "/_cluster/state/metadata");
@@ -462,9 +516,8 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             return true;
         } catch (ResponseException e) {
             // a fail request is ok if the error was that the config has not been migrated
+            assertEquals(expectedErrorMessage, e.getMessage());
             assertEquals(503, e.getResponse().getStatusLine().getStatusCode());
-            assertEquals("cannot start datafeed as the configuration [" + datafeedId
-                    + "] is temporarily pending migration", e.getMessage());
             return false;
         }
     }

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -617,7 +618,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 new Script("params.bytes > 0 ? params.bytes : null"));
         DateHistogramAggregationBuilder dateHistogram =
             AggregationBuilders.dateHistogram("histogram_buckets")
-                .field("timestamp").interval(300000).timeZone(DateTimeZone.UTC)
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
                 .subAggregation(maxTime)
                 .subAggregation(avgAggregationBuilder)
                 .subAggregation(derivativePipelineAggregationBuilder)
@@ -668,7 +669,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 new Script("params.bytes > 0 ? params.bytes : null"));
         DateHistogramAggregationBuilder dateHistogram =
             AggregationBuilders.dateHistogram("histogram_buckets")
-                .field("timestamp").interval(300000).timeZone(DateTimeZone.UTC)
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
                 .subAggregation(maxTime)
                 .subAggregation(avgAggregationBuilder)
                 .subAggregation(derivativePipelineAggregationBuilder)

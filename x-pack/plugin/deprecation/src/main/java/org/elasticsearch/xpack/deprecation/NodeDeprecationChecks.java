@@ -25,7 +25,7 @@ public class NodeDeprecationChecks {
             .map(nodeInfo -> nodeInfo.getNode().getName())
             .collect(Collectors.toList());
         if (nodesFound.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "HTTP Enabled setting removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
                     "#remove-http-enabled",

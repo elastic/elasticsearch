@@ -60,7 +60,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testHttpEnabledCheck() {
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP Enabled setting removed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
                 "#remove-http-enabled",

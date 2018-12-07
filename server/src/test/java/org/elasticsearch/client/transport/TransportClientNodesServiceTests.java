@@ -392,14 +392,13 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     assertEquals(1, clientService.connectionManager().size());
 
                     establishedConnections.clear();
-                    handler.blockRequest();
+                    handler.ignoreRequest();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
                     assertBusy(() ->  assertTrue(establishedConnections.size() >= 1));
                     assertFalse("Temporary ping connection must be opened", establishedConnections.get(0).isClosed());
 
-                    handler.releaseRequest();
                     thread.join();
 
                     assertTrue(establishedConnections.get(0).isClosed());
@@ -411,8 +410,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     class MockHandler implements TransportRequestHandler<ClusterStateRequest> {
-        private final AtomicBoolean block = new AtomicBoolean(false);
-        private final CountDownLatch release = new CountDownLatch(1);
+
+        private final AtomicBoolean ignoreRequest = new AtomicBoolean(false);
         private final MockTransportService transportService;
 
         MockHandler(MockTransportService transportService) {
@@ -421,22 +420,19 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         @Override
         public void messageReceived(ClusterStateRequest request, TransportChannel channel, Task task) throws Exception {
-            if (block.get()) {
-                release.await();
+            if (ignoreRequest.get()) {
                 return;
             }
+
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(transportService.getLocalDiscoNode()).build();
             ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
             channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
         }
 
-        void blockRequest() {
-            if (block.compareAndSet(false, true) == false) {
+        void ignoreRequest() {
+            if (ignoreRequest.compareAndSet(false, true) == false) {
                 throw new AssertionError("Request handler is already marked as blocking");
             }
-        }
-        void releaseRequest() {
-            release.countDown();
         }
     }
 

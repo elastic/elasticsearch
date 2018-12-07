@@ -100,6 +100,10 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
     public void testEquals() {
         assertThat(javaTime, equalTo(javaTime));
     }
+    
+    public void testToString() {
+        assertThat(javaTime.toString(), equalTo(jodaTime.toString()));
+    }
 
     public void testDayOfMonth() {
         assertThat(javaTime.getDayOfMonth(), equalTo(jodaTime.getDayOfMonth()));

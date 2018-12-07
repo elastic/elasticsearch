@@ -23,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InPlaceMergeSorter;
 
 // static utility functions for encoding and decoding dense_vector and sparse_vector fields
-public final class VectorEncoderDecoder {
+final class VectorEncoderDecoder {
     static final byte INT_BYTES = 4;
     static final byte SHORT_BYTES = 2;
 
@@ -69,7 +69,7 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - vector decoded in BytesRef
      */
     static int[] decodeSparseVectorDims(BytesRef vectorBR) {
-        int dimCount = (vectorBR.length - vectorBR.offset) / (INT_BYTES + SHORT_BYTES);
+        int dimCount = vectorBR.length / (INT_BYTES + SHORT_BYTES);
         int[] dims = new int[dimCount];
         int offset = vectorBR.offset;
         for (int dim = 0; dim < dimCount; dim++) {
@@ -84,7 +84,7 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - vector decoded in BytesRef
      */
     static float[] decodeSparseVector(BytesRef vectorBR) {
-        int dimCount = (vectorBR.length - vectorBR.offset) / (INT_BYTES + SHORT_BYTES);
+        int dimCount = vectorBR.length / (INT_BYTES + SHORT_BYTES);
         int offset =  vectorBR.offset + SHORT_BYTES * dimCount; //calculate the offset from where values are encoded
         float[] vector = new float[dimCount];
         for (int dim = 0; dim < dimCount; dim++) {
@@ -125,7 +125,7 @@ public final class VectorEncoderDecoder {
 
     // Decodes a BytesRef into an array of floats
     static float[] decodeDenseVector(BytesRef vectorBR) {
-        int dimCount = (vectorBR.length - vectorBR.offset) / INT_BYTES;
+        int dimCount = vectorBR.length / INT_BYTES;
         float[] vector = new float[dimCount];
         int offset = vectorBR.offset;
         for (int dim = 0; dim < dimCount; dim++) {

@@ -42,7 +42,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-
 public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -109,7 +108,8 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
-            throw new UnsupportedOperationException("[dense_vector] field doesn't support doc values");
+            throw new UnsupportedOperationException(
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
 
         @Override
@@ -119,19 +119,21 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[dense_vector] fields doen't support sorting, scripting or aggregating");
+            throw new UnsupportedOperationException(
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support sorting, scripting or aggregating");
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException("Queries on [dense_vector] fields are not supported");
+            throw new UnsupportedOperationException(
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }
     }
 
     private DenseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+        assert fieldType.indexOptions() == IndexOptions.NONE;
     }
 
     @Override
@@ -147,7 +149,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     @Override
     public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
-            throw new IllegalArgumentException("[dense_vector] field can't be used in multi-fields");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
 
         // encode array of floats as array of integers and store into buf
@@ -169,14 +171,14 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             offset += INT_BYTES;
             dim++;
             if (dim >= MAX_DIMS_COUNT) {
-                throw new IllegalArgumentException(
-                    "[dense_vector] field has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                    "] has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
             }
         }
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
         if (context.doc().getByKey(fieldType().name()) != null) {
-            throw new IllegalArgumentException("[dense_vector] field doesn't not support indexing multiple values for the same " +
-                "field [" + name() + "] in the same document");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);
     }

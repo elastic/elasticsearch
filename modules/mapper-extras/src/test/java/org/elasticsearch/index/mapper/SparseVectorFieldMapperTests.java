@@ -31,17 +31,18 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
+
 public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
+    private DocumentMapper mapper;
 
-   @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
-    }
-
-    public void testDefaults() throws Exception {
+    @Before
+    public void setup() throws Exception {
         IndexService indexService =  createIndex("test-index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -53,10 +54,15 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject());
+        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+    }
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(MapperExtrasPlugin.class);
+    }
 
+    public void testDefaults() throws Exception {
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
         ParsedDocument doc1 = mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
@@ -92,5 +98,67 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
             decodedValues,
             0.001f
         );
+    }
+
+    public void testErrors() {
+        // 1. test for an error on negative dimension
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("my-sparse-vector")
+                        .field(Integer.toString(-50), 100f)
+                    .endObject()
+                .endObject()),
+            XContentType.JSON));
+        });
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString(
+            "dimension number must be a non-negative integer value not exceeding [65535], got [-50]"));
+
+        // 2. test for an error on a dimension greater than MAX_DIMS_NUMBER
+        e = expectThrows(MapperParsingException.class, () -> {
+            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("my-sparse-vector")
+                        .field(Integer.toString(70000), 100f)
+                    .endObject()
+                .endObject()),
+            XContentType.JSON));
+        });
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString(
+            "dimension number must be a non-negative integer value not exceeding [65535], got [70000]"));
+
+        // 3. test for an error on a wrong formatted dimension
+        e = expectThrows(MapperParsingException.class, () -> {
+            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("my-sparse-vector")
+                        .field("WrongDim123", 100f)
+                    .endObject()
+                .endObject()),
+            XContentType.JSON));
+        });
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString(
+            "dimensions should be integers represented as strings, but got [WrongDim123]"));
+
+         // 4. test for an error on a wrong format for the map of dims to values
+        e = expectThrows(MapperParsingException.class, () -> {
+            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("my-sparse-vector")
+                        .startArray(Integer.toString(10)).value(10f).value(100f).endArray()
+                    .endObject()
+                .endObject()),
+            XContentType.JSON));
+        });
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString(
+            "takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]"));
     }
 }

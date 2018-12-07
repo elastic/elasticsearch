@@ -228,7 +228,6 @@ public class DiscoveryUpgradeService {
                             assert masterCandidates.size() == discoveryNodes.size()
                                 : masterCandidates + " does not match " + discoveryNodes;
 
-                            // TODO should we attempt to avoid a concurrent join to a different node?
                             // TODO we shouldn't elect a master with a version that's older than ours
                             // If the only Zen1 nodes left are stale, and we can bootstrap, maybe we should bootstrap?
                             // Do we ever need to elect a freshly-started Zen1 node?

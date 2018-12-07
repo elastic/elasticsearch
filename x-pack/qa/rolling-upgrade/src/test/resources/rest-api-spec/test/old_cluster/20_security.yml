@@ -4,7 +4,7 @@
       features: headers
   # create native user and role
   - do:
-      security.deprecated_put_user:
+      security.put_user:
        username: "native_user"
        body:  >
            {
@@ -14,7 +14,7 @@
   - match: { created: true }
 
   - do:
-      security.deprecated_put_role:
+      security.put_role:
         name: "native_role"
         body:  >
             {
@@ -36,11 +36,11 @@
   - match: { timed_out: false }
 
   - do:
-      security.deprecated_clear_cached_roles:
+      security.clear_cached_roles:
         name: "native_role"
 
   - do:
-      security.deprecated_clear_cached_realms:
+      security.clear_cached_realms:
         realms: "_all"
 
   - do:
@@ -51,16 +51,16 @@
   # Check that enabling a user in old cluster will not prevent the user from having a "default password" in the new cluster.
   # See: org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator.doConvertDefaultPasswords
   - do:
-      security.deprecated_disable_user:
+      security.disable_user:
         username: "kibana"
 
   - do:
-      security.deprecated_get_user:
+      security.get_user:
         username: "kibana"
   - match: { kibana.enabled: false }
 
   - do:
-      security.deprecated_change_password:
+      security.change_password:
         username: "logstash_system"
         body: >
             {
@@ -68,10 +68,10 @@
             }
 
   - do:
-      security.deprecated_enable_user:
+      security.enable_user:
         username: "logstash_system"
 
   - do:
-      security.deprecated_get_user:
+      security.get_user:
         username: "logstash_system"
   - match: { logstash_system.enabled: true }

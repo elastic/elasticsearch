@@ -128,7 +128,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                         percentileRanks("percentile_ranks", new double[]{10, 15})
                                             .field("value").method(PercentilesMethod.HDR)
                                             .numberOfSignificantValueDigits(sigDigits)))
-                .execute().actionGet();
+                .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -154,7 +154,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                             .method(PercentilesMethod.HDR)
                             .numberOfSignificantValueDigits(sigDigits)
                         .field("value"))
-                .execute().actionGet();
+                .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
@@ -177,7 +177,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .addAggregation(
                         percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                         .field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -196,7 +196,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                     .method(PercentilesMethod.HDR)
                     .numberOfSignificantValueDigits(sigDigits)
                     .field("value"))
-            .execute().actionGet());
+            .get());
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
     }
 
@@ -211,7 +211,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                     .method(PercentilesMethod.HDR)
                     .numberOfSignificantValueDigits(sigDigits)
                     .field("value"))
-            .execute().actionGet());
+            .get());
         assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
     }
 
@@ -228,7 +228,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                     .method(PercentilesMethod.HDR)
                                     .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -255,7 +255,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .addAggregation(
                         percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                         .field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -273,7 +273,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .addAggregation(
                         percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                         .field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -294,7 +294,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -317,7 +317,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params)))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -335,7 +335,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .addAggregation(
                         percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                         .field("values"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -356,7 +356,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -376,7 +376,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "20 - _value", emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -399,7 +399,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params)))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -419,7 +419,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -444,7 +444,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .script(script))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -467,7 +467,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .script(script))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -489,7 +489,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .script(script))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -508,7 +508,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .subAggregation(
                                         percentileRanks("percentile_ranks", new double[]{99}).field("value").method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits))
-                                .order(BucketOrder.aggregation("percentile_ranks", "99", asc))).execute().actionGet();
+                                .order(BucketOrder.aggregation("percentile_ranks", "99", asc))).get();
 
         assertHitCount(searchResponse, 10);
 

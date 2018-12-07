@@ -329,7 +329,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
-                getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+                getDiscoveredNodes().forEach(node -> {
+                    if (isZen1Node(node) == false) {
+                        joinHelper.sendStartJoinRequest(startJoinRequest, node)
+                    }
+                });
             }
         }
     }
@@ -888,7 +892,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     Strings.toString(clusterChangedEvent.previousState()).equals(
                         Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
                     : Strings.toString(clusterChangedEvent.previousState()) + " vs "
-                        + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+                    + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 

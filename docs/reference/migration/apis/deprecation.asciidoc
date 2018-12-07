@@ -51,7 +51,7 @@ Example response:
     {
       "level" : "critical",
       "message" : "Cluster name cannot contain ':'",
-      "url" : "{ref-60}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
+      "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
       "details" : "This cluster is named [mycompany:logging], which contains the illegal character ':'."
     }
   ],
@@ -61,7 +61,7 @@ Example response:
       {
         "level" : "warning",
         "message" : "Index name cannot contain ':'",
-        "url" : "{ref-60}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
+        "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
         "details" : "This index is named [logs:apache], which contains the illegal character ':'."
       }
     ]

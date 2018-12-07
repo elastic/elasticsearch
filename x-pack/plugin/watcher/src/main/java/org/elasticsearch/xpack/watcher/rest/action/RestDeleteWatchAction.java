@@ -33,7 +33,7 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
 
     public RestDeleteWatchAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
+
         controller.registerHandler(DELETE, URI_BASE + "/watch/{id}", this);
         controller.registerHandler(DELETE, "/_watcher/watch/{id}", this);
     }

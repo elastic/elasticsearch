@@ -40,7 +40,6 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
         final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
 
-        // @deprecated Remove deprecations in 6.0
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_activate", this);
         controller.registerHandler(POST, "/_watcher/watch/{id}/_activate", this);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_activate", this);

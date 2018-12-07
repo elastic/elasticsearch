@@ -30,7 +30,6 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     public RestWatcherStatsAction(Settings settings, RestController controller) {
         super(settings);
 
-        // @deprecated Remove deprecations in 6.0
         controller.registerHandler(GET, URI_BASE + "/stats", this);
         controller.registerHandler(GET, "/_watcher/stats", this);
         controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);

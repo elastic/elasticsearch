@@ -28,7 +28,6 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     public RestWatchServiceAction(Settings settings, RestController controller) {
         super(settings);
 
-        // @deprecated Remove in 6.0
         // NOTE: we switched from PUT in 2.x to POST in 5.x
         // NOTE: We added back the old URL with the new VERB (POST) since we are deprecating _xpack/* URIs in 7.0
         controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_restart", this,

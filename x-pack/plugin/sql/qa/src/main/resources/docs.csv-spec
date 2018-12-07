@@ -713,8 +713,8 @@ SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY SCORE() DESC;
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
-1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
+1.0402887       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+0.8587844      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
 1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
 
@@ -727,10 +727,10 @@ SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY page_count DES
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+1.0402887       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
 1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
-1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
+0.8587844      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
 
 // end::orderByScoreWithMatch
 ;
@@ -743,8 +743,8 @@ SELECT SCORE() AS score, name, release_date FROM library WHERE QUERY('dune') ORD
 ---------------+-------------------+--------------------
 1.4005898      |God Emperor of Dune|1981-05-28T00:00:00Z
 1.6086555      |Children of Dune   |1976-04-21T00:00:00Z
-1.8893257      |Dune Messiah       |1969-10-15T00:00:00Z
-2.288635       |Dune               |1965-06-01T00:00:00Z
+0.8587844      |Dune Messiah       |1969-10-15T00:00:00Z
+1.0402887       |Dune               |1965-06-01T00:00:00Z
 // end::scoreWithMatch
 ;
 

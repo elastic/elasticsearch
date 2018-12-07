@@ -38,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,7 +128,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @Input
     public Map<String, String> getPatterns() {
-        return patterns;
+        return Collections.unmodifiableMap(patterns);
     }
 
     public void exclude(String... excludes) {

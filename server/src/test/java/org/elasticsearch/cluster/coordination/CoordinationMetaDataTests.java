@@ -36,10 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 public class CoordinationMetaDataTests extends ESTestCase {
 
@@ -50,7 +47,6 @@ public class CoordinationMetaDataTests extends ESTestCase {
         assertThat(config0.isEmpty(), equalTo(true));
         assertThat(config0.hasQuorum(Sets.newHashSet()), equalTo(false));
         assertThat(config0.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
-        assertThat(config0.getQuorumDescription(), is("cluster bootstrapping"));
 
         VotingConfiguration config1 = new VotingConfiguration(Sets.newHashSet("id1"));
         assertThat(config1.getNodeIds(), equalTo(Sets.newHashSet("id1")));
@@ -59,7 +55,6 @@ public class CoordinationMetaDataTests extends ESTestCase {
         assertThat(config1.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
         assertThat(config1.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
         assertThat(config1.hasQuorum(Sets.newHashSet()), equalTo(false));
-        assertThat(config1.getQuorumDescription(), is("node with id [id1]"));
 
         VotingConfiguration config2 = new VotingConfiguration(Sets.newHashSet("id1", "id2"));
         assertThat(config2.getNodeIds(), equalTo(Sets.newHashSet("id1", "id2")));
@@ -71,7 +66,6 @@ public class CoordinationMetaDataTests extends ESTestCase {
         assertThat(config2.hasQuorum(Sets.newHashSet("id3")), equalTo(false));
         assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id3")), equalTo(false));
         assertThat(config2.hasQuorum(Sets.newHashSet()), equalTo(false));
-        assertThat(config2.getQuorumDescription(), anyOf(is("two nodes with ids [id1, id2]"), is("two nodes with ids [id2, id1]")));
 
         VotingConfiguration config3 = new VotingConfiguration(Sets.newHashSet("id1", "id2", "id3"));
         assertThat(config3.getNodeIds(), equalTo(Sets.newHashSet("id1", "id2", "id3")));
@@ -87,10 +81,6 @@ public class CoordinationMetaDataTests extends ESTestCase {
         assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id4")), equalTo(false));
         assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id4", "id5")), equalTo(false));
         assertThat(config3.hasQuorum(Sets.newHashSet()), equalTo(false));
-        assertThat(config3.getQuorumDescription(), startsWith("at least 2 nodes with ids from ["));
-
-        VotingConfiguration config4 = new VotingConfiguration(Sets.newHashSet("id1", "id2", "id3", "id4"));
-        assertThat(config4.getQuorumDescription(), startsWith("at least 3 nodes with ids from ["));
     }
 
     public void testVotingConfigurationSerializationEqualsHashCode() {

@@ -32,9 +32,9 @@ import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -53,7 +53,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -123,6 +122,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final Reconfigurator reconfigurator;
     private final ClusterBootstrapService clusterBootstrapService;
     private final LagDetector lagDetector;
+    private final ClusterFormationFailureHelper clusterFormationFailureHelper;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -163,6 +163,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
+        this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
+            transportService.getThreadPool());
+    }
+
+    private ClusterFormationState getClusterFormationState() {
+        return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
+            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()));
     }
 
     private Runnable getOnLeaderFailure() {
@@ -376,6 +383,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
+            clusterFormationFailureHelper.start();
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 
@@ -406,6 +414,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
+        clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
@@ -430,6 +439,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
+        clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         cancelActivePublication();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
@@ -543,6 +553,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
+                assert clusterFormationFailureHelper.isRunning() == false;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingMaster && activePublication == false) {
@@ -582,6 +593,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
+                assert clusterFormationFailureHelper.isRunning() == false;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -594,6 +606,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert applierState.nodes().getMasterNodeId() == null;
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader() == null : preVoteCollector;
+                assert clusterFormationFailureHelper.isRunning();
             }
         }
     }
@@ -823,7 +836,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     Strings.toString(clusterChangedEvent.previousState()).equals(
                         Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
                     : Strings.toString(clusterChangedEvent.previousState()) + " vs "
-                        + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+                    + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 
@@ -932,28 +945,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
                 discoveredNodesListener.accept(foundPeers);
             }
-        }
-
-        @Override
-        protected void warnClusterFormationFailed(DiscoveryNodes clusterStateNodes, List<TransportAddress> resolvedAddresses,
-                                                  List<DiscoveryNode> foundPeers) {
-            final String quorumDescription;
-            synchronized (mutex) {
-                if (isInitialConfigurationSet()) {
-                    quorumDescription = coordinationState.get().getQuorumDescription();
-                } else {
-                    quorumDescription = clusterBootstrapService.getBootstrapDescription();
-                }
-            }
-
-            final VoteCollection possibleVotes = new VoteCollection();
-            foundPeers.forEach(possibleVotes::addVote);
-            final String isQuorumOrNot = coordinationState.get().isElectionQuorum(possibleVotes) ? "is a quorum" : "is not a quorum";
-
-            logger.warn("leader not discovered or elected yet: election requires {}, have discovered {} which {}; discovery " +
-                    "continues using {} from hosts providers and {} from last-known cluster state", quorumDescription, foundPeers,
-                isQuorumOrNot, resolvedAddresses,
-                StreamSupport.stream(clusterStateNodes.spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList()));
         }
     }
 

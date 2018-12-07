@@ -80,15 +80,10 @@ public abstract class PeerFinder {
         Setting.timeSetting("discovery.request_peers_timeout",
             TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
-    public static final Setting<TimeValue> DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.cluster_formation_warning_timeout",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
-
     private final Settings settings;
 
     private final TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
-    private final TimeValue clusterFormationWarningTimeout;
 
     private final Object mutex = new Object();
     private final TransportService transportService;
@@ -100,15 +95,13 @@ public abstract class PeerFinder {
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
-    private List<TransportAddress> lastResolvedAddresses = emptyList();
-    private long nextWarningTimeMillis;
+    private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
 
     public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                       ConfiguredHostsResolver configuredHostsResolver) {
         this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
-        clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
@@ -129,16 +122,10 @@ public abstract class PeerFinder {
             active = true;
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
-            updateNextWarningTime();
             handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
         }
 
         onFoundPeersUpdated(); // trigger a check for a quorum already
-    }
-
-    private void updateNextWarningTime() {
-        assert holdsLock() : "PeerFinder mutex not held";
-        nextWarningTimeMillis = transportService.getThreadPool().relativeTimeInMillis() + clusterFormationWarningTimeout.millis();
     }
 
     public void deactivate(DiscoveryNode leader) {
@@ -221,6 +208,10 @@ public abstract class PeerFinder {
      * synchronisation to avoid lost updates. Also, by the time this method is invoked we may have been deactivated.
      */
     protected abstract void onFoundPeersUpdated();
+
+    public List<TransportAddress> getLastResolvedAddresses() {
+        return lastResolvedAddresses;
+    }
 
     public interface TransportAddressConnector {
         /**
@@ -310,11 +301,6 @@ public abstract class PeerFinder {
             }
 
             @Override
-            public void onAfter() {
-                maybeWarnClusterFormationFailed();
-            }
-
-            @Override
             public String toString() {
                 return "PeerFinder handling wakeup";
             }
@@ -322,26 +308,6 @@ public abstract class PeerFinder {
 
         return peersRemoved;
     }
-
-    private void maybeWarnClusterFormationFailed() {
-        assert holdsLock() == false : "PeerFinder mutex held in error";
-        final DiscoveryNodes lastAcceptedNodes;
-        final List<TransportAddress> lastResolvedAddresses;
-        final List<DiscoveryNode> foundPeers;
-        synchronized (mutex) {
-            if (nextWarningTimeMillis >= transportService.getThreadPool().relativeTimeInMillis()) {
-                return;
-            }
-            updateNextWarningTime();
-            lastAcceptedNodes = PeerFinder.this.lastAcceptedNodes;
-            lastResolvedAddresses = PeerFinder.this.lastResolvedAddresses;
-            foundPeers = getFoundPeersUnderLock();
-        }
-        warnClusterFormationFailed(lastAcceptedNodes, lastResolvedAddresses, foundPeers);
-    }
-
-    protected abstract void warnClusterFormationFailed(DiscoveryNodes clusterStateNodes, List<TransportAddress> resolvedAddresses,
-                                                       List<DiscoveryNode> foundPeers);
 
     private void startProbe(TransportAddress transportAddress) {
         assert holdsLock() : "PeerFinder mutex not held";

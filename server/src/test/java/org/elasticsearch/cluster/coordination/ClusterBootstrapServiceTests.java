@@ -51,7 +51,6 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.is;
 
 public class ClusterBootstrapServiceTests extends ESTestCase {
 
@@ -204,13 +203,5 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         startServices();
         deterministicTaskQueue.runAllTasks();
         // termination means success
-    }
-
-    public void testBootstrapDescription() {
-        assertThat(clusterBootstrapService.getBootstrapDescription(),
-            is("discovery of at least 3 master-eligible nodes for cluster bootstrapping"));
-
-        assertThat(new ClusterBootstrapService(Settings.EMPTY, transportService).getBootstrapDescription(),
-            is("external cluster bootstrapping"));
     }
 }

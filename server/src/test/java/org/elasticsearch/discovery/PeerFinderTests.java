@@ -152,7 +152,6 @@ public class PeerFinderTests extends ESTestCase {
     class TestPeerFinder extends PeerFinder {
         DiscoveryNode discoveredMasterNode;
         OptionalLong discoveredMasterTerm = OptionalLong.empty();
-        boolean emittedWarning;
 
         TestPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector) {
             super(settings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
@@ -172,12 +171,6 @@ public class PeerFinderTests extends ESTestCase {
             assert holdsLock() == false : "PeerFinder lock held in error";
             foundPeersFromNotification = getFoundPeers();
             logger.trace("onFoundPeersUpdated({})", foundPeersFromNotification);
-        }
-
-        @Override
-        protected void warnClusterFormationFailed(DiscoveryNodes clusterStateNodes, List<TransportAddress> resolvedAddresses,
-                                                  List<DiscoveryNode> foundPeers) {
-            emittedWarning = true;
         }
     }
 
@@ -778,39 +771,6 @@ public class PeerFinderTests extends ESTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers(rebootedOtherNode);
-    }
-
-    public void testEmitsWarningsIfClusterDoesNotFormFastEnough() {
-        peerFinder.activate(lastAcceptedNodes);
-        assertFalse(peerFinder.emittedWarning);
-
-        final long warningTimeout = PeerFinder.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
-            + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
-
-        final long expectedWarningTime1 = deterministicTaskQueue.getCurrentTimeMillis() + warningTimeout;
-        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedWarningTime1) {
-            deterministicTaskQueue.advanceTime();
-            runAllRunnableTasks();
-        }
-
-        assertTrue(peerFinder.emittedWarning);
-        peerFinder.emittedWarning = false;
-
-        final long expectedNoWarningTime = deterministicTaskQueue.getCurrentTimeMillis()
-            + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis() * 3;
-        final long expectedWarningTime2 = deterministicTaskQueue.getCurrentTimeMillis() + warningTimeout;
-
-        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedNoWarningTime) {
-            deterministicTaskQueue.advanceTime();
-            runAllRunnableTasks();
-        }
-        assertFalse(peerFinder.emittedWarning);
-
-        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedWarningTime2) {
-            deterministicTaskQueue.advanceTime();
-            runAllRunnableTasks();
-        }
-        assertTrue(peerFinder.emittedWarning);
     }
 
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {

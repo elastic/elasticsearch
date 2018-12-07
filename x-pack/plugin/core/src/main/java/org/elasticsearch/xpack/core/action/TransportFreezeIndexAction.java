@@ -126,6 +126,7 @@ public final class TransportFreezeIndexAction extends
                 if (response.isAcknowledged()) {
                     toggleFrozenSettings(concreteIndices, request, listener);
                 } else {
+                    // TODO improve FreezeResponse so that it also reports failures from the close index API
                     listener.onResponse(new FreezeResponse(false, false));
                 }
             }

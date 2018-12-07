@@ -141,6 +141,9 @@ public final class InvalidateTokenRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().before(Version.V_7_0_0)) {
+            if (Strings.isNullOrEmpty(tokenString)) {
+                throw new IllegalArgumentException("token is required for versions  < v6.6.0");
+            }
             out.writeString(tokenString);
         } else {
             out.writeOptionalString(tokenString);

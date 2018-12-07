@@ -2845,7 +2845,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final SeqNoStats seqNoStats = seqNoStats();
         final TranslogStats translogStats = translogStats();
         // flush to make sure the latest commit, which will be opened by the read-only engine, includes all operations.
-        flush(new FlushRequest());
+        flush(new FlushRequest().waitIfOngoing(true));
         synchronized (mutex) {
             verifyNotClosed();
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
@@ -2858,6 +2858,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final long globalCheckpoint = getGlobalCheckpoint();
             trimUnsafeCommits();
             synchronized (mutex) {
+                verifyNotClosed();
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
                 newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
                 onNewEngine(newEngine);

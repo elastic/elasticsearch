@@ -19,10 +19,8 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.client.ValidationException;
-
+import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * A request to check for the existence of index templates
@@ -35,7 +33,7 @@ public class IndexTemplatesExistRequest extends GetIndexTemplatesRequest {
      * @param names the names of templates to check for the existence of
      */
     public IndexTemplatesExistRequest(String... names) {
-        super(names);
+        this(Arrays.asList(names));
     }
 
     /**
@@ -45,18 +43,8 @@ public class IndexTemplatesExistRequest extends GetIndexTemplatesRequest {
      */
     public IndexTemplatesExistRequest(List<String> names) {
         super(names);
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        final Optional<ValidationException> parent = super.validate();
-        final ValidationException validationException = parent.orElse(new ValidationException());
         if (names().isEmpty()) {
-            validationException.addValidationError("must provide at least one name");
+            throw new IllegalArgumentException("must provide at least one index template name");
         }
-
-        return validationException.validationErrors().isEmpty()
-            ? Optional.empty()
-            : Optional.of(validationException);
     }
 }

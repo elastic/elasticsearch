@@ -71,6 +71,8 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
@@ -890,6 +892,11 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
+
+        expectThrows(NullPointerException.class, () -> new GetIndexTemplatesRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new GetIndexTemplatesRequest((List<String>) null));
+        expectThrows(IllegalArgumentException.class, () -> new GetIndexTemplatesRequest(singletonList(randomBoolean() ? "" : null)));
+        expectThrows(IllegalArgumentException.class, () -> new GetIndexTemplatesRequest(new String[] { (randomBoolean() ? "" : null) }));
     }
 
     public void testTemplatesExistRequest() {
@@ -909,5 +916,12 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(), equalTo("/_template/" + String.join(",", names)));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
+
+        expectThrows(NullPointerException.class, () -> new IndexTemplatesExistRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new IndexTemplatesExistRequest((List<String>) null));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(new String[] { (randomBoolean() ? "" : null) }));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(singletonList(randomBoolean() ? "" : null)));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(new String[] {}));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(emptyList()));
     }
 }

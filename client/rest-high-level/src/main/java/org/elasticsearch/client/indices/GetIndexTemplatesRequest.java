@@ -21,7 +21,6 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -58,7 +56,11 @@ public class GetIndexTemplatesRequest implements Validatable {
      * @param names the names of templates to read
      */
     public GetIndexTemplatesRequest(List<String> names) {
-        this.names = unmodifiableList(Objects.requireNonNull(names));
+        Objects.requireNonNull(names);
+        if (names.stream().anyMatch(name -> name == null || Strings.hasText(name) == false)) {
+            throw new IllegalArgumentException("all index template names must be non null and non empty");
+        }
+        this.names = unmodifiableList(names);
     }
 
     /**
@@ -93,17 +95,5 @@ public class GetIndexTemplatesRequest implements Validatable {
 
     public void setLocal(boolean local) {
         this.local = local;
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        final ValidationException validationException = new ValidationException();
-        if (names.stream().anyMatch(name -> name == null || Strings.hasText(name) == false)) {
-            validationException.addValidationError("all names must be non null and non empty");
-        }
-
-        return validationException.validationErrors().isEmpty()
-            ? Optional.empty()
-            : Optional.of(validationException);
     }
 }

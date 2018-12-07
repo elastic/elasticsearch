@@ -71,7 +71,7 @@ public class Zen1IT extends ESIntegTestCase {
         final int zen1NodeCount = randomIntBetween(1, 3);
         final int zen2NodeCount = randomIntBetween(1, 3);
         logger.info("starting cluster of [{}] Zen1 nodes and [{}] Zen2 nodes", zen1NodeCount, zen2NodeCount);
-        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount)
+        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2))
             .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
 
         createIndex("test",

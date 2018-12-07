@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -607,8 +608,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.frequency = config.frequency;
             this.indices = new ArrayList<>(config.indices);
             this.types = new ArrayList<>(config.types);
-            this.query = config.query == null ? null : new HashMap<>(config.query);
-            this.aggregations = config.aggregations == null ? null : new HashMap<>(config.aggregations);
+            this.query = config.query == null ? null : new LinkedHashMap<>(config.query);
+            this.aggregations = config.aggregations == null ? null : new LinkedHashMap<>(config.aggregations);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;

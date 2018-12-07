@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -49,15 +50,37 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
-        logger.info("construct job task");
-        // todo: simplistic implementation for now
         IndexerState initialState = IndexerState.STOPPED;
         Map<String, Object> initialPosition = null;
+        logger.info("[{}] init, got state: [{}]", job.getConfig().getId(), state != null);
+        if (state != null) {
+            final IndexerState existingState = state.getIndexerState();
+            logger.info("[{}] Loading existing state: [{}], position [{}]", job.getConfig().getId(), existingState, state.getPosition());
+            if (existingState.equals(IndexerState.INDEXING)) {
+                // reset to started as no indexer is running
+                initialState = IndexerState.STARTED;
+            } else if (existingState.equals(IndexerState.ABORTING) || existingState.equals(IndexerState.STOPPING)) {
+                // reset to stopped as something bad happened
+                initialState = IndexerState.STOPPED;
+            } else {
+                initialState = existingState;
+            }
+            initialPosition = state.getPosition();
+        }
+
         this.indexer = new ClientDataFrameIndexer(job, new AtomicReference<>(initialState), initialPosition, client);
     }
 
     public DataFrameJobConfig getConfig() {
         return job.getConfig();
+    }
+
+    /**
+     * Enable Task API to return detailed status information
+     */
+    @Override
+    public Status getStatus() {
+        return getState();
     }
 
     public DataFrameJobState getState() {
@@ -69,19 +92,73 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     }
 
     public synchronized void start(ActionListener<Response> listener) {
-        // TODO: safeguards missing, see rollup code
-        indexer.start();
-        listener.onResponse(new StartDataFrameJobAction.Response(true));
+        final IndexerState prevState = indexer.getState();
+        if (prevState != IndexerState.STOPPED) {
+            // fails if the task is not STOPPED
+            listener.onFailure(new ElasticsearchException("Cannot start task for data frame job [{}], because state was [{}]",
+                    job.getConfig().getId(), prevState));
+            return;
+        }
+
+        final IndexerState newState = indexer.start();
+        if (newState != IndexerState.STARTED) {
+            listener.onFailure(new ElasticsearchException("Cannot start task for data frame job [{}], because state was [{}]",
+                    job.getConfig().getId(), newState));
+            return;
+        }
+
+        final DataFrameJobState state = new DataFrameJobState(IndexerState.STOPPED, indexer.getPosition());
+
+        logger.debug("Updating state for data frame job [{}] to [{}][{}]", job.getConfig().getId(), state.getIndexerState(),
+                state.getPosition());
+        updatePersistentTaskState(state,
+                ActionListener.wrap(
+                        (task) -> {
+                            logger.debug("Successfully updated state for data frame job [" + job.getConfig().getId() + "] to ["
+                                    + state.getIndexerState() + "][" + state.getPosition() + "]");
+                            listener.onResponse(new StartDataFrameJobAction.Response(true));
+                        }, (exc) -> {
+                            // We were unable to update the persistent status, so we need to shutdown the indexer too.
+                            indexer.stop();
+                            listener.onFailure(new ElasticsearchException("Error while updating state for data frame job ["
+                                    + job.getConfig().getId() + "] to [" + state.getIndexerState() + "].", exc));
+                        })
+        );
     }
 
-    public void stop(ActionListener<StopDataFrameJobAction.Response> listener) {
-        // TODO: safeguards missing, see rollup code
-        indexer.stop();
-        listener.onResponse(new StopDataFrameJobAction.Response(true));
+    public synchronized void stop(ActionListener<StopDataFrameJobAction.Response> listener) {
+        final IndexerState newState = indexer.stop();
+        switch (newState) {
+        case STOPPED:
+            listener.onResponse(new StopDataFrameJobAction.Response(true));
+            break;
+
+        case STOPPING:
+            // update the persistent state to STOPPED. There are two scenarios and both are safe:
+            // 1. we persist STOPPED now, indexer continues a bit then sees the flag and checkpoints another STOPPED with the more recent
+            // position.
+            // 2. we persist STOPPED now, indexer continues a bit but then dies. When/if we resume we'll pick up at last checkpoint,
+            // overwrite some docs and eventually checkpoint.
+            DataFrameJobState state = new DataFrameJobState(IndexerState.STOPPED, indexer.getPosition());
+            updatePersistentTaskState(state, ActionListener.wrap((task) -> {
+                logger.debug("Successfully updated state for data frame job [{}] to [{}]", job.getConfig().getId(),
+                        state.getIndexerState());
+                listener.onResponse(new StopDataFrameJobAction.Response(true));
+            }, (exc) -> {
+                listener.onFailure(new ElasticsearchException("Error while updating state for data frame job [{}] to [{}]", exc,
+                        job.getConfig().getId(), state.getIndexerState()));
+            }));
+            break;
+
+        default:
+            listener.onFailure(new ElasticsearchException("Cannot stop task for data frame job [{}], because state was [{}]",
+                    job.getConfig().getId(), newState));
+            break;
+        }
     }
 
     @Override
-    public void triggered(Event event) {
+    public synchronized void triggered(Event event) {
         if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
             logger.debug(
                     "Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");

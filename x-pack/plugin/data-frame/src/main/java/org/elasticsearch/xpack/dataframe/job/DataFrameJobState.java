@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.dataframe.DataFrame;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,7 +31,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameJobState implements Task.Status, PersistentTaskState {
-    public static final String NAME = "xpack/data_frame/job_state";
+    public static final String NAME = DataFrame.TASK_NAME;
 
     private final IndexerState state;
 
@@ -73,7 +74,7 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
         currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
     }
 
-    public IndexerState getJobState() {
+    public IndexerState getIndexerState() {
         return state;
     }
 

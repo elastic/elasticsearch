@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.dataframe.job;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +22,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class DataFrameJob implements XPackPlugin.XPackPersistentTaskParams {
+public class DataFrameJob extends AbstractDiffable<DataFrameJob> implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final ParseField ID = new ParseField("id");
     public static final String NAME = DataFrame.TASK_NAME;

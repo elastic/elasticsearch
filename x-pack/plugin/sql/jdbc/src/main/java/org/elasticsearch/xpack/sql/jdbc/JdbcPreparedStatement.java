@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.utils.WellKnownText;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -409,6 +412,11 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             setParam(parameterIndex,
                     TypeConverter.convert(x, TypeUtils.of(x.getClass()), (Class<?>) TypeUtils.classOf(dataType), typeString),
                     dataType);
+            return;
+        }
+
+        if (x instanceof Geometry) {
+            setParam(parameterIndex, WellKnownText.toWKT((Geometry) x), dataType);
             return;
         }
 

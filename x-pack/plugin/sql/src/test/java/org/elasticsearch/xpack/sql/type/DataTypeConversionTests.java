@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
@@ -20,6 +22,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.sql.type.DataType.IP;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
@@ -32,6 +35,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.fromTypeName;
 import static org.elasticsearch.xpack.sql.type.DataType.values;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.commonType;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 
 public class DataTypeConversionTests extends ESTestCase {
@@ -296,5 +300,23 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(new Literal(EMPTY, "10.0.0.1", IP)));
         Conversion stringToIp = conversionFor(KEYWORD, IP);
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(EMPTY, "10.0.0.1"))));
+    }
+
+    public void testStringToGeo() {
+        Conversion conversion = conversionFor(KEYWORD, GEO_SHAPE);
+        assertNull(conversion.convert(null));
+        Object obj = conversion.convert("point (10 20)");
+        assertThat(obj, instanceOf(GeoShape.class));
+        GeoShape geoShape = (GeoShape) obj;
+        assertEquals("point (10.0 20.0)", geoShape.toString());
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("foo bar"));
+        assertEquals("[foo bar] is not a valid geometry", e.getMessage());
+    }
+
+    public void testGeoToString() throws IOException {
+        Conversion geoToString = conversionFor(GEO_SHAPE, KEYWORD);
+        assertEquals("point (10.0 20.0)", geoToString.convert(new Literal(EMPTY, new GeoShape("point (10 20)"), GEO_SHAPE)));
+        Conversion stringToGeo = conversionFor(KEYWORD, GEO_SHAPE);
+        assertEquals("point (10.0 20.0)", geoToString.convert(stringToGeo.convert(Literal.of(EMPTY, new GeoShape("point (10 20)")))));
     }
 }

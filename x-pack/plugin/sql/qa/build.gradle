@@ -10,6 +10,7 @@ dependencies {
 
   // JDBC testing dependencies
   compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+  compile project(':libs:geo')
 
   compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
@@ -92,6 +93,7 @@ subprojects {
       transitive = false
     }
     testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(':libs:geo')
 
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"

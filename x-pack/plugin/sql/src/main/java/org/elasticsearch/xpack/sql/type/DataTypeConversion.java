@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.function.DoubleFunction;
@@ -149,6 +151,9 @@ public abstract class DataTypeConversion {
                 return conversionToDate(from);
             case BOOLEAN:
                 return conversionToBoolean(from);
+            case GEO_POINT:
+            case GEO_SHAPE:
+                return conversionToGeo(from);
             default:
                 return null;
         }
@@ -312,6 +317,13 @@ public abstract class DataTypeConversion {
         return null;
     }
 
+    private static Conversion conversionToGeo(DataType from) {
+        if (from.isString()) {
+            return Conversion.STRING_TO_GEO;
+        }
+        return null;
+    }
+
     public static byte safeToByte(long x) {
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
             throw new SqlIllegalArgumentException("[" + x + "] out of [Byte] range");
@@ -439,6 +451,15 @@ public abstract class DataTypeConversion {
                 throw new SqlIllegalArgumentException( "[" + o + "] is not a valid IPv4 or IPv6 address");
             }
             return o;
+        }),
+
+        STRING_TO_GEO(o -> {
+            try {
+                // TODO: Can we switch to new libs:geo on the server side as well?
+                return new GeoShape(o.toString());
+            } catch (IOException | IllegalArgumentException ex) {
+                throw new SqlIllegalArgumentException("[" + o + "] is not a valid geometry");
+            }
         });
 
         private final Function<Object, Object> converter;

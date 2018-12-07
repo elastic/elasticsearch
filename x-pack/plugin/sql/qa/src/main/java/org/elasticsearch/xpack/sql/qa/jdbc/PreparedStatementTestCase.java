@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.geometry.Rectangle;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
@@ -186,6 +189,35 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                 assertEquals(new Tuple<>(JDBCType.TINYINT.getVendorTypeNumber(), byteVal), execute(statement));
                 statement.setShort(1, shortVal);
                 assertEquals(new Tuple<>(JDBCType.SMALLINT.getVendorTypeNumber(), shortVal), execute(statement));
+            }
+        }
+    }
+
+    public void testGeoTypes() throws Exception {
+        Geometry rectangle = new Rectangle(1, 2, 3, 4);
+        Geometry point = new Point(1 ,2);
+
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT ?, ST_AsText(?)")) {
+                statement.setObject(1, rectangle);
+                statement.setObject(2, point);
+
+                try (ResultSet results = statement.executeQuery()) {
+                    ParameterMetaData parameterMetaData = statement.getParameterMetaData();
+                    assertEquals("GEO_SHAPE", parameterMetaData.getParameterTypeName(1));
+                    assertEquals("GEO_SHAPE", parameterMetaData.getParameterTypeName(2));
+
+                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+                    assertEquals(resultSetMetaData.getColumnCount(), 2);
+                    assertTrue(results.next());
+                    assertEquals("GEO_SHAPE", resultSetMetaData.getColumnTypeName(1));
+                    assertEquals("KEYWORD", resultSetMetaData.getColumnTypeName(2));
+                    assertEquals(rectangle, results.getObject(1));
+                    assertEquals("point (2.0 1.0)", results.getObject(2));
+                    assertFalse(results.next());
+                }
             }
         }
     }

@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.ParseException;
 import com.vividsolutions.jts.io.WKTReader;
 import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
@@ -244,10 +245,10 @@ public class JdbcAssert {
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
                     } else if (type == Types.OTHER) {
-                        if (expectedObject instanceof Geometry && actualObject instanceof String) {
-                            // We need to convert the actual object to Geometry for comparision
+                        if (expectedObject instanceof com.vividsolutions.jts.geom.Geometry && actualObject instanceof Geometry) {
+                            // We need to convert the actual object to JTS Geometry for comparision
                             try {
-                                actualObject = wkt.read(actualObject.toString());
+                                actualObject = wkt.read(WellKnownText.toWKT((Geometry) actualObject));
                             } catch (ParseException ex) {
                                 fail(ex.getMessage());
                             }

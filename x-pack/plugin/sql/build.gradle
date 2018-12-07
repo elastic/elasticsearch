@@ -28,6 +28,7 @@ dependencies {
     compile project('sql-action')
     compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
     compile "org.antlr:antlr4-runtime:4.5.3"
+    compile project(':libs:geo')
     testCompile "org.elasticsearch.test:framework:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

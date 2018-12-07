@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geo.geometry.Geometry;
+
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -62,6 +64,7 @@ final class TypeUtils {
         aMap.put(java.sql.Date.class, EsType.DATE);
         aMap.put(java.sql.Time.class, EsType.DATE);
         aMap.put(LocalDateTime.class, EsType.DATE);
+        aMap.put(Geometry.class, EsType.GEO_SHAPE);
         CLASS_TO_TYPE = Collections.unmodifiableMap(aMap);
 
         Map<EsType, Class<?>> types = new LinkedHashMap<>();
@@ -92,8 +95,8 @@ final class TypeUtils {
         types.put(EsType.INTERVAL_HOUR_TO_MINUTE, Duration.class);
         types.put(EsType.INTERVAL_HOUR_TO_SECOND, Duration.class);
         types.put(EsType.INTERVAL_MINUTE_TO_SECOND, Duration.class);
-        types.put(EsType.GEO_POINT, String.class);
-        types.put(EsType.GEO_SHAPE, String.class);
+        types.put(EsType.GEO_SHAPE, Geometry.class);
+        types.put(EsType.GEO_POINT, Geometry.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
 

@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geo.utils.WellKnownText;
+
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -185,7 +189,6 @@ final class TypeConverter {
         if (type == OffsetDateTime.class) {
             return (T) asOffsetDateTime(val, columnType, typeString);
         }
-
         return failConversion(val, columnType, typeString, type);
     }
 
@@ -233,7 +236,12 @@ final class TypeConverter {
                 return Duration.parse(v.toString());
             case GEO_POINT:
             case GEO_SHAPE:
-                return v;
+                try {
+                    return WellKnownText.fromWKT(v.toString());
+                } catch (IOException | ParseException ex) {
+                    failConversion(v, columnType, typeString, null, ex);
+                    return null; // to make compiler happy
+                }
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
 

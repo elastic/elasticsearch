@@ -22,7 +22,7 @@ public class GeoShape implements ToXContentFragment {
 
     private final ShapeBuilder<?, ?> shapeBuilder;
 
-    public GeoShape(Object value) throws IOException {
+    public  GeoShape(Object value) throws IOException {
         shapeBuilder = ShapeParser.parse(value);
     }
 

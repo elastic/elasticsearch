@@ -30,7 +30,8 @@ data structures on demand which can cause page faults and garbage collections, w
 Since indices that are eligible for freezing are unlikely to change in the future, disk space can be optimized as described in <<tune-for-disk-usage>>.
 
 It's highly recommended to <<indices-forcemerge,`_forcemerge`>> your indices prior to freezing to ensure that each shard has only a single
-segment on disk. This will not only provide much better compression but also simplify the data structures needed to service aggregation requests.
+segment on disk. This not only provides much better compression but also simplifies the data structures needed to service aggregation
+or sorted search requests.
 
 [source,js]
 --------------------------------------------------

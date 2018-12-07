@@ -392,7 +392,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     assertEquals(1, clientService.connectionManager().size());
 
                     establishedConnections.clear();
-                    handler.ignoreRequest();
+                    handler.failToRespond();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
@@ -411,7 +411,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
     class MockHandler implements TransportRequestHandler<ClusterStateRequest> {
 
-        private final AtomicBoolean ignoreRequest = new AtomicBoolean(false);
+        private final AtomicBoolean failToRespond = new AtomicBoolean(false);
         private final MockTransportService transportService;
 
         MockHandler(MockTransportService transportService) {
@@ -420,7 +420,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         @Override
         public void messageReceived(ClusterStateRequest request, TransportChannel channel, Task task) throws Exception {
-            if (ignoreRequest.get()) {
+            if (failToRespond.get()) {
                 return;
             }
 
@@ -429,9 +429,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
         }
 
-        void ignoreRequest() {
-            if (ignoreRequest.compareAndSet(false, true) == false) {
-                throw new AssertionError("Request handler is already marked as blocking");
+        void failToRespond() {
+            if (failToRespond.compareAndSet(false, true) == false) {
+                throw new AssertionError("Request handler is already marked as failToRespond");
             }
         }
     }

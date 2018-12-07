@@ -24,18 +24,19 @@ GET /_search
 [source,js]
 --------------------------------------------------
 {
-  "_shards": ...
-   "hits" : {
-      "total" : {
-        "value": 2048,    <1>
-        "relation": "eq"  <2>
-      },
-      "max_score" : 1.0,
-      "hits" : []
-  }
+    "_shards": ...
+    "hits" : {
+        "total" : {
+            "value": 2048,    <1>
+            "relation": "eq"  <2>
+        },
+        "max_score" : 1.0,
+        "hits" : []
+    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 1\.0/"max_score": $body.hits.max_score/]
 // TESTRESPONSE[s/"value": 2048/"total": $body.hits.total.value/]
 
 <1> The total number of hits that match the query.
@@ -64,15 +65,15 @@ GET /_search
 [source,js]
 --------------------------------------------------
 {
-  "_shards": ...
-   "hits" : { <1>
-      "max_score" : 0.42,
-      "hits" : []
-  }
+    "_shards": ...
+    "hits" : { <1>
+        "max_score" : 1.0,
+        "hits" : []
+    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"max_score": 1\.0/"max_score": $body.hits.max_score/]
 
 <1> The total number of hits is unknown.
 
@@ -111,23 +112,23 @@ For instance the following response:
 [source,js]
 --------------------------------------------------
 {
-  "_shards": ...
-   "hits" : {
-      "total" : {
-        "value": 42,         <1>
-        "relation": "eq"     <2>
-      },
-      "max_score" : 0.42,
-      "hits" : []
-  }
+    "_shards": ...
+    "hits" : {
+        "total" : {
+            "value": 42,         <1>
+            "relation": "eq"     <2>
+        },
+        "max_score" : 1.0,
+        "hits" : []
+    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"value": 100/"value": $body.hits.total.value/]
+// TESTRESPONSE[s/"max_score": 1\.0/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"value": 42/"value": $body.hits.total.value/]
 
 <1> 42 documents match the query
-<2> and the count is accurate
+<2> and the count is accurate (`"eq"`)
 
 \... indicates that the number of hits returned in the `total`
 is accurate.
@@ -139,20 +140,19 @@ will indicate that the returned value is a lower bound:
 [source,js]
 --------------------------------------------------
 {
-  "_shards": ...
-   "hits" : {
-      "total" : {
-        "value": 100,         <1>
-        "relation": "gte"
-      },
-      "max_score" : 0.42,
-      "hits" : []
-  }
+    "_shards": ...
+    "hits" : {
+        "total" : {
+            "value": 100,         <1>
+            "relation": "gte"     <2>
+        },
+        "max_score" : 1.0,
+        "hits" : []
+    }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"value": 100/"value": $body.hits.total.value/]
+// TESTRESPONSE
+// TEST[skip:response is already tested in the previous snippet]
 
 <1> There are at least 100 documents that match the query
 <2> This is a lower bound (`gte`).

@@ -1,6 +1,6 @@
 --
 :api: templates-exist
-:request: GetIndexTemplatesRequest
+:request: IndexTemplatesExistRequest
 :response: Boolean
 --
 

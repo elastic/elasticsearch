@@ -59,7 +59,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
@@ -75,6 +74,8 @@ import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -2282,13 +2283,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::get-templates-request
         GetIndexTemplatesRequest request = new GetIndexTemplatesRequest("my-template"); // <1>
-        request.names("template-1", "template-2"); // <2>
-        request.names("my-*"); // <3>
+        request = new GetIndexTemplatesRequest("template-1", "template-2"); // <2>
+        request = new GetIndexTemplatesRequest("my-*"); // <3>
         // end::get-templates-request
 
         // tag::get-templates-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setMasterNodeTimeout("1m"); // <2>
         // end::get-templates-request-masterTimeout
 
         // tag::get-templates-execute
@@ -2338,16 +2339,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::templates-exist-request
-            GetIndexTemplatesRequest request;
-            request = new GetIndexTemplatesRequest("my-template"); // <1>
-            request = new GetIndexTemplatesRequest("template-1", "template-2"); // <2>
-            request = new GetIndexTemplatesRequest("my-*"); // <3>
+            IndexTemplatesExistRequest request;
+            request = new IndexTemplatesExistRequest("my-template"); // <1>
+            request = new IndexTemplatesExistRequest("template-1", "template-2"); // <2>
+            request = new IndexTemplatesExistRequest("my-*"); // <3>
             // end::templates-exist-request
 
             // tag::templates-exist-request-optionals
-            request.local(true); // <1>
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <2>
-            request.masterNodeTimeout("1m"); // <3>
+            request.setLocal(true); // <1>
+            request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <2>
+            request.setMasterNodeTimeout("1m"); // <3>
             // end::templates-exist-request-optionals
 
             // tag::templates-exist-execute

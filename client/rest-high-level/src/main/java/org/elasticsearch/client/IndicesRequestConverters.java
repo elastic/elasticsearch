@@ -45,15 +45,15 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Locale;
 
 final class IndicesRequestConverters {
@@ -385,33 +385,27 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
-        String[] names = getIndexTemplatesRequest.names();
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        params.withLocal(getIndexTemplatesRequest.local());
-        params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request templatesExist(GetIndexTemplatesRequest getIndexTemplatesRequest) {
-        if (getIndexTemplatesRequest.names() == null || getIndexTemplatesRequest.names().length == 0) {
-            throw new IllegalArgumentException("Must provide at least one index template name");
-        }
-
-        if (Arrays.stream(getIndexTemplatesRequest.names()).anyMatch(indexTemplate -> Strings.hasText(indexTemplate) == false)) {
-            throw new IllegalArgumentException("Index template names must not be null and must be non empty");
-        }
-
+    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_template")
             .addCommaSeparatedPathParts(getIndexTemplatesRequest.names())
             .build();
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(getIndexTemplatesRequest.isLocal());
+        params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
+        return request;
+    }
+
+    static Request templatesExist(IndexTemplatesExistRequest indexTemplatesExistRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_template")
+            .addCommaSeparatedPathParts(indexTemplatesExistRequest.names())
+            .build();
         final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        params.withLocal(getIndexTemplatesRequest.local());
-        params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(indexTemplatesExistRequest.isLocal());
+        params.withMasterTimeout(indexTemplatesExistRequest.getMasterNodeTimeout());
         return request;
     }
 

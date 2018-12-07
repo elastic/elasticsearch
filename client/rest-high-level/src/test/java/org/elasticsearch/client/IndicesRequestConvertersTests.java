@@ -48,10 +48,11 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -880,10 +881,10 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         encodes.put("template-*", "template-*");
         encodes.put("foo^bar", "foo%5Ebar");
         List<String> names = ESTestCase.randomSubsetOf(1, encodes.keySet());
-        GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest().names(names.toArray(new String[0]));
+        GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest(names);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getTemplatesRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
         Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
         Assert.assertThat(request.getEndpoint(),
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
@@ -895,15 +896,15 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         final int numberOfNames = ESTestCase.usually()
             ? 1
             : ESTestCase.randomIntBetween(2, 20);
-        final String[] names = ESTestCase.randomArray(numberOfNames, numberOfNames, String[]::new,
-            () -> ESTestCase.randomAlphaOfLengthBetween(1, 100));
+        final List<String> names = Arrays.asList(ESTestCase.randomArray(numberOfNames, numberOfNames, String[]::new,
+            () -> ESTestCase.randomAlphaOfLengthBetween(1, 100)));
         final Map<String, String> expectedParams = new HashMap<>();
-        final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
-        RequestConvertersTests.setRandomMasterTimeout(getIndexTemplatesRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getIndexTemplatesRequest, expectedParams);
-        assertThat(getIndexTemplatesRequest.names(), equalTo(names));
+        final IndexTemplatesExistRequest indexTemplatesExistRequest = new IndexTemplatesExistRequest(names);
+        RequestConvertersTests.setRandomMasterTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomLocal(indexTemplatesExistRequest::setLocal, expectedParams);
+        assertThat(indexTemplatesExistRequest.names(), equalTo(names));
 
-        final Request request = IndicesRequestConverters.templatesExist(getIndexTemplatesRequest);
+        final Request request = IndicesRequestConverters.templatesExist(indexTemplatesExistRequest);
         assertThat(request.getMethod(), equalTo(HttpHead.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_template/" + String.join(",", names)));
         assertThat(request.getParameters(), equalTo(expectedParams));

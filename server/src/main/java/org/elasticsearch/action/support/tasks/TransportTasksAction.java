@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
@@ -71,20 +70,23 @@ public abstract class TransportTasksAction<
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Writeable.Reader<TasksRequest> requestSupplier;
-    protected final Supplier<TasksResponse> responseSupplier;
+    protected final Writeable.Reader<TasksRequest> requestReader;
+    protected final Writeable.Reader<TasksResponse> responsesReader;
+    protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
 
     protected TransportTasksAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                   ActionFilters actionFilters, Writeable.Reader<TasksRequest> requestSupplier,
-                                   Supplier<TasksResponse> responseSupplier, String nodeExecutor) {
-        super(actionName, transportService, actionFilters, requestSupplier);
+                                   ActionFilters actionFilters, Writeable.Reader<TasksRequest> requestReader,
+                                   Writeable.Reader<TasksResponse> responsesReader, Writeable.Reader<TaskResponse> responseReader,
+                                   String nodeExecutor) {
+        super(actionName, transportService, actionFilters, requestReader);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
-        this.requestSupplier = requestSupplier;
-        this.responseSupplier = responseSupplier;
+        this.requestReader = requestReader;
+        this.responsesReader = responsesReader;
+        this.responseReader = responseReader;
 
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
@@ -204,8 +206,6 @@ public abstract class TransportTasksAction<
         }
         return newResponse(request, tasks, taskOperationFailures, failedNodeExceptions);
     }
-
-    protected abstract TaskResponse readTaskResponse(StreamInput in) throws IOException;
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
@@ -364,7 +364,7 @@ public abstract class TransportTasksAction<
 
         protected NodeTaskRequest(StreamInput in) throws IOException {
             super(in);
-            this.tasksRequest = requestSupplier.read(in);
+            this.tasksRequest = requestReader.read(in);
         }
 
         @Override
@@ -411,7 +411,7 @@ public abstract class TransportTasksAction<
             int resultsSize = in.readVInt();
             results = new ArrayList<>(resultsSize);
             for (; resultsSize > 0; resultsSize--) {
-                final TaskResponse result = in.readBoolean() ? readTaskResponse(in) : null;
+                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
                 results.add(result);
             }
             if (in.readBoolean()) {

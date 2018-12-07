@@ -149,6 +149,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: only_read
         body:
   - match: { hits.total: 2 }
@@ -158,6 +159,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: read_write
         body:
   - match: { hits.total: 2 }
@@ -167,6 +169,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: everything
         body:
   - match: { hits.total: 2 }
@@ -176,12 +179,14 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         body: { "query": { "term": { "tag":  "can-read" } } }
   - match: { hits.total: 6 }
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       msearch:
+        rest_total_hits_as_int: true
         body:
           - { }
           - { "query": { "term": { "tag":  "can-read" } } }
@@ -200,6 +205,7 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: only_index
         body:
 
@@ -207,24 +213,28 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: only_delete
         body:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         body: { "query": { "term": { "tag":  "no-read" } } }
   - match: { hits.total: 0 }
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         body: { "query": { "term": { "_index":  "only_index" } } }
   - match: { hits.total: 0 }
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       msearch:
+        rest_total_hits_as_int: true
         body:
           - { }
           - { "query": { "term": { "tag":  "no-read" } } }
@@ -242,12 +252,14 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         body: { "query": { "term": { "tag":  "tag-a" } } }
   - match: { hits.total: 3 } # can-read, read_write, everything
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       msearch:
+        rest_total_hits_as_int: true
         body:
           - { }
           - { "query": { "term": { "tag":  "tag-a" } } }

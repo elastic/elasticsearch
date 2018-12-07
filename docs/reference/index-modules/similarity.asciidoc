@@ -263,7 +263,10 @@ Which yields:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
@@ -437,7 +440,10 @@ GET /index/_search?explain=true
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {

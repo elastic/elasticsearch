@@ -107,7 +107,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
             "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0", singletonMap("max_rank", 5.0)), "score",
             contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        assertThat(response.getResult(), equalTo(1.09D));
+        assertThat(response.getResult(), equalTo(0.93D));
     }
 
 }

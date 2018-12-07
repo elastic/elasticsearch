@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testfixtures;
 
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.io.Resources;
 import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
 import org.gradle.api.DefaultTask;
@@ -30,8 +31,12 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.util.Collections;
 
 public class TestFixturesPlugin implements Plugin<Project> {
@@ -63,16 +68,24 @@ public class TestFixturesPlugin implements Plugin<Project> {
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.setRemoveContainers(true);
-            composeExtension.setExecutable(
-                project.file("/usr/local/bin/docker-compose").exists() ?
-                    "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
-            );
+            try {
+                File dockerCompose = File.createTempFile("docker-compose", "sh");
+                if(dockerCompose.setExecutable(true) == false) {
+                    throw new IllegalStateException("Failed to set docker-compose script executable");
+                }
+                Files.write(
+                    dockerCompose.toPath(), Resources.toByteArray(TestFixturesPlugin.class.getResource("docker-compose"))
+                );
+                composeExtension.setExecutable(dockerCompose.getAbsolutePath());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
 
             project.getTasks().getByName("clean").dependsOn("composeDown");
         } else {
             if (dockerComposeSupported(project) == false) {
                 project.getLogger().warn(
-                    "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
+                    "Tests for {} require docker at /usr/local/bin/docker or /usr/bin/docker " +
                         "but none could not be found so these will be skipped", project.getPath()
                 );
                 tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
@@ -102,9 +115,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     @Input
     public boolean dockerComposeSupported(Project project) {
-        // Don't look for docker-compose on the PATH yet that would pick up on Windows as well
-        final boolean hasDockerCompose = project.file("/usr/local/bin/docker-compose").exists() ||
-            project.file("/usr/bin/docker-compose").exists();
+        // Don't look for docker on the PATH yet that would pick up on Windows as well
+        final boolean hasDockerCompose = project.file("/usr/local/bin/docker").exists() ||
+            project.file("/usr/bin/docker").exists();
         return hasDockerCompose && Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true"));
     }
 

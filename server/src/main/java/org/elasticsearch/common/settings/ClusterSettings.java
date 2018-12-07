@@ -474,6 +474,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
                     LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
                     DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
                     DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING

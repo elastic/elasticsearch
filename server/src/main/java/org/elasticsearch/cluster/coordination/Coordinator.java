@@ -521,7 +521,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             becomeCandidate("startInitialJoin");
         }
 
-        clusterBootstrapService.start();
+        if (isInitialConfigurationSet() == false) {
+            clusterBootstrapService.start();
+        }
     }
 
     @Override

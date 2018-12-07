@@ -331,7 +331,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 logger.debug("starting election with {}", startJoinRequest);
                 getDiscoveredNodes().forEach(node -> {
                     if (isZen1Node(node) == false) {
-                        joinHelper.sendStartJoinRequest(startJoinRequest, node)
+                        joinHelper.sendStartJoinRequest(startJoinRequest, node);
                     }
                 });
             }

@@ -83,6 +83,8 @@ for (Version version : bwcVersions.wireCompatible) {
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'node.name', "upgraded-node-${stopNode}"
+      // TODO: Move to Zen2 once we support rolling upgrade with Zen2
+      setting 'discovery.type', 'zen'
     }
   }
 

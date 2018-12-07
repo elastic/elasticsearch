@@ -69,7 +69,7 @@ public class Zen1IT extends ESIntegTestCase {
 
     public void testMixedClusterFormation() throws Exception {
         final int zen1NodeCount = randomIntBetween(1, 3);
-        final int zen2NodeCount = randomIntBetween(1, 3);
+        final int zen2NodeCount = randomIntBetween(zen1NodeCount == 1 ? 2 : 1, 3);
         logger.info("starting cluster of [{}] Zen1 nodes and [{}] Zen2 nodes", zen1NodeCount, zen2NodeCount);
         final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2))
             .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
@@ -83,20 +83,16 @@ public class Zen1IT extends ESIntegTestCase {
         ensureGreen("test");
 
         for (final String node : nodes) {
-            final boolean addedVotingTombstone;
-            if (zen1NodeCount == 1 && zen2NodeCount > 1 && zen2NodeCount < 3) {
-                final int nodeIndex = nodes.indexOf(node);
-                final int masterIndex = nodes.indexOf(internalCluster().getMasterName());
-                if (zen1NodeCount <= nodeIndex && zen1NodeCount <= masterIndex) {
-                    // restarting a Zen2 node following a Zen2 master, with < 3 Zen2 nodes, so it might be the only one with a vote.
-                    client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-                        new AddVotingConfigExclusionsRequest(new String[]{node})).get();
-                    addedVotingTombstone = true;
-                } else {
-                    addedVotingTombstone = false;
-                }
-            } else {
-                addedVotingTombstone = false;
+            // With 1 Zen1 node when you stop the Zen1 node the Zen2 nodes might auto-bootstrap.
+            // But there are only 2 Zen2 nodes so you must do the right things with voting config exclusions to keep the cluster
+            // alive through the other two restarts.
+            final boolean masterNodeIsZen2 = zen1NodeCount <= nodes.indexOf(internalCluster().getMasterName());
+            final boolean thisNodeIsZen2 = zen1NodeCount <= nodes.indexOf(node);
+            final boolean requiresVotingConfigExclusions = zen1NodeCount == 1 && zen2NodeCount == 2 && masterNodeIsZen2 && thisNodeIsZen2;
+
+            if (requiresVotingConfigExclusions) {
+                client().execute(AddVotingConfigExclusionsAction.INSTANCE,
+                    new AddVotingConfigExclusionsRequest(new String[]{node})).get();
             }
 
             internalCluster().restartNode(node, new RestartCallback() {
@@ -115,7 +111,7 @@ public class Zen1IT extends ESIntegTestCase {
             ensureStableCluster(zen1NodeCount + zen2NodeCount);
             ensureGreen("test");
 
-            if (addedVotingTombstone) {
+            if (requiresVotingConfigExclusions) {
                 final ClearVotingConfigExclusionsRequest clearVotingTombstonesRequest = new ClearVotingConfigExclusionsRequest();
                 clearVotingTombstonesRequest.setWaitForRemoval(false);
                 client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingTombstonesRequest).get();

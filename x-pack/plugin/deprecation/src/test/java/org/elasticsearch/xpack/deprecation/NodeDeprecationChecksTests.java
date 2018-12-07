@@ -88,4 +88,19 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "nodes with repository-gcs installed: [node_check]");
         assertSettingsAndIssue("foo", "bar", expected);
     }
+
+    public void testFileDiscoveryPluginCheck() {
+        Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        PluginInfo deprecatedPlugin = new PluginInfo(
+            "discovery-file", "dummy plugin description", "dummy_plugin_version", esVersion,
+            "javaVersion", "DummyPluginName", Collections.emptyList(), false);
+        pluginsAndModules = new PluginsAndModules(Collections.singletonList(deprecatedPlugin), Collections.emptyList());
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "File-based discovery is no longer a plugin and uses a different path",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#_file_based_discovery_plugin",
+            "nodes with discovery-file installed: [node_check]");
+        assertSettingsAndIssue("foo", "bar", expected);
+    }
 }

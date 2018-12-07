@@ -335,6 +335,8 @@ if (isEclipse == false || project.path == ":server-tests") {
                  dependsOn: test.dependsOn) {
     include '**/*IT.class'
   }
+  check.dependsOn integTest
+  integTest.mustRunAfter test
 }
 // TODO: remove these compatibility tests in 7.0
 task testScriptedMetricAggParamsV6Compatibility(type: RandomizedTestingTask) {

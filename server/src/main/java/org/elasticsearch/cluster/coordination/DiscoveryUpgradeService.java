@@ -63,7 +63,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 import static org.elasticsearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
 
 /**
- * A device for dealing with rolling upgrades of the cluster coordination layer. In mixed clusters we prefer to elect the older nodes, but
+ * Deals with rolling upgrades of the cluster coordination layer. In mixed clusters we prefer to elect the older nodes, but
  * when the last old node shuts down then as long as there are enough new nodes we can assume that they form the whole cluster and
  * define them as the initial configuration.
  */
@@ -133,7 +133,7 @@ public class DiscoveryUpgradeService {
     }
 
     /**
-     * Device that waits for some number of calls to {@link ListenableCountDown#countDown()} and then notifies a listener. The listener
+     * Waits for some number of calls to {@link ListenableCountDown#countDown()} and then notifies a listener. The listener
      * is only ever notified once, whether successful or not.
      */
     private class ListenableCountDown {

@@ -19,28 +19,54 @@
 
 package org.elasticsearch.geo.geometry;
 
-import java.io.IOException;
+import org.elasticsearch.geo.GeoUtils;
 
-import org.elasticsearch.geo.geometry.GeoShape.ConnectedComponent;
-import org.elasticsearch.geo.parsers.WKBParser;
-import org.apache.lucene.store.OutputStreamDataOutput;
+import java.util.Arrays;
 
 /**
  * Represents a Line on the earth's surface in lat/lon decimal degrees.
  */
-public class Line extends MultiPoint implements ConnectedComponent {
-    EdgeTree tree;
+public class Line implements Geometry {
+    public static final Line EMPTY = new Line();
+    private final double[] lats;
+    private final double[] lons;
 
-    public Line(double[] lats, double[] lons) {
-        super(lats, lons);
+    protected Line() {
+        lats = new double[0];
+        lons = new double[0];
     }
 
-    @Override
-    public Relation relate(double minLat, double maxLat, double minLon, double maxLon) {
-        if (tree == null) {
-            tree = createEdgeTree();
+    public Line(double[] lats, double[] lons) {
+        this.lats = lats;
+        this.lons = lons;
+        if (lats == null) {
+            throw new IllegalArgumentException("lats must not be null");
         }
-        return tree.relate(minLat, maxLat, minLon, maxLon);
+        if (lons == null) {
+            throw new IllegalArgumentException("lons must not be null");
+        }
+        if (lats.length != lons.length) {
+            throw new IllegalArgumentException("lats and lons must be equal length");
+        }
+        if (lats.length < 2) {
+            throw new IllegalArgumentException("at least two points in the line is required");
+        }
+        for (int i = 0; i < lats.length; i++) {
+            GeoUtils.checkLatitude(lats[i]);
+            GeoUtils.checkLongitude(lons[i]);
+        }
+    }
+
+    public int length() {
+        return lats.length;
+    }
+
+    public double getLat(int i) {
+        return lats[i];
+    }
+
+    public double getLon(int i) {
+        return lons[i];
     }
 
     @Override
@@ -48,50 +74,35 @@ public class Line extends MultiPoint implements ConnectedComponent {
         return ShapeType.LINESTRING;
     }
 
-    public Relation relate(GeoShape other) {
-        // not yet implemented
-        throw new UnsupportedOperationException("not yet able to relate other GeoShape types to linestrings");
+    @Override
+    public <T> T visit(GeometryVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 
     @Override
-    public EdgeTree createEdgeTree() {
-        return new EdgeTree(this);
-
-        // NOCOMMIT
-//    EdgeTree components[] = new EdgeTree[lines.length];
-//    for (int i = 0; i < components.length; i++) {
-//      Line gon = lines[i];
-//      components[i] = new EdgeTree(gon);
-//    }
-//    return EdgeTree.createTree(components, 0, components.length - 1, false);
+    public boolean isEmpty() {
+        return lats.length == 0;
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (super.equals(other) == false) return false;
-        Line o = getClass().cast(other);
-        if ((tree == null) != (o.tree == null)) return false;
-        return tree != null ? tree.equals(o.tree) : true;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Line line = (Line) o;
+        return Arrays.equals(lats, line.lats) &&
+            Arrays.equals(lons, line.lons);
     }
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
-        result = 31 * result + (tree != null ? tree.hashCode() : 0);
+        int result = Arrays.hashCode(lats);
+        result = 31 * result + Arrays.hashCode(lons);
         return result;
     }
 
     @Override
-    protected void appendWKBContent(OutputStreamDataOutput out) throws IOException {
-        lineToWKB(lats, lons, out, false);
-    }
-
-    public static void lineToWKB(final double[] lats, final double[] lons, OutputStreamDataOutput out, boolean writeHeader) throws IOException {
-        if (writeHeader == true) {
-            out.writeVInt(WKBParser.ByteOrder.XDR.ordinal());
-            out.writeVInt(ShapeType.LINESTRING.wkbOrdinal());
-        }
-        out.writeVInt(lats.length);  // number of points
-        pointsToWKB(lats, lons, out, false);
+    public String toString() {
+        return "lats=" + Arrays.toString(lats) +
+            ", lons=" + Arrays.toString(lons);
     }
 }

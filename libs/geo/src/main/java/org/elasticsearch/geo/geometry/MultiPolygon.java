@@ -19,18 +19,19 @@
 
 package org.elasticsearch.geo.geometry;
 
-import java.io.IOException;
-
-import org.elasticsearch.geo.parsers.WKTParser;
-import org.apache.lucene.store.OutputStreamDataOutput;
+import java.util.List;
 
 /**
- * Created by nknize on 2/27/17.
+ * Collection of polygons
  */
-public class MultiPolygon extends MultiLine {
-    Predicate.PolygonPredicate predicate;
+public class MultiPolygon extends GeometryCollection<Polygon> {
+    public static final MultiPolygon EMPTY = new MultiPolygon();
 
-    public MultiPolygon(Polygon... polygons) {
+    private MultiPolygon() {
+
+    }
+
+    public MultiPolygon(List<Polygon> polygons) {
         super(polygons);
     }
 
@@ -40,104 +41,7 @@ public class MultiPolygon extends MultiLine {
     }
 
     @Override
-    public int length() {
-        return lines.length;
-    }
-
-    @Override
-    public Polygon get(int index) {
-        checkVertexIndex(index);
-        return (Polygon) (lines[index]);
-    }
-
-    @Override
-    public EdgeTree createEdgeTree() {
-        Polygon[] polygons = (Polygon[]) this.lines;
-        this.tree = Polygon.createEdgeTree(polygons);
-        predicate = Predicate.PolygonPredicate.create(this.boundingBox, tree);
-        return predicate.tree;
-    }
-
-    public boolean pointInside(int encodedLat, int encodedLon) {
-        return predicate.test(encodedLat, encodedLon);
-    }
-
-    @Override
-    public boolean hasArea() {
-        return true;
-    }
-
-    @Override
-    public double computeArea() {
-        assertEdgeTree();
-        return this.tree.getArea();
-    }
-
-    protected void assertEdgeTree() {
-        if (this.tree == null) {
-            final Polygon[] polygons = (Polygon[]) this.lines;
-            tree = Polygon.createEdgeTree(polygons);
-        }
-    }
-
-    //  private EdgeTree createEdgeTree(Polygon... polygons) {
-//    EdgeTree components[] = new EdgeTree[polygons.length];
-//    for (int i = 0; i < components.length; i++) {
-//      Polygon gon = polygons[i];
-//      Polygon gonHoles[] = gon.getHoles();
-//      EdgeTree holes = null;
-//      if (gonHoles.length > 0) {
-//        holes = createEdgeTree(gonHoles);
-//      }
-//      components[i] = new EdgeTree(gon, holes);
-//    }
-//    return EdgeTree.createTree(components, 0, components.length - 1, false);
-//  }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-
-        MultiPolygon that = (MultiPolygon) o;
-        return predicate.equals(that.predicate);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = super.hashCode();
-        result = 31 * result + predicate.hashCode();
-        return result;
-    }
-
-    @Override
-    protected StringBuilder contentToWKT() {
-        final StringBuilder sb = new StringBuilder();
-        Polygon[] polygons = (Polygon[]) lines;
-        if (polygons.length == 0) {
-            sb.append(WKTParser.EMPTY);
-        } else {
-            sb.append(WKTParser.LPAREN);
-            if (polygons.length > 0) {
-                sb.append(Polygon.polygonToWKT(polygons[0]));
-            }
-            for (int i = 1; i < polygons.length; ++i) {
-                sb.append(WKTParser.COMMA);
-                sb.append(Polygon.polygonToWKT(polygons[i]));
-            }
-            sb.append(WKTParser.RPAREN);
-        }
-        return sb;
-    }
-
-    @Override
-    protected void appendWKBContent(OutputStreamDataOutput out) throws IOException {
-        int numPolys = length();
-        out.writeVInt(numPolys);
-        for (int i = 0; i < numPolys; ++i) {
-            Polygon polygon = this.get(i);
-            Polygon.polygonToWKB(polygon, out, true);
-        }
+    public <T> T visit(GeometryVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 }

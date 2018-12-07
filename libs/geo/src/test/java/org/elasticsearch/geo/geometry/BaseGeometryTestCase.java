@@ -19,82 +19,116 @@
 
 package org.elasticsearch.geo.geometry;
 
-import org.apache.lucene.geo.GeoUtils;
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.test.AbstractWireTestCase;
 
-abstract class BaseGeometryTestCase<T extends GeoShape> extends LuceneTestCase {
-    abstract public T getShape();
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 
-    public void testArea() {
-        expectThrows(UnsupportedOperationException.class, () -> getShape().getArea());
+abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTestCase<T> {
+
+    @Override
+    protected Writeable.Reader<T> instanceReader() {
+        throw new IllegalStateException("shouldn't be called in this test");
     }
 
-    /**
-     * tests bounding box of shape
-     */
-    abstract public void testBoundingBox();
 
-    /**
-     * tests WITHIN relation
-     */
-    abstract public void testWithin();
+    @SuppressWarnings("unchecked")
+    @Override
+    protected T copyInstance(T instance, Version version) throws IOException {
+        String text = WellKnownText.toWKT(instance);
+        try {
+            return (T) WellKnownText.fromWKT(text);
+        } catch (ParseException e) {
+            throw new ElasticsearchException(e);
+        }
+    }
 
-    /**
-     * tests CONTAINS relation
-     */
-    abstract public void testContains();
+    public static double randomLat() {
+        return randomDoubleBetween(-90, 90, true);
+    }
 
-    /**
-     * tests DISJOINT relation
-     */
-    abstract public void testDisjoint();
+    public static double randomLon() {
+        return randomDoubleBetween(-180, 180, true);
+    }
 
-    /**
-     * tests INTERSECTS relation
-     */
-    abstract public void testIntersects();
+    public static Circle randomCircle() {
+        return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
+    }
 
-    /**
-     * tests center of shape
-     */
-    public void testCenter() {
-        GeoShape shape = getShape();
-        Rectangle bbox = shape.getBoundingBox();
-        double centerLat = StrictMath.abs(bbox.maxLat() - bbox.minLat()) * 0.5 + bbox.minLat();
-        double centerLon;
-        if (bbox.crossesDateline()) {
-            centerLon = GeoUtils.MAX_LON_INCL - bbox.minLon() + bbox.maxLon() - GeoUtils.MIN_LON_INCL;
-            centerLon = GeoUtils.normalizeLonDegrees(centerLon * 0.5 + bbox.minLon());
+    public static Line randomLine() {
+        int size = randomIntBetween(2, 10);
+        double[] lats = new double[size];
+        double[] lons = new double[size];
+        for (int i = 0; i < size; i++) {
+            lats[i] = randomLat();
+            lons[i] = randomLon();
+        }
+        return new Line(lats, lons);
+    }
+
+    public static Point randomPoint() {
+        return new Point(randomLat(), randomLon());
+    }
+
+    public static LinearRing randomLinearRing() {
+        int size = randomIntBetween(3, 10);
+        double[] lats = new double[size + 1];
+        double[] lons = new double[size + 1];
+        for (int i = 0; i < size; i++) {
+            lats[i] = randomLat();
+            lons[i] = randomLon();
+        }
+        lats[size] = lats[0];
+        lons[size] = lons[0];
+        return new LinearRing(lats, lons);
+    }
+
+    public static Polygon randomPolygon() {
+        int size = randomIntBetween(0, 10);
+        List<LinearRing> holes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            holes.add(randomLinearRing());
+        }
+        if (holes.size() > 0) {
+            return new Polygon(randomLinearRing(), holes);
         } else {
-            centerLon = StrictMath.abs(bbox.maxLon() - bbox.minLon()) * 0.5 + bbox.minLon();
+            return new Polygon(randomLinearRing());
         }
-        assertEquals(shape.getCenter(), new Point(centerLat, centerLon));
     }
 
-    /**
-     * helper method for semi-random relation testing
-     */
-    protected void relationTest(GeoShape points, GeoShape.Relation r) {
-        Rectangle bbox = points.getBoundingBox();
-        double minLat = bbox.minLat();
-        double maxLat = bbox.maxLat();
-        double minLon = bbox.minLon();
-        double maxLon = bbox.maxLon();
+    public static Rectangle randomRectangle() {
+        double lat1 = randomLat();
+        double lat2 = randomLat();
+        double minLon = randomLon();
+        double maxLon = randomLon();
+        return new Rectangle(Math.min(lat1, lat2), Math.max(lat1, lat2), minLon, maxLon);
+    }
 
-        if (r == GeoShape.Relation.WITHIN) {
-            return;
-        } else if (r == GeoShape.Relation.DISJOINT) {
-            // shrink test box
-            minLat -= 20D;
-            maxLat = minLat - 1D;
-            minLon -= 20D;
-            maxLon = minLon - 1D;
-        } else if (r == GeoShape.Relation.INTERSECTS) {
-            // intersects (note: MultiPoint does not support CONTAINS)
-            minLat -= 10D;
-            maxLat = minLat + 10D;
+    public static GeometryCollection<Geometry> randomGeometryCollection() {
+        return randomGeometryCollection(0);
+    }
+
+    private static GeometryCollection<Geometry> randomGeometryCollection(int level) {
+        int size = randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            @SuppressWarnings("unchecked") Supplier<Geometry> geometry = randomFrom(
+                BaseGeometryTestCase::randomCircle,
+                BaseGeometryTestCase::randomLine,
+                BaseGeometryTestCase::randomPoint,
+                BaseGeometryTestCase::randomPolygon,
+                BaseGeometryTestCase::randomRectangle,
+                level < 3 ? () -> randomGeometryCollection(level + 1) : BaseGeometryTestCase::randomPoint // don't build too deep
+            );
+            shapes.add(geometry.get());
         }
-
-        assertEquals(r, points.relate(minLat, maxLat, minLon, maxLon));
+        return new GeometryCollection<>(shapes);
     }
 }

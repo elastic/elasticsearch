@@ -20,17 +20,13 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Shape types supported by elasticsearch
+ * Base class for all Geometry objects supported by elasticsearch
  */
-public enum ShapeType {
-    POINT,
-    MULTIPOINT,
-    LINESTRING,
-    MULTILINESTRING,
-    POLYGON,
-    MULTIPOLYGON,
-    GEOMETRYCOLLECTION,
-    LINEARRING, // not serialized by itself in WKT or WKB
-    ENVELOPE, // not part of the actual WKB spec
-    CIRCLE; // not part of the actual WKB spec
+public interface Geometry {
+
+    ShapeType type();
+
+    <T> T visit(GeometryVisitor<T> visitor);
+
+    boolean isEmpty();
 }

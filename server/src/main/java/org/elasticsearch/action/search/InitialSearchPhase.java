@@ -327,7 +327,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-
     /**
      * Executed once all shard results have been received and processed
      * @see #onShardFailure(int, SearchShardTarget, Exception)
@@ -367,7 +366,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     abstract static class SearchPhaseResults<Result extends SearchPhaseResult> {
         private final int numShards;
 
-        protected SearchPhaseResults(int numShards) {
+        SearchPhaseResults(int numShards) {
             this.numShards = numShards;
         }
         /**

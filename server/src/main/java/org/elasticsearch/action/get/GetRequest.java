@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
+ * A request to get a document (its source) from an index based on its id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
@@ -66,7 +67,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private long version = Versions.MATCH_ANY;
 
     public GetRequest() {
-        type = "_all";
+        type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     /**
@@ -75,7 +76,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      */
     public GetRequest(String index) {
         super(index);
-        this.type = "_all";
+        type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     /**
@@ -84,19 +85,30 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
+     * @deprecated use the typeless constructor {@link #GetRequest(String, String)} where no type is given
      */
+    @Deprecated
     public GetRequest(String index, String type, String id) {
         super(index);
         this.type = type;
         this.id = id;
     }
 
+    /**
+     * Constructs a new get request against the specified index with the type and id.
+     *
+     * @param index The index to get the document from
+     * @param id    The id of the document
+     */
+    public GetRequest(String index, String id) {
+        super(index);
+        this.type = MapperService.SINGLE_MAPPING_NAME;;
+        this.id = id;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (Strings.isEmpty(type)) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
@@ -112,10 +124,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Sets the type of the document to fetch.
+     * @deprecated don't use types in {@link GetRequest} any more as they are in the process of being removed
      */
+    @Deprecated
     public GetRequest type(@Nullable String type) {
         if (type == null) {
-            type = "_all";
+            type = MapperService.SINGLE_MAPPING_NAME;;
         }
         this.type = type;
         return this;
@@ -148,6 +162,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
+    /**
+     * @return the type
+     * @deprecated don't use types any more as they are in the process of being removed
+     */
+    @Deprecated
     public String type() {
         return type;
     }

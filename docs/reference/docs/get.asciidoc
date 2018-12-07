@@ -1,13 +1,13 @@
 [[docs-get]]
 == Get API
 
-The get API allows to get a typed JSON document from the index based on
+The get API allows to get a JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called `_doc`, with id valued 0:
+twitter with id valued 0:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/0
+GET twitter/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -32,7 +32,7 @@ The result of the above get operation is:
 --------------------------------------------------
 // TESTRESPONSE
 
-The above result includes the `_index`, `_type`, `_id` and `_version`
+The above result includes the `_index`, `_id` and `_version`
 of the document we wish to retrieve, including the actual `_source`
 of the document if it could be found (as indicated by the `found`
 field in the response).
@@ -42,7 +42,7 @@ The API also allows to check for the existence of a document using
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/_doc/0
+HEAD twitter/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -217,7 +217,7 @@ will fail.
 [[_source]]
 === Getting the +_source+ directly
 
-Use the `/{index}/{type}/{id}/_source` endpoint to get
+Use the `/{index}/{id}/_source` endpoint to get
 just the `_source` field of the document,
 without any additional content around it. For example:
 

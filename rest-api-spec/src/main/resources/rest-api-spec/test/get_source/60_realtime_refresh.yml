@@ -25,14 +25,12 @@
       catch:        missing
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
  - do:
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 
@@ -41,7 +39,6 @@
  - do:
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
           refresh:  true

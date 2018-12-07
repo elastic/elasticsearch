@@ -23,7 +23,6 @@ setup:
       catch:   missing
       get_source:
         index: test_1
-        type:  test
         id:    1
 
 ---
@@ -32,6 +31,5 @@ setup:
   - do:
       get_source:
         index:  test_1
-        type:   test
         id:     1
         ignore: 404

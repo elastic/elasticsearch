@@ -1258,8 +1258,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-request
             GetRequest getRequest = new GetRequest(
                     "posts", // <1>
-                    "_doc",  // <2>
-                    "1");   // <3>
+                    "1");   // <2>
             //end::get-request
 
             //tag::get-execute
@@ -1269,7 +1268,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, getResponse.getSourceAsMap().size());
             //tag::get-response
             String index = getResponse.getIndex();
-            String type = getResponse.getType();
             String id = getResponse.getId();
             if (getResponse.isExists()) {
                 long version = getResponse.getVersion();

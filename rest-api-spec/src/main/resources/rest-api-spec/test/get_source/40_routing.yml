@@ -26,7 +26,6 @@
  - do:
       get_source:
           index:   test_1
-          type:    test
           id:      1
           routing: 5
 
@@ -36,6 +35,5 @@
       catch: missing
       get_source:
           index:   test_1
-          type:    test
           id:      1
 

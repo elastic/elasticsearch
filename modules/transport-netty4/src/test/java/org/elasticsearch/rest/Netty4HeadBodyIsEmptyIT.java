@@ -149,8 +149,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testGetSourceAction() throws IOException {
         createTestDoc();
-        headTestCase("/test/test/1/_source", emptyMap(), greaterThan(0));
-        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/test/1/_source", emptyMap(), greaterThan(0));
+        headTestCase("/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

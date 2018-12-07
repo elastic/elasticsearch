@@ -19,7 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -33,11 +33,12 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.coordination.LagDetector;
+import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -397,6 +398,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.MAX_KEEPALIVE_SETTING,
                     MultiBucketConsumerService.MAX_BUCKET_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
+                    SearchService.MAX_OPEN_SCROLL_CONTEXT,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
@@ -456,6 +458,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
                     PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
                     PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING,
+                    ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
                     ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,
@@ -469,8 +472,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
                     LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
-                    TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
+                    TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
+                    ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
                     LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
             )));
 

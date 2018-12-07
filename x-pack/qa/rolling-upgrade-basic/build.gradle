@@ -66,6 +66,8 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.watcher.enabled', 'false'
             setting 'xpack.license.self_generated.type', 'basic'
             setting 'node.name', "upgraded-node-${stopNode}"
+            // TODO: Move to Zen2 once we support rolling upgrade with Zen2
+            setting 'discovery.type', 'zen'
         }
     }
 

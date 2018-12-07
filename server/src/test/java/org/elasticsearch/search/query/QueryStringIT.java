@@ -250,10 +250,9 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     public void testBooleanStrictQuery() throws Exception {
-        Exception e = expectThrows(Exception.class, () ->
-                client().prepareSearch("test").setQuery(
-                        queryStringQuery("foo").field("f_bool")).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
+        Exception e = expectThrows(Exception.class,
+                () -> client().prepareSearch("test").setQuery(queryStringQuery("foo").field("f_bool")).get());
+        assertThat(ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
                 containsString("Can't parse boolean value [foo], expected [true] or [false]"));
     }
 
@@ -261,8 +260,7 @@ public class QueryStringIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () ->
                 client().prepareSearch("test").setQuery(
                         queryStringQuery("f_date:[now-2D TO now]").lenient(false)).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("unit [D] not supported for date math [-2D]"));
+        assertThat(e.getCause().getMessage(), containsString("unit [D] not supported for date math [-2D]"));
     }
 
     public void testLimitOnExpandedFields() throws Exception {
@@ -288,11 +286,11 @@ public class QueryStringIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () -> {
                 QueryStringQueryBuilder qb = queryStringQuery("bar");
                 if (randomBoolean()) {
-                    qb.useAllFields(true);
+                    qb.defaultField("*");
                 }
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
-        assertThat(ExceptionsHelper.detailedMessage(e),
+        assertThat(ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
                 containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
                         + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
     }
@@ -306,7 +304,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("value").field("f3_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -322,7 +320,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("f3_alias:value AND f2:three"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -338,7 +336,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("value").field("f3_*"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -354,7 +352,7 @@ public class QueryStringIT extends ESIntegTestCase {
         // By default, the geo_point field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -362,7 +360,7 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

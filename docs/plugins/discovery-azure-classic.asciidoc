@@ -371,13 +371,12 @@ This command should give you a JSON result:
   "cluster_name" : "elasticsearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "{version}",
+    "number" : "{version_qualified}",
     "build_flavor" : "{build_flavor}",
     "build_type" : "zip",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
-    "qualified" : "{version_qualified}",
     "lucene_version" : "{lucene_version}",
     "minimum_wire_compatibility_version" : "1.2.3",
     "minimum_index_compatibility_version" : "1.2.3"

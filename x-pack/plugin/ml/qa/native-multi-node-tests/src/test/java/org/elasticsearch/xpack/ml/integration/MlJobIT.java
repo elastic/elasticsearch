@@ -216,7 +216,7 @@ public class MlJobIT extends ESRestTestCase {
 
             responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_search")).getEntity());
-            assertThat(responseAsString, containsString("\"total\":2"));
+            assertThat(responseAsString, containsString("\"value\":2"));
         }
         { //create jobId2 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1234", 300);
@@ -241,7 +241,7 @@ public class MlJobIT extends ESRestTestCase {
 
             responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_search")).getEntity());
-            assertThat(responseAsString, containsString("\"total\":2"));
+            assertThat(responseAsString, containsString("\"value\":2"));
         }
 
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1));

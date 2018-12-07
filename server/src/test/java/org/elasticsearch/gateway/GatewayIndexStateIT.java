@@ -66,14 +66,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            // testRecoverBrokenIndexMetadata, testRecoverMissingAnalyzer, testDanglingIndices and testArchiveBrokenClusterSettings fail
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
-            .build();
-    }
-
     public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> starting 1 nodes");
         internalCluster().startNode();
@@ -86,7 +78,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify meta _routing required exists");
         MappingMetaData mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData()
-            .index("test").mapping("type1");
+            .index("test").getMappings().get("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
 
         logger.info("--> restarting nodes...");
@@ -96,7 +88,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
+        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").getMappings()
+                .get("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
@@ -285,7 +278,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     public void testDanglingIndices() throws Exception {
         logger.info("--> starting two nodes");
 
-        final String node_1 = internalCluster().startNodes(2).get(0);
+        final String node_1 = internalCluster().startNodes(2,
+                //TODO fails wih Zen2
+                Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build()).get(0);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -338,7 +333,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final List<String> nodes;
         logger.info("--> starting a cluster with " + numNodes + " nodes");
         nodes = internalCluster().startNodes(numNodes,
-            Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100)).build());
+            Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100))
+                    //TODO fails with Zen2
+                    .put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
         logger.info("--> create an index");
         createIndex(indexName);
 

@@ -156,7 +156,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     /**
      * The type of the document changed.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public String getType() {
         return this.type;
     }

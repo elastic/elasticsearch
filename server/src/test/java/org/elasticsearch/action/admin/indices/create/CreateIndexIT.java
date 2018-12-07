@@ -42,7 +42,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -66,14 +65,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            // testIndexWithUnknownSetting and testRestartIndexCreationAfterFullClusterRestart fail with Zen2
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
-            .build();
-    }
 
     public void testCreationDateGivenFails() {
         try {
@@ -269,8 +260,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
-        logger.info("total: {}", expected.getHits().getTotalHits());
+        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
+        logger.info("total: {}", expected.getHits().getTotalHits().value);
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

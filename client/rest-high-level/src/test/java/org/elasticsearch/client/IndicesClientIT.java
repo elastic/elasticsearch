@@ -60,6 +60,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -70,6 +71,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -1310,7 +1314,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isValid());
     }
 
-    public void testGetIndexTemplate() throws Exception {
+    public void testCRUDIndexTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest().name("template-1")
@@ -1352,9 +1356,22 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).toArray(),
             arrayContainingInAnyOrder("template-1", "template-2"));
 
-        ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
-            new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplate, client.indices()::getTemplateAsync));
-        assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
+        assertTrue(execute(new DeleteIndexTemplateRequest("template-1"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest().names("template-1"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+
+        assertThat(execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync).getIndexTemplates(), hasSize(1));
+        assertThat(execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync).getIndexTemplates().get(0).name(), equalTo("template-2"));
+
+        assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest().names("template-*"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testAnalyze() throws Exception {
@@ -1370,6 +1387,20 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
+    }
 
+    public void testFreezeAndUnfreeze() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
+            client.indices()::freezeAsync);
+        assertTrue(freeze.isShardsAcknowledged());
+        assertTrue(freeze.isAcknowledged());
+
+        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
+            client.indices()::unfreezeAsync);
+        assertTrue(unfreeze.isShardsAcknowledged());
+        assertTrue(unfreeze.isAcknowledged());
     }
 }

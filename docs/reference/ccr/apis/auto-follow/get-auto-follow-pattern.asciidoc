@@ -64,6 +64,12 @@ GET /_ccr/auto_follow/<auto_follow_pattern_name>
   retrieve; if you do not specify a name, the API returns information for all
   collections
 
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
+
 ==== Example
 
 This example retrieves information about an auto-follow pattern collection
@@ -81,15 +87,19 @@ The API returns the following result:
 [source,js]
 --------------------------------------------------
 {
-  "my_auto_follow_pattern" :
-  {
-    "remote_cluster" : "remote_cluster",
-    "leader_index_patterns" :
-    [
-      "leader_index*"
-    ],
-    "follow_index_pattern" : "{{leader_index}}-follower"
-  }
+  "patterns": [
+    {
+      "name": "my_auto_follow_pattern",
+      "pattern": {
+        "remote_cluster" : "remote_cluster",
+        "leader_index_patterns" :
+        [
+          "leader_index*"
+        ],
+        "follow_index_pattern" : "{{leader_index}}-follower"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TESTRESPONSE

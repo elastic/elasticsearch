@@ -49,12 +49,12 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
 
     private final VotingConfiguration lastAcceptedConfiguration;
 
-    private final Set<VotingTombstone> votingTombstones;
+    private final Set<VotingConfigExclusion> votingConfigExclusions;
 
     private static final ParseField TERM_PARSE_FIELD = new ParseField("term");
     private static final ParseField LAST_COMMITTED_CONFIGURATION_FIELD = new ParseField("last_committed_config");
     private static final ParseField LAST_ACCEPTED_CONFIGURATION_FIELD = new ParseField("last_accepted_config");
-    private static final ParseField VOTING_TOMBSTONES_FIELD = new ParseField("voting_tombstones");
+    private static final ParseField VOTING_CONFIG_EXCLUSIONS_FIELD = new ParseField("voting_config_exclusions");
 
     private static long term(Object[] termAndConfigs) {
         return (long)termAndConfigs[0];
@@ -73,35 +73,35 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     }
 
     @SuppressWarnings("unchecked")
-    private static Set<VotingTombstone> votingTombstones(Object[] fields) {
-        Set<VotingTombstone> votingTombstones = new HashSet<>((List<VotingTombstone>) fields[3]);
+    private static Set<VotingConfigExclusion> votingConfigExclusions(Object[] fields) {
+        Set<VotingConfigExclusion> votingTombstones = new HashSet<>((List<VotingConfigExclusion>) fields[3]);
         return votingTombstones;
     }
 
     private static final ConstructingObjectParser<CoordinationMetaData, Void> PARSER = new ConstructingObjectParser<>(
             "coordination_metadata",
             fields -> new CoordinationMetaData(term(fields), lastCommittedConfig(fields),
-                    lastAcceptedConfig(fields), votingTombstones(fields)));
+                    lastAcceptedConfig(fields), votingConfigExclusions(fields)));
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TERM_PARSE_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LAST_COMMITTED_CONFIGURATION_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LAST_ACCEPTED_CONFIGURATION_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), VotingTombstone.PARSER, VOTING_TOMBSTONES_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), VotingConfigExclusion.PARSER, VOTING_CONFIG_EXCLUSIONS_FIELD);
     }
 
     public CoordinationMetaData(long term, VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                                Set<VotingTombstone> votingTombstones) {
+                                Set<VotingConfigExclusion> votingConfigExclusions) {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
         this.lastAcceptedConfiguration = lastAcceptedConfiguration;
-        this.votingTombstones = Collections.unmodifiableSet(new HashSet<>(votingTombstones));
+        this.votingConfigExclusions = Collections.unmodifiableSet(new HashSet<>(votingConfigExclusions));
     }
 
     public CoordinationMetaData(StreamInput in) throws IOException {
         term = in.readLong();
         lastCommittedConfiguration = new VotingConfiguration(in);
         lastAcceptedConfiguration = new VotingConfiguration(in);
-        votingTombstones = Collections.unmodifiableSet(in.readSet(VotingTombstone::new));
+        votingConfigExclusions = Collections.unmodifiableSet(in.readSet(VotingConfigExclusion::new));
     }
 
     public static Builder builder() {
@@ -117,7 +117,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         out.writeLong(term);
         lastCommittedConfiguration.writeTo(out);
         lastAcceptedConfiguration.writeTo(out);
-        out.writeCollection(votingTombstones, (o, v) -> v.writeTo(o));
+        out.writeCollection(votingConfigExclusions, (o, v) -> v.writeTo(o));
     }
 
     @Override
@@ -126,7 +126,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             .field(TERM_PARSE_FIELD.getPreferredName(), term)
             .field(LAST_COMMITTED_CONFIGURATION_FIELD.getPreferredName(), lastCommittedConfiguration)
             .field(LAST_ACCEPTED_CONFIGURATION_FIELD.getPreferredName(), lastAcceptedConfiguration)
-            .field(VOTING_TOMBSTONES_FIELD.getPreferredName(), votingTombstones);
+            .field(VOTING_CONFIG_EXCLUSIONS_FIELD.getPreferredName(), votingConfigExclusions);
     }
 
     public static CoordinationMetaData fromXContent(XContentParser parser) throws IOException {
@@ -145,8 +145,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return lastCommittedConfiguration;
     }
 
-    public Set<VotingTombstone> getVotingTombstones() {
-        return votingTombstones;
+    public Set<VotingConfigExclusion> getVotingConfigExclusions() {
+        return votingConfigExclusions;
     }
 
     @Override
@@ -159,7 +159,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         if (term != that.term) return false;
         if (!lastCommittedConfiguration.equals(that.lastCommittedConfiguration)) return false;
         if (!lastAcceptedConfiguration.equals(that.lastAcceptedConfiguration)) return false;
-        return votingTombstones.equals(that.votingTombstones);
+        return votingConfigExclusions.equals(that.votingConfigExclusions);
     }
 
     @Override
@@ -167,7 +167,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         int result = (int) (term ^ (term >>> 32));
         result = 31 * result + lastCommittedConfiguration.hashCode();
         result = 31 * result + lastAcceptedConfiguration.hashCode();
-        result = 31 * result + votingTombstones.hashCode();
+        result = 31 * result + votingConfigExclusions.hashCode();
         return result;
     }
 
@@ -177,7 +177,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             "term=" + term +
             ", lastCommittedConfiguration=" + lastCommittedConfiguration +
             ", lastAcceptedConfiguration=" + lastAcceptedConfiguration +
-            ", votingTombstones=" + votingTombstones +
+            ", votingConfigExclusions=" + votingConfigExclusions +
             '}';
     }
 
@@ -185,7 +185,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         private long term = 0;
         private VotingConfiguration lastCommittedConfiguration = VotingConfiguration.EMPTY_CONFIG;
         private VotingConfiguration lastAcceptedConfiguration = VotingConfiguration.EMPTY_CONFIG;
-        private final Set<VotingTombstone> votingTombstones = new HashSet<>();
+        private final Set<VotingConfigExclusion> votingConfigExclusions = new HashSet<>();
 
         public Builder() {
 
@@ -195,7 +195,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             this.term = state.term;
             this.lastCommittedConfiguration = state.lastCommittedConfiguration;
             this.lastAcceptedConfiguration = state.lastAcceptedConfiguration;
-            this.votingTombstones.addAll(state.votingTombstones);
+            this.votingConfigExclusions.addAll(state.votingConfigExclusions);
         }
 
         public Builder term(long term) {
@@ -213,35 +213,35 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder addVotingTombstone(VotingTombstone tombstone) {
-            votingTombstones.add(tombstone);
+        public Builder addVotingConfigExclusion(VotingConfigExclusion exclusion) {
+            votingConfigExclusions.add(exclusion);
             return this;
         }
 
-        public Builder clearVotingTombstones() {
-            votingTombstones.clear();
+        public Builder clearVotingConfigExclusions() {
+            votingConfigExclusions.clear();
             return this;
         }
 
         public CoordinationMetaData build() {
-            return new CoordinationMetaData(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingTombstones);
+            return new CoordinationMetaData(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
         }
     }
 
-    public static class VotingTombstone implements Writeable, ToXContentFragment {
+    public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
         private final String nodeId;
         private final String nodeName;
 
-        public VotingTombstone(DiscoveryNode node) {
+        public VotingConfigExclusion(DiscoveryNode node) {
             this(node.getId(), node.getName());
         }
 
-        public VotingTombstone(StreamInput in) throws IOException {
+        public VotingConfigExclusion(StreamInput in) throws IOException {
             this.nodeId = in.readString();
             this.nodeName = in.readString();
         }
 
-        public VotingTombstone(String nodeId, String nodeName) {
+        public VotingConfigExclusion(String nodeId, String nodeName) {
             this.nodeId = nodeId;
             this.nodeName = nodeName;
         }
@@ -271,9 +271,9 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             return (String) nodeIdAndName[1];
         }
 
-        private static final ConstructingObjectParser<VotingTombstone, Void> PARSER = new ConstructingObjectParser<>(
-                "voting_tombstone",
-                nodeIdAndName -> new VotingTombstone(nodeId(nodeIdAndName), nodeName(nodeIdAndName))
+        private static final ConstructingObjectParser<VotingConfigExclusion, Void> PARSER = new ConstructingObjectParser<>(
+                "voting_config_exclusion",
+                nodeIdAndName -> new VotingConfigExclusion(nodeId(nodeIdAndName), nodeName(nodeIdAndName))
         );
 
         static {
@@ -281,7 +281,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_NAME_PARSE_FIELD);
         }
 
-        public static VotingTombstone fromXContent(XContentParser parser) throws IOException {
+        public static VotingConfigExclusion fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
@@ -297,7 +297,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            VotingTombstone that = (VotingTombstone) o;
+            VotingConfigExclusion that = (VotingConfigExclusion) o;
             return Objects.equals(nodeId, that.nodeId) &&
                     Objects.equals(nodeName, that.nodeName);
         }

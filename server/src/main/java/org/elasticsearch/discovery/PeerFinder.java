@@ -62,6 +62,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public abstract class PeerFinder {
@@ -94,6 +95,7 @@ public abstract class PeerFinder {
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
+    private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
 
     public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                       ConfiguredHostsResolver configuredHostsResolver) {
@@ -157,12 +159,14 @@ public abstract class PeerFinder {
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;
-                startProbe(peersRequest.getSourceNode().getAddress());
+                if (peersRequest.getSourceNode().isMasterNode()) {
+                    startProbe(peersRequest.getSourceNode().getAddress());
+                }
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
                 knownPeers = getFoundPeersUnderLock();
             } else {
-                assert leader.isPresent();
-                knownPeers = Collections.emptyList();
+                assert leader.isPresent() || lastAcceptedNodes == null;
+                knownPeers = emptyList();
             }
             return new PeersResponse(leader, knownPeers, currentTerm);
         }
@@ -204,6 +208,10 @@ public abstract class PeerFinder {
      * synchronisation to avoid lost updates. Also, by the time this method is invoked we may have been deactivated.
      */
     protected abstract void onFoundPeersUpdated();
+
+    public List<TransportAddress> getLastResolvedAddresses() {
+        return lastResolvedAddresses;
+    }
 
     public interface TransportAddressConnector {
         /**
@@ -264,6 +272,7 @@ public abstract class PeerFinder {
 
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
             synchronized (mutex) {
+                lastResolvedAddresses = providedAddresses;
                 logger.trace("probing resolved transport addresses {}", providedAddresses);
                 providedAddresses.forEach(this::startProbe);
             }
@@ -493,7 +502,7 @@ public abstract class PeerFinder {
         @Override
         public void messageReceived(UnicastZenPing.UnicastPingRequest request, TransportChannel channel, Task task) throws Exception {
             final PeersRequest peersRequest = new PeersRequest(request.pingResponse.node(),
-                Optional.ofNullable(request.pingResponse.master()).map(Collections::singletonList).orElse(Collections.emptyList()));
+                Optional.ofNullable(request.pingResponse.master()).map(Collections::singletonList).orElse(emptyList()));
             final PeersResponse peersResponse = handlePeersRequest(peersRequest);
             final List<ZenPing.PingResponse> pingResponses = new ArrayList<>();
             final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);

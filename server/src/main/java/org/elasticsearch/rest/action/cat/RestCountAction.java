@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -60,7 +61,7 @@ public class RestCountAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {
@@ -79,6 +80,7 @@ public class RestCountAction extends AbstractCatAction {
         return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
+                assert countResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);
             }
         });
@@ -96,7 +98,7 @@ public class RestCountAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, SearchResponse response) {
         Table table = getTableWithHeader(request);
         table.startRow();
-        table.addCell(response.getHits().getTotalHits());
+        table.addCell(response.getHits().getTotalHits().value);
         table.endRow();
 
         return table;

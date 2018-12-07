@@ -615,8 +615,18 @@ final class RequestConverters {
     }
 
     static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart(
-            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        String endpoint;
+        if (tvrequest.getType() != null) {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId())
+                .addPathPartAsIs("_termvectors")
+                .build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex())
+                .addPathPartAsIs("_termvectors")
+                .addPathPart(tvrequest.getId())
+                .build();
+        }
+
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params(request);
         params.withRouting(tvrequest.getRouting());
@@ -859,22 +869,24 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
-            putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
-            String expandWildcards;
-            if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
-                expandWildcards = "none";
-            } else {
-                StringJoiner joiner = new StringJoiner(",");
-                if (indicesOptions.expandWildcardsOpen()) {
-                    joiner.add("open");
+            if (indicesOptions != null) {
+                withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
+                putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+                String expandWildcards;
+                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                    expandWildcards = "none";
+                } else {
+                    StringJoiner joiner = new StringJoiner(",");
+                    if (indicesOptions.expandWildcardsOpen()) {
+                        joiner.add("open");
+                    }
+                    if (indicesOptions.expandWildcardsClosed()) {
+                        joiner.add("closed");
+                    }
+                    expandWildcards = joiner.toString();
                 }
-                if (indicesOptions.expandWildcardsClosed()) {
-                    joiner.add("closed");
-                }
-                expandWildcards = joiner.toString();
+                putParam("expand_wildcards", expandWildcards);
             }
-            putParam("expand_wildcards", expandWildcards);
             return this;
         }
 

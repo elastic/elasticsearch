@@ -41,7 +41,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterFormationFailureHelperTests extends ESTestCase {
@@ -98,7 +98,29 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
             }
         }
-        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, greaterThanOrEqualTo(5 * expectedDelayMillis));
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, equalTo(5 * expectedDelayMillis));
+
+        clusterFormationFailureHelper.stop();
+        assertFalse(clusterFormationFailureHelper.isRunning());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+
+        assertThat(warningCount.get(), is(5L));
+
+        warningCount.set(0);
+        clusterFormationFailureHelper.start();
+        clusterFormationFailureHelper.stop();
+        clusterFormationFailureHelper.start();
+        final long secondStartTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
+
+        while (warningCount.get() < 5) {
+            assertTrue(clusterFormationFailureHelper.isRunning());
+            if (deterministicTaskQueue.hasRunnableTasks()) {
+                deterministicTaskQueue.runRandomTask();
+            } else {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - secondStartTimeMillis, equalTo(5 * expectedDelayMillis));
 
         clusterFormationFailureHelper.stop();
         assertFalse(clusterFormationFailureHelper.isRunning());

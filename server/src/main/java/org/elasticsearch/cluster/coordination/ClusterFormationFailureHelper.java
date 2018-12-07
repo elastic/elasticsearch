@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -36,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -54,35 +54,34 @@ public class ClusterFormationFailureHelper {
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
     private final TimeValue clusterFormationWarningTimeout;
-    private final AtomicReference<WarningScheduler> warningScheduler; // null if no warning is scheduled
+    @Nullable // if no warning is scheduled
+    private volatile WarningScheduler warningScheduler;
 
     public ClusterFormationFailureHelper(Settings settings, Supplier<ClusterFormationState> clusterFormationStateSupplier,
                                          ThreadPool threadPool) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
-        warningScheduler = new AtomicReference<>();
     }
 
     public boolean isRunning() {
-        return warningScheduler.get() != null;
+        return warningScheduler != null;
     }
 
     public void start() {
-        final WarningScheduler newWarningScheduler = new WarningScheduler();
-        if (warningScheduler.compareAndSet(null, newWarningScheduler)) {
-            newWarningScheduler.scheduleNextWarning();
-        }
+        assert warningScheduler == null;
+        warningScheduler = new WarningScheduler();
+        warningScheduler.scheduleNextWarning();
     }
 
     public void stop() {
-        warningScheduler.set(null);
+        warningScheduler = null;
     }
 
     private class WarningScheduler {
 
         private boolean isActive() {
-            return warningScheduler.get() == this;
+            return warningScheduler == this;
         }
 
         void scheduleNextWarning() {

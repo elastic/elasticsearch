@@ -126,6 +126,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -2604,7 +2605,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             // create
             {
-                store.createEmpty();
+                store.createEmpty(Version.CURRENT.luceneVersion);
                 final String translogUUID =
                     Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                         SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
@@ -2768,7 +2769,7 @@ public class InternalEngineTests extends EngineTestCase {
             final Path translogPath = createTempDir();
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
-            store.createEmpty();
+            store.createEmpty(Version.CURRENT.luceneVersion);
             final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUUID);
             try (InternalEngine engine =
@@ -3876,7 +3877,7 @@ public class InternalEngineTests extends EngineTestCase {
                     lookupAndCheck.run();
                 }
                 if (rarely()) {
-                    engine.flush();
+                    engine.flush(false, true);
                     lookupAndCheck.run();
                 }
             }
@@ -4583,7 +4584,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path translogPath = createTempDir();
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        store.createEmpty();
+        store.createEmpty(Version.CURRENT.luceneVersion);
         final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
         store.associateIndexWithNewTranslog(translogUUID);
 
@@ -5452,6 +5453,34 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testOpenSoftDeletesIndexWithSoftDeletesDisabled() throws Exception {
+        try (Store store = createStore()) {
+            Path translogPath = createTempDir();
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final IndexSettings softDeletesEnabled = IndexSettingsModule.newIndexSettings(
+                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder().
+                    put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)).build());
+            final List<DocIdSeqNoAndTerm> docs;
+            try (InternalEngine engine = createEngine(
+                config(softDeletesEnabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get))) {
+                List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
+                applyOperations(engine, ops);
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                engine.syncTranslog();
+                engine.flush();
+                docs = getDocIds(engine, true);
+            }
+            final IndexSettings softDeletesDisabled = IndexSettingsModule.newIndexSettings(
+                IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder()
+                    .put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
+            EngineConfig config = config(softDeletesDisabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
+            trimUnsafeCommits(config);
+            try (InternalEngine engine = createEngine(config)) {
+                assertThat(getDocIds(engine, true), equalTo(docs));
+            }
+        }
+    }
+
     static void trimUnsafeCommits(EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final TranslogConfig translogConfig = config.getTranslogConfig();
@@ -5469,5 +5498,26 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(message, engine.getNumDocAppends(), equalTo(expectedAppends));
         assertThat(message, engine.getNumDocUpdates(), equalTo(expectedUpdates));
         assertThat(message, engine.getNumDocDeletes(), equalTo(expectedDeletes));
+    }
+
+    public void testStoreHonorsLuceneVersion() throws IOException {
+        for (Version createdVersion : Arrays.asList(
+                Version.CURRENT, VersionUtils.getPreviousMinorVersion(), VersionUtils.getFirstVersion())) {
+            Settings settings = Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, createdVersion).build();
+            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+            try (Store store = createStore();
+                    InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+                ParsedDocument doc = testParsedDocument("1", null, new Document(),
+                        new BytesArray("{}".getBytes("UTF-8")), null);
+                engine.index(appendOnlyPrimary(doc, false, 1));
+                engine.refresh("test");
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    LeafReader leafReader = getOnlyLeafReader(searcher.reader());
+                    assertEquals(createdVersion.luceneVersion.major, leafReader.getMetaData().getCreatedVersionMajor());
+                }
+            }
+        }
     }
 }

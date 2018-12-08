@@ -54,7 +54,7 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
                 new RestBuilderListener<AuthenticateResponse>(channel) {
             @Override
             public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {
-                authenticateResponse.user().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                authenticateResponse.authentication().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

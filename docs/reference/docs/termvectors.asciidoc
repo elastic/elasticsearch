@@ -8,7 +8,7 @@ realtime. This can be changed by setting `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/1/_termvectors
+GET /twitter/_termvectors/1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -18,7 +18,7 @@ retrieved either with a parameter in the url
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/1/_termvectors?fields=message
+GET /twitter/_termvectors/1?fields=message
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -26,9 +26,6 @@ GET /twitter/_doc/1/_termvectors?fields=message
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
 in similar way to the <<query-dsl-multi-match-query,multi match query>>
-
-[WARNING]
-Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_termvectors`.
 
 [float]
 === Return values
@@ -192,7 +189,7 @@ The following request returns all information and statistics for field
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/1/_termvectors
+GET /twitter/_termvectors/1
 {
   "fields" : ["text"],
   "offsets" : true,
@@ -280,7 +277,7 @@ Note that for the field `text`, the terms are not re-generated.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/1/_termvectors
+GET /twitter/_termvectors/1
 {
   "fields" : ["text", "some_field_without_term_vectors"],
   "offsets" : true,
@@ -298,15 +295,14 @@ GET /twitter/_doc/1/_termvectors
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index.  For example, the following request would
-return the same results as in example 1. The mapping used is determined by the
-`index` and `type`.
+return the same results as in example 1. The mapping used is determined by the `index`.
 
 *If dynamic mapping is turned on (default), the document fields not in the original
 mapping will be dynamically created.*
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/_termvectors
+GET /twitter/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
@@ -329,7 +325,7 @@ vectors, the term vectors will be re-generated.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/_termvectors
+GET /twitter/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
@@ -396,7 +392,7 @@ their tf-idf must be too low.
 
 [source,js]
 --------------------------------------------------
-GET /imdb/_doc/_termvectors
+GET /imdb/_termvectors
 {
     "doc": {
       "plot": "When wealthy industrialist Tony Stark is forced to build an armored suit after a life-threatening incident, he ultimately decides to use its technology to fight against evil."

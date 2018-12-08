@@ -1,6 +1,6 @@
 {
   "ilm.stop": {
-    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-stop.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_ilm/stop",

@@ -48,6 +48,12 @@ DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
 `auto_follow_pattern_name` (required)::
   (string) specifies the auto-follow pattern collection to delete
 
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
+
 ==== Example
 
 This example deletes an auto-follow pattern collection named

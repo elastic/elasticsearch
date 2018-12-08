@@ -28,37 +28,38 @@ To specify the population, use the `over_field_name` property. For example:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/population
+PUT _ml/anomaly_detectors/population
 {
   "description" : "Population analysis",
   "analysis_config" : {
-    "bucket_span":"10m",
+    "bucket_span":"15m",
     "influencers": [
-      "username"
+      "clientip"
     ],
     "detectors": [
       {
         "function": "mean",
-        "field_name": "bytesSent",
-        "over_field_name": "username" <1>
+        "field_name": "bytes",
+        "over_field_name": "clientip" <1>
       }
     ]
   },
   "data_description" : {
-    "time_field":"@timestamp",
+    "time_field":"timestamp",
     "time_format": "epoch_ms"
   }
 }
 ----------------------------------
 //CONSOLE
 // TEST[skip:needs-licence]
-<1> This `over_field_name` property indicates that the metrics for each user (
-  as identified by their `username` value) are analyzed relative to other users
+<1> This `over_field_name` property indicates that the metrics for each client (
+  as identified by their IP address) are analyzed relative to other clients
   in each bucket.
 
 If your data is stored in {es}, you can use the population job wizard in {kib}
-to create a job with these same properties. For example, the population job
-wizard provides the following job settings:
+to create a job with these same properties. For example, if you add the sample
+web logs in {kib}, you can use the following job settings in the population job
+wizard:
 
 [role="screenshot"]
 image::images/ml-population-job.jpg["Job settings in the population job wizard]
@@ -81,6 +82,6 @@ details about the anomalies:
 [role="screenshot"]
 image::images/ml-population-anomaly.jpg["Anomaly details for a specific user"]
 
-In this example, the user identified as `antonette` sent a high volume of bytes
-on the date and time shown. This event is anomalous because the mean is two times
-higher than the expected behavior of the population.
+In this example, the client IP address `29.64.62.83` received a high volume of
+bytes on the date and time shown. This event is anomalous because the mean is
+three times higher than the expected behavior of the population.

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -132,7 +134,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 }
                 // run upgrade API
                 Response upgradeResponse = client().performRequest(
-                        new Request("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex));
+                        new Request("POST", "_migration/upgrade/" + concreteSecurityIndex));
                 logger.info("upgrade response:\n{}", toStr(upgradeResponse));
             }
 
@@ -176,7 +178,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
             logger.info("checking if the upgrade procedure on the new cluster is required");
-            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/migration/assistance")));
+            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_migration/assistance")));
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
@@ -189,7 +191,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("starting upgrade procedure on the new cluster");
 
-                Request migrationAssistantRequest = new Request("POST", "_xpack/migration/upgrade/.watches");
+                Request migrationAssistantRequest = new Request("POST", "_migration/upgrade/.watches");
                 migrationAssistantRequest.addParameter("error_trace", "true");
                 Map<String, Object> upgradeResponse = entityAsMap(client().performRequest(migrationAssistantRequest));
                 assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
@@ -198,7 +200,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("checking that upgrade procedure on the new cluster is no longer required");
                 Map<String, Object> responseAfter = entityAsMap(client().performRequest(
-                        new Request("GET", "/_xpack/migration/assistance")));
+                        new Request("GET", "/_migration/assistance")));
                 @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
                 assertNull(indicesAfter.get(".watches"));
             } else {
@@ -350,6 +352,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -389,6 +394,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -428,7 +436,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(doc2);
             return;
         }
-        Request sqlRequest = new Request("POST", "/_xpack/sql");
+        final Request sqlRequest;
+        if (isRunningAgainstOldCluster()) {
+            sqlRequest = new Request("POST", "/_xpack/sql");
+        } else {
+            sqlRequest = new Request("POST", "/_sql");
+        }
         sqlRequest.setJsonEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sqlRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
@@ -491,8 +504,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(basic, hasEntry("username", "Aladdin"));
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
-
-        Map<String, Object> history = entityAsMap(client().performRequest(new Request("GET", ".watcher-history*/_search")));
+        Request searchRequest = new Request("GET", ".watcher-history*/_search");
+        if (isRunningAgainstOldCluster() == false) {
+            searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        }
+        Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");
         assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));
     }

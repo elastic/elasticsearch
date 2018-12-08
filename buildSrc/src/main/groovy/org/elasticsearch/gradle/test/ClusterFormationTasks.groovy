@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import java.util.stream.Collectors
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -92,7 +93,8 @@ class ClusterFormationTasks {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
-        if (config.numBwcNodes > 0) {
+        boolean hasBwcNodes = config.numBwcNodes > 0
+        if (hasBwcNodes) {
             if (config.bwcVersion == null) {
                 throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
             }
@@ -111,8 +113,8 @@ class ClusterFormationTasks {
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuration
-            final Configuration distro
-            final String elasticsearchVersion
+            Configuration distro
+            String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
                 if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
@@ -134,6 +136,16 @@ class ClusterFormationTasks {
                         esConfig['discovery.zen.hosts_provider'] = 'file'
                     }
                     esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    if (hasBwcNodes == false && esConfig['discovery.type'] == null) {
+                        esConfig['discovery.type'] = 'zen2'
+                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                            if (n.config.settings['node.name'] == null) {
+                                return "node-" + n.nodeNum
+                            } else {
+                                return n.config.settings['node.name']
+                            }
+                        }).collect(Collectors.toList())
+                    }
                     esConfig
                 }
                 dependsOn = startDependencies
@@ -595,7 +607,7 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
-        final FileCollection pluginZip;
+        FileCollection pluginZip;
         if (node.nodeVersion != Version.fromString(VersionProperties.elasticsearch)) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {

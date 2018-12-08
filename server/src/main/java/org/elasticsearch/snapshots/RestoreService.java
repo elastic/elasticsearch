@@ -639,7 +639,7 @@ public class RestoreService implements ClusterStateApplier {
                         entries.add(entry);
                     }
                 }
-                return new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[0]));
+                return new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[entries.size()]));
             } else {
                 return oldRestore;
             }

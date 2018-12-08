@@ -419,7 +419,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         // If so then handle it differently: not follow it, but just add an entry to
                         // AutoFollowMetadata#followedLeaderIndexUUIDs
                         final Settings leaderIndexSettings = leaderIndexMetaData.getSettings();
-                        // soft-deletes is enabled by default on indices created on 7.0.0 or later.
+                        // soft deletes are enabled by default on indices created on 7.0.0 or later
                         if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
                             IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0))) {
                             leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());

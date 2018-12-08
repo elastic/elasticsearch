@@ -212,7 +212,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
                     "] as history uuid");
             }
         }
-        // soft-deletes is enabled by default on indices created on 7.0.0 or later.
+        // soft deletes are enabled by default on indices created on 7.0.0 or later
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
             IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndex.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
@@ -445,7 +445,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
-        // soft-deletes setting is checked manually
+        // soft deletes setting is checked manually
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_UUID);

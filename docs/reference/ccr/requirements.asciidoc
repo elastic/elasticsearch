@@ -16,7 +16,7 @@ shards and made available to the follower shard tasks as it replays the history
 of operations.
 
 Soft deletes must be enabled for indices that you want to use as leader
-indices. Soft deletes is enabled by default on new indices created on
+indices. Soft deletes are enabled by default on new indices created on
 or after {es} 7.0.0.
 
 IMPORTANT: This means that {ccr} can not be used on existing indices. If you have

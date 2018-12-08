@@ -218,7 +218,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         Request req = WatcherRequestConverters.executeWatch(request);
-        assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/my_id/_execute"));
+        assertThat(req.getEndpoint(), equalTo("/_watcher/watch/my_id/_execute"));
         assertThat(req.getMethod(), equalTo(HttpPost.METHOD_NAME));
 
         if (ignoreCondition) {
@@ -293,7 +293,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         Request req = WatcherRequestConverters.executeWatch(request);
-        assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/_execute"));
+        assertThat(req.getEndpoint(), equalTo("/_watcher/watch/_execute"));
         assertThat(req.getMethod(), equalTo(HttpPost.METHOD_NAME));
 
         if (ignoreCondition) {

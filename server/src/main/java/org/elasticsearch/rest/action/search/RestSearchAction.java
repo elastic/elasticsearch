@@ -103,7 +103,7 @@ public class RestSearchAction extends BaseRestHandler {
      *
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
-     * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
+     * @param setSize how the size parameter is handled. {@code udpate_by_query} and regular search differ here.
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
                                           XContentParser requestContentParser,
@@ -114,7 +114,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            searchRequest.source().parseXContent(requestContentParser, true);
+            searchRequest.source().parseXContent(requestContentParser, true, setSize);
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());

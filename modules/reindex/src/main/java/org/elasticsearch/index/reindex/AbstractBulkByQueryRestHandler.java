@@ -55,9 +55,9 @@ public abstract class AbstractBulkByQueryRestHandler<
             RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
         }
 
-        if (restRequest.hasParam("size") == false && searchRequest.source().size() >= 0) {
-            internal.setSize(searchRequest.source().size());
-        }
+//        if (restRequest.hasParam("size") == false && searchRequest.source().size() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+//            internal.setSize(searchRequest.source().size());
+//        }
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE));
 
         String conflicts = restRequest.param("conflicts");

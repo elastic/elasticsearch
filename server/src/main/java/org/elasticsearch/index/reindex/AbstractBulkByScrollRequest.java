@@ -130,6 +130,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (setDefaults) {
             searchRequest.scroll(DEFAULT_SCROLL_TIMEOUT);
             searchRequest.source(new SearchSourceBuilder());
+            searchRequest.source().size(DEFAULT_SCROLL_SIZE);
         }
     }
 

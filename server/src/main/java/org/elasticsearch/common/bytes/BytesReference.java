@@ -212,7 +212,7 @@ public abstract class BytesReference implements Comparable<BytesReference>, ToXC
 
     @Override
     public int compareTo(final BytesReference other) {
-        return compareIterators(this, other, (a, b) -> a.compareTo(b));
+        return compareIterators(this, other, BytesRef::compareTo);
     }
 
     /**

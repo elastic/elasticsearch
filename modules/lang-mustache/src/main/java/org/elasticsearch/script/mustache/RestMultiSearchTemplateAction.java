@@ -42,7 +42,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestMultiSearchAction.class));
-
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -51,6 +50,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
+
 
     private final boolean allowExplicitIndex;
 
@@ -89,7 +89,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
                     if (searchRequest.types().length > 0) {
-                        deprecationLogger.deprecated(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.deprecatedAndMaybeLog("msearch_template_with_types",
+                            RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
                     }
                     SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                     if (searchTemplateRequest.getScript() != null) {

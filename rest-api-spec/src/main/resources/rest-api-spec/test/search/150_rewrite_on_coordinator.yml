@@ -37,6 +37,7 @@
   - do:
       catch: /no such index/
       search:
+        rest_total_hits_as_int: true
         index: "search_index"
         body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "doc", "id": "1", "path": "followers"} } } }
   - do:
@@ -61,6 +62,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: "search_index"
         body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "doc", "id": "1", "path": "followers"} } } }
 

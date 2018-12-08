@@ -55,8 +55,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
-    public static final String TYPED_KEYS_PARAM = "typed_keys";
+    /**
+     * Indicates whether hits.total should be rendered as an integer or an object
+     * in the rest search response.
+     */
     public static final String TOTAL_HIT_AS_INT_PARAM = "rest_total_hits_as_int";
+    public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -160,7 +164,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
             searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         searchRequest.routing(request.param("routing"));

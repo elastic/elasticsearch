@@ -51,7 +51,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
 
     private DateTime date(String date) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date);
     }
 
     @Before

@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -50,6 +51,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -87,7 +89,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private DateTime date(String date) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date);
     }
 
     private static String format(DateTime date, String pattern) {
@@ -198,7 +200,8 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private static String getBucketKeyAsString(DateTime key, DateTimeZone tz) {
-        return Joda.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()).printer().withZone(tz).print(key);
+        ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(tz);
+        return Joda.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()).withZone(zoneId).formatJoda(key);
     }
 
     public void testSingleValuedField() throws Exception {

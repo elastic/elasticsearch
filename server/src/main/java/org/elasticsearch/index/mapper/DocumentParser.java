@@ -739,7 +739,7 @@ final class DocumentParser {
                 // `epoch_millis` or `YYYY`
                 for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
-                        dateTimeFormatter.parser().parseMillis(text);
+                        dateTimeFormatter.parseMillis(text);
                     } catch (IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;

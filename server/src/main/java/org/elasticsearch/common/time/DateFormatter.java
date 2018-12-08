@@ -20,8 +20,11 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.joda.time.DateTime;
 
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
@@ -38,6 +41,21 @@ public interface DateFormatter {
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);
+
+    /**
+     * Parse the given input into millis-since-epoch.
+     */
+    default long parseMillis(String input) {
+        return Instant.from(parse(input)).toEpochMilli();
+    }
+
+    /**
+     * Parse the given input into a Joda {@link DateTime}.
+     */
+    default DateTime parseJoda(String input) {
+        ZonedDateTime dateTime = ZonedDateTime.from(parse(input));
+        return new DateTime(dateTime.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dateTime.getZone()));
+    }
 
     /**
      * Create a copy of this formatter that is configured to parse dates in the specified time zone
@@ -64,6 +82,21 @@ public interface DateFormatter {
     String format(TemporalAccessor accessor);
 
     /**
+     * Return the given millis-since-epoch formatted with this format.
+     */
+    default String formatMillis(long millis) {
+        return format(Instant.ofEpochMilli(millis));
+    }
+
+    /**
+     * Return the given Joda {@link DateTime} formatted with this format.
+     */
+    default String formatJoda(DateTime dateTime) {
+        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateTime.getMillis()),
+            DateUtils.dateTimeZoneToZoneId(dateTime.getZone())));
+    }
+
+    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *
@@ -76,14 +109,14 @@ public interface DateFormatter {
      *
      * @return The locale of this formatter
      */
-    Locale getLocale();
+    Locale locale();
 
     /**
      * Returns the configured time zone of the date formatter
      *
      * @return The time zone of this formatter
      */
-    ZoneId getZone();
+    ZoneId zone();
 
     /**
      * Return a {@link DateMathParser} built from this formatter.
@@ -152,13 +185,13 @@ public interface DateFormatter {
         }
 
         @Override
-        public Locale getLocale() {
-            return formatters[0].getLocale();
+        public Locale locale() {
+            return formatters[0].locale();
         }
 
         @Override
-        public ZoneId getZone() {
-            return formatters[0].getZone();
+        public ZoneId zone() {
+            return formatters[0].zone();
         }
 
         @Override

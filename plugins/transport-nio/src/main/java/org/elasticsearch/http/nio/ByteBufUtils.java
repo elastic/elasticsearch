@@ -241,7 +241,9 @@ class ByteBufUtils {
             try {
                 return buffer.readByte();
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
             }
         }
 

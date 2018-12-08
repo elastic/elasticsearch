@@ -87,8 +87,15 @@ final class TransportHandshaker {
         }
     }
 
-    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput input) throws IOException {
-        HandshakeResponse response = new HandshakeResponse(new HandshakeRequest(input).version, this.version);
+    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput stream) throws IOException {
+        // Must read the handshake request to exhaust the stream
+        HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
+        final int nextByte = stream.read();
+        if (nextByte != -1) {
+            throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
+                + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
+        }
+        HandshakeResponse response = new HandshakeResponse(this.version);
         handshakeResponseSender.sendResponse(version, features, channel, response, requestId);
     }
 
@@ -156,10 +163,6 @@ final class TransportHandshaker {
 
     static final class HandshakeRequest extends TransportRequest {
 
-        // Allow a maximum of 2KB for future handshake request versions. This 2KB limit excludes any bytes
-        // serialized by the abstract TransportRequest.
-        private static final int MAX_HANDSHAKE_REQUEST_BYTES = 1 << 11;
-
         private final Version version;
 
         HandshakeRequest(Version version) {
@@ -177,11 +180,6 @@ final class TransportHandshaker {
             if (remainingMessageBytes == -1) {
                 version = null;
             } else {
-                int totalMessageBytes = remainingMessageBytes + 4;
-                if (totalMessageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
-                    throw new IOException("Handshake request limited to " + MAX_HANDSHAKE_REQUEST_BYTES + " bytes. Found "
-                        + totalMessageBytes + " bytes.");
-                }
                 byte[] messageByteArray = new byte[remainingMessageBytes];
                 streamInput.readFully(messageByteArray);
                 try (StreamInput messageStreamInput = new BytesArray(messageByteArray).streamInput()) {
@@ -211,9 +209,8 @@ final class TransportHandshaker {
     static final class HandshakeResponse extends TransportResponse {
 
         private final Version responseVersion;
-        private Version requestVersion;
 
-        HandshakeResponse(Version requestVersion, Version responseVersion) {
+        HandshakeResponse(Version responseVersion) {
             this.responseVersion = responseVersion;
         }
 

@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedLeaderIndices;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -118,8 +119,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
             }
+
+            @Override
+            void cleanFollowedLeaderIndices(ClusterState remoteClusterState, List<String> patterns) {
+                // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
+            }
         };
-        autoFollower.autoFollowIndices();
+        autoFollower.start();
         assertThat(invoked[0], is(true));
     }
 
@@ -170,7 +176,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 fail("should not get here");
             }
         };
-        autoFollower.autoFollowIndices();
+        autoFollower.start();
         assertThat(invoked[0], is(true));
     }
 
@@ -227,7 +233,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 handler.accept(failure);
             }
         };
-        autoFollower.autoFollowIndices();
+        autoFollower.start();
         assertThat(invoked[0], is(true));
     }
 
@@ -284,8 +290,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                           Consumer<Exception> handler) {
                 fail("should not get here");
             }
+
+            @Override
+            void cleanFollowedLeaderIndices(ClusterState remoteClusterState, List<String> patterns) {
+                // Ignore, to avoid invoking updateAutoFollowMetadata(...)
+            }
         };
-        autoFollower.autoFollowIndices();
+        autoFollower.start();
         assertThat(invoked[0], is(true));
     }
 
@@ -418,6 +429,87 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
 
+        ClusterState result = function.apply(clusterState);
+        assertThat(result, sameInstance(clusterState));
+    }
+
+    public void testCleanFollowedLeaderIndices() {
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(),
+            Collections.singletonMap("pattern1", Arrays.asList("index1", "index2", "index3")), Collections.emptyMap());
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("name"))
+            .metaData(new MetaData.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+
+        MetaData remoteMetadata = new MetaData.Builder()
+            .put(IndexMetaData.builder("index1")
+                .settings(settings(Version.CURRENT)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, "index1"))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .put(IndexMetaData.builder("index3")
+                .settings(settings(Version.CURRENT)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, "index3"))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .build();
+
+        Function<ClusterState, ClusterState> function = cleanFollowedLeaderIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        AutoFollowMetadata result = function.apply(clusterState).metaData().custom(AutoFollowMetadata.TYPE);
+        assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(2));
+        assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
+        assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(1), equalTo("index3"));
+    }
+
+    public void testCleanFollowedLeaderIndicesNoChanges() {
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(),
+            Collections.singletonMap("pattern1", Arrays.asList("index1", "index2", "index3")), Collections.emptyMap());
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("name"))
+            .metaData(new MetaData.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+
+        MetaData remoteMetadata = new MetaData.Builder()
+            .put(IndexMetaData.builder("index1")
+                .settings(settings(Version.CURRENT)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, "index1"))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .put(IndexMetaData.builder("index2")
+                .settings(settings(Version.CURRENT)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, "index2"))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .put(IndexMetaData.builder("index3")
+                .settings(settings(Version.CURRENT)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, "index3"))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .build();
+
+        Function<ClusterState, ClusterState> function = cleanFollowedLeaderIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        ClusterState result = function.apply(clusterState);
+        assertThat(result, sameInstance(clusterState));
+    }
+
+    public void testCleanFollowedLeaderIndicesNoEntry() {
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(),
+            Collections.singletonMap("pattern2", Arrays.asList("index1", "index2", "index3")), Collections.emptyMap());
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("name"))
+            .metaData(new MetaData.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+
+        MetaData remoteMetadata = new MetaData.Builder()
+            .put(IndexMetaData.builder("index1")
+                .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .build();
+
+        Function<ClusterState, ClusterState> function = cleanFollowedLeaderIndices(remoteMetadata, Collections.singletonList("pattern1"));
         ClusterState result = function.apply(clusterState);
         assertThat(result, sameInstance(clusterState));
     }

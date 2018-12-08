@@ -93,6 +93,11 @@ setting is `true`, the default parent breaker limit also changes from 70% to 95%
 The previous behavior can be restored by setting `indices.breaker.total.use_real_memory` to `false`.
 
 [float]
+==== Field data circuit breaker changes
+Lower the default field data circuit breaker limit from 60% to 40% as `doc_values` was introduced for
+most of the cases.
+
+[float]
 ==== `fix` value for `index.shard.check_on_startup` is removed
 
 Deprecated option value `fix` for setting `index.shard.check_on_startup` is not supported.

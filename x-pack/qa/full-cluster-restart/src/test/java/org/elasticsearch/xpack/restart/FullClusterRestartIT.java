@@ -154,17 +154,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
-            Request createBwcWatch = new Request("PUT", "_watcher/watch/bwc_watch");
+            Request createBwcWatch = new Request("PUT", "/_xpack/watcher/watch/bwc_watch");
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
 
             logger.info("Adding a watch with \"fun\" throttle periods on old cluster");
-            Request createBwcThrottlePeriod = new Request("PUT", "_watcher/watch/bwc_throttle_period");
+            Request createBwcThrottlePeriod = new Request("PUT", "_xpack/watcher/watch/bwc_throttle_period");
             createBwcThrottlePeriod.setJsonEntity(loadWatch("throttle-period-watch.json"));
             client().performRequest(createBwcThrottlePeriod);
 
             logger.info("Adding a watch with \"fun\" read timeout on old cluster");
-            Request createFunnyTimeout = new Request("PUT", "_watcher/watch/bwc_funny_timeout");
+            Request createFunnyTimeout = new Request("PUT", "_xpack/watcher/watch/bwc_funny_timeout");
             createFunnyTimeout.setJsonEntity(loadWatch("funny-timeout-watch.json"));
             client().performRequest(createFunnyTimeout);
 

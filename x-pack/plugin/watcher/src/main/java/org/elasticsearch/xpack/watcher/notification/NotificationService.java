@@ -121,7 +121,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     }
 
     private Set<String> getAccountNames(Settings settings) {
-        // secure settings are not responsible for the client names
+        // secure settings are not responsible for the client names, but maybe they should?
         final Settings noSecureSettings = Settings.builder().put(settings, false).build();
         return noSecureSettings.getByPrefix(getNotificationsAccountPrefix()).names();
     }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,9 +56,12 @@ import java.util.TimeZone;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
 
@@ -577,6 +579,34 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
     }
 
+    public void testGetAggDeprecations() {
+        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1h");
+        String deprecationWarning = "Warning";
+        List<String> deprecations = datafeed.getAggDeprecations((map, id, deprecationlist) -> {
+            deprecationlist.add(deprecationWarning);
+            return new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field").field("field"));
+        });
+        assertThat(deprecations, hasItem(deprecationWarning));
+
+        DatafeedConfig spiedConfig = spy(datafeed);
+        spiedConfig.getAggDeprecations();
+        verify(spiedConfig).getAggDeprecations(DatafeedConfig.lazyAggParser);
+    }
+
+    public void testGetQueryDeprecations() {
+        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1h");
+        String deprecationWarning = "Warning";
+        List<String> deprecations = datafeed.getQueryDeprecations((map, id, deprecationlist) -> {
+            deprecationlist.add(deprecationWarning);
+            return new BoolQueryBuilder();
+        });
+        assertThat(deprecations, hasItem(deprecationWarning));
+
+        DatafeedConfig spiedConfig = spy(datafeed);
+        spiedConfig.getQueryDeprecations();
+        verify(spiedConfig).getQueryDeprecations(DatafeedConfig.lazyQueryParser);
+    }
+
     public void testSerializationOfComplexAggs() throws IOException {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
         AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
@@ -666,6 +696,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                     streamedDatafeedConfig.getParsedAggregations());
                 assertEquals(terms, streamedDatafeedConfig.getParsedQuery());
             }
+        }
+    }
+
+    public void testCopyingDatafeedDoesNotCauseStackOverflow() {
+        DatafeedConfig datafeed = createTestInstance();
+        for (int i = 0; i < 100000; i++) {
+            datafeed = new DatafeedConfig.Builder(datafeed).build();
         }
     }
 

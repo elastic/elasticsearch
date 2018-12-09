@@ -24,6 +24,8 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "datafeeds/{"
                 + DatafeedConfig.ID.getPreferredName() + "}/_update", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "datafeeds/{"
+                + DatafeedConfig.ID.getPreferredName() + "}/_update", this);
     }
 
     @Override

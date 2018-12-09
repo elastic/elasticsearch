@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
+
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public interface DateFormatter {
@@ -86,13 +86,9 @@ public interface DateFormatter {
     ZoneId getZone();
 
     /**
-     * Configure a formatter using default fields for a TemporalAccessor that should be used in case
-     * the supplied date is not having all of those fields
-     *
-     * @param fields A <code>Map&lt;TemporalField, Long&gt;</code> of fields to be used as fallbacks
-     * @return       A new date formatter instance, that will use those fields during parsing
+     * Return a {@link DateMathParser} built from this formatter.
      */
-    DateFormatter parseDefaulting(Map<TemporalField, Long> fields);
+    DateMathParser toDateMathParser();
 
     /**
      * Merge several date formatters into a single one. Useful if you need to have several formatters with
@@ -102,7 +98,7 @@ public interface DateFormatter {
      * @param formatters The list of date formatters to be merged together
      * @return           The new date formtter containing the specified date formatters
      */
-    static DateFormatter merge(DateFormatter ... formatters) {
+    static DateFormatter merge(DateFormatter... formatters) {
         return new MergedDateFormatter(formatters);
     }
 
@@ -110,10 +106,12 @@ public interface DateFormatter {
 
         private final String format;
         private final DateFormatter[] formatters;
+        private final DateMathParser[] dateMathParsers;
 
-        MergedDateFormatter(DateFormatter ... formatters) {
+        MergedDateFormatter(DateFormatter... formatters) {
             this.formatters = formatters;
             this.format = Arrays.stream(formatters).map(DateFormatter::pattern).collect(Collectors.joining("||"));
+            this.dateMathParsers = Arrays.stream(formatters).map(DateFormatter::toDateMathParser).toArray(DateMathParser[]::new);
         }
 
         @Override
@@ -164,8 +162,22 @@ public interface DateFormatter {
         }
 
         @Override
-        public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.parseDefaulting(fields)).toArray(DateFormatter[]::new));
+        public DateMathParser toDateMathParser() {
+            return (text, now, roundUp, tz) -> {
+                ElasticsearchParseException failure = null;
+                for (DateMathParser parser : dateMathParsers) {
+                    try {
+                        return parser.parse(text, now, roundUp, tz);
+                    } catch (ElasticsearchParseException e) {
+                        if (failure == null) {
+                            failure = e;
+                        } else {
+                            failure.addSuppressed(e);
+                        }
+                    }
+                }
+                throw failure;
+            };
         }
     }
 }

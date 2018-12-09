@@ -58,10 +58,10 @@ public class ByteBufferReference extends BytesReference {
         FutureObjects.checkFromIndexSize(from, length, this.length);
         buffer.position(from);
         buffer.limit(from + length);
-        ByteBuffer newByteBuffer = buffer.duplicate();
+        ByteBufferReference newByteBuffer = new ByteBufferReference(buffer);
         buffer.position(0);
-        buffer.limit(length);
-        return new ByteBufferReference(newByteBuffer);
+        buffer.limit(this.length);
+        return newByteBuffer;
     }
 
     /**

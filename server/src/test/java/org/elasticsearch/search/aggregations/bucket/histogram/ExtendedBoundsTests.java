@@ -89,7 +89,7 @@ public class ExtendedBoundsTests extends ESTestCase {
      */
     public static ExtendedBounds unparsed(ExtendedBounds template) {
         // It'd probably be better to randomize the formatter
-        DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        DateTimeFormatter formatter = ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
         String minAsStr = template.getMin() == null ? null : formatter.print(new Instant(template.getMin()));
         String maxAsStr = template.getMax() == null ? null : formatter.print(new Instant(template.getMax()));
         return new ExtendedBounds(minAsStr, maxAsStr);

@@ -1,0 +1,97 @@
+[float]
+[[master-election]]
+==== Master Election
+
+Elasticsearch uses an election process to agree on an elected master node, both
+at startup and if the existing elected master fails. Any master-eligible node
+can start an election, and normally the first election that takes place will
+succeed. Elections only usually fail when two nodes both happen to start their
+elections at about the same time, so elections are scheduled randomly on each
+node to avoid this happening. Nodes will retry elections until a master is
+elected, backing off on failure, so that eventually an election will succeed
+(with arbitrarily high probability). The following settings control the
+scheduling of elections.
+
+`cluster.election.initial_timeout`::
+
+    Sets the upper bound on how long a node will wait initially, or after a
+    leader failure, before attempting its first election. This defaults to
+    `100ms`.
+
+`cluster.election.back_off_time`::
+
+    Sets the amount to increase the upper bound on the wait before an election
+    on each election failure. Note that this is _linear_ backoff. This defaults
+    to `100ms`
+
+`cluster.election.max_timeout`::
+
+    Sets the maximum upper bound on how long a node will wait before attempting
+    an first election, so that an network partition that lasts for a long time
+    does not result in excessively sparse elections. This defaults to `10s`
+
+`cluster.election.duration`::
+
+    Sets how long each election is allowed to take before a node considers it
+    to have failed and schedules a retry. This defaults to `500ms`.
+
+
+[float]
+[[node-joining]]
+==== Joining an elected master
+
+During master election, or when joining an existing formed cluster, a node will send
+a join request to the master in order to be officially added to the cluster. This join
+process can be configured with the following settings.
+
+`cluster.join.timeout`::
+
+    Sets how long a node will wait after sending a request to join a cluster
+    before it considers the request to have failed and retries. Defaults to
+    `60s`.
+
+[float]
+[[fault-detection]]
+==== Fault Detection
+
+An elected master periodically checks each of its followers in order to ensure
+that they are still connected and healthy, and in turn each follower
+periodically checks the health of the elected master. Elasticsearch allows for
+these checks occasionally to fail or timeout without taking any action, and
+will only consider a node to be truly faulty after a number of consecutive
+checks have failed. The following settings control the behaviour of fault
+detection.
+
+`cluster.fault_detection.follower_check.interval`::
+
+    Sets how long the elected master waits between checks of its followers.
+    Defaults to `1s`.
+
+`cluster.fault_detection.follower_check.timeout`::
+
+    Sets how long the elected master waits for a response to a follower check
+    before considering it to have failed. Defaults to `30s`.
+
+`cluster.fault_detection.follower_check.retry_count`::
+
+    Sets how many consecutive follower check failures must occur before the
+    elected master considers a follower node to be faulty and removes it from
+    the cluster. Defaults to `3`.
+
+`cluster.fault_detection.leader_check.interval`::
+
+    Sets how long each follower node waits between checks of its leader.
+    Defaults to `1s`.
+
+`cluster.fault_detection.leader_check.timeout`::
+
+    Sets how long each follower node waits for a response to a leader check
+    before considering it to have failed. Defaults to `30s`.
+
+`cluster.fault_detection.leader_check.retry_count`::
+
+    Sets how many consecutive leader check failures must occur before a
+    follower node considers the elected master to be faulty and attempts to
+    find or elect a new master. Defaults to `3`.
+
+TODO add lag detection

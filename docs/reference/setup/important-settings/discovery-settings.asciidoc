@@ -31,28 +31,14 @@ discovery.zen.ping.unicast.hosts:
     addresses.
 
 [float]
-[[minimum_master_nodes]]
-==== `discovery.zen.minimum_master_nodes`
+[[initial_master_nodes]]
+==== `cluster.initial_master_nodes`
 
-To prevent data loss, it is vital to configure the
-`discovery.zen.minimum_master_nodes` setting so that each master-eligible node
-knows the _minimum number of master-eligible nodes_ that must be visible in
-order to form a cluster.
-
-Without this setting, a cluster that suffers a network failure is at risk of
-having the cluster split into two independent clusters -- a split brain -- which
-will lead to data loss. A more detailed explanation is provided in
-<<split-brain>>.
-
-To avoid a split brain, this setting should be set to a _quorum_ of
-master-eligible nodes:
-
-    (master_eligible_nodes / 2) + 1
-
-In other words, if there are three master-eligible nodes, then minimum master
-nodes should be set to `(3 / 2) + 1` or `2`:
-
-[source,yaml]
---------------------------------------------------
-discovery.zen.minimum_master_nodes: 2
---------------------------------------------------
+Starting an Elasticsearch cluster for the very first time requires a
+<<modules-discovery-bootstrap-cluster,cluster bootstrapping>> step.
+In <<dev-vs-prod-mode,development mode>>,
+with no discovery settings configured, this step is automatically
+performed by the nodes themselves. As this auto-bootstrapping is
+<<modules-discovery-quorums,inherently unsafe>>, running a node in
+<<dev-vs-prod-mode,production mode>> requires an explicit cluster
+bootstrapping step.

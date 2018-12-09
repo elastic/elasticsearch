@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 integTestCluster {
   setting 'node.name', null
-  // TODO: Run this using zen2
+  // TODO: Run this using zen2, with no discovery configuration at all, demonstrating that the node forms a cluster on its own without help
   setting 'discovery.type', 'zen'
 }
 

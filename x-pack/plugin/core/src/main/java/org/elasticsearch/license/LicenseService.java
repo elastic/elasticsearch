@@ -140,7 +140,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         String general = LoggerMessageFormat.format(null, "License [{}] on [{}].\n" +
                 "# If you have a new license, please update it. Otherwise, please reach out to\n" +
                 "# your support contact.\n" +
-                "# ", expiredMsg, DATE_FORMATTER.printer().print(expirationMillis));
+                "# ", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }

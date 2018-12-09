@@ -28,18 +28,19 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
-import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.InvalidateTokenRequest;
-import org.elasticsearch.client.security.GetRolesRequest;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
-import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
 import org.elasticsearch.common.Strings;
@@ -212,6 +213,14 @@ final class SecurityRequestConverters {
             .addCommaSeparatedPathParts(getPrivilegesRequest.getPrivilegeNames())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request putPrivileges(final PutPrivilegesRequest putPrivilegesRequest) throws IOException {
+        Request request = new Request(HttpPut.METHOD_NAME, "/_xpack/security/privilege");
+        request.setEntity(createEntity(putPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(putPrivilegesRequest.getRefreshPolicy());
+        return request;
     }
 
     static Request deletePrivileges(DeletePrivilegesRequest deletePrivilegeRequest) {

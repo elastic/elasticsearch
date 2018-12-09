@@ -23,7 +23,6 @@ import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.hamcrest.MatcherAssert;
-import org.joda.time.format.DateTimeFormatter;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -51,10 +50,9 @@ public class TestUtils {
 
     private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
-    private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static String dateMathString(String time, final long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, () -> now));
+        return formatDateTimeFormatter.formatMillis(dateMathParser.parse(time, () -> now));
     }
 
     public static long dateMath(String time, final long now) {

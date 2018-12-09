@@ -318,7 +318,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .order(order)
                         .size(cardinality + randomInt(10))
                         .minDocCount(0))
-                .execute().actionGet();
+                .get();
         assertAllSuccessful(allTermsResponse);
 
         final Terms allTerms = allTermsResponse.getAggregations().get("terms");
@@ -381,7 +381,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0))
-                .execute().actionGet();
+                .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
 
@@ -390,7 +390,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                     .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
-                    .execute().actionGet();
+                    .get();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }
     }

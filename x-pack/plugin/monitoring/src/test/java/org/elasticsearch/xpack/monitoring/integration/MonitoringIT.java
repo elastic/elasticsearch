@@ -373,6 +373,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("cluster_uuid"), notNullValue());
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
+        assertThat(clusterState.remove("term"), notNullValue());
+        assertThat(clusterState.remove("last_committed_config"), notNullValue());
+        assertThat(clusterState.remove("last_accepted_config"), notNullValue());
         assertThat(clusterState.keySet(), empty());
 
         final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
@@ -540,16 +543,16 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         if (ti.getLockName() != null) {
           b.append(" on ").append(ti.getLockName());
         }
-        
+
         if (ti.getLockOwnerName() != null) {
           b.append(" owned by \"").append(ti.getLockOwnerName())
            .append("\" ID=").append(ti.getLockOwnerId());
         }
-        
+
         b.append(ti.isSuspended() ? " (suspended)" : "");
         b.append(ti.isInNative() ? " (in native code)" : "");
         b.append("\n");
-        
+
         final StackTraceElement[] stack = ti.getStackTrace();
         final LockInfo lockInfo = ti.getLockInfo();
         final MonitorInfo [] monitorInfos = ti.getLockedMonitors();
@@ -561,7 +564,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
              .append(lockInfo)
              .append("\n");
           }
-          
+
           for (MonitorInfo mi : monitorInfos) {
             if (mi.getLockedStackDepth() == i) {
               b.append("\t- locked ").append(mi).append("\n");

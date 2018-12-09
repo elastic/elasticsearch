@@ -95,7 +95,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         super.setUp();
         clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
-        transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();

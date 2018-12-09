@@ -10,7 +10,7 @@ Validates job configuration information.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/_validate`
+`POST _ml/anomaly_detectors/_validate`
 
 ==== Description
 
@@ -37,7 +37,7 @@ The following example validates job configuration information:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/_validate
+POST _ml/anomaly_detectors/_validate
 {
     "description" : "Unusual response times by airlines",
     "analysis_config" : {

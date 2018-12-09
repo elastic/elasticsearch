@@ -154,7 +154,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
-            Request createBwcWatch = new Request("PUT", "_xpack/watcher/watch/bwc_watch");
+            Request createBwcWatch = new Request("PUT", "/_xpack/watcher/watch/bwc_watch");
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
 
@@ -208,10 +208,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
 
             // Wait for watcher to actually start....
-            Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_xpack/watcher/_start")));
+            Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
             assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
             assertBusy(() -> {
-                Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/stats")));
+                Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
                 @SuppressWarnings("unchecked")
                 List<Object> states = ((List<Object>) statsWatchResponse.get("stats"))
                         .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
@@ -226,11 +226,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
                  * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
                  */
-                Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_xpack/watcher/_stop")));
+                Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
                 assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
                 assertBusy(() -> {
                     Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
-                            new Request("GET", "_xpack/watcher/stats")));
+                            new Request("GET", "_watcher/stats")));
                     @SuppressWarnings("unchecked")
                     List<Object> states = ((List<Object>) statsStoppedWatchResponse.get("stats"))
                             .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
@@ -352,7 +352,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -392,7 +394,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                if (isRunningAgainstOldCluster() == false) {
+                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -458,7 +462,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     @SuppressWarnings("unchecked")
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
-        Map<String, Object> bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/bwc_watch")));
+        Map<String, Object> bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/bwc_watch")));
 
         logger.error("-----> {}", bwcWatch);
 
@@ -473,7 +477,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(ObjectPath.eval("actions.index_payload.index.timeout_in_millis", source), equalTo(timeout));
 
         // Fetch a watch with "fun" throttle periods
-        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/bwc_throttle_period")));
+        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/bwc_throttle_period")));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
         assertEquals(timeout, source.get("throttle_period_in_millis"));
@@ -483,7 +487,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
          * Fetch a watch with a funny timeout to verify loading fractional time
          * values.
          */
-        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/bwc_funny_timeout")));
+        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/bwc_funny_timeout")));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
 
@@ -501,7 +505,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
         Request searchRequest = new Request("GET", ".watcher-history*/_search");
-        searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        if (isRunningAgainstOldCluster() == false) {
+            searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        }
         Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");
         assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));
@@ -513,7 +519,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 .condition(InternalAlwaysCondition.INSTANCE)
                 .trigger(ScheduleTrigger.builder(new IntervalSchedule(IntervalSchedule.Interval.seconds(1))))
                 .addAction("awesome", LoggingAction.builder(new TextTemplate("test"))).buildAsBytes(XContentType.JSON).utf8ToString();
-        Request createWatchRequest = new Request("PUT", "_xpack/watcher/watch/new_watch");
+        Request createWatchRequest = new Request("PUT", "_watcher/watch/new_watch");
         createWatchRequest.setJsonEntity(watch);
         Map<String, Object> createWatch = entityAsMap(client().performRequest(createWatchRequest));
 
@@ -526,7 +532,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(updateWatch.get("created"), equalTo(false));
         assertThat(updateWatch.get("_version"), equalTo(2));
 
-        Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/new_watch")));
+        Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));
         @SuppressWarnings("unchecked") Map<?, ?> source = (Map<String, Object>) get.get("watch");
         Map<String, Object>  logging = ObjectPath.eval("actions.awesome.logging", source);

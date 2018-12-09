@@ -485,6 +485,7 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
 * <<{upid}-ccr-get-stats>>
+* <<{upid}-ccr-get-follow-stats>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
@@ -494,6 +495,7 @@ include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
 include::ccr/get_stats.asciidoc[]
+include::ccr/get_follow_stats.asciidoc[]
 
 == Index Lifecycle Management APIs
 

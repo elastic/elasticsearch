@@ -3,7 +3,6 @@
 :request: IndexUpgradeRequest
 :response: BulkByScrollResponse
 :submit_response: IndexUpgradeSubmissionResponse
-:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
 --
 
 [[java-rest-high-migration-upgrade]]

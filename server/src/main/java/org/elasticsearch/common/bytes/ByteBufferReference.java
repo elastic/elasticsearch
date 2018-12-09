@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FutureObjects;
 
 import java.nio.ByteBuffer;
 
@@ -35,18 +36,16 @@ import java.nio.ByteBuffer;
 public class ByteBufferReference extends BytesReference {
 
     private final ByteBuffer buffer;
-    private final int offset;
     private final int length;
 
-    public ByteBufferReference(ByteBuffer buffer) {
-        this.buffer = buffer;
-        this.offset = buffer.position();
+    ByteBufferReference(ByteBuffer buffer) {
+        this.buffer = buffer.slice();
         this.length = buffer.remaining();
     }
 
     @Override
     public byte get(int index) {
-        return buffer.get(index + offset);
+        return buffer.get(index);
     }
 
     @Override
@@ -56,13 +55,12 @@ public class ByteBufferReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        if (from < 0 || (from + length) > this.length) {
-            throw new IndexOutOfBoundsException("can't slice a buffer with length [" + this.length + "], with slice parameters from ["
-                + from + "], length [" + length + "]");
-        }
+        FutureObjects.checkFromIndexSize(from, length, this.length);
+        buffer.position(from);
+        buffer.limit(from + length);
         ByteBuffer newByteBuffer = buffer.duplicate();
-        newByteBuffer.position(offset + from);
-        newByteBuffer.limit(offset + from + length);
+        buffer.position(0);
+        buffer.limit(length);
         return new ByteBufferReference(newByteBuffer);
     }
 
@@ -75,10 +73,10 @@ public class ByteBufferReference extends BytesReference {
     @Override
     public BytesRef toBytesRef() {
         if (buffer.hasArray()) {
-            return new BytesRef(buffer.array(), buffer.arrayOffset() + offset, length);
+            return new BytesRef(buffer.array(), buffer.arrayOffset(), length);
         }
         final byte[] copy = new byte[length];
-        buffer.get(copy, offset, length);
+        buffer.get(copy, 0, length);
         return new BytesRef(copy);
     }
 

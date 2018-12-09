@@ -261,7 +261,8 @@ public class SimpleJodaTests extends ESTestCase {
         }
 
         // test floats get truncated
-        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L), randomNonNegativeLong());
+        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L),
+            randomNonNegativeLong());
         assertThat(formatter.parseJoda(epochFloatValue).getMillis(), is(dateTime.getMillis()));
     }
 
@@ -285,7 +286,8 @@ public class SimpleJodaTests extends ESTestCase {
         }
 
         // test floats get truncated
-        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L), randomNonNegativeLong());
+        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L),
+            randomNonNegativeLong());
         assertThat(formatter.parseJoda(epochFloatValue).getMillis(), is(dateTime.getMillis()));
 
         // every negative epoch must be parsed, no matter if exact the size or bigger
@@ -763,7 +765,8 @@ public class SimpleJodaTests extends ESTestCase {
         try {
             DateFormatter formatter = Joda.forPattern(pattern);
             formatter.parseMillis(invalidDate);
-            fail(String.format(Locale.ROOT, "Expected parsing exception for pattern [%s] with date [%s], but did not happen", pattern, invalidDate));
+            fail(String.format(Locale.ROOT, "Expected parsing exception for pattern [%s] with date [%s], but did not happen",
+                pattern, invalidDate));
         } catch (IllegalArgumentException e) {
         }
     }

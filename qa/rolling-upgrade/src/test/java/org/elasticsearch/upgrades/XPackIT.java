@@ -83,10 +83,10 @@ public class XPackIT extends AbstractRollingTestCase {
         client().performRequest(startTrial);
 
         String noJobs = EntityUtils.toString(
-            client().performRequest(new Request("GET", "/_xpack/ml/anomaly_detectors")).getEntity());
+            client().performRequest(new Request("GET", "/_ml/anomaly_detectors")).getEntity());
         assertEquals("{\"count\":0,\"jobs\":[]}", noJobs);
 
-        Request createJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/test_job");
+        Request createJob = new Request("PUT", "/_ml/anomaly_detectors/test_job");
         createJob.setJsonEntity(
                   "{\n"
                 + "  \"analysis_config\" : {\n"

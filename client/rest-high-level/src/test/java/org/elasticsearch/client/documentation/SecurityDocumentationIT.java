@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
@@ -76,7 +75,6 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;

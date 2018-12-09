@@ -676,12 +676,12 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationSuccess(randomAlphaOfLength(12), realm, user, request);
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO,
-                    prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params
-                    + "]" + opaqueId + ", request_body=[" + expectedMessage + "]");
+                    prefix + "[rest] [authentication_success]\torigin_address=[" + NetworkAddress.format(address) + "], " + userInfo
+                            + ", realm=[_realm], uri=[_uri], params=[" + params + "]" + opaqueId + ", request_body=[" + expectedMessage
+                            + "]");
         } else {
-            assertMsg(logger, Level.INFO,
-                    prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params
-                    + "]" + opaqueId);
+            assertMsg(logger, Level.INFO, prefix + "[rest] [authentication_success]\torigin_address=[" + NetworkAddress.format(address) + "], "
+                    + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params + "]" + opaqueId);
         }
 
         // test disabled

@@ -37,6 +37,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -392,16 +393,17 @@ public class InternalComposite
         return obj;
     }
 
-    private static class ArrayMap extends AbstractMap<String, Object> {
+    static class ArrayMap extends AbstractMap<String, Object> implements Comparable<Map<String,Object>> {
         final List<String> keys;
-        final List<DocValueFormat> formats;
         final Object[] values;
 
         ArrayMap(List<String> keys, List<DocValueFormat> formats, Object[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
-            this.formats = formats;
-            this.values = values;
+            this.values = new Object[values.length];
+            for (int i = 0; i < values.length; i++) {
+                this.values[i] = formatObject(values[i], formats.get(i));
+            }
         }
 
         @Override
@@ -413,7 +415,7 @@ public class InternalComposite
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return formatObject(values[i], formats.get(i));
+                    return values[i];
                 }
             }
             return null;
@@ -434,7 +436,7 @@ public class InternalComposite
                         @Override
                         public Entry<String, Object> next() {
                             SimpleEntry<String, Object> entry =
-                                new SimpleEntry<>(keys.get(pos), formatObject(values[pos], formats.get(pos)));
+                                new SimpleEntry<>(keys.get(pos), values[pos]);
                             ++ pos;
                             return entry;
                         }
@@ -446,6 +448,64 @@ public class InternalComposite
                     return keys.size();
                 }
             };
+        }
+
+        private <T> int compareInternal(T a, T b, Comparator<T> comparator) {
+            if (a == null && b == null) {
+                return 0;
+            }
+            if (a == null) {
+                return -1;
+            }
+            if (b == null) {
+                return 1;
+            }
+            return comparator.compare(a,b);
+        }
+
+        /**
+         * @param a - first object to compare
+         * @param b - second object to compare
+         * @return compares two Objects of unknown type. ignoring them (=0) if they are not of
+         * the same class and their class does not impl Comparable
+         */
+        private static int objectCompare(Object a, Object b) {
+            if (a.getClass() != b.getClass()) {
+                throw new IllegalStateException("expecting values to be of the same type but got: " + a
+                    + "(" + a.getClass() +"), " + b + "(" + b.getClass() +")");
+            }
+            if (Comparable.class.isAssignableFrom(a.getClass())) {
+                Comparable<Object> ca = (Comparable<Object>) a;
+                return ca.compareTo(b);
+            }
+            throw new IllegalStateException("expecting values types to implement java.lang.Comparable but got: " + a.getClass());
+        }
+
+        @Override
+        public int compareTo(Map<String,Object> that) {
+            if (that == this) {
+                return 0;
+            }
+            Iterator<Entry<String, Object>> thisIterator = this.entrySet().iterator();
+            Iterator<Entry<String, Object>> thatIterator = that.entrySet().iterator();
+            while (thisIterator.hasNext() && thatIterator.hasNext()) {
+                Entry<String, Object> thisNext = thisIterator.next();
+                Entry<String, Object> thatNext = thatIterator.next();
+                int compare = compareInternal(thisNext.getKey(),thatNext.getKey(),String::compareTo);
+                if (compare == 0) {
+                    compare = compareInternal(thisNext.getValue(),thatNext.getValue(), ArrayMap::objectCompare);
+                }
+                if (compare != 0) {
+                    return compare;
+                }
+            }
+            if (thisIterator.hasNext()) {
+                return 1;
+            }
+            if (thatIterator.hasNext()) {
+                return -1;
+            }
+            return 0;
         }
     }
 }

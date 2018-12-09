@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.Joda;
@@ -38,13 +40,18 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class InternalCompositeTests extends InternalMultiBucketAggregationTestCase<InternalComposite> {
@@ -239,5 +246,168 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             assertThat(bucket.getRawKey(), equalTo(expectedBucket.getRawKey()));
             assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()*numSame));
         }
+    }
+
+    public void testCompareCompositeKeyBiggerFieldName() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field3", "field2"),
+            new Object[]{1, 2}
+        );
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeySmallerFieldName() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field3", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2"),
+            new Object[]{1, 2}
+        );
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyBiggerValue() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field3", "field2"),
+            new Object[]{2, 3}
+        );
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeySmallerValue() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field3", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2"),
+            new Object[]{2, 3}
+        );
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyNullValueIsSmaller1() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{null, 20}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2"),
+            new Object[]{1, 2}
+        );
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeyNullValueIsSmaller2() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2"),
+            new Object[]{null, 20}
+        );
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyMoreFieldsIsGreater() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+        Map key2 = createMap(Lists.newArrayList("field1", "field2", "field3"),new Object[]{1, 2, null});
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeyLessFieldsIsLesser() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2", "field3"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2, null}
+        );
+        Map key2 = createMap(Lists.newArrayList("field1", "field2"),new Object[]{1, 2});
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyEqual() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2", "field3"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{null, 1, 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2", "field3"),
+            new Object[]{null, 1, 2}
+        );
+        assertThat(key1.compareTo(key1), equalTo(0));
+        assertThat(key1.equals(key1), is(true));
+
+        assertThat(key1.compareTo(key2), equalTo(0));
+        assertThat(key1.equals(key2), is(true));
+        assertThat(key2.equals(key1), is(true));
+    }
+
+    public void testCompareCompositeKeyValuesHaveDifferentTypes() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{1, 2}
+        );
+
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2"),
+            new Object[]{"1", 2}
+        );
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> key1.compareTo(key2));
+        assertThat(exception.getMessage(),
+            equalTo("expecting values to be of the same type but got: 1(class java.lang.Integer), 1(class java.lang.String)"));
+    }
+
+    public void testCompareCompositeKeyValuesHaveNonComparableTypes() {
+        InternalComposite.ArrayMap key1 = new InternalComposite.ArrayMap(
+            Lists.newArrayList("field1", "field2"),
+            Lists.newArrayList(DocValueFormat.RAW, DocValueFormat.RAW),
+            new Object[]{Maps.newHashMap(), 2}
+        );
+        Map key2 = createMap(
+            Lists.newArrayList("field1", "field2"),
+            new Object[]{Maps.newHashMap(), 2}
+        );
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> key1.compareTo(key2));
+        assertThat(exception.getMessage(),
+            equalTo("expecting values types to implement java.lang.Comparable but got: class java.util.HashMap"));
+    }
+
+    private Map<String,Object> createMap(List<String> fields, Object[] values) {
+        if (randomBoolean()) {
+            List<DocValueFormat> formats = IntStream.range(0, fields.size())
+                .mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());
+            return new InternalComposite.ArrayMap(
+                fields,
+                formats,
+                values
+            );
+        }
+        LinkedHashMap<String,Object> map = Maps.newLinkedHashMap();
+        IntStream.range(0,fields.size()).forEach(i ->map.put(fields.get(i),values[i]));
+        return map;
     }
 }

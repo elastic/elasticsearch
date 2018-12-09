@@ -11,7 +11,7 @@ Deletes an existing anomaly detection job.
 
 ==== Request
 
-`DELETE _xpack/ml/anomaly_detectors/<job_id>`
+`DELETE _ml/anomaly_detectors/<job_id>`
 
 
 ==== Description
@@ -57,7 +57,7 @@ The following example deletes the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/anomaly_detectors/total-requests
+DELETE _ml/anomaly_detectors/total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_job]
@@ -75,7 +75,7 @@ In the next example we delete the `total-requests` job asynchronously:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/anomaly_detectors/total-requests?wait_for_completion=false
+DELETE _ml/anomaly_detectors/total-requests?wait_for_completion=false
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_job]

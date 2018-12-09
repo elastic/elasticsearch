@@ -65,7 +65,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             .index(request.param("index"));
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             template.type(request.param("type"));
         } else {
             template.type(MapperService.SINGLE_MAPPING_NAME);

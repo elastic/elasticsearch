@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
 
+import static org.apache.lucene.util.LuceneTestCase.expectThrows;
+
 public class CommonAnalysisPluginTests extends ESTestCase {
 
     /**
@@ -114,6 +116,48 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             Tokenizer tokenizer = new MockTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
             assertNotNull(tokenFilterFactory.create(tokenizer));
+        }
+    }
+
+    /**
+     * Check that the deprecated name "word_delimiter" issues a deprecation warning for indices created before 7.0.0
+     */
+    public void testWordDelimiterDeprecationWarning() throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_6_0))
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).tokenFilter;
+            TokenFilterFactory tokenFilterFactory = tokenFilters.get("word_delimiter");
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            assertNotNull(tokenFilterFactory.create(tokenizer));
+            assertWarnings("The [word_delimiter] token filter name is deprecated and will be removed in a future version. "
+                + "Please change the filter name to [word_delimiter_graph] instead.");
+        }
+    }
+
+    /**
+     * Check that the deprecated name "word_delimiter" issues a exception for indices created since 7.0.0
+     */
+    public void testWordDelimiterRemoval() throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT))
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).tokenFilter;
+            TokenFilterFactory tokenFilterFactory = tokenFilters.get("word_delimiter");
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, ()-> tokenFilterFactory.create(tokenizer));
+            assertEquals("The [word_delimiter] token filter has been removed. Please change the filter name to " +
+                    "[word_delimiter_graph] instead.", ex.getMessage());
         }
     }
 }

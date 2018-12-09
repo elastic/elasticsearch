@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -93,6 +94,14 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            throw new IllegalArgumentException(
+                "The [word_delimiter] token filter has been removed. Please change the filter name to [word_delimiter_graph] instead.");
+        } else {
+            deprecationLogger.deprecatedAndMaybeLog("word_delimiter_deprecation",
+                "The [word_delimiter] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [word_delimiter_graph] instead.");
+        }
     }
 
     @Override

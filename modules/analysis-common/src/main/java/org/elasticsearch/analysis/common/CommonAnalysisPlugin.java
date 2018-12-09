@@ -112,6 +112,7 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -472,13 +473,22 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("word_delimiter", false, input ->
-                new WordDelimiterFilter(input,
-                        WordDelimiterFilter.GENERATE_WORD_PARTS
-                      | WordDelimiterFilter.GENERATE_NUMBER_PARTS
-                      | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
-                      | WordDelimiterFilter.SPLIT_ON_NUMERICS
-                      | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("word_delimiter", false, (reader, version) -> {
+            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException(
+                    "The [word_delimiter] token filter has been removed. Please change the filter name to [word_delimiter_graph] instead.");
+            } else {
+                deprecationLogger.deprecatedAndMaybeLog("word_delimiter_deprecation",
+                    "The [word_delimiter] token filter name is deprecated and will be removed in a future version. "
+                        + "Please change the filter name to [word_delimiter_graph] instead.");
+            }
+            return new WordDelimiterFilter(reader,
+                WordDelimiterFilter.GENERATE_WORD_PARTS
+                    | WordDelimiterFilter.GENERATE_NUMBER_PARTS
+                    | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
+                    | WordDelimiterFilter.SPLIT_ON_NUMERICS
+                    | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
+        }));
         filters.add(PreConfiguredTokenFilter.singleton("word_delimiter_graph", false, input ->
                 new WordDelimiterGraphFilter(input,
                         WordDelimiterGraphFilter.GENERATE_WORD_PARTS

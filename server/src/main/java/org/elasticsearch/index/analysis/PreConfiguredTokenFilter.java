@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -34,9 +32,6 @@ import java.util.function.Function;
  * Provides pre-configured, shared {@link TokenFilter}s.
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
-
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(PreConfiguredTokenFilter.class));
 
     /**
      * Create a pre-configured token filter that may not vary at all.
@@ -81,9 +76,6 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.create = create;
-        if (name != null && name.equals("word_delimiter")) {
-            deprecationLogger.deprecatedAndMaybeLog("word_delimiter","[word_delimiter] has been deprecated in favour of [word_delimiter_graph]");
-        }
     }
 
     /**

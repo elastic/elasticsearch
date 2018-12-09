@@ -94,7 +94,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
                 "        }\n" +
                 "      }\n" +
                 "    } ],\n" +
-                "    \"boost\" : 1.0\n" +
+                "    \"boost\" : 2.0\n" +
                 "  }\n" +
                 "}";
 
@@ -102,5 +102,26 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, 3, parsed.clauses().size());
+        assertEquals(json, 2.0, parsed.boost(), 0.0);
+    }
+
+    public void testFromJsonWithNonDefaultBoostInInnerQuery() throws IOException {
+        String json =
+                "{\n" +
+                "  \"span_or\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 2.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 }

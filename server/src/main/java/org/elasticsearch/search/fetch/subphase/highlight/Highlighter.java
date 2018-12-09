@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
  * Highlights a search result.
@@ -27,5 +27,5 @@ public interface Highlighter {
 
     HighlightField highlight(HighlighterContext highlighterContext);
 
-    boolean canHighlight(FieldMapper fieldMapper);
+    boolean canHighlight(MappedFieldType fieldType);
 }

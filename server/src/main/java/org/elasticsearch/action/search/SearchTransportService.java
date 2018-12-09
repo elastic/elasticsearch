@@ -24,15 +24,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.HandledTransportAction.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -59,18 +60,15 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractComponent {
+public class SearchTransportService {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -88,9 +86,8 @@ public class SearchTransportService extends AbstractComponent {
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(Settings settings, TransportService transportService,
+    public SearchTransportService(TransportService transportService,
                                   BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
-        super(settings);
         this.transportService = transportService;
         this.responseWrapper = responseWrapper;
     }
@@ -132,7 +129,7 @@ public class SearchTransportService extends AbstractComponent {
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
         transportService.sendRequest(connection, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE));
     }
 
     public void sendExecuteDfs(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
@@ -146,11 +143,11 @@ public class SearchTransportService extends AbstractComponent {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
-        Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+        Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
         final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-                new ConnectionCountingHandler<>(handler, supplier, clientConnections, connection.getNode().getId()));
+                new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId()));
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
@@ -168,8 +165,8 @@ public class SearchTransportService extends AbstractComponent {
     public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
-                new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new,
-                        clientConnections, connection.getNode().getId()));
+                new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections,
+                    connection.getNode().getId()));
     }
 
     public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
@@ -284,6 +281,10 @@ public class SearchTransportService extends AbstractComponent {
         SearchFreeContextResponse() {
         }
 
+        SearchFreeContextResponse(StreamInput in) throws IOException {
+            freed = in.readBoolean();
+        }
+
         SearchFreeContextResponse(boolean freed) {
             this.freed = freed;
         }
@@ -314,9 +315,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME,
-                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME,  SearchFreeContextRequest::new, ThreadPool.Names.SAME,
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<SearchFreeContextRequest>() {
                 @Override
                 public void messageReceived(SearchFreeContextRequest request, TransportChannel channel, Task task) throws Exception {
@@ -324,8 +324,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME,
-                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
             ThreadPool.Names.SAME, new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
                 @Override
@@ -335,31 +334,14 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-                () -> TransportResponse.Empty.INSTANCE);
+            (in) -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
-                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
-                    searchService.executeDfsPhase(request, (SearchTask) task, new ActionListener<SearchPhaseResult>() {
-                        @Override
-                        public void onResponse(SearchPhaseResult searchPhaseResult) {
-                            try {
-                                channel.sendResponse(searchPhaseResult);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            try {
-                                channel.sendResponse(e);
-                            } catch (IOException e1) {
-                                throw new UncheckedIOException(e1);
-                            }
-                        }
-                    });
+                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) {
+                    searchService.executeDfsPhase(request, (SearchTask) task,
+                        new ChannelActionListener<>(channel, DFS_ACTION_NAME, request));
 
                 }
             });
@@ -368,37 +350,20 @@ public class SearchTransportService extends AbstractComponent {
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
-                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
-                    searchService.executeQueryPhase(request, (SearchTask) task, new ActionListener<SearchPhaseResult>() {
-                        @Override
-                        public void onResponse(SearchPhaseResult searchPhaseResult) {
-                            try {
-                                channel.sendResponse(searchPhaseResult);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            try {
-                                channel.sendResponse(e);
-                            } catch (IOException e1) {
-                                throw new UncheckedIOException(e1);
-                            }
-                        }
-                    });
+                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) {
+                    searchService.executeQueryPhase(request, (SearchTask) task,
+                        new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME,
-                (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
+        TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
+            (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
                 @Override
-                public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) throws Exception {
-                    QuerySearchResult result = searchService.executeQueryPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
+                public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) {
+                    searchService.executeQueryPhase(request, (SearchTask)task,
+                        new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME, request));
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
@@ -406,9 +371,9 @@ public class SearchTransportService extends AbstractComponent {
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
-                public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) throws Exception {
-                    ScrollQuerySearchResult result = searchService.executeQueryPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
+                public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) {
+                    searchService.executeQueryPhase(request, (SearchTask)task,
+                        new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME, request));
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
@@ -416,9 +381,9 @@ public class SearchTransportService extends AbstractComponent {
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
-                public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) throws Exception {
-                    ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
+                public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) {
+                    searchService.executeFetchPhase(request, (SearchTask)task,
+                        new ChannelActionListener<>(channel, QUERY_FETCH_SCROLL_ACTION_NAME, request));
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
@@ -426,19 +391,19 @@ public class SearchTransportService extends AbstractComponent {
         transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardFetchRequest>() {
                 @Override
-                public void messageReceived(ShardFetchRequest request, TransportChannel channel, Task task) throws Exception {
-                    FetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
+                public void messageReceived(ShardFetchRequest request, TransportChannel channel, Task task){
+                    searchService.executeFetchPhase(request, (SearchTask)task,
+                        new ChannelActionListener<>(channel, FETCH_ID_SCROLL_ACTION_NAME, request));
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH, true, true,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
                 @Override
-                public void messageReceived(ShardFetchSearchRequest request, TransportChannel channel, Task task) throws Exception {
-                    FetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
+                public void messageReceived(ShardFetchSearchRequest request, TransportChannel channel, Task task) {
+                    searchService.executeFetchPhase(request, (SearchTask)task,
+                        new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request));
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
@@ -452,38 +417,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new CanMatchResponse(canMatch));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME,
-                (Supplier<TransportResponse>) CanMatchResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
     }
-
-    public static final class CanMatchResponse extends SearchPhaseResult {
-        private boolean canMatch;
-
-        public CanMatchResponse() {
-        }
-
-        public CanMatchResponse(boolean canMatch) {
-            this.canMatch = canMatch;
-        }
-
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            canMatch = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(canMatch);
-        }
-
-        public boolean canMatch() {
-            return canMatch;
-        }
-    }
-
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
@@ -504,9 +439,9 @@ public class SearchTransportService extends AbstractComponent {
         private final Map<String, Long> clientConnections;
         private final String nodeId;
 
-        ConnectionCountingHandler(final ActionListener<? super Response> listener, final Supplier<Response> responseSupplier,
+        ConnectionCountingHandler(final ActionListener<? super Response> listener, final Writeable.Reader<Response> responseReader,
                                   final Map<String, Long> clientConnections, final String nodeId) {
-            super(listener, responseSupplier);
+            super(listener, responseReader);
             this.clientConnections = clientConnections;
             this.nodeId = nodeId;
             // Increment the number of connections for this node by one

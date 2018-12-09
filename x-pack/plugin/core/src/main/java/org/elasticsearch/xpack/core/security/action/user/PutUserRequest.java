@@ -3,22 +3,21 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -45,18 +44,12 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         ActionRequestValidationException validationException = null;
         if (username == null) {
             validationException = addValidationError("user is missing", validationException);
-        } else {
-            Validation.Error error = Validation.Users.validateUsername(username, false, Settings.EMPTY);
-            if (error != null) {
-                validationException = addValidationError(error.toString(), validationException);
-            }
         }
         if (roles == null) {
             validationException = addValidationError("roles are missing", validationException);
         }
-        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                    validationException);
+        if (metadata != null && metadata.keySet().stream().anyMatch(s -> s.startsWith("_"))) {
+            validationException = addValidationError("metadata keys may not start with [_]", validationException);
         }
         // we do not check for a password hash here since it is possible that the user exists and we don't want to update the password
         return validationException;
@@ -86,8 +79,8 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         this.passwordHash = passwordHash;
     }
 
-    public boolean enabled() {
-        return enabled;
+    public void enabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     /**
@@ -130,8 +123,8 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         return passwordHash;
     }
 
-    public void enabled(boolean enabled) {
-        this.enabled = enabled;
+    public boolean enabled() {
+        return enabled;
     }
 
     @Override
@@ -143,12 +136,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         username = in.readString();
-        BytesReference passwordHashRef = in.readBytesReference();
-        if (passwordHashRef == BytesArray.EMPTY) {
-            passwordHash = null;
-        } else {
-            passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(passwordHashRef));
-        }
+        passwordHash = readCharArrayFromStream(in);
         roles = in.readStringArray();
         fullName = in.readOptionalString();
         email = in.readOptionalString();
@@ -161,13 +149,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
-        BytesReference passwordHashRef;
-        if (passwordHash == null) {
-            passwordHashRef = null;
-        } else {
-            passwordHashRef = new BytesArray(CharArrays.toUtf8Bytes(passwordHash));
-        }
-        out.writeBytesReference(passwordHashRef);
+        writeCharArrayToStream(out, passwordHash);
         out.writeStringArray(roles);
         out.writeOptionalString(fullName);
         out.writeOptionalString(email);
@@ -179,5 +161,38 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         }
         refreshPolicy.writeTo(out);
         out.writeBoolean(enabled);
+    }
+
+    private static char[] readCharArrayFromStream(StreamInput in) throws IOException {
+        BytesReference charBytesRef = in.readBytesReference();
+        if (charBytesRef == BytesArray.EMPTY) {
+            return null;
+        } else {
+            return CharArrays.utf8BytesToChars(BytesReference.toBytes(charBytesRef));
+        }
+    }
+
+    private static void writeCharArrayToStream(StreamOutput out, char[] chars) throws IOException {
+        final BytesReference charBytesRef;
+        if (chars == null) {
+            charBytesRef = null;
+        } else {
+            charBytesRef = new BytesArray(CharArrays.toUtf8Bytes(chars));
+        }
+        out.writeBytesReference(charBytesRef);
+    }
+
+    @Override
+    public String toString() {
+        return "PutUserRequest{" +
+            "username='" + username + '\'' +
+            ", roles=" + Arrays.toString(roles) +
+            ", fullName='" + fullName + '\'' +
+            ", email='" + email + '\'' +
+            ", metadata=" + metadata +
+            ", passwordHash=" + (passwordHash == null ? "<null>" : "<not-null>") +
+            ", enabled=" + enabled +
+            ", refreshPolicy=" + refreshPolicy +
+            '}';
     }
 }

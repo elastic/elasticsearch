@@ -5,31 +5,38 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class StopRollupJobAction extends Action<StopRollupJobAction.Request, StopRollupJobAction.Response,
         StopRollupJobAction.RequestBuilder> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";
+    public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+    public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopRollupJobAction() {
         super(NAME);
@@ -47,27 +54,50 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Request, Sto
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
+        private boolean waitForCompletion = false;
+        private TimeValue timeout = null;
 
-        public Request(String id) {
+        public Request (String id) {
+            this(id, false, null);
+        }
+
+        public Request(String id, boolean waitForCompletion, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, RollupField.ID.getPreferredName());
+            this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+            this.waitForCompletion = waitForCompletion;
         }
 
         public Request() {}
 
-        public String getId() {
-            return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             id = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+                waitForCompletion = in.readBoolean();
+                timeout = in.readTimeValue();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+                out.writeBoolean(waitForCompletion);
+                out.writeTimeValue(timeout);
+            }
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public TimeValue timeout() {
+            return timeout;
+        }
+
+        public boolean waitForCompletion() {
+            return waitForCompletion;
         }
 
         @Override
@@ -78,12 +108,16 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Request, Sto
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RollupField.ID.getPreferredName(), id);
+            builder.field(WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
+            if (timeout != null) {
+                builder.field(TIMEOUT.getPreferredName(), timeout);
+            }
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, waitForCompletion, timeout);
         }
 
         @Override
@@ -95,7 +129,9 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Request, Sto
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id)
+                && Objects.equals(waitForCompletion, other.waitForCompletion)
+                && Objects.equals(timeout, other.timeout);
         }
     }
 

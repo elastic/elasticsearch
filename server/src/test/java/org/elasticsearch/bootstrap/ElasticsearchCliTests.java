@@ -27,13 +27,11 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 

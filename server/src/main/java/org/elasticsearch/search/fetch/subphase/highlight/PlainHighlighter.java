@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -35,10 +36,9 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,33 +51,31 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
-import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.getAnalyzer;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(PlainHighlighter.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PlainHighlighter.class));
 
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        FieldMapper mapper = highlighterContext.mapper;
+        MappedFieldType fieldType = highlighterContext.fieldType;
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
-            Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> mappers = new HashMap<>();
-            hitContext.cache().put(CACHE_KEY, mappers);
+            hitContext.cache().put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
-        Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> cache =
-            (Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
+        Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache =
+            (Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
 
-        org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
+        org.apache.lucene.search.highlight.Highlighter entry = cache.get(fieldType);
         if (entry == null) {
             QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query,
-                    field.fieldOptions().requireFieldMatch() ? mapper.fieldType().name() : null);
+                    field.fieldOptions().requireFieldMatch() ? fieldType.name() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -99,21 +97,21 @@ public class PlainHighlighter implements Highlighter {
             // always highlight across all data
             entry.setMaxDocCharsToAnalyze(Integer.MAX_VALUE);
 
-            cache.put(mapper, entry);
+            cache.put(fieldType, entry);
         }
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), mapper.fieldType());
+        Analyzer analyzer = HighlightUtils.getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
         final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
 
         try {
-            textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
+            textsToHighlight = HighlightUtils.loadFieldValues(field, fieldType, context, hitContext);
             final int maxAnalyzedOffset7 = 1000000;
             for (Object textToHighlight : textsToHighlight) {
-                String text = convertFieldValue(mapper.fieldType(), textToHighlight);
+                String text = convertFieldValue(fieldType, textToHighlight);
 
                 // Issue deprecation warning if maxAnalyzedOffset is not set, and text length > default setting for 7.0
                 if ((maxAnalyzedOffset == -1) && (text.length() > maxAnalyzedOffset7)) {
@@ -136,7 +134,7 @@ public class PlainHighlighter implements Highlighter {
                             "with unified or fvh highlighter is recommended!");
                 }
 
-                try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {
+                try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
                     if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                         // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                         continue;
@@ -193,7 +191,7 @@ public class PlainHighlighter implements Highlighter {
             String fieldContents = textsToHighlight.get(0).toString();
             int end;
             try {
-                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, mapper.fieldType().name(), fieldContents);
+                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, fieldType.name(), fieldContents);
             } catch (Exception e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
@@ -205,7 +203,7 @@ public class PlainHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(FieldMapper fieldMapper) {
+    public boolean canHighlight(MappedFieldType fieldType) {
         return true;
     }
 

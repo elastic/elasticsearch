@@ -539,7 +539,7 @@ public class OperationRoutingTests extends ESTestCase{
         Set<String> selectedNodes = new HashSet<>(numShards);
         TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ResponseCollectorService collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
                 indexNames, null, null, collector, outstandingRequests);
@@ -601,7 +601,7 @@ public class OperationRoutingTests extends ESTestCase{
         collector.addNodeStatistics("node_1", 4, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
         shardChoice = groupIterator.get(0).nextOrNull();
-        // finally, node 2 is choosen instead
+        // finally, node 2 is chosen instead
         assertThat(shardChoice.currentNodeId(), equalTo("node_2"));
 
         IOUtils.close(clusterService);

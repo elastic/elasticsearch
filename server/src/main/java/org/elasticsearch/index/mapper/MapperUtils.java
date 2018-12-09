@@ -24,17 +24,28 @@ import java.util.Collection;
 enum MapperUtils {
     ;
 
-    /** Split mapper and its descendants into object and field mappers. */
-    public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+    /**
+     * Splits the provided mapper and its descendants into object, field, and field alias mappers.
+     */
+    public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
+                               Collection<FieldMapper> fieldMappers,
+                               Collection<FieldAliasMapper> fieldAliasMappers) {
         if (mapper instanceof RootObjectMapper) {
             // root mapper isn't really an object mapper
         } else if (mapper instanceof ObjectMapper) {
             objectMappers.add((ObjectMapper)mapper);
         } else if (mapper instanceof FieldMapper) {
             fieldMappers.add((FieldMapper)mapper);
+        } else if (mapper instanceof FieldAliasMapper) {
+            fieldAliasMappers.add((FieldAliasMapper) mapper);
+        } else {
+            throw new IllegalStateException("Unrecognized mapper type [" +
+                mapper.getClass().getSimpleName() + "].");
         }
+
+
         for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers);
+            collect(child, objectMappers, fieldMappers, fieldAliasMappers);
         }
     }
 }

@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Objects;

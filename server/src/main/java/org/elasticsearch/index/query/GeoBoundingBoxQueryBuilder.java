@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.Rectangle;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
@@ -60,7 +60,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(GeoBoundingBoxQueryBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+            new DeprecationLogger(LogManager.getLogger(GeoBoundingBoxQueryBuilder.class));
 
     /**
      * The default value for ignore_unmapped.
@@ -394,7 +395,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         GeoValidationMethod validationMethod = null;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
-        Rectangle bbox = null;
+        // bottom (minLat), top (maxLat), left (minLon), right (maxLon)
+        double[] bbox = null;
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -429,8 +431,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             throw new ElasticsearchParseException("failed to parse [{}] query. bounding box not provided", NAME);
         }
 
-        final GeoPoint topLeft = new GeoPoint(bbox.maxLat, bbox.minLon);  //just keep the object
-        final GeoPoint bottomRight = new GeoPoint(bbox.minLat, bbox.maxLon);
+        final GeoPoint topLeft = new GeoPoint(bbox[1], bbox[2]);
+        final GeoPoint bottomRight = new GeoPoint(bbox[0], bbox[3]);
 
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         builder.setCorners(topLeft, bottomRight);
@@ -465,7 +467,10 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return NAME;
     }
 
-    public static Rectangle parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+    /**
+     * Parses the bounding box and returns bottom, top, left, right coordinates
+     */
+    public static double[] parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
@@ -527,8 +532,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     + "using well-known text and explicit corners.");
             }
             org.locationtech.spatial4j.shape.Rectangle r = envelope.build();
-            return new Rectangle(r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+            return new double[]{r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX()};
         }
-        return new Rectangle(bottom, top, left, right);
+        return new double[]{bottom, top, left, right};
     }
 }

@@ -70,6 +70,7 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         return this.commonStats;
     }
 
+    @Nullable
     public CommitStats getCommitStats() {
         return this.commitStats;
     }

@@ -34,8 +34,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class BulkByScrollTaskTests extends ESTestCase {
     public void testStatusHatesNegatives() {

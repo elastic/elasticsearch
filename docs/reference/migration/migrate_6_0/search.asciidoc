@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_search_changes]]
 === Search and Query DSL changes
 
+[float]
 ==== Changes to queries
 
 * The `collect_payloads` parameter of the `span_near` query has been removed. Payloads will be
@@ -17,7 +19,7 @@
 * The `mlt` query (a synonym for the `more_like_this` query) has been removed.
 
 * The deprecated `like_text`, `ids` and `docs` parameters (all synonyms for `like`) of the `more_like_this` query have
-been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length`) and `max_word_len` 
+been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length`) and `max_word_len`
 (a synonym for `max_word_length`) have been removed.
 
 * The `fuzzy_match` and `match_fuzzy` query (synonyma for the `match` query) have been removed
@@ -48,6 +50,10 @@ been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length
 * The `geo_distance_range` query, which was deprecated in 5.0, has been removed.
 
 * The `optimize_bbox` parameter has been removed from `geo_distance` queries.
+
+* An `envelope` crossing the dateline in a `geo_shape `query is now processed
+  correctly when specified using REST API instead of having its left and
+  right corners flipped.
 
 * The `ignore_malformed` and `coerce` parameters have been removed from
   `geo_bounding_box`, `geo_polygon`, and `geo_distance` queries.
@@ -99,19 +105,25 @@ the `match` query but is supported for `match_phrase` and `match_phrase_prefix`.
 * The deprecated multi term rewrite parameters `constant_score_auto`, `constant_score_filter` (synonyms for `constant_score`)
 have been removed.
 
+*  Setting a negative `weight` in Function Score Query is deprecated.
+
+[float]
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't
 have any effect in previous versions.
 
+[float]
 ==== Changes to the Profile API
 
 The `"time"` field showing human readable timing output has been replaced by the `"time_in_nanos"`
 field which displays the elapsed time in nanoseconds. The `"time"` field can be turned on by adding
 `"?human=true"` to the request url. It will display a rounded, human readable time value.
 
+[float]
 ==== Scoring changes
 
+[float]
 ===== Query normalization
 
 Query normalization has been removed. This means that the TF-IDF similarity no
@@ -124,6 +136,7 @@ already integrated boosts into scores as multiplicative factors.
 See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
 information.
 
+[float]
 ===== Coordination factors
 
 Coordination factors have been removed from the scoring formula. This means that
@@ -137,6 +150,15 @@ produces. BM25 is recommended instead.
 See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
 information.
 
+[float]
+===== Negative scores are deprecated in Function Score Query
+
+Negative scores in the Function Score Query are deprecated. If a negative 
+score is produced as a result of computation (e.g. in `script_score` or
+`field_value_factor` functions), a deprecation warning will be issued in
+this major version, and an error will be thrown in the next major version. 
+
+[float]
 ==== Fielddata on `_uid`
 
 Fielddata on `_uid` is deprecated. It is possible to switch to `_id` instead
@@ -145,6 +167,7 @@ for the `random_score` function. If you really need access to the id of
 documents for sorting, aggregations or search scripts, the recommendation is
 to duplicate the id as a field in the document.
 
+[float]
 ==== Highlighters
 
 The `unified` highlighter is the new default choice for highlighter.
@@ -156,36 +179,43 @@ The `postings` highlighter has been removed from Lucene and Elasticsearch.
 The `unified` highlighter outputs the same highlighting when `index_options` is set
  to `offsets`.
 
+[float]
 ==== `fielddata_fields`
 
 The deprecated `fielddata_fields` have now been removed. `docvalue_fields` should be used instead.
 
+[float]
 ==== `docvalue_fields`
 
 `docvalue_fields` now have a default upper limit of 100 fields that can be requested.
 This limit can be overridden by using the `index.max_docvalue_fields_search` index setting.
 
+[float]
 ==== `script_fields`
 
 `script_fields` now have a default upper limit of 32 script fields that can be requested.
 This limit can be overridden by using the `index.max_script_fields` index setting.
 
+[float]
 ==== Inner hits
 
 The source inside a hit of inner hits keeps its full path with respect to the entire source.
 In prior versions the source field names were relative to the inner hit.
 
+[float]
 ==== Scroll
 
 The `from` parameter can no longer be used in the search request body when initiating a scroll.
 The parameter was already ignored in these situations, now in addition an error is thrown.
 
+[float]
 ==== Limit on from/size in top hits and inner hits
 
 The maximum number of results (`from` + `size`) that is allowed to be retrieved
 via inner hits and top hits has been limited to 100. The limit can be controlled
 via the `index.max_inner_result_window` index setting.
 
+[float]
 ==== Scroll queries that use the request_cache are deprecated
 
 Setting `request_cache:true` on a query that creates a scroll ('scroll=1m`)
@@ -194,6 +224,7 @@ In future versions we will return a `400 - Bad request` instead of just ignoring
 the hint.
 Scroll queries are not meant to be cached.
 
+[float]
 ==== Limiting the number of terms that can be used in a Terms Query request
 
 Executing a Terms Query with a lot of terms may degrade the cluster performance,
@@ -202,9 +233,57 @@ To safeguard against this, the maximum number of terms that can be used in a
 Terms Query request has been limited to 65536. This default maximum can be changed
 for a particular index with the index setting `index.max_terms_count`.
 
+[float]
 ==== Invalid `_search` request body
 
 For 6.x and starting in 6.3 a deprecation warning will be printed to warn
 against search requests that contain extra tokens after the main object.
 These extra tokens were ignored by the query parser before 6.3 but the next
  major version will not accept invalid body anymore.
+
+[float]
+==== Context suggester without contexts
+
+The ability to query and index context enabled suggestions without contexts
+has been deprecated. Context enabled suggestion queries without contexts have
+to visit every suggestion, which degrades the search performance considerably.
+
+For geo context the value of the `path` parameter is now validated against the mapping,
+and if `path` points to a non `geo_point` field or the field doesn't exist a deprecation
+warning will be issued. In 7.0 it will be required for the `path` to point to a correct
+`geo_point` field.
+
+[float]
+==== Limiting the max number of expansion of span_multi queries
+
+`span_multi` queries will hit too many clauses failure if the number of terms that match the
+query exceeds the boolean query limit (defaults to 1024). To avoid an unbounded expansion you
+can set the <<query-dsl-multi-term-rewrite, rewrite method>> of the multi term query to `top_terms_*`
+rewrite. Or, if you use `span_multi` on `prefix` query only, you can activate the
+<<index-prefixes,`index_prefixes`>> field option of the `text` field instead. This will
+rewrite any prefix query on the field to a a single term query that matches the indexed prefix.
+
+[float]
+==== Negative boosts are deprecated
+
+Setting a negative `boost` in a query is deprecated and will throw an error in the next version.
+To deboost a specific query you can use a `boost` comprise between 0 and 1.
+
+[float]
+==== Limit the number of open scroll contexts
+
+The number of scroll contexts allowed per node will be limited to 500 by default in the next major
+version. Open scroll contexts are unlimited by default in this version, you can change the dynamic
+cluster setting `search.max_open_scroll_context` to force a limit. If the limit is unchanged, a
+deprecation warning will be printed if the number of open scroll context is greater than 500 (the
+default limit in the next major version).
+
+[float]
+==== The filter context is deprecated
+
+ The `filter` context is deprecated in Elasticsearch's query builders,
+the distinction between queries and filters is decided in Lucene depending
+on whether queries need to access score or not. As a result `bool` queries with
+`should` clauses that don't need to access the score will issue a deprecation
+warning when they automatically set `minimum_should_match` to 1.
+This behavior will be removed in the next major version.

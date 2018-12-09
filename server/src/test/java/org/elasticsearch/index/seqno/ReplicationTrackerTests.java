@@ -47,7 +47,9 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -60,7 +62,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 public class ReplicationTrackerTests extends ESTestCase {
-
+    
     public void testEmptyShards() {
         final ReplicationTracker tracker = newTracker(AllocationId.newInitializing());
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -99,6 +101,11 @@ public class ReplicationTrackerTests extends ESTestCase {
         return allocationIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
     }
 
+    private void updateLocalCheckpoint(final ReplicationTracker tracker, final String allocationId, final long localCheckpoint) {
+        tracker.updateLocalCheckpoint(allocationId, localCheckpoint);
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(tracker.getGlobalCheckpoint()));
+    }
+    
     public void testGlobalCheckpointUpdate() {
         final long initialClusterStateVersion = randomNonNegativeLong();
         Map<AllocationId, Long> allocations = new HashMap<>();
@@ -137,14 +144,14 @@ public class ReplicationTrackerTests extends ESTestCase {
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
         initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1 + initializing.size()));
-        allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId.getId(), allocations.get(aId)));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
 
         assertThat(tracker.getGlobalCheckpoint(), equalTo(minLocalCheckpoint));
 
         // increment checkpoints
         active.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
         initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
-        allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId.getId(), allocations.get(aId)));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
 
         final long minLocalCheckpointAfterUpdates =
                 allocations.entrySet().stream().map(Map.Entry::getValue).min(Long::compareTo).orElse(UNASSIGNED_SEQ_NO);
@@ -153,8 +160,8 @@ public class ReplicationTrackerTests extends ESTestCase {
         final AllocationId extraId = AllocationId.newInitializing();
 
         // first check that adding it without the master blessing doesn't change anything.
-        tracker.updateLocalCheckpoint(extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
-        assertNull(tracker.checkpoints.get(extraId));
+        updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+        assertNull(tracker.checkpoints.get(extraId.getId()));
         expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
 
         Set<AllocationId> newInitializing = new HashSet<>(initializing);
@@ -165,7 +172,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         // now notify for the new id
         if (randomBoolean()) {
-            tracker.updateLocalCheckpoint(extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+            updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
             markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), randomInt((int) minLocalCheckpointAfterUpdates));
         } else {
             markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
@@ -173,6 +180,64 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         // now it should be incremented
         assertThat(tracker.getGlobalCheckpoint(), greaterThan(minLocalCheckpoint));
+    }
+
+    public void testUpdateGlobalCheckpointOnReplica() {
+        final AllocationId active = AllocationId.newInitializing();
+        final ReplicationTracker tracker = newTracker(active);
+        final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE - 1);
+        tracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(globalCheckpoint));
+        final long nonUpdate = randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint);
+        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
+        tracker.updateGlobalCheckpointOnReplica(nonUpdate, "test");
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
+        final long update = randomLongBetween(globalCheckpoint, Long.MAX_VALUE);
+        tracker.updateGlobalCheckpointOnReplica(update, "test");
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(update));
+    }
+
+    public void testMarkAllocationIdAsInSync() throws BrokenBarrierException, InterruptedException {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 1);
+        Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
+        Map<AllocationId, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 1);
+        Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        final AllocationId primaryId = active.iterator().next();
+        final AllocationId replicaId = initializing.iterator().next();
+        final ReplicationTracker tracker = newTracker(primaryId);
+        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId), emptySet());
+        final long localCheckpoint = randomLongBetween(0, Long.MAX_VALUE - 1);
+        tracker.activatePrimaryMode(localCheckpoint);
+        tracker.initiateTracking(replicaId.getId());
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final Thread thread = new Thread(() -> {
+            try {
+                barrier.await();
+                tracker.markAllocationIdAsInSync(
+                        replicaId.getId(),
+                        randomLongBetween(NO_OPS_PERFORMED, localCheckpoint - 1));
+                barrier.await();
+            } catch (BrokenBarrierException | InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread.start();
+        barrier.await();
+        awaitBusy(tracker::pendingInSync);
+        final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
+        // there is a shard copy pending in sync, the global checkpoint can not advance
+        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
+        tracker.updateLocalCheckpoint(primaryId.getId(), updatedLocalCheckpoint);
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
+        // we are implicitly marking the pending in sync copy as in sync with the current global checkpoint, no advancement should occur
+        tracker.updateLocalCheckpoint(replicaId.getId(), localCheckpoint);
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
+        barrier.await();
+        thread.join();
+        // now we expect that the global checkpoint would advance
+        tracker.markAllocationIdAsInSync(replicaId.getId(), updatedLocalCheckpoint);
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(updatedLocalCheckpoint));
     }
 
     public void testMissingActiveIdsPreventAdvance() {
@@ -191,14 +256,16 @@ public class ReplicationTrackerTests extends ESTestCase {
                 .entrySet()
                 .stream()
                 .filter(e -> !e.getKey().equals(missingActiveID))
-                .forEach(e -> tracker.updateLocalCheckpoint(e.getKey().getId(), e.getValue()));
+                .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
 
         if (missingActiveID.equals(primaryId) == false) {
             assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
         }
         // now update all knowledge of all shards
-        assigned.forEach((aid, localCP) -> tracker.updateLocalCheckpoint(aid.getId(), localCP));
+        assigned.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
         assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
+        assertThat(updatedGlobalCheckpoint.get(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
     public void testMissingInSyncIdsPreventAdvance() {
@@ -213,13 +280,15 @@ public class ReplicationTrackerTests extends ESTestCase {
         randomSubsetOf(randomIntBetween(1, initializing.size() - 1),
             initializing.keySet()).forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
 
-        active.forEach((aid, localCP) -> tracker.updateLocalCheckpoint(aid.getId(), localCP));
+        active.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
 
         assertThat(tracker.getGlobalCheckpoint(), equalTo(NO_OPS_PERFORMED));
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(NO_OPS_PERFORMED));
 
         // update again
-        initializing.forEach((aid, localCP) -> tracker.updateLocalCheckpoint(aid.getId(), localCP));
+        initializing.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
         assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
+        assertThat(updatedGlobalCheckpoint.get(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
     public void testInSyncIdsAreIgnoredIfNotValidatedByMaster() {
@@ -236,7 +305,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         List<Map<AllocationId, Long>> allocations = Arrays.asList(active, initializing, nonApproved);
         Collections.shuffle(allocations, random());
-        allocations.forEach(a -> a.forEach((aid, localCP) -> tracker.updateLocalCheckpoint(aid.getId(), localCP)));
+        allocations.forEach(a -> a.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP)));
 
         assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
@@ -271,7 +340,7 @@ public class ReplicationTrackerTests extends ESTestCase {
             initializing.forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
         }
         if (randomBoolean()) {
-            allocations.forEach((aid, localCP) -> tracker.updateLocalCheckpoint(aid.getId(), localCP));
+            allocations.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
         }
 
         // now remove shards
@@ -281,9 +350,9 @@ public class ReplicationTrackerTests extends ESTestCase {
                     ids(activeToStay.keySet()),
                     routingTable(initializingToStay.keySet(), primaryId),
                     emptySet());
-            allocations.forEach((aid, ckp) -> tracker.updateLocalCheckpoint(aid.getId(), ckp + 10L));
+            allocations.forEach((aid, ckp) -> updateLocalCheckpoint(tracker, aid.getId(), ckp + 10L));
         } else {
-            allocations.forEach((aid, ckp) -> tracker.updateLocalCheckpoint(aid.getId(), ckp + 10L));
+            allocations.forEach((aid, ckp) -> updateLocalCheckpoint(tracker, aid.getId(), ckp + 10L));
             tracker.updateFromMaster(
                     initialClusterStateVersion + 2,
                     ids(activeToStay.keySet()),
@@ -331,7 +400,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1).boxed().collect(Collectors.toList());
         Randomness.shuffle(elements);
         for (int i = 0; i < elements.size(); i++) {
-            tracker.updateLocalCheckpoint(trackingAllocationId.getId(), elements.get(i));
+            updateLocalCheckpoint(tracker, trackingAllocationId.getId(), elements.get(i));
             assertFalse(complete.get());
             assertFalse(tracker.getTrackedLocalCheckpointForShard(trackingAllocationId.getId()).inSync);
             assertBusy(() -> assertTrue(tracker.pendingInSync.contains(trackingAllocationId.getId())));
@@ -339,7 +408,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         if (randomBoolean()) {
             // normal path, shard catches up
-            tracker.updateLocalCheckpoint(trackingAllocationId.getId(), randomIntBetween(globalCheckpoint, 64));
+            updateLocalCheckpoint(tracker, trackingAllocationId.getId(), randomIntBetween(globalCheckpoint, 64));
             // synchronize with the waiting thread to mark that it is complete
             barrier.await();
             assertTrue(complete.get());
@@ -355,13 +424,16 @@ public class ReplicationTrackerTests extends ESTestCase {
         assertFalse(tracker.pendingInSync.contains(trackingAllocationId.getId()));
         thread.join();
     }
+    
+    private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
         return new ReplicationTracker(
                 new ShardId("test", "_na_", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                UNASSIGNED_SEQ_NO);
+                UNASSIGNED_SEQ_NO,
+                updatedGlobalCheckpoint::set);
     }
 
     public void testWaitForAllocationIdToBeInSyncCanBeInterrupted() throws BrokenBarrierException, InterruptedException {
@@ -488,10 +560,10 @@ public class ReplicationTrackerTests extends ESTestCase {
         // the tracking allocation IDs should play no role in determining the global checkpoint
         final Map<AllocationId, Integer> activeLocalCheckpoints =
                 newActiveAllocationIds.stream().collect(Collectors.toMap(Function.identity(), a -> randomIntBetween(1, 1024)));
-        activeLocalCheckpoints.forEach((a, l) -> tracker.updateLocalCheckpoint(a.getId(), l));
+        activeLocalCheckpoints.forEach((a, l) -> updateLocalCheckpoint(tracker, a.getId(), l));
         final Map<AllocationId, Integer> initializingLocalCheckpoints =
                 newInitializingAllocationIds.stream().collect(Collectors.toMap(Function.identity(), a -> randomIntBetween(1, 1024)));
-        initializingLocalCheckpoints.forEach((a, l) -> tracker.updateLocalCheckpoint(a.getId(), l));
+        initializingLocalCheckpoints.forEach((a, l) -> updateLocalCheckpoint(tracker, a.getId(), l));
         assertTrue(
                 activeLocalCheckpoints
                         .entrySet()
@@ -504,6 +576,7 @@ public class ReplicationTrackerTests extends ESTestCase {
                         .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey().getId()).getLocalCheckpoint() == e.getValue()));
         final long minimumActiveLocalCheckpoint = (long) activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
         assertThat(tracker.getGlobalCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(minimumActiveLocalCheckpoint));
         final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
 
         // now we are going to add a new allocation ID and bring it in sync which should move it to the in-sync allocation IDs
@@ -635,10 +708,11 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         FakeClusterState clusterState = initialState();
         final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
+        final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
         ReplicationTracker oldPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, UNASSIGNED_SEQ_NO);
+                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
         ReplicationTracker newPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO);
+                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 
@@ -770,8 +844,10 @@ public class ReplicationTrackerTests extends ESTestCase {
         assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
         assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));
 
+        assertFalse(oldPrimary.relocated);
         oldPrimary.completeRelocationHandoff();
         assertFalse(oldPrimary.primaryMode);
+        assertTrue(oldPrimary.relocated);
     }
 
     public void testIllegalStateExceptionIfUnknownAllocationId() {

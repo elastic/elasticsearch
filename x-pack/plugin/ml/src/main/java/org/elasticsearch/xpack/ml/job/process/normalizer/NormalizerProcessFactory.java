@@ -17,6 +17,5 @@ public interface NormalizerProcessFactory {
      * @param executorService Executor service used to start the async tasks a job needs to operate the analytical process
      * @return The process
      */
-    NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan, boolean perPartitionNormalization,
-                                              ExecutorService executorService);
+    NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan, ExecutorService executorService);
 }

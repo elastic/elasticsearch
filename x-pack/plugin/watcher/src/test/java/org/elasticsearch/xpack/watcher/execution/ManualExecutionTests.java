@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
@@ -18,18 +21,17 @@ import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -64,7 +66,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         return types;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         @SuppressWarnings("unchecked")
@@ -72,7 +74,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
             scripts.put("sleep", vars -> {
-                Number millis = (Number) XContentMapValues.extractValue("millis", vars);
+                Number millis = (Number) XContentMapValues.extractValue("params.millis", vars);
                 if (millis != null) {
                     try {
                         Thread.sleep(millis.longValue());
@@ -105,7 +107,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .condition(conditionAlwaysTrue ? AlwaysCondition.INSTANCE : NeverCondition.INSTANCE)
                 .addAction("log", loggingAction("foobar"));
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+        BytesReference bytesReference = watchBuilder.buildAsBytes(XContentType.JSON);
+        watcherClient().putWatch(new PutWatchRequest("_id", bytesReference, XContentType.JSON)).actionGet();
 
         ExecuteWatchRequestBuilder executeWatchRequestBuilder = watcherClient().prepareExecuteWatch("_id");
         executeWatchRequestBuilder.setIgnoreCondition(ignoreCondition);
@@ -219,7 +222,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .addAction("log", loggingAction("foobar"));
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+        BytesReference bytesReference = watchBuilder.buildAsBytes(XContentType.JSON);
+        watcherClient().putWatch(new PutWatchRequest("_id", bytesReference, XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
         Map<String, Object> map1 = new HashMap<>();
@@ -255,7 +259,9 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .condition(NeverCondition.INSTANCE)
                 .defaultThrottlePeriod(TimeValue.timeValueHours(1))
                 .addAction("log", loggingAction("foobar"));
-        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+
+        BytesReference bytesReference = watchBuilder.buildAsBytes(XContentType.JSON);
+        watcherClient().putWatch(new PutWatchRequest("_id", bytesReference, XContentType.JSON)).actionGet();
 
         DateTime now = new DateTime(Clock.systemUTC().millis());
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
@@ -274,7 +280,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .condition(AlwaysCondition.INSTANCE)
                 .defaultThrottlePeriod(TimeValue.timeValueHours(1))
                 .addAction("log", loggingAction("foobar"));
-        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
 
         executeWatchResult = watcherClient().prepareExecuteWatch()
                 .setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true)

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportStopDatafeedActionTests extends ESTestCase {
     public void testValidate() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MLMetadataField.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
-        tasksBuilder.updateTaskStatus(MLMetadataField.datafeedTaskId("foo"), DatafeedState.STARTED);
+        tasksBuilder.updateTaskState(MlTasks.datafeedTaskId("foo"), DatafeedState.STARTED);
         tasksBuilder.build();
 
         Job job = createDatafeedJob().build(new Date());
@@ -42,7 +42,7 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
         DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder().putJob(job, false)
-                .putDatafeed(datafeedConfig, null)
+                .putDatafeed(datafeedConfig, Collections.emptyMap())
                 .build();
         TransportStopDatafeedAction.validateDatafeedTask("foo", mlMetadata2);
     }
@@ -54,12 +54,12 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         MlMetadata mlMetadata = mlMetadataBuilder.build();
@@ -86,17 +86,17 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         addTask("datafeed_3", 0L, "node-1", DatafeedState.STOPPING, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_3").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_3", "job_id_3").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         MlMetadata mlMetadata = mlMetadataBuilder.build();
@@ -118,9 +118,9 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
                                PersistentTasksCustomMetaData.Builder taskBuilder) {
-        taskBuilder.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
+        taskBuilder.addTask(MlTasks.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
                 new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
-        taskBuilder.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
+        taskBuilder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }
 }

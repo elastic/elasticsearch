@@ -9,14 +9,16 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -30,9 +32,9 @@ import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(SecurityNetty4HttpServerTransport.class);
 
     private final IPFilter ipFilter;
-    private final Settings sslSettings;
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
 
@@ -42,10 +44,9 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-        this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
         this.sslService = sslService;
         if (ssl) {
-            this.sslConfiguration = sslService.sslConfiguration(sslSettings, Settings.EMPTY);
+            this.sslConfiguration = sslService.getHttpTransportSSLConfiguration();
             if (sslService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
                         "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");
@@ -58,7 +59,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     @Override
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        Netty4Utils.maybeDie(cause);
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
         if (!lifecycle.started()) {
             return;
         }

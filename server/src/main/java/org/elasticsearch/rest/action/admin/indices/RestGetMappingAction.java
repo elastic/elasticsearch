@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,11 +29,12 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -55,12 +56,15 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetMappingAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
+        controller.registerHandler(GET, "/_mapping", this);
+        controller.registerHandler(GET, "/_mappings", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mappings", this);
         controller.registerHandler(GET, "/{index}/_mapping", this);
@@ -82,19 +86,15 @@ public class RestGetMappingAction extends BaseRestHandler {
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
+        getMappingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
                 final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
-                if (mappingsByIndex.isEmpty() && (indices.length != 0 || types.length != 0)) {
-                    if (indices.length != 0 && types.length == 0) {
-                        builder.close();
-                        return new BytesRestResponse(channel, new IndexNotFoundException(String.join(",", indices)));
-                    } else {
-                        builder.close();
-                        return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
-                    }
+                if (mappingsByIndex.isEmpty() && types.length != 0) {
+                    builder.close();
+                    return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
                 }
 
                 final Set<String> typeNames = new HashSet<>();
@@ -128,38 +128,17 @@ public class RestGetMappingAction extends BaseRestHandler {
                         status = RestStatus.OK;
                     } else {
                         status = RestStatus.NOT_FOUND;
-                        final String message;
-                        if (difference.size() == 1) {
-                            message = String.format(Locale.ROOT, "type [%s] missing", toNamesString(difference.iterator().next()));
-                        } else {
-                            message = String.format(Locale.ROOT, "types [%s] missing", toNamesString(difference.toArray(new String[0])));
-                        }
+                        final String message = String.format(Locale.ROOT, "type" + (difference.size() == 1 ? "" : "s") +
+                            " [%s] missing", Strings.collectionToCommaDelimitedString(difference));
                         builder.field("error", message);
                         builder.field("status", status.getStatus());
                     }
-
-                    for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
-                        builder.startObject(indexEntry.key);
-                        {
-                            builder.startObject("mappings");
-                            {
-                                for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
-                                    builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
-                                }
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
+                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 }
                 builder.endObject();
+
                 return new BytesRestResponse(status, builder);
             }
         });
     }
-
-    private static String toNamesString(final String... names) {
-        return Arrays.stream(names).collect(Collectors.joining(","));
-    }
-
 }

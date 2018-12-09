@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
-import java.io.CharArrayWriter;
 import java.nio.charset.Charset;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;

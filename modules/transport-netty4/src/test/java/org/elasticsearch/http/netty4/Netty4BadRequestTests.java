@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.util.ReferenceCounted;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -92,6 +93,7 @@ public class Netty4BadRequestTests extends ESTestCase {
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 final Collection<FullHttpResponse> responses =
                         nettyHttpClient.get(transportAddress.address(), "/_cluster/settings?pretty=%");
+                try {
                 assertThat(responses, hasSize(1));
                 assertThat(responses.iterator().next().status().code(), equalTo(400));
                 final Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
@@ -101,6 +103,9 @@ public class Netty4BadRequestTests extends ESTestCase {
                         responseBodies.iterator().next(),
                         containsString(
                                 "\"reason\":\"java.lang.IllegalArgumentException: unterminated escape sequence at end of string: %\""));
+                } finally {
+                    responses.forEach(ReferenceCounted::release);
+                }
             }
         }
     }

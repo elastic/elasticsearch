@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -128,7 +127,7 @@ public class User implements ToXContentObject {
         sb.append(",fullName=").append(fullName);
         sb.append(",email=").append(email);
         sb.append(",metadata=");
-        MetadataUtils.writeValue(sb, metadata);
+        sb.append(metadata);
         if (authenticatedUser != null) {
             sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
@@ -242,6 +241,10 @@ public class User implements ToXContentObject {
         ParseField METADATA = new ParseField("metadata");
         ParseField ENABLED = new ParseField("enabled");
         ParseField TYPE = new ParseField("type");
+        ParseField AUTHENTICATION_REALM = new ParseField("authentication_realm");
+        ParseField LOOKUP_REALM = new ParseField("lookup_realm");
+        ParseField REALM_TYPE = new ParseField("type");
+        ParseField REALM_NAME = new ParseField("name");
     }
 }
 

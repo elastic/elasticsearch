@@ -46,10 +46,10 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
      * than simply returning no results.
      */
     public void testSearchTimeoutIsFailure() throws Exception {
-        ldapServers[0].setProcessingDelayMillis(100);
+        ldapServers[0].setProcessingDelayMillis(500);
 
         final LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setConnectTimeoutMillis(500);
+        options.setConnectTimeoutMillis(1500);
         options.setResponseTimeoutMillis(5);
         connect(options);
 

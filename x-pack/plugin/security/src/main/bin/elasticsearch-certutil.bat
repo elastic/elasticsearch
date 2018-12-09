@@ -7,10 +7,11 @@ rem you may not use this file except in compliance with the Elastic License.
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
+set ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.CertificateTool
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
+set ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
 call "%~dp0elasticsearch-cli.bat" ^
-  org.elasticsearch.xpack.core.ssl.CertificateTool ^
-  %* ^
+  %%* ^
   || exit /b 1
 
 endlocal

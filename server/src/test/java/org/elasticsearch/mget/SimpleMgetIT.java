@@ -19,6 +19,7 @@
 package org.elasticsearch.mget;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -44,6 +45,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleMgetIT extends ESIntegTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // this is needed to force the index version in the _parent tests
+        return false;
+    }
 
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
@@ -125,6 +131,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
     public void testThatParentPerDocumentIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_4_0).build())
                 .addMapping("test", jsonBuilder()
                         .startObject()
                         .startObject("test")

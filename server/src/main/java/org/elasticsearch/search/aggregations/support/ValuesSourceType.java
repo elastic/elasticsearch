@@ -19,9 +19,37 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-public enum ValuesSourceType  {
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+import java.util.Locale;
+
+public enum ValuesSourceType implements Writeable {
     ANY,
     NUMERIC,
     BYTES,
     GEOPOINT;
+
+    public static final ParseField VALUE_SOURCE_TYPE = new ParseField("value_source_type");
+
+    public static ValuesSourceType fromString(String name) {
+        return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
+
+    public static ValuesSourceType fromStream(StreamInput in) throws IOException {
+        return in.readEnum(ValuesSourceType.class);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        ValuesSourceType state = this;
+        out.writeEnum(state);
+    }
+
+    public String value() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }

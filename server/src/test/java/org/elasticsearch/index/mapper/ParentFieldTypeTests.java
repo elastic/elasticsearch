@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
-
 public class ParentFieldTypeTests extends FieldTypeTestCase {
+
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new ParentFieldMapper.ParentFieldType();

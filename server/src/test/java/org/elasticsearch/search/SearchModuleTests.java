@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
@@ -68,6 +66,7 @@ import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,7 +84,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SearchModuleTests extends ModuleTestCase {
+public class SearchModuleTests extends ESTestCase {
 
     public void testDoubleRegister() {
         SearchPlugin registersDupeHighlighter = new SearchPlugin() {

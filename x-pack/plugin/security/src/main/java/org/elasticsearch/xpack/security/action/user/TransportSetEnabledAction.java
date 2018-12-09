@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
  */
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, SetEnabledResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore usersStore;
 
     @Inject
@@ -35,6 +36,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
                                         NativeUsersStore usersStore) {
         super(settings, SetEnabledAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 SetEnabledRequest::new);
+        this.settings = settings;
         this.usersStore = usersStore;
     }
 

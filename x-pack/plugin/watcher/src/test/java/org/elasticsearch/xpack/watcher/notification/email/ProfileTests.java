@@ -15,7 +15,6 @@ import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 
-import java.util.Collections;
 import java.util.HashSet;
 
 import static org.hamcrest.Matchers.instanceOf;

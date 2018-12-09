@@ -1,6 +1,6 @@
 # Integration tests for repository-azure
 ---
-"Snapshot/Restore with repository-azure":
+setup:
 
   # Register repository
   - do:
@@ -13,7 +13,8 @@
             client: "integration_test"
             base_path: ${base_path}
 
-  - match: { acknowledged: true }
+---
+"Snapshot/Restore with repository-azure":
 
   # Get repository
   - do:
@@ -172,3 +173,66 @@
         repository: repository
         snapshot: snapshot-one
         master_timeout: 5m
+
+---
+"Register a repository with a non existing container":
+
+  - do:
+      catch: /repository_verification_exception/
+      snapshot.create_repository:
+        repository: repository
+        body:
+          type: azure
+          settings:
+            container: zHHkfSqlbnBsbpSgvCYtxrEfFLqghXtyPvvvKPNBnRCicNHQLE
+            client: integration_test
+
+---
+"Register a repository with a non existing client":
+
+  - do:
+      # TODO this should be a repository_exception
+      catch: /settings_exception/
+      snapshot.create_repository:
+        repository: repository
+        body:
+          type: azure
+          settings:
+            bucket: repository
+            client: unknown
+
+---
+"Get a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.get:
+        repository: repository
+        snapshot: missing
+
+---
+"Delete a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.delete:
+        repository: repository
+        snapshot: missing
+
+---
+"Restore a non existing snapshot":
+
+  - do:
+      catch: /snapshot_restore_exception/
+      snapshot.restore:
+        repository: repository
+        snapshot: missing
+        wait_for_completion: true
+
+---
+teardown:
+
+  # Remove our repository
+  - do:
+     snapshot.delete_repository:
+       repository: repository

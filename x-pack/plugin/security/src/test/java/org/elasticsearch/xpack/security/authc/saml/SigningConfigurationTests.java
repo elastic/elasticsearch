@@ -21,7 +21,7 @@ public class SigningConfigurationTests extends SamlTestCase {
 
     @BeforeClass
     public static void setupCredential() throws Exception {
-        credential = (X509Credential)buildOpenSamlCredential(createKeyPair()).get(0);
+        credential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
     }
 
     @AfterClass

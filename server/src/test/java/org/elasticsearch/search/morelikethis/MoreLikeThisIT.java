@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.morelikethis;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -33,15 +33,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -61,14 +58,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
 
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
@@ -338,6 +331,36 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
+    public void testMoreLikeThisWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("text")
+                        .field("type", "text")
+                    .endObject()
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "text")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        ensureGreen();
+
+        index("test", "_doc", "1", "text", "lucene");
+        index("test", "_doc", "2", "text", "lucene release");
+        refresh();
+
+        Item item = new Item("test", "_doc", "1");
+        QueryBuilder query = QueryBuilders.moreLikeThisQuery(new String[] {"alias"}, null, new Item[] {item})
+            .minTermFreq(1)
+            .minDocFreq(1);
+        SearchResponse response = client().prepareSearch().setQuery(query).get();
+        assertHitCount(response, 1L);
+    }
+
     public void testSimpleMoreLikeInclude() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
@@ -395,39 +418,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, ids("1")).include(true).minTermFreq(1).minDocFreq(1);
         SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
         assertHitCount(mltResponse, 3L);
-    }
-
-    public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
-        logger.info("Creating index test");
-        int numOfTypes = randomIntBetween(2, 10);
-        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id));
-        for (int i = 0; i < numOfTypes; i++) {
-            createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
-                    .startObject("text").field("type", "text").endObject()
-                    .endObject().endObject().endObject());
-        }
-        assertAcked(createRequestBuilder);
-
-        logger.info("Running Cluster Health");
-        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
-
-        logger.info("Indexing...");
-        List<IndexRequestBuilder> builders = new ArrayList<>(numOfTypes);
-        for (int i = 0; i < numOfTypes; i++) {
-            builders.add(client().prepareIndex("test", "type" + i).setSource("text", "lucene" + " " + i).setId(String.valueOf(i)));
-        }
-        indexRandom(true, builders);
-
-        logger.info("Running MoreLikeThis");
-        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, new Item[] {new Item("test", "type0", "0")}).include(true).minTermFreq(1).minDocFreq(1);
-
-        String[] types = new String[numOfTypes];
-        for (int i = 0; i < numOfTypes; i++) {
-            types[i] = "type"+i;
-        }
-        SearchResponse mltResponse = client().prepareSearch().setTypes(types).setQuery(queryBuilder).execute().actionGet();
-        assertHitCount(mltResponse, numOfTypes);
     }
 
     public void testMoreLikeThisMultiValueFields() throws Exception {
@@ -677,5 +667,44 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         moreLikeThisQueryBuilder.minDocFreq(1);
         SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
         assertEquals(2, searchResponse.getHits().totalHits);
+    }
+
+    //Issue #29678
+    public void testWithMissingRouting() throws IOException {
+        logger.info("Creating index test with routing required for type1");
+        assertAcked(prepareCreate("test").addMapping("type1",
+            jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
+                .startObject("_routing").field("required", true).endObject()
+            .endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        {
+            logger.info("Running moreLikeThis with one item without routing attribute");
+            SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+                client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
+                    new Item("test", "type1", "1")
+                }).minTermFreq(1).minDocFreq(1)).get());
+
+            Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(RoutingMissingException.class));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+        }
+
+        {
+            logger.info("Running moreLikeThis with one item with routing attribute and two items without routing attribute");
+            SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
+                new Item("test", "type1", "1").routing("1"),
+                new Item("test", "type1", "2"),
+                new Item("test", "type1", "3")
+            }).minTermFreq(1).minDocFreq(1)).get());
+
+            Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(RoutingMissingException.class));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+        }
     }
 }

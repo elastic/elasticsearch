@@ -39,6 +39,7 @@ public class HasPrivilegesRequestBuilder
         request.username(username);
         request.indexPrivileges(role.getIndicesPrivileges());
         request.clusterPrivileges(role.getClusterPrivileges());
+        request.applicationPrivileges(role.getApplicationPrivileges());
         return this;
     }
 }

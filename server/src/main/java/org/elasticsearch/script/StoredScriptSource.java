@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -62,7 +62,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(StoredScriptSource.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(StoredScriptSource.class));
 
     /**
      * Standard {@link ParseField} for outer level of stored script source.
@@ -73,6 +73,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Standard {@link ParseField} for outer level of stored script source.
      */
     public static final ParseField TEMPLATE_PARSE_FIELD = new ParseField("template");
+
+    /**
+     * Standard {@link ParseField} for query on the inner field.
+     */
+    public static final ParseField TEMPLATE_NO_WRAPPER_PARSE_FIELD = new ParseField("query");
 
     /**
      * Standard {@link ParseField} for lang on the inner level.
@@ -180,13 +185,33 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         }
     }
 
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("stored script source", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("stored script source", true, Builder::new);
 
     static {
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setSource, parser -> parser, SOURCE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
+    }
+
+    private static StoredScriptSource parseRemaining(Token token, XContentParser parser) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            if (token != Token.START_OBJECT) {
+                builder.startObject();
+                builder.copyCurrentStructure(parser);
+                builder.endObject();
+            } else {
+                builder.copyCurrentStructure(parser);
+            }
+
+            String source = Strings.toString(builder);
+
+            if (source == null || source.isEmpty()) {
+                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
+            }
+
+            return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
+        }
     }
 
     /**
@@ -304,38 +329,28 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
-            } else {
-                if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
-                    token = parser.nextToken();
+            } else if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
 
-                    if (token == Token.VALUE_STRING) {
-                        String source = parser.text();
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
 
-                        if (source == null || source.isEmpty()) {
-                            DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
-                        }
-
-                        return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
-                    }
-                }
-
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    if (token != Token.START_OBJECT) {
-                        builder.startObject();
-                        builder.copyCurrentStructure(parser);
-                        builder.endObject();
-                    } else {
-                        builder.copyCurrentStructure(parser);
-                    }
-
-                    String source = Strings.toString(builder);
+                token = parser.nextToken();
+                if (token == Token.VALUE_STRING) {
+                    String source = parser.text();
 
                     if (source == null || source.isEmpty()) {
                         DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
                     }
 
                     return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
+                } else {
+                    return parseRemaining(token, parser);
                 }
+            } else if (TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)) {
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
+                return parseRemaining(token, parser);
+            } else {
+                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context. Specify them in a \"script\" element.");
+                return parseRemaining(token, parser);
             }
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
@@ -466,7 +481,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         builder.startObject();
         builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
         builder.field(SOURCE_PARSE_FIELD.getPreferredName(), source);
-        builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
+        if (options.isEmpty() == false) {
+            builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
+        }
         builder.endObject();
 
         return builder;

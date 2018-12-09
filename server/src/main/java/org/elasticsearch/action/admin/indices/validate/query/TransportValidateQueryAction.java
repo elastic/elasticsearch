@@ -59,7 +59,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.LongSupplier;
 
-public class TransportValidateQueryAction extends TransportBroadcastAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
+public class TransportValidateQueryAction extends TransportBroadcastAction<
+        ValidateQueryRequest,
+        ValidateQueryResponse,
+        ShardValidateQueryRequest,
+        ShardValidateQueryResponse> {
 
     private final SearchService searchService;
 
@@ -146,7 +150,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses,
+                                                ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         boolean valid = true;
@@ -200,7 +205,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         } catch (QueryShardException|ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
-        } catch (AssertionError|IOException e) {
+        } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
         } finally {
@@ -210,7 +215,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String explain(SearchContext context, boolean rewritten) throws IOException {
+    private String explain(SearchContext context, boolean rewritten) {
         Query query = context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();

@@ -7,6 +7,8 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 

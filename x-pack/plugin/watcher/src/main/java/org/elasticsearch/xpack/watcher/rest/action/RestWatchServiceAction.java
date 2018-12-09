@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -15,12 +18,12 @@ import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestWatchServiceAction extends WatcherRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestWatchServiceAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestWatchServiceAction(Settings settings, RestController controller) {
         super(settings);

@@ -23,7 +23,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Base64;

@@ -22,8 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,9 +84,8 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                         try (InputStream stream = docSource.streamInput();
-                             XContentParser parser =
-                                     XContentFactory.xContent(getDocResponse.getSourceAsBytes())
-                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
                             responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
@@ -126,7 +125,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference docSource = hit.getSourceRef();
                     try (InputStream stream = docSource.streamInput();
-                         XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(docSource)).createParser(
+                         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                                  NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                         docs.add(MlFilter.LENIENT_PARSER.apply(parser, null).build());
                     } catch (IOException e) {

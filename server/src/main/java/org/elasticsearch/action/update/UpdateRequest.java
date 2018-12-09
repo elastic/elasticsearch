@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import java.util.Arrays;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,8 +28,10 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,6 +48,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +58,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(LogManager.getLogger(UpdateRequest.class));
 
     private String type;
     private String id;
@@ -106,10 +112,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
 
@@ -119,11 +125,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         } else {
 
             if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
-                validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
+                validationException = addValidationError("can't provide both retry_on_conflict and a specific version",
+                    validationException);
             }
 
             if (!versionType.validateVersionForWrites(version)) {
-                validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+                validationException = addValidationError("illegal version value [" + version +
+                    "] for version type [" + versionType.name() + "]", validationException);
             }
         }
 
@@ -618,8 +626,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
-     * is thrown.
+     * Sets the index request to be used if the document does not exists. Otherwise, a
+     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
     public UpdateRequest upsert(IndexRequest upsertRequest) {
         this.upsertRequest = upsertRequest;
@@ -726,7 +734,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             return this;
         }
         String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        int depth = 0;
+        while (token != null) {
+            token = parser.nextToken();
+            // have to track depth to avoid premature end of parsing due to nested objects as
+            // update request could have item ( script / scripted_upsert / upsert / doc etc ) at any nested level
+            if (token == XContentParser.Token.START_OBJECT) {
+                depth++;
+            } else if (token == XContentParser.Token.END_OBJECT) {
+                currentFieldName = null;
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+                continue;
+            }
+
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if ("script".equals(currentFieldName)) {
@@ -746,6 +769,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             } else if ("detect_noop".equals(currentFieldName)) {
                 detectNoop(parser.booleanValue());
             } else if ("fields".equals(currentFieldName)) {
+                DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
                 List<Object> fields = null;
                 if (token == XContentParser.Token.START_ARRAY) {
                     fields = (List) parser.list();
@@ -757,6 +781,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 }
             } else if ("_source".equals(currentFieldName)) {
                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
+            } else {
+                DEPRECATION_LOGGER.deprecated("Unknown field [{}] used in {} which has no value and will not be accepted in future",
+                    currentFieldName, UpdateRequest.class.getSimpleName());
+            }
+
+            // copyCurrentStructure / SomeObject.fromXContent moves current token to END_OBJECT
+            if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+                depth--;
             }
         }
         if (script != null) {

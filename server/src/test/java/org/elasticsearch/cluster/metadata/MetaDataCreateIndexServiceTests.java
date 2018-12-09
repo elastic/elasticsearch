@@ -34,7 +34,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +58,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -149,8 +156,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -219,8 +226,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -245,6 +252,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .put("index.version.upgraded", upgraded)
                         .put("index.similarity.default.type", "BM25")
                         .put("index.analysis.analyzer.default.tokenizer", "keyword")
+                        .put("index.soft_deletes.enabled", "true")
                         .build();
         runPrepareResizeIndexSettingsTest(
                 indexSettings,
@@ -261,6 +269,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                     assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
                     assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
                     assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
+                    assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
                 });
     }
 
@@ -321,6 +330,15 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     }
 
+    public void testDoNotOverrideSoftDeletesSettingOnResize() {
+        runPrepareResizeIndexSettingsTest(
+            Settings.builder().put("index.soft_deletes.enabled", "false").build(),
+            Settings.builder().put("index.soft_deletes.enabled", "true").build(),
+            Collections.emptyList(),
+            randomBoolean(),
+            settings -> assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true")));
+    }
+
     private void runPrepareResizeIndexSettingsTest(
             final Settings sourceSettings,
             final Settings requestSettings,
@@ -342,9 +360,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .build();
 
         final AllocationService service = new AllocationService(
-                Settings.builder().build(),
-                new AllocationDeciders(Settings.EMPTY,
-                Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
                 new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE);
@@ -397,7 +413,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         MetaDataCreateIndexService.validateIndexName("foo:bar", ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
                         .getDefault(Settings.EMPTY)).build());
-        assertWarnings("index or alias name [foo:bar] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
+        assertWarnings("index or alias name [foo:bar] containing ':' is deprecated. Elasticsearch 7.x will read, " +
+                        "but not allow creation of new indices containing ':'");
     }
 
     private void validateIndexName(String indexName, String errorMessage) {
@@ -406,4 +423,30 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
+
+    public void testShardLimitDeprecationWarning() {
+        int nodesInCluster = randomIntBetween(2,100);
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+            .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
+            .build();
+
+        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertWarnings("In a future major version, this request will fail because this action would add [" +
+            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
+            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
+    }
+
 }

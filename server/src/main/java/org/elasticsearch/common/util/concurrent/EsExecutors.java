@@ -59,25 +59,30 @@ public class EsExecutors {
         return PROCESSORS_SETTING.get(settings);
     }
 
-    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
+                                                                        ThreadContext contextHolder, ScheduledExecutorService timer) {
         return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
-    public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,
+                                                  ThreadFactory threadFactory, ThreadContext contextHolder) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
+        EsThreadPoolExecutor executor =
+            new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
         queue.executor = executor;
         return executor;
     }
 
-    public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
+                                                ThreadFactory threadFactory, ThreadContext contextHolder) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy(), contextHolder);
+        return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+            queue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
     /**
@@ -160,16 +165,23 @@ public class EsExecutors {
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
         } else {
+            // TODO this should only be allowed in tests
             return threadName("", namePrefix);
         }
     }
 
     public static String threadName(final String nodeName, final String namePrefix) {
+        // TODO missing node names should only be allowed in tests
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
+    }
+
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return daemonThreadFactory(threadName(nodeName, namePrefix));
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {

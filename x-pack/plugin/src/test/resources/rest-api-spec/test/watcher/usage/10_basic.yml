@@ -1,6 +1,5 @@
 ---
 "Test watcher usage stats output":
-
   - do:
       catch: missing
       xpack.watcher.delete_watch:

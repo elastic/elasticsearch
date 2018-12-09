@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -57,15 +58,50 @@ public class Shell {
         this.workingDirectory = workingDirectory;
     }
 
-    public Result run(String... command) {
-        Result result = runIgnoreExitCode(command);
+    public Map<String, String> getEnv() {
+        return env;
+    }
+
+    /**
+     * Run the provided string as a shell script. On Linux the {@code bash -c [script]} syntax will be used, and on Windows
+     * the {@code powershell.exe -Command [script]} syntax will be used. Throws an exception if the exit code of the script is nonzero
+     */
+    public Result run(String script) {
+        return runScript(getScriptCommand(script));
+    }
+
+    /**
+     * Same as {@link #run(String)}, but does not throw an exception if the exit code of the script is nonzero
+     */
+    public Result runIgnoreExitCode(String script) {
+        return runScriptIgnoreExitCode(getScriptCommand(script));
+    }
+
+    private String[] getScriptCommand(String script) {
+        if (Platforms.WINDOWS) {
+            return powershellCommand(script);
+        } else {
+            return bashCommand(script);
+        }
+    }
+
+    private static String[] bashCommand(String script) {
+        return Stream.concat(Stream.of("bash", "-c"), Stream.of(script)).toArray(String[]::new);
+    }
+
+    private static String[] powershellCommand(String script) {
+        return Stream.concat(Stream.of("powershell.exe", "-Command"), Stream.of(script)).toArray(String[]::new);
+    }
+
+    private Result runScript(String[] command) {
+        Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
             throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "] result: " + result.toString());
         }
         return result;
     }
 
-    public Result runIgnoreExitCode(String... command) {
+    private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
 

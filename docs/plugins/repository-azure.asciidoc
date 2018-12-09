@@ -11,7 +11,7 @@ include::install_remove.asciidoc[]
 ==== Azure Repository
 
 To enable Azure repositories, you have first to define your azure storage settings as
-{ref}/secure-settings.html[secured settings]:
+{ref}/secure-settings.html[secure settings], before starting up the node:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -20,6 +20,7 @@ bin/elasticsearch-keystore add azure.client.default.key
 ----------------------------------------------------------------
 
 Where `account` is the azure account name and `key` the azure secret key.
+These settings are used by the repository's internal azure client.
 
 Note that you can also define more than one account:
 
@@ -31,7 +32,18 @@ bin/elasticsearch-keystore add azure.client.secondary.account
 bin/elasticsearch-keystore add azure.client.secondary.key
 ----------------------------------------------------------------
 
-`default` is the default account name which will be used by a repository unless you set an explicit one.
+`default` is the default account name which will be used by a repository,
+unless you set an explicit one in the
+<<repository-azure-repository-settings, repository settings>>.
+
+Both `account` and `key` storage settings are
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
+reload the settings, the internal azure clients, which are used to transfer the
+snapshot, will utilize the latest settings from the keystore.
+
+NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
+of the storage secure settings. They will complete using the client as it was built
+when the operation started.
 
 You can set the client side timeout to use when making any single request. It can be defined globally, per account or both.
 It's not set by default which means that Elasticsearch is using the

@@ -1,0 +1,811 @@
+////
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases at the
+// top of the page. Note that release subheads must be floated and sections
+// cannot be empty.
+// TEMPLATE
+
+// [[release-notes-n.n.n]]
+// == {es} n.n.n
+
+//[float]
+[[breaking-n.n.n]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+//[float]
+//=== Bug Fixes
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+////
+
+[[release-notes-6.2.4]]
+== {es} version 6.2.4
+
+//[float]
+//[[breaking-6.2.4]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+[float]
+=== Bug Fixes
+
+Engine::
+* Harden periodically check to avoid endless flush loop {pull}29125[#29125] (issues: {issue}28350[#28350], {issue}29097[#29097])
+
+Ingest::
+* Don't allow referencing the pattern bank name in the pattern bank {pull}29295[#29295] (issue: {issue}29257[#29257])
+
+[float]
+=== Regressions
+Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
+written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
+
+Java High Level REST Client::
+* Bulk processor#awaitClose to close scheduler {pull}29263[#29263]
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
+Do not fail snapshot when deleting a missing snapshotted file ({pull}30332[#30332])
+
+Java Low Level REST Client::
+* REST client: hosts marked dead for the first time should not be immediately retried {pull}29230[#29230]
+
+Machine Learning::
+* Prevents failed jobs from mistakenly re-opening after node loss recovery. 
+* Returns an error when an operation cannot be submitted because the process was 
+killed. 
+* Respects the datafeed frequency when it is less or equal to the 
+`query_delay` setting.  
+
+Network::
+* Cross-cluster search and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
+
+Percolator::
+* Fixed bug when non percolator docs end up in the search hits {pull}29447[#29447] (issue: {issue}29429[#29429])
+* Fixed a msm accounting error that can occur during analyzing a percolator query {pull}29415[#29415] (issue: {issue}29393[#29393])
+* Fix more query extraction bugs. {pull}29388[#29388] (issues: {issue}28353[#28353], {issue}29376[#29376])
+* Fix some query extraction bugs. {pull}29283[#29283]
+
+Plugins::
+* Plugins: Fix native controller confirmation for non-meta plugin {pull}29434[#29434]
+
+Search::
+* Propagate ignore_unmapped to inner_hits {pull}29261[#29261] (issue: {issue}29071[#29071])
+
+Security/Authentication::
+* Adds missing `idp.use_single_logout` and `populate_user_metadata` SAML realm 
+settings. See <<ref-saml-settings>>. 
+
+Settings::
+* Archive unknown or invalid settings on updates {pull}28888[#28888] (issue: {issue}28609[#28609])
+
+Watcher::
+* Re-enables `smtp.*` account configuration properties in the notification 
+settings. See <<email-notification-settings>>.  
+* Ensures starting and stopping {watcher} is properly acknowledged as a master 
+node action. 
+* Refrains from appending a question mark to an HTTP request if no parameters 
+are used. 
+
+//[float]
+//=== Known Issues
+
+[[release-notes-6.2.3]]
+== {es} version 6.2.3
+
+//[float]
+//[[breaking-6.2.3]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+[float]
+=== Deprecations
+
+Deprecated multi-argument versions of the request methods in the RestClient.
+Prefer the "Request" object flavored methods. ({pull}30315[#30315])
+
+//[float]
+//=== New Features
+
+A new analysis plugin called `analysis_nori` that exposes the Lucene Korean
+analysis module.  ({pull}30397[#30397])
+
+[float]
+=== Enhancements
+
+Highlighting::
+* Limit analyzed text for highlighting (improvements) {pull}28808[#28808] (issues: {issue}16764[#16764], {issue}27934[#27934]) 
+
+<<copy-source-settings-on-resize,Allow copying source settings on index resize operations>> ({pull}30255[#30255],{pull}30404[#30404])
+
+Added new "Request" object flavored request methods in the RestClient. Prefer
+these instead of the multi-argument versions. ({pull}29623[#29623])
+
+Recovery::
+* Require translogUUID when reading global checkpoint {pull}28587[#28587] (issue: {issue}28435[#28435])
+Added `setJsonEntity` to `Request` object so it is marginally easier to send JSON. ({pull}30447[#30447])
+Watcher HTTP client used in watches now allows more parallel connections to the
+same endpoint and evicts long running connections. ({pull}30130[#30130])
+
+The cluster state listener to decide if watcher should be
+stopped/started/paused now runs far less code in an executor but is more
+synchronous and predictable. Also the trigger engine thread is only started on
+data nodes. And the Execute Watch API can be triggered regardless is watcher is
+started or stopped. ({pull}30118[#30118])
+
+Added put index template API to the high level rest client ({pull}30400[#30400])
+
+Add ability to filter coordinating-only nodes when interacting with cluster
+APIs. ({pull}30313[#30313])
+
+[float]
+=== Bug Fixes
+
+Core::
+* Remove special handling for _all in nodes info {pull}28971[#28971] (issue: {issue}28797[#28797])
+
+Engine::
+* Avoid class cast exception from index writer {pull}28989[#28989]
+* Maybe die before failing engine {pull}28973[#28973] (issues: {issue}27265[#27265], {issue}28967[#28967])
+* Never block on key in `LiveVersionMap#pruneTombstones` {pull}28736[#28736] (issue: {issue}28714[#28714])
+
+Ingest::
+* Continue registering pipelines after one pipeline parse failure. {pull}28752[#28752] (issue: {issue}28269[#28269])
+
+Java High Level REST Client::
+* REST high-level client: encode path parts {pull}28663[#28663] (issue: {issue}28625[#28625])
+
+Machine Learning::
+* Fixed the <<ml-get-datafeed-stats,get datafeed statistics API>> such that it
+returns only machine learning-specific node attributes.
+
+Monitoring::
+* Aligned reporting of index statistics that exist in the current cluster state.
+This fix avoids subtle race conditions in stats reporting.
+
+Packaging::
+* Delay path expansion on Windows {pull}28753[#28753] (issues: {issue}27675[#27675], {issue}28748[#28748])
+
+Percolator::
+* Fix percolator query analysis for function_score query {pull}28854[#28854]
+* Improved percolator's random candidate query duel test {pull}28840[#28840]
+
+Security::
+* Fixed handling of comments in XML documents [ESA-2018-07].
+* Fixed auditing such that when you use a local audit index, it maintains the
+mappings automatically. Maintenance is necessary, for example, when new fields
+are introduced or document types change.
+* Added and changed settings for the SAML NameID policy. For example, added the
+`nameid.allow_create` setting and changed the default value for
+the SPNameQualifier setting to blank. See {stack-ov}/saml-realm.html[SAML Authentication].
+* Fixed handling of an Assertion Consumer Service (ACS) URL with existing query
+parameters. See {stack-ov}/saml-realm.html[SAML Authentication].
+* Fixed the PKI realm bootstrap check such that it works with secure settings.
+For more information, see <<bootstrap-checks-xpack>>.
+
+Snapshot/Restore::
+* Fix NPE when using deprecated Azure settings {pull}28769[#28769] (issues: {issue}23518[#23518], {issue}28299[#28299])
+
+Stats::
+* Fix AdaptiveSelectionStats serialization bug {pull}28718[#28718] (issue: {issue}28713[#28713])
+
+Watcher::
+* Fixed the serialization of failed hipchat messages, such that it no longer
+tries to write the status field twice.
+* Fixed TransformInput toXContent serialization errors. For more information,
+see
+{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+
+
+Allocation::
+
+Auto-expand replicas when adding or removing nodes to prevent shard copies from
+being dropped and resynced when a data node rejoins the cluster ({pull}30423[#30423])
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+
+[[release-notes-6.2.2]]
+== {es} version 6.2.2
+
+//[float]
+//[[breaking-6.2.2]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+[float]
+=== Enhancements
+
+Recovery::
+* Synced-flush should not seal index of out of sync replicas {pull}28464[#28464] (issue: {issue}10032[#10032])
+
+[float]
+=== Bug Fixes
+
+Core::
+* Handle throws on tasks submitted to thread pools {pull}28667[#28667]
+* Fix size blocking queue to not lie about its weight {pull}28557[#28557] (issue: {issue}28547[#28547])
+
+Ingest::
+* Guard accessDeclaredMembers for Tika on JDK 10 {pull}28603[#28603] (issue: {issue}28602[#28602])
+* Fix for bug that prevents pipelines to load that use stored scripts after a restart {pull}28588[#28588]
+
+Java High Level REST Client::
+* Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
+* Move to POST when calling API to retrieve which support request body {pull}28342[#28342] (issue: {issue}28326[#28326])
+
+Machine Learning::
+* Fixed an exception that occurred when a categorization field contained an
+empty string.
+
+Monitoring::
+* Properly registered `xpack.monitoring.exporters.*.headers.*` settings, which
+were broken in 6.2.0 and 6.2.1. For more information, see
+<<http-exporter-settings>>.
+
+Packaging::
+* Fix using relative custom config path {pull}28700[#28700] (issue: {issue}27610[#27610])
+* Disable console logging in the Windows service {pull}28618[#28618] (issue: {issue}20422[#20422])
+
+Percolator::
+* Do not take duplicate query extractions into account for minimum_should_match attribute {pull}28353[#28353] (issue: {issue}28315[#28315])
+
+Recovery::
+* Fsync directory after cleanup {pull}28604[#28604] (issue: {issue}28435[#28435])
+
+Security::
+* Added CachingRealm to published artifacts so it can be used in custom realm
+extensions.
+* If the realm uses native role mappings and the security index health changes,
+the realm caches are cleared. For example, they are cleared when the index
+recovers from a red state, when the index is deleted, when the index becomes
+outdated, and when the index becomes up-to-date.
+* Fixed a bug that could prevent auditing to a remote index if the remote
+cluster was re-started at the same time as the audited cluster.
+* Removed AuthorityKeyIdentifier's Issuer and Serial number from certificates
+generated by `certgen` and `certutil`. This improves compatibility with
+certificate verification in {kib}.
+
+Watcher::
+* Proxies now use HTTP by default, which was the default prior to 6.0. This
+fixes issues with HTTPS requests that tried to access proxies via HTTP.
+* Fixed the HTML sanitizer settings
+(`xpack.notification.email.html.sanitization.*`), which were broken in 6.2. For
+more information, see <<notification-settings>>.
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[[release-notes-6.2.1]]
+== {es} version 6.2.1
+
+//[float]
+//[[breaking-6.2.1]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+The cluster state listener to decide if watcher should be
+stopped/started/paused now runs far less code in an executor but is more
+synchronous and predictable. Also the trigger engine thread is only started on
+data nodes. And the Execute Watch API can be triggered regardless is watcher is
+started or stopped. ({pull}30118[#30118])
+
+[float]
+=== Bug Fixes
+
+Plugin Lang Painless::
+* Painless: Fix For Loop NullPointerException {pull}28506[#28506] (issue: {issue}28501[#28501])
+
+Plugins::
+* Fix the ability to remove old plugin {pull}28540[#28540] (issue: {issue}28538[#28538])
+
+Security::
+* Fixed missing dependencies for x-pack-transport.
+* Fixed `saml-metadata` env file such that it sources the appropriate 
+environment file.
+
+Machine Learning::
+
+* Account for gaps in data counts after job is reopened ({pull}30294[#30294])
+
+[[release-notes-6.2.0]]
+== {es} version 6.2.0
+
+[float]
+[[breaking-6.2.0]]
+=== Breaking Changes
+
+Aggregations::
+* Add a new cluster setting to limit the total number of buckets returned by a request {pull}27581[#27581] (issues: {issue}26012[#26012], {issue}27452[#27452])
+
+Core::
+* Forbid granting the all permission in production {pull}27548[#27548]
+
+Highlighting::
+* Limit the analyzed text for highlighting {pull}27934[#27934] (issue: {issue}27517[#27517])
+
+Rollover::
+* Fail rollover if duplicated alias found in templates {pull}28110[#28110] (issue: {issue}26976[#26976])
+
+Search::
+* Introduce limit to the number of terms in Terms Query {pull}27968[#27968] (issue: {issue}18829[#18829])
+
+[float]
+=== Breaking Java Changes
+
+Java API::
+* Remove `operationThreaded` from Java API {pull}27836[#27836]
+
+Java High Level REST Client::
+* REST high-level client: remove index suffix from indices client method names {pull}28263[#28263]
+
+[float]
+=== Deprecations
+
+Analysis::
+* Backport delimited payload filter renaming {pull}27535[#27535] (issue: {issue}26625[#26625])
+
+Suggesters::
+* deprecating `jarowinkler` in favor of `jaro_winkler` {pull}27526[#27526]
+* Deprecating `levenstein` in favor of `levensHtein` {pull}27409[#27409] (issue: {issue}27325[#27325])
+
+[float]
+=== New Features
+
+Machine Learning::
+* Added the ability to identify scheduled events and prevent anomaly detection
+during these periods. For more information, see
+{stack-ov}/ml-calendars.html[Calendars and Scheduled Events].
+
+Plugin Ingest GeoIp::
+* Enable ASN support for Ingest GeoIP plugin.  {pull}27958[#27958] (issue: {issue}27849[#27849])
+
+Plugin Lang Painless::
+* Painless: Add spi jar that will be published for extending whitelists {pull}28302[#28302]
+* Painless: Add a simple cache for whitelist methods and fields. {pull}28142[#28142]
+
+Plugins::
+* Add the ability to bundle multiple plugins into a meta plugin {pull}28022[#28022] (issue: {issue}27316[#27316])
+
+Rank Evaluation::
+* Backport of ranking evaluation API (#27478) {pull}27844[#27844] (issue: {issue}27478[#27478])
+
+Recovery::
+* Backport for using lastSyncedGlobalCheckpoint in deletion policy {pull}27866[#27866] (issue: {issue}27826[#27826])
+
+Reindex API::
+* Add scroll parameter to _reindex API {pull}28041[#28041] (issue: {issue}27555[#27555])
+
+Security::
+* {security} now supports user authentication using SAML Single Sign on. For
+more information, see {stack-ov}/saml-realm.html[SAML authentication].
+
+Watcher::
+* Added a transform input for chained input. For more information, see
+{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+
+[float]
+=== Enhancements
+
+Allocation::
+* Fix cluster.routing.allocation.enable and cluster.routing.rebalance.enable case {pull}28037[#28037] (issue: {issue}28007[#28007])
+* Add node id to shard failure message {pull}28024[#28024] (issue: {issue}28018[#28018])
+
+Analysis::
+* Limit the analyzed text for highlighting (#27934) {pull}28176[#28176] (issue: {issue}27517[#27517])
+* Allow TrimFilter to be used in custom normalizers {pull}27758[#27758] (issue: {issue}27310[#27310])
+
+Circuit Breakers::
+* Add accounting circuit breaker and track segment memory usage {pull}27116[#27116] (issue: {issue}27044[#27044])
+
+Cluster::
+* Adds wait_for_no_initializing_shards to cluster health API {pull}27489[#27489] (issue: {issue}25623[#25623])
+
+Core::
+* Introduce elasticsearch-core jar {pull}28191[#28191] (issue: {issue}27933[#27933])
+* Rename core module to server {pull}28190[#28190] (issue: {issue}27933[#27933])
+*  Rename core module to server {pull}28180[#28180] (issue: {issue}27933[#27933])
+* Introduce elasticsearch-core jar {pull}28178[#28178] (issue: {issue}27933[#27933])
+* Add Writeable.Reader support to TransportResponseHandler {pull}28010[#28010] (issue: {issue}26315[#26315])
+* Simplify rejected execution exception {pull}27664[#27664] (issue: {issue}27663[#27663])
+* Add node name to thread pool executor name {pull}27663[#27663] (issues: {issue}26007[#26007], {issue}26835[#26835])
+
+Discovery::
+* Add information when master node left to DiscoveryNodes' shortSummary() {pull}28197[#28197] (issue: {issue}28169[#28169])
+
+Engine::
+* Move uid lock into LiveVersionMap {pull}27905[#27905]
+* Optimize version map for append-only indexing {pull}27752[#27752]
+
+Geo::
+* [GEO] Add WKT Support to GeoBoundingBoxQueryBuilder {pull}27692[#27692] (issues: {issue}27690[#27690], {issue}9120[#9120])
+* [Geo] Add Well Known Text (WKT) Parsing Support to ShapeBuilders {pull}27417[#27417] (issue: {issue}9120[#9120])
+
+Highlighting::
+* Include all sentences smaller than fragment_size in the unified highlighter {pull}28132[#28132] (issue: {issue}28089[#28089])
+
+Ingest::
+* Enable convert processor to support Long and Double {pull}27891[#27891] (issues: {issue}23085[#23085], {issue}23423[#23423])
+
+Internal::
+* Make KeyedLock reentrant {pull}27920[#27920]
+* Make AbstractQueryBuilder.declareStandardFields to be protected (#27865) {pull}27894[#27894] (issue: {issue}27865[#27865])
+* Tighten the CountedBitSet class {pull}27632[#27632]
+* Avoid doing redundant work when checking for self references. {pull}26927[#26927] (issue: {issue}26907[#26907])
+
+Java API::
+* Add missing delegate methods to NodeIndicesStats {pull}28092[#28092]
+* Java api clean-up : consistency for `shards_acknowledged` getters  {pull}27819[#27819] (issue: {issue}27784[#27784])
+
+Java High Level REST Client::
+* add toString implementation for UpdateRequest. {pull}27997[#27997] (issue: {issue}27986[#27986])
+* Add Close Index API to the high level REST client {pull}27734[#27734] (issue: {issue}27205[#27205])
+* Add Open Index API to the high level REST client {pull}27574[#27574] (issue: {issue}27205[#27205])
+* Added Create Index support to high-level REST client {pull}27351[#27351] (issue: {issue}27205[#27205])
+* Add multi get api to the high level rest client {pull}27337[#27337] (issue: {issue}27205[#27205])
+* Add msearch api to high level client {pull}27274[#27274]
+
+Machine Learning::
+* Increased tokenization flexibility for categorization. Now all {es} analyzer
+functionality is available, which opens up the possibility of sensibly
+categorizing non-English log messages. For more information, see {stack-ov}/ml-configuring-categories.html#ml-configuring-analyzer[Customizing the Categorization Analyzer].
+* Improved the sensitivity of the analysis to high variance data with lots of
+values near zero.
+* Improved the decay rate of the model memory by using a weighted moving average.
+* Machine learning indices created after upgrading to 6.2 have the
+`auto_expand_replicas: 0-1` setting rather than a fixed setting of 1 replica.
+As a result, {ml} indices created after upgrading to 6.2 can have a green
+status on single node clusters. There is no impact in multi-node clusters.
+* Changed the credentials that are used by {dfeeds}. When {security} is enabled,
+a {dfeed} stores the roles of the user who created or updated the {dfeed}
+**at that time**. This means that if those roles are updated, the {dfeed}
+subsequently runs with the new permissions that are associated with the roles.
+However, if the user's roles are adjusted after creating or updating the {dfeed}
+then the {dfeed} continues to run with the permissions that are associated with
+the original roles. For more information, see
+{stack-ov}/ml-dfeeds.html[Datafeeds].
+* Added a new `scheduled` forecast status, which indicates that the forecast
+has not started yet.
+
+Mapping::
+* Allow `_doc` as a type. {pull}27816[#27816] (issues: {issue}27750[#27750], {issue}27751[#27751])
+
+Monitoring::
+* {monitoring} indices (`.monitoring`) created after upgrading to 6.2 have the
+`auto_expand_replicas: 0-1` setting rather than a fixed setting of 1 replica.
+As a result, monitoring indices created after upgrading to 6.2 can have a green
+status on single node clusters. There is no impact in multi-node clusters.
+* Added a cluster alert that triggers whenever a node is added, removed, or
+restarted.
+
+Network::
+* Add NioGroup for use in different transports {pull}27737[#27737] (issue: {issue}27260[#27260])
+* Add read timeouts to http module {pull}27713[#27713]
+* Implement byte array reusage in `NioTransport` {pull}27696[#27696] (issue: {issue}27563[#27563])
+* Introduce resizable inbound byte buffer {pull}27551[#27551] (issue: {issue}27563[#27563])
+* Decouple nio constructs from the tcp transport {pull}27484[#27484] (issue: {issue}27260[#27260])
+
+Packaging::
+* Extend JVM options to support multiple versions {pull}27675[#27675] (issue: {issue}27646[#27646])
+* Add explicit coreutils dependency {pull}27660[#27660] (issue: {issue}27609[#27609])
+* Detect mktemp from coreutils {pull}27659[#27659] (issues: {issue}27609[#27609], {issue}27643[#27643])
+* Enable GC logs by default {pull}27610[#27610]
+* Use private directory for temporary files {pull}27609[#27609] (issues: {issue}14372[#14372], {issue}27144[#27144])
+
+Percolator::
+* also extract match_all queries when indexing percolator queries {pull}27585[#27585]
+
+Plugin Lang Painless::
+* Painless: Add whitelist extensions {pull}28161[#28161]
+* Painless: Modify Loader to Load Classes Directly from Definition {pull}28088[#28088]
+* Clean Up Painless Cast Object {pull}27794[#27794]
+* Painless: Only allow Painless type names to be the same as the equivalent Java class. {pull}27264[#27264]
+
+Plugins::
+* Add client actions to action plugin {pull}28280[#28280] (issue: {issue}27759[#27759])
+* Plugins: Add validation to plugin descriptor parsing {pull}27951[#27951]
+* Plugins: Add plugin extension capabilities {pull}27881[#27881]
+* Add support for filtering mappings fields {pull}27603[#27603]
+
+Rank Evaluation::
+* Simplify RankEvalResponse output {pull}28266[#28266]
+
+Recovery::
+* Truncate tlog cli should assign global checkpoint {pull}28192[#28192] (issue: {issue}28181[#28181])
+* Replica starts peer recovery with safe commit {pull}28181[#28181] (issue: {issue}10708[#10708])
+* Primary send safe commit in file-based recovery {pull}28038[#28038] (issue: {issue}10708[#10708])
+* Fail resync-failed shards in subsequent writes {pull}28005[#28005]
+* Introduce promoting index shard state {pull}28004[#28004] (issue: {issue}24841[#24841])
+* Non-peer recovery should set the global checkpoint {pull}27965[#27965]
+* Persist global checkpoint when finalizing a peer recovery {pull}27947[#27947] (issue: {issue}27861[#27861])
+* Rollback a primary before recovering from translog {pull}27804[#27804] (issue: {issue}10708[#10708])
+
+Search::
+* Use typeName() to check field type in GeoShapeQueryBuilder {pull}27730[#27730]
+* Optimize search_after when sorting in index sort order {pull}26401[#26401]
+
+Security::
+* Added the ability to refresh tokens that were created by the token API. The
+API provides information about a refresh token, which you can use within 24
+hours of its creation to extend the life of a token. For more information, see
+<<security-api-tokens>>.
+* Added principal and role information to `access_granted`, `access_denied`,
+`run_as_granted`, and `run_as_denied` audit events. For more information about
+these events, see {stack-ov}/auditing.html[Auditing Security Events].
+* Added audit event ignore policies, which are a way to tune the verbosity of an
+audit trail. These policies define rules for ignoring audit events that match
+specific attribute values. For more information, see
+{stack-ov}/audit-log-output.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
+* Added a certificates API, which enables you to retrieve information about the
+X.509 certificates that are used to encrypt communications in your {es} cluster.
+For more information, see <<security-api-ssl>>.
+
+Sequence IDs::
+* Do not keep 5.x commits when having 6.x commits {pull}28188[#28188] (issues: {issue}27606[#27606], {issue}28038[#28038])
+* Use lastSyncedGlobalCheckpoint in deletion policy {pull}27826[#27826] (issue: {issue}27606[#27606])
+* Use CountedBitSet in LocalCheckpointTracker {pull}27793[#27793]
+* Only fsync global checkpoint if needed {pull}27652[#27652]
+* Keep commits and translog up to the global checkpoint {pull}27606[#27606]
+* Adjust CombinedDeletionPolicy for multiple commits {pull}27456[#27456] (issues: {issue}10708[#10708], {issue}27367[#27367])
+* Keeps index commits up to the current global checkpoint {pull}27367[#27367] (issue: {issue}10708[#10708])
+* Dedup translog operations by reading in reverse {pull}27268[#27268] (issue: {issue}10708[#10708])
+
+Settings::
+* Add validation of keystore setting names {pull}27626[#27626]
+
+Snapshot/Restore::
+* Use AmazonS3.doesObjectExist() method in S3BlobContainer {pull}27723[#27723]
+* Remove XContentType auto detection in BlobStoreRepository {pull}27480[#27480]
+* Include include_global_state in Snapshot status API (#22423) {pull}26853[#26853] (issue: {issue}22423[#22423])
+
+Task Manager::
+* Add ability to associate an ID with tasks  {pull}27764[#27764] (issue: {issue}23250[#23250])
+
+Translog::
+* Simplify MultiSnapshot#SeqNoset {pull}27547[#27547] (issue: {issue}27268[#27268])
+* Enclose CombinedDeletionPolicy in SnapshotDeletionPolicy {pull}27528[#27528] (issues: {issue}27367[#27367], {issue}27456[#27456])
+
+Watcher::
+* Added the ability to set the `index` and `doc_type` dynamically in an index
+action. For more information, see {stack-ov}/actions-index.html[Index Action].
+* Added a `refresh` index action attribute, which enables you to set the
+refresh policy of the write request. For more information, see
+{stack-ov}/actions-index.html[Index Action].
+* Added support for actions in slack attachments, which enables you to add
+buttons that can be clicked in slack messages. For more information, see
+{stack-ov}/actions-slack.html[Slack Action].
+* {watcher} indices (`.watch*` and `triggered_watches`) created after upgrading
+to 6.2 have the `auto_expand_replicas: 0-1` setting rather than a fixed setting
+of 1 replica. As a result, {watcher} indices created after upgrading to 6.2 can
+have a green status on single node clusters. There is no impact in multi-node
+clusters.
+
+[float]
+=== Bug Fixes
+
+Aggregations::
+* Adds metadata to rewritten aggregations {pull}28185[#28185] (issue: {issue}28170[#28170])
+* Fix NPE on composite aggregation with sub-aggregations that need scores {pull}28129[#28129]
+* StringTerms.Bucket.getKeyAsNumber detection type {pull}28118[#28118] (issue: {issue}28012[#28012])
+* Fix incorrect results for aggregations nested under a nested aggregation {pull}27946[#27946] (issue: {issue}27912[#27912])
+* Fix global aggregation that requires breadth first and scores {pull}27942[#27942] (issues: {issue}22321[#22321], {issue}27928[#27928])
+* Fix composite aggregation when after term is missing in the shard {pull}27936[#27936]
+* Fix preserving FiltersAggregationBuilder#keyed field on rewrite {pull}27900[#27900] (issue: {issue}27841[#27841])
+* Using DocValueFormat::parseBytesRef for parsing missing value parameter {pull}27855[#27855] (issue: {issue}27788[#27788])
+* Fix illegal cast of the "low cardinality" optimization of the `terms` aggregation. {pull}27543[#27543]
+* Always include the _index and _id for nested search hits. {pull}27201[#27201] (issue: {issue}27053[#27053])
+
+Allocation::
+* Do not open indices with broken settings {pull}26995[#26995]
+
+Core::
+* Fix lock accounting in releasable lock {pull}28202[#28202]
+* Fixes ByteSizeValue to serialise correctly {pull}27702[#27702] (issue: {issue}27568[#27568])
+* Do not set data paths on no local storage required {pull}27587[#27587] (issue: {issue}27572[#27572])
+* Ensure threadcontext is preserved when refresh listeners are invoked {pull}27565[#27565]
+* Ensure logging is configured for CLI commands {pull}27523[#27523] (issue: {issue}27521[#27521])
+
+Engine::
+* Replica recovery could go into an endless flushing loop {pull}28350[#28350]
+* Use `_refresh` to shrink the version map on inactivity {pull}27918[#27918] (issue: {issue}27852[#27852])
+* Allow resize version map under lock even if there are pending operations {pull}27870[#27870] (issue: {issue}27852[#27852])
+* Reset LiveVersionMap on sync commit {pull}27534[#27534] (issue: {issue}27516[#27516])
+
+Geo::
+* Correct two equality checks on incomparable types {pull}27688[#27688]
+* Handle case where the hole vertex is south of the containing polygon(s) {pull}27685[#27685] (issue: {issue}25933[#25933])
+
+Highlighting::
+* Fix highlighting on a keyword field that defines a normalizer {pull}27604[#27604]
+
+Inner Hits::
+* Add version support for inner hits in field collapsing (#27822) {pull}27833[#27833] (issue: {issue}27822[#27822])
+
+Internal::
+* Never return null from Strings.tokenizeToStringArray {pull}28224[#28224] (issue: {issue}28213[#28213])
+* Fallback to TransportMasterNodeAction for cluster health retries {pull}28195[#28195] (issue: {issue}28169[#28169])
+* Retain originalIndex info when rewriting FieldCapabilities requests {pull}27761[#27761]
+
+Java REST Client::
+* Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
+
+Machine Learning::
+* Improved error reporting for crashes and resource problems on Linux.
+* Improved the detection of seasonal trends in bucket spans longer than 1 hour.
+* Updated the forecast API to wait for validation and return an error if the
+validation fails.
+* Set the actual bucket value to 0 in model plots for empty buckets for count
+and sum functions. The count and sum functions treat empty buckets as 0 rather
+than unknown for anomaly detection, so it was inconsistent not to do the same
+for model plots. This inconsistency resulted in problems plotting these buckets
+in {kib}.
+
+Mapping::
+* Ignore null value for range field (#27845) {pull}28116[#28116] (issue: {issue}27845[#27845])
+* Pass `java.locale.providers=COMPAT` to Java 9 onwards {pull}28080[#28080] (issue: {issue}10984[#10984])
+* Allow update of `eager_global_ordinals` on `_parent`. {pull}28014[#28014] (issue: {issue}24407[#24407])
+* Fix merging of _meta field {pull}27352[#27352] (issue: {issue}27323[#27323])
+
+Network::
+* Only bind loopback addresses when binding to local {pull}28029[#28029] (issue: {issue}1877[#1877])
+* Remove potential nio selector leak {pull}27825[#27825]
+* Fix issue where the incorrect buffers are written {pull}27695[#27695] (issue: {issue}27551[#27551])
+* Throw UOE from compressible bytes stream reset {pull}27564[#27564] (issue: {issue}24927[#24927])
+* Bubble exceptions when closing compressible streams {pull}27542[#27542] (issue: {issue}27540[#27540])
+
+Packaging::
+* Allow custom service names when installing on windows {pull}25255[#25255] (issue: {issue}25231[#25231])
+
+Percolator::
+* Avoid TooManyClauses exception if number of terms / ranges is exactly equal to 1024 {pull}27519[#27519] (issue: {issue}1[#1])
+
+Plugin Analysis ICU::
+* Catch InvalidPathException in IcuCollationTokenFilterFactory {pull}27202[#27202]
+
+Plugin Analysis Phonetic::
+* Fix daitch_mokotoff phonetic filter to use the dedicated Lucene filter {pull}28225[#28225] (issue: {issue}28211[#28211])
+
+Plugin Lang Painless::
+* Painless: Fix variable scoping issue in lambdas {pull}27571[#27571] (issue: {issue}26760[#26760])
+* Painless: Fix errors allowing void to be assigned to def. {pull}27460[#27460] (issue: {issue}27210[#27210])
+
+Plugin Repository HDFS::
+* Fix SecurityException when HDFS Repository used against HA Namenodes {pull}27196[#27196]
+
+Plugins::
+* Make sure that we don't detect files as maven coordinate when installing a plugin {pull}28163[#28163]
+* Fix upgrading indices which use a custom similarity plugin. {pull}26985[#26985] (issue: {issue}25350[#25350])
+
+Recovery::
+* Open engine should keep only starting commit {pull}28228[#28228] (issues: {issue}27804[#27804], {issue}28181[#28181])
+* Allow shrinking of indices from a previous major {pull}28076[#28076] (issue: {issue}28061[#28061])
+* Set global checkpoint before open engine from store {pull}27972[#27972] (issues: {issue}27965[#27965], {issue}27970[#27970])
+* Check and repair index under the store metadata lock {pull}27768[#27768] (issues: {issue}24481[#24481], {issue}24787[#24787], {issue}27731[#27731])
+* Flush old indices on primary promotion and relocation {pull}27580[#27580] (issue: {issue}27536[#27536])
+
+Rollover::
+* Make index rollover action atomic {pull}28039[#28039] (issue: {issue}26976[#26976])
+
+Scripting::
+* Ensure we protect Collections obtained from scripts from self-referencing {pull}28335[#28335]
+
+Scroll::
+* Reject scroll query if size is 0 (#22552) {pull}27842[#27842] (issue: {issue}22552[#22552])
+* Fix scroll query with a sort that is a prefix of the index sort {pull}27498[#27498]
+
+Search::
+* Fix simple_query_string on invalid input {pull}28219[#28219] (issue: {issue}28204[#28204])
+* Use the underlying connection version for CCS connections  {pull}28093[#28093]
+* Fix synonym phrase query expansion for cross_fields parsing {pull}28045[#28045]
+* Carry forward weights, etc on rescore rewrite {pull}27981[#27981] (issue: {issue}27979[#27979])
+* Fix routing with leading or trailing whitespace {pull}27712[#27712] (issue: {issue}27708[#27708])
+
+Security::
+* Updated the `setup-passwords` command to generate passwords with characters
+`A-Z`, `a-z`, and `0-9`, so that they are safe to use in shell scripts. For more
+information about this command, see <<setup-passwords>>.
+* Improved the error messages that occur if the `x-pack` directory is missing
+when you run <<users-command,`users` commands>>.
+* Fixed the ordering of realms in a realm chain, which determines the order in
+which the realms are consulted. For more information, see
+{stack-ov}/realms.html[Realms].
+
+Sequence IDs::
+* Recovery from snapshot may leave seq# gaps {pull}27850[#27850]
+* No longer unidle shard during recovery {pull}27757[#27757] (issue: {issue}26591[#26591])
+* Obey translog durability in global checkpoint sync {pull}27641[#27641]
+
+Settings::
+* Settings: Introduce settings updater for a list of settings {pull}28338[#28338] (issue: {issue}28047[#28047])
+*  Fix setting notification for complex setting (affixMap settings) that could cause transient settings to be ignored {pull}28317[#28317] (issue: {issue}28316[#28316])
+* Fix environment variable substitutions in list setting {pull}28106[#28106] (issue: {issue}27926[#27926])
+* Allow index settings to be reset by wildcards {pull}27671[#27671] (issue: {issue}27537[#27537])
+
+Snapshot/Restore::
+* Consistent updates of IndexShardSnapshotStatus {pull}28130[#28130] (issue: {issue}26480[#26480])
+* Avoid concurrent snapshot finalizations when deleting an INIT snapshot {pull}28078[#28078] (issues: {issue}27214[#27214], {issue}27931[#27931], {issue}27974[#27974])
+* Do not start snapshots that are deleted during initialization {pull}27931[#27931]
+* Do not swallow exception in ChecksumBlobStoreFormat.writeAtomic() {pull}27597[#27597]
+* Consistent update of stage and failure message in IndexShardSnapshotStatus {pull}27557[#27557] (issue: {issue}26480[#26480])
+* Fail restore when the shard allocations max retries count is reached {pull}27493[#27493] (issue: {issue}26865[#26865])
+* Delete shard store files before restoring a snapshot {pull}27476[#27476] (issues: {issue}20220[#20220], {issue}26865[#26865])
+
+Stats::
+* Fixes DocStats to properly deal with shards that report -1 index size {pull}27863[#27863]
+* Include internal refreshes in refresh stats {pull}27615[#27615]
+
+Term Vectors::
+* Fix term vectors generator with keyword and normalizer {pull}27608[#27608] (issue: {issue}27320[#27320])
+
+Watcher::
+* Replaced group settings with affix key settings where filters are needed.
+For more information, see https://github.com/elastic/elasticsearch/pull/28338.
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[float]
+=== Upgrades
+
+Core::
+* Dependencies: Update joda time to 2.9.9 {pull}28261[#28261]
+* upgrade to lucene 7.2.1 {pull}28218[#28218] (issue: {issue}28044[#28044])
+* Upgrade jna from 4.4.0-1 to 4.5.1 {pull}28183[#28183] (issue: {issue}28172[#28172])
+
+Ingest::
+* update ingest-attachment to use Tika 1.17 and newer deps {pull}27824[#27824]

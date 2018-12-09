@@ -12,10 +12,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseResponse;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicensesStatus;
 import org.elasticsearch.license.LicensingClient;
-import org.elasticsearch.license.PutLicenseResponse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -80,7 +80,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
             }
         }
     }
-    
+
     @Override
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder();
@@ -103,7 +103,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
         }
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
-    
+
     public void testLicensePropagateToTribeNode() throws Exception {
         assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
         // test that auto-generated basic license propagates to tribe

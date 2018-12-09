@@ -50,7 +50,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles
+        with libFiles(oss)
       }
       into('config') {
         dirMode 0750
@@ -106,15 +106,23 @@ tasks.withType(AbstractArchiveTask) {
   baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
 }
 
+Closure commonZipConfig = {
+  dirMode 0755
+  fileMode 0644
+}
+
 task buildIntegTestZip(type: Zip) {
-  with archiveFiles(transportModulesFiles, 'zip', false)
+  configure(commonZipConfig)
+  with archiveFiles(transportModulesFiles, 'zip', true)
 }
 
 task buildZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(modulesFiles(false), 'zip', false)
 }
 
 task buildOssZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(modulesFiles(true), 'zip', true)
 }
 
@@ -154,7 +162,7 @@ subprojects {
   }
 
   // sanity checks if archives can be extracted
-  final File archiveExtractionDir
+  File archiveExtractionDir
   if (project.name.contains('tar')) {
     archiveExtractionDir = new File(buildDir, 'tar-extracted')
   } else {
@@ -182,7 +190,7 @@ subprojects {
     }
   }
 
-  final Closure toolExists
+  Closure toolExists
   if (project.name.contains('tar')) {
     toolExists = tarExists
   } else {
@@ -195,8 +203,8 @@ subprojects {
     dependsOn buildDist, checkExtraction
     onlyIf toolExists
     doLast {
-      final String licenseFilename
-      if (project.name.contains('oss-')) {
+      String licenseFilename = null
+      if (project.name.contains('oss-') || project.name == 'integ-test-zip') {
         licenseFilename = "APACHE-LICENSE-2.0.txt"
       } else {
         licenseFilename = "ELASTIC-LICENSE.txt"
@@ -220,6 +228,8 @@ subprojects {
   check.dependsOn checkNotice
 
   if (project.name == 'zip' || project.name == 'tar') {
+    project.ext.licenseName = 'Elastic License'
+    project.ext.licenseUrl = ext.elasticLicenseUrl
     task checkMlCppNotice {
       dependsOn buildDist, checkExtraction
       onlyIf toolExists

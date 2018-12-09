@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -39,23 +39,23 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportUpdateModelSnapshotAction extends HandledTransportAction<UpdateModelSnapshotAction.Request,
         UpdateModelSnapshotAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final Client client;
 
     @Inject
     public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              JobProvider jobProvider, Client client) {
+                                              JobResultsProvider jobResultsProvider, Client client) {
         super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 UpdateModelSnapshotAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.client = client;
     }
 
     @Override
     protected void doExecute(UpdateModelSnapshotAction.Request request, ActionListener<UpdateModelSnapshotAction.Response> listener) {
         logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
-        jobProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+        jobResultsProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
             if (modelSnapshot == null) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
                         Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));

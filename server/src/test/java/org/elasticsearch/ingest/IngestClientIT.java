@@ -34,7 +34,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -126,7 +126,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
 
         // cleanup
-        WritePipelineResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
         assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
@@ -172,7 +172,7 @@ public class IngestClientIT extends ESIntegTestCase {
         }
 
         // cleanup
-        WritePipelineResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
         assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
@@ -246,7 +246,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("processed"), equalTo(true));
 
         DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest("_id");
-        WritePipelineResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
+        AcknowledgedResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 
         getResponse = client().admin().cluster().prepareGetPipeline("_id").get();

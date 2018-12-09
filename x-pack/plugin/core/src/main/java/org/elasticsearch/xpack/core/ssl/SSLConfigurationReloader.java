@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -35,8 +34,7 @@ public class SSLConfigurationReloader extends AbstractComponent {
     private final ResourceWatcherService resourceWatcherService;
     private final SSLService sslService;
 
-    public SSLConfigurationReloader(Settings settings, Environment env, SSLService sslService, ResourceWatcherService resourceWatcher) {
-        super(settings);
+    public SSLConfigurationReloader(Environment env, SSLService sslService, ResourceWatcherService resourceWatcher) {
         this.environment = env;
         this.resourceWatcherService = resourceWatcher;
         this.sslService = sslService;

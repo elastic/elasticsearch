@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,7 +114,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.type(), request.storedFields(), request.fetchSourceContext());
+                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.type(), request.storedFields(),
+                    request.fetchSourceContext());
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
             } else {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
@@ -133,7 +135,15 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
-                clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference()
+                clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
+            request.request().preference()
         );
+    }
+
+    @Override
+    protected String getExecutor(ExplainRequest request, ShardId shardId) {
+        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

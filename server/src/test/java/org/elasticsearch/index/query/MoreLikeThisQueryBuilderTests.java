@@ -91,7 +91,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     private static String[] randomStringFields() {
-        String[] mappedStringFields = new String[]{STRING_FIELD_NAME, STRING_FIELD_NAME_2};
+        String[] mappedStringFields = new String[]{STRING_FIELD_NAME, STRING_FIELD_NAME_2, STRING_ALIAS_FIELD_NAME};
         String[] unmappedStringFields = generateRandomStringArray(2, 5, false, false);
         return Stream.concat(Arrays.stream(mappedStringFields), Arrays.stream(unmappedStringFields)).toArray(String[]::new);
     }
@@ -238,7 +238,8 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 if (request.doc() != null) {
                     generatedFields = generateFields(randomFields, request.doc().utf8ToString());
                 } else {
-                    generatedFields = generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
+                    generatedFields =
+                        generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
                 }
                 EnumSet<TermVectorsRequest.Flag> flags = EnumSet.of(TermVectorsRequest.Flag.Positions, TermVectorsRequest.Flag.Offsets);
                 response.setFields(generatedFields, request.selectedFields(), flags, generatedFields);
@@ -289,21 +290,25 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testValidateEmptyLike() {
         String[] likeTexts = randomBoolean() ? null : new String[0];
         Item[] likeItems = randomBoolean() ? null : new Item[0];
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MoreLikeThisQueryBuilder(likeTexts, likeItems));
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> new MoreLikeThisQueryBuilder(likeTexts, likeItems));
         assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
     }
 
     public void testUnsupportedFields() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
+        MoreLikeThisQueryBuilder queryBuilder =
+            new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
                 .failOnUnsupportedField(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
     }
 
     public void testMoreLikeThisBuilder() throws Exception {
-        Query parsedQuery = parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).minTermFreq(1).maxQueryTerms(12)).toQuery(createShardContext());
+        Query parsedQuery =
+            parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null)
+                .minTermFreq(1).maxQueryTerms(12)).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));

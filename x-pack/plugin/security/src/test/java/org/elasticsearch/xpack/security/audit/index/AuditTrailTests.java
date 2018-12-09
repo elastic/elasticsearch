@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -76,7 +78,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     public String configUsersRoles() {
         return super.configUsersRoles()
                 + ROLE_CAN_RUN_AS + ":" + AUTHENTICATE_USER + "\n"
-                + "kibana_user:" + EXECUTE_USER;
+                + "monitoring_user:" + EXECUTE_USER;
     }
 
     @Override
@@ -86,10 +88,12 @@ public class AuditTrailTests extends SecurityIntegTestCase {
 
     public void testAuditAccessDeniedWithRunAsUser() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/.security/_search",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, EXECUTE_USER));
+            Request request = new Request("GET", "/.security/_search");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING));
+            options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, EXECUTE_USER);
+            request.setOptions(options);
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch (final ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -108,10 +112,12 @@ public class AuditTrailTests extends SecurityIntegTestCase {
 
     public void testAuditRunAsDeniedEmptyUser() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/.security/_search",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, ""));
+            Request request = new Request("GET", "/.security/_search");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING));
+            options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
+            request.setOptions(options);
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch (final ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
@@ -153,6 +159,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         client.admin().indices().refresh(Requests.refreshRequest(indexName)).get();
 
         final SearchRequest request = client.prepareSearch(indexName)
+                .setScroll(TimeValue.timeValueMinutes(10L))
                 .setTypes(IndexAuditTrail.DOC_TYPE)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(1000)

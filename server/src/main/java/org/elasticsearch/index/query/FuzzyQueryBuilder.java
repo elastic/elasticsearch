@@ -182,6 +182,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         out.writeOptionalString(this.rewrite);
     }
 
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

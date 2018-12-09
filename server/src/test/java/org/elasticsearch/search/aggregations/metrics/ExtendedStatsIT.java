@@ -503,7 +503,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .script(new Script(ScriptType.INLINE,
-                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap()))
+                                    AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 

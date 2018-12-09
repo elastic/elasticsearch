@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -72,22 +73,22 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     @Override
     protected Job doParseInstance(XContentParser parser) {
-        return Job.CONFIG_PARSER.apply(parser, null).build();
+        return Job.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> Job.CONFIG_PARSER.apply(parser, null).build());
-        assertEquals("[job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class,
+                () -> Job.STRICT_PARSER.apply(parser, null).build());
+        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
-        assertNotNull(Job.METADATA_PARSER.apply(parser, null).build());
+        assertNotNull(Job.LENIENT_PARSER.apply(parser, null).build());
     }
 
     public void testConstructor_GivenEmptyJobConfiguration() {

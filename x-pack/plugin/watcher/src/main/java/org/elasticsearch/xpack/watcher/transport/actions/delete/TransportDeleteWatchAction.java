@@ -19,8 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;

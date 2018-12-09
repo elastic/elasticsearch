@@ -33,7 +33,6 @@ import org.elasticsearch.node.ResponseCollectorService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -267,7 +266,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns an iterator over active and initializing shards, ordered by the adaptive replica
-     * selection forumla. Making sure though that its random within the active shards of the same
+     * selection formula. Making sure though that its random within the active shards of the same
      * (or missing) rank, and initializing shards are the last to iterate through.
      */
     public ShardIterator activeInitializingShardsRankedIt(@Nullable ResponseCollectorService collector,
@@ -676,7 +675,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 ArrayList<ShardRouting> from = new ArrayList<>(allInitializingShards);
                 List<ShardRouting> to = collectAttributeShards(key, nodes, from);
                 shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));
-                initializingShardsByAttributes = MapBuilder.newMapBuilder(initializingShardsByAttributes).put(key, shardRoutings).immutableMap();
+                initializingShardsByAttributes =
+                    MapBuilder.newMapBuilder(initializingShardsByAttributes).put(key, shardRoutings).immutableMap();
             }
         }
         return shardRoutings;

@@ -166,6 +166,13 @@ public class KeyStoreWrapper implements SecureSettings {
         this.dataBytes = dataBytes;
     }
 
+    /**
+     * Get the metadata format version for the keystore
+     **/
+    public int getFormatVersion() {
+        return formatVersion;
+    }
+
     /** Returns a path representing the ES keystore in the given config dir. */
     public static Path keystorePath(Path configDir) {
         return configDir.resolve(KEYSTORE_FILENAME);
@@ -308,7 +315,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
         if (formatVersion <= 2) {
             decryptLegacyEntries();
-            assert password.length == 0;
+            if (password.length != 0) {
+                throw new IllegalArgumentException("Keystore format does not accept non-empty passwords");
+            }
             return;
         }
 
@@ -350,7 +359,7 @@ public class KeyStoreWrapper implements SecureSettings {
             if (input.read() != -1) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
-        } catch (EOFException e) {
+        } catch (IOException e) {
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
@@ -591,8 +600,10 @@ public class KeyStoreWrapper implements SecureSettings {
     @Override
     public synchronized void close() {
         this.closed = true;
-        for (Entry entry : entries.get().values()) {
-            Arrays.fill(entry.bytes, (byte)0);
+        if (null != entries.get() && entries.get().isEmpty() == false) {
+            for (Entry entry : entries.get().values()) {
+                Arrays.fill(entry.bytes, (byte) 0);
+            }
         }
     }
 }

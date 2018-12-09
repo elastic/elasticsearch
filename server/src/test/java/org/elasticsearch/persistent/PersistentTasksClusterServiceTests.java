@@ -37,7 +37,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -641,15 +640,15 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     /** Creates a PersistentTasksClusterService with a single PersistentTasksExecutor implemented by a BiFunction **/
     private <P extends PersistentTaskParams> PersistentTasksClusterService createService(final BiFunction<P, ClusterState, Assignment> fn) {
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
-            singleton(new PersistentTasksExecutor<P>(Settings.EMPTY, TestPersistentTasksExecutor.NAME, null) {
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
+            singleton(new PersistentTasksExecutor<P>(TestPersistentTasksExecutor.NAME, null) {
                 @Override
                 public Assignment getAssignment(P params, ClusterState clusterState) {
                     return fn.apply(params, clusterState);
                 }
 
                 @Override
-                protected void nodeOperation(AllocatedPersistentTask task, P params, Task.Status status) {
+                protected void nodeOperation(AllocatedPersistentTask task, P params, PersistentTaskState state) {
                     throw new UnsupportedOperationException();
                 }
             }));

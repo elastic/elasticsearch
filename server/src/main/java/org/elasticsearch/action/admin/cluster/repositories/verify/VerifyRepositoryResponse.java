@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -93,7 +94,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
         /**
          * Temporary method that allows turning a {@link NodeView} into a {@link DiscoveryNode}. This representation will never be used in
-         * practice, because in >= 6.4 a consumer of the response will only be able to retrieve a representation of {@link NodeView}
+         * practice, because in 6.4 and above a consumer of the response will only be able to retrieve a representation of {@link NodeView}
          * objects.
          *
          * Effectively this will be used to hold the state of the object in 6.x so there is no need to have 2 backing objects that
@@ -128,6 +129,12 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     private ClusterName clusterName;
 
+
+    private static final ObjectParser<VerifyRepositoryResponse, Void> PARSER =
+        new ObjectParser<>(VerifyRepositoryResponse.class.getName(), VerifyRepositoryResponse::new);
+    static {
+        PARSER.declareNamedObjects(VerifyRepositoryResponse::setNodes, NodeView.PARSER, new ParseField("nodes"));
+    }
 
     VerifyRepositoryResponse() {
     }
@@ -167,6 +174,10 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return clusterName;
     }
 
+    protected void setNodes(List<NodeView> nodes) {
+        this.nodes = nodes.stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -187,8 +198,29 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
+    public static VerifyRepositoryResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        VerifyRepositoryResponse other = (VerifyRepositoryResponse) obj;
+        return nodes.equals(other.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return nodes.hashCode();
     }
 }

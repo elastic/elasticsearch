@@ -19,27 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.TypeMissingException;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
 
     public void testDynamicMappingDefault() throws IOException {
         MapperService mapperService = createIndex("my-index").mapperService();
@@ -61,14 +49,4 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
         assertEquals(expectedMapping, parsedDoc.dynamicMappingsUpdate().toString());
     }
 
-    public void testDynamicMappingDisablePreEs6() {
-        Settings settingsPreEs6 = Settings.builder()
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
-            .build();
-        MapperService preEs6MapperService = createIndex("pre-es6-index", settingsPreEs6).mapperService();
-        Exception e = expectThrows(TypeMissingException.class,
-            () -> preEs6MapperService.documentMapperWithAutoCreate("pre-es6-type"));
-        assertEquals(e.getMessage(), "type[pre-es6-type] missing");
-    }
 }

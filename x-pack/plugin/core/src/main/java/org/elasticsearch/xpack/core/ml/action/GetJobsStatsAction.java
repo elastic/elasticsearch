@@ -14,7 +14,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -46,6 +46,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
+    private static final String FORECASTS_STATS = "forecasts_stats";
     private static final String STATE = "state";
     private static final String NODE = "node";
 
@@ -80,6 +81,25 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            expandedJobsIds = in.readList(StreamInput::readString);
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeStringList(expandedJobsIds);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
+        }
+
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }
 
         public void setExpandedJobsIds(List<String> expandedJobsIds) { this.expandedJobsIds = expandedJobsIds; }
@@ -98,32 +118,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         @Override
         public boolean match(Task task) {
-            return jobId.equals(MetaData.ALL) || OpenJobAction.JobTaskMatcher.match(task, jobId);
+            return OpenJobAction.JobTaskMatcher.match(task, jobId);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            expandedJobsIds = in.readList(StreamInput::readString);
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeStringList(expandedJobsIds);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
         }
 
         @Override
@@ -159,6 +159,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             @Nullable
             private ModelSizeStats modelSizeStats;
             @Nullable
+            private ForecastStats forecastStats;
+            @Nullable
             private TimeValue openTime;
             private JobState state;
             @Nullable
@@ -166,11 +168,13 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             @Nullable
             private String assignmentExplanation;
 
-            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
-                     @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
+            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
+                    @Nullable ForecastStats forecastStats, JobState state, @Nullable DiscoveryNode node,
+                    @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
+                this.forecastStats = forecastStats;
                 this.state = Objects.requireNonNull(state);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
@@ -185,6 +189,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
                 openTime = in.readOptionalTimeValue();
+                if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+                    forecastStats = in.readOptionalWriteable(ForecastStats::new);
+                }
             }
 
             public String getJobId() {
@@ -197,6 +204,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
+            }
+
+            public ForecastStats getForecastStats() {
+                return forecastStats;
             }
 
             public JobState getState() {
@@ -231,6 +242,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (modelSizeStats != null) {
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
+                if (forecastStats != null) {
+                    builder.field(FORECASTS_STATS, forecastStats);
+                }
+
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);
@@ -264,11 +279,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalTimeValue(openTime);
+                if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                    out.writeOptionalWriteable(forecastStats);
+                }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, state, node, assignmentExplanation, openTime);
+                return Objects.hash(jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime);
             }
 
             @Override
@@ -283,6 +301,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 return Objects.equals(jobId, other.jobId)
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
+                        && Objects.equals(this.forecastStats, other.forecastStats)
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
@@ -325,7 +344,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();;
+            builder.startObject();
             jobsStats.doXContentBody(builder, params);
             builder.endObject();
             return builder;

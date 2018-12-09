@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

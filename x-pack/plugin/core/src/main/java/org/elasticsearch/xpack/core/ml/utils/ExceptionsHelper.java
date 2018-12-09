@@ -38,6 +38,10 @@ public class ExceptionsHelper {
         return new ElasticsearchException(msg, cause);
     }
 
+    public static ElasticsearchStatusException conflictStatusException(String msg, Throwable cause, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.CONFLICT, cause, args);
+    }
+
     public static ElasticsearchStatusException conflictStatusException(String msg, Object... args) {
         return new ElasticsearchStatusException(msg, RestStatus.CONFLICT, args);
     }

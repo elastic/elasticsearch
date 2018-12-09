@@ -321,7 +321,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         request.username(SecuritySettingsSource.TEST_SUPERUSER);
         client.execute(AuthenticateAction.INSTANCE, request, authFuture);
         AuthenticateResponse response = authFuture.actionGet();
-        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.authentication().getUser().principal());
 
         authFuture = new PlainActionFuture<>();
         request = new AuthenticateRequest();
@@ -329,7 +329,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
                 .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
-        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
 
         authFuture = new PlainActionFuture<>();
         request = new AuthenticateRequest();
@@ -337,7 +337,40 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
                 .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
-        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
+    }
+
+    public void testClientCredentialsGrant() throws Exception {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+            .setGrantType("client_credentials")
+            .get();
+        assertNull(createTokenResponse.getRefreshToken());
+
+        AuthenticateRequest request = new AuthenticateRequest();
+        request.username(SecuritySettingsSource.TEST_SUPERUSER);
+        PlainActionFuture<AuthenticateResponse> authFuture = new PlainActionFuture<>();
+        client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+            .execute(AuthenticateAction.INSTANCE, request, authFuture);
+        AuthenticateResponse response = authFuture.get();
+        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.authentication().getUser().principal());
+
+        // invalidate
+        PlainActionFuture<InvalidateTokenResponse> invalidateResponseFuture = new PlainActionFuture<>();
+        InvalidateTokenRequest invalidateTokenRequest =
+            new InvalidateTokenRequest(createTokenResponse.getTokenString(), InvalidateTokenRequest.Type.ACCESS_TOKEN);
+        securityClient.invalidateToken(invalidateTokenRequest, invalidateResponseFuture);
+        assertTrue(invalidateResponseFuture.get().isCreated());
+
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            PlainActionFuture<AuthenticateResponse> responseFuture = new PlainActionFuture<>();
+            client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+                .execute(AuthenticateAction.INSTANCE, request, responseFuture);
+            responseFuture.actionGet();
+        });
     }
 
     @Before

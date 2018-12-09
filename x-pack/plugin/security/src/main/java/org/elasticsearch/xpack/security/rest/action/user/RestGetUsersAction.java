@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -29,6 +32,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Rest action to retrieve a user from the security index
  */
 public class RestGetUsersAction extends SecurityBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestGetUsersAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestGetUsersAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);

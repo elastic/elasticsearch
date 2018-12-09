@@ -422,7 +422,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         private final int successful;
         private final int skipped;
 
-        Clusters(int total, int successful, int skipped) {
+        public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                     : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert successful <= total && skipped == total - successful

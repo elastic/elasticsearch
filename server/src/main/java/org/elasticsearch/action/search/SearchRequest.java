@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
@@ -58,11 +58,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see SearchResponse
  */
 public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SearchRequest.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(SearchRequest.class));
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
+    public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -82,7 +83,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     
     private Scroll scroll;
 
-    private int batchedReduceSize = 512;
+    private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
     private int maxConcurrentShardRequests = 0;
 
@@ -90,7 +91,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -135,6 +136,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         if (source != null && source.size() == 0 && scroll != null) {
             validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
+        }
+        if (source != null && source.rescores() != null && source.rescores().isEmpty() == false && scroll != null) {
+            DEPRECATION_LOGGER.deprecated("Using [rescore] for a scroll query is deprecated and will be ignored. From 7.0 on will " +
+                    "return a 400 error");
         }
         return validationException;
     }

@@ -7,8 +7,10 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeleteLicenseAction extends Action<DeleteLicenseRequest, DeleteLicenseResponse, DeleteLicenseRequestBuilder> {
+public class DeleteLicenseAction extends Action<DeleteLicenseRequest, AcknowledgedResponse, DeleteLicenseRequestBuilder> {
 
     public static final DeleteLicenseAction INSTANCE = new DeleteLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/delete";
@@ -18,8 +20,8 @@ public class DeleteLicenseAction extends Action<DeleteLicenseRequest, DeleteLice
     }
 
     @Override
-    public DeleteLicenseResponse newResponse() {
-        return new DeleteLicenseResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override

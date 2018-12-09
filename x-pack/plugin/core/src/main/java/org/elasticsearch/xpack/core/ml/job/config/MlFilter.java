@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,15 +15,28 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class MlFilter implements ToXContentObject, Writeable {
+
+    /**
+     * The max number of items allowed per filter.
+     * Limiting the number of items protects users
+     * from running into excessive overhead due to
+     * filters using too much memory and lookups
+     * becoming too expensive.
+     */
+    private static final int MAX_ITEMS = 10000;
 
     public static final String DOCUMENT_ID_PREFIX = "filter_";
 
@@ -30,6 +44,7 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     public static final ParseField TYPE = new ParseField("type");
     public static final ParseField ID = new ParseField("filter_id");
+    public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField ITEMS = new ParseField("items");
 
     // For QueryPage
@@ -43,27 +58,38 @@ public class MlFilter implements ToXContentObject, Writeable {
 
         parser.declareString((builder, s) -> {}, TYPE);
         parser.declareString(Builder::setId, ID);
+        parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
         parser.declareStringArray(Builder::setItems, ITEMS);
 
         return parser;
     }
 
     private final String id;
-    private final List<String> items;
+    private final String description;
+    private final SortedSet<String> items;
 
-    public MlFilter(String id, List<String> items) {
-        this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
-        this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
+    private MlFilter(String id, String description, SortedSet<String> items) {
+        this.id = Objects.requireNonNull(id);
+        this.description = description;
+        this.items = Objects.requireNonNull(items);
     }
 
     public MlFilter(StreamInput in) throws IOException {
         id = in.readString();
-        items = Arrays.asList(in.readStringArray());
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            description = in.readOptionalString();
+        } else {
+            description = null;
+        }
+        items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeOptionalString(description);
+        }
         out.writeStringArray(items.toArray(new String[items.size()]));
     }
 
@@ -71,6 +97,9 @@ public class MlFilter implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         builder.field(ITEMS.getPreferredName(), items);
         if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
@@ -83,8 +112,12 @@ public class MlFilter implements ToXContentObject, Writeable {
         return id;
     }
 
-    public List<String> getItems() {
-        return new ArrayList<>(items);
+    public String getDescription() {
+        return description;
+    }
+
+    public SortedSet<String> getItems() {
+        return Collections.unmodifiableSortedSet(items);
     }
 
     @Override
@@ -98,12 +131,12 @@ public class MlFilter implements ToXContentObject, Writeable {
         }
 
         MlFilter other = (MlFilter) obj;
-        return id.equals(other.id) && items.equals(other.items);
+        return id.equals(other.id) && Objects.equals(description, other.description) && items.equals(other.items);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, items);
+        return Objects.hash(id, description, items);
     }
 
     public String documentId() {
@@ -114,30 +147,58 @@ public class MlFilter implements ToXContentObject, Writeable {
         return DOCUMENT_ID_PREFIX + filterId;
     }
 
+    public static Builder builder(String filterId) {
+        return new Builder().setId(filterId);
+    }
+
     public static class Builder {
 
         private String id;
-        private List<String> items = Collections.emptyList();
+        private String description;
+        private SortedSet<String> items = new TreeSet<>();
+
+        private Builder() {}
 
         public Builder setId(String id) {
             this.id = id;
             return this;
         }
 
-        private Builder() {}
-
         @Nullable
         public String getId() {
             return id;
         }
 
-        public Builder setItems(List<String> items) {
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder setItems(SortedSet<String> items) {
             this.items = items;
             return this;
         }
 
+        public Builder setItems(List<String> items) {
+            this.items = new TreeSet<>(items);
+            return this;
+        }
+
+        public Builder setItems(String... items) {
+            setItems(Arrays.asList(items));
+            return this;
+        }
+
         public MlFilter build() {
-            return new MlFilter(id, items);
+            ExceptionsHelper.requireNonNull(id, MlFilter.ID.getPreferredName());
+            ExceptionsHelper.requireNonNull(items, MlFilter.ITEMS.getPreferredName());
+            if (!MlStrings.isValidId(id)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            }
+            if (items.size() > MAX_ITEMS) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.FILTER_CONTAINS_TOO_MANY_ITEMS, id, MAX_ITEMS));
+            }
+            return new MlFilter(id, description, items);
         }
     }
 }

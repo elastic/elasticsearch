@@ -9,9 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
-import org.joda.time.DateTimeZone;
 
-import java.time.temporal.ChronoField;
 import java.util.TimeZone;
 
 /**
@@ -19,11 +17,11 @@ import java.util.TimeZone;
  */
 public class HourOfDay extends DateTimeFunction {
     public HourOfDay(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, DateTimeExtractor.HOUR_OF_DAY);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
         return HourOfDay::new;
     }
 
@@ -35,15 +33,5 @@ public class HourOfDay extends DateTimeFunction {
     @Override
     public String dateTimeFormat() {
         return "hour";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.HOUR_OF_DAY;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.HOUR_OF_DAY;
     }
 }

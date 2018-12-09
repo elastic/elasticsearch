@@ -23,12 +23,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -167,6 +167,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
     public void testWatchesAreTriggeredOnMasterWhenNotDistributed() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         putWatchRequest.setId("_id");
+        putWatchRequest.setVersion(randomLongBetween(1, 100));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("my_cluster"))
             .nodes(DiscoveryNodes.builder()

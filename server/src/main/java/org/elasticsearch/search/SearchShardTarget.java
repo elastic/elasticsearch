@@ -39,7 +39,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     private final Text nodeId;
     private final ShardId shardId;
-    //original indices and cluster alias are only needed in the coordinating node throughout the search request execution.
+    //original indices are only needed in the coordinating node throughout the search request execution.
     //no need to serialize them as part of SearchShardTarget.
     private final transient OriginalIndices originalIndices;
     private final String clusterAlias;
@@ -94,6 +94,13 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    /**
+     * Returns the fully qualified index name, including the cluster alias.
+     */
+    public String getFullyQualifiedIndexName() {
+        return RemoteClusterAware.buildRemoteIndexName(getClusterAlias(), getIndex());
     }
 
     @Override

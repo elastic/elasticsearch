@@ -32,6 +32,7 @@ documents from the `logs` index:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 You can use date math and wildcards when specifying indices. For example,
 the following input loads the latest VIXZ quote from today's daily quotes index:
@@ -57,6 +58,7 @@ the following input loads the latest VIXZ quote from today's daily quotes index:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Extracting Specific Fields
 
@@ -78,6 +80,7 @@ watch payload:
     }
   },
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Using Templates
 
@@ -105,6 +108,7 @@ parameter:
   ...
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Applying Conditions
 
@@ -131,6 +135,7 @@ check if the search returned more than five hits:
   ...
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Accessing the Search Results
 

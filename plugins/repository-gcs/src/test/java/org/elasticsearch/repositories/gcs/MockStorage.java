@@ -38,7 +38,6 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRpcOptionUtils;
 import com.google.cloud.storage.StorageTestUtils;
-
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
@@ -126,24 +125,6 @@ class MockStorage implements Storage {
     }
 
     @Override
-    public CopyWriter copy(CopyRequest copyRequest) {
-        if (bucketName.equals(copyRequest.getSource().getBucket()) == false) {
-            throw new StorageException(404, "Source bucket not found");
-        }
-        if (bucketName.equals(copyRequest.getTarget().getBucket()) == false) {
-            throw new StorageException(404, "Target bucket not found");
-        }
-
-        final byte[] bytes = blobs.get(copyRequest.getSource().getName());
-        if (bytes == null) {
-            throw new StorageException(404, "Source blob does not exist");
-        }
-        blobs.put(copyRequest.getTarget().getName(), bytes);
-        return StorageRpcOptionUtils
-                .createCopyWriter(get(BlobId.of(copyRequest.getTarget().getBucket(), copyRequest.getTarget().getName())));
-    }
-
-    @Override
     public Page<Blob> list(String bucket, BlobListOption... options) {
         if (bucketName.equals(bucket) == false) {
             throw new StorageException(404, "Bucket not found");
@@ -186,7 +167,27 @@ class MockStorage implements Storage {
     public ReadChannel reader(BlobId blob, BlobSourceOption... options) {
         if (bucketName.equals(blob.getBucket())) {
             final byte[] bytes = blobs.get(blob.getName());
-            final ReadableByteChannel readableByteChannel = Channels.newChannel(new ByteArrayInputStream(bytes));
+
+            final ReadableByteChannel readableByteChannel;
+            if (bytes != null) {
+                readableByteChannel = Channels.newChannel(new ByteArrayInputStream(bytes));
+            } else {
+                readableByteChannel = new ReadableByteChannel() {
+                    @Override
+                    public int read(ByteBuffer dst) throws IOException {
+                        throw new StorageException(404, "Object not found");
+                    }
+
+                    @Override
+                    public boolean isOpen() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                    }
+                };
+            }
             return new ReadChannel() {
                 @Override
                 public void close() {
@@ -268,6 +269,11 @@ class MockStorage implements Storage {
     }
 
     // Everything below this line is not implemented.
+
+    @Override
+    public CopyWriter copy(CopyRequest copyRequest) {
+        return null;
+    }
 
     @Override
     public Bucket create(BucketInfo bucketInfo, BucketTargetOption... options) {

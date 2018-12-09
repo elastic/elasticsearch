@@ -44,7 +44,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest::new);
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            CreateIndexRequest::new);
         this.createIndexService = createIndexService;
     }
 
@@ -65,17 +66,19 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state, final ActionListener<CreateIndexResponse> listener) {
+    protected void masterOperation(final CreateIndexRequest request, final ClusterState state,
+                                   final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.index(), request.updateAllTypes())
+        final CreateIndexClusterStateUpdateRequest updateRequest =
+            new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.index(), request.updateAllTypes())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
-                .aliases(request.aliases()).customs(request.customs())
+                .aliases(request.aliases())
                 .waitForActiveShards(request.waitForActiveShards());
 
         createIndexService.createIndex(updateRequest, ActionListener.wrap(response ->

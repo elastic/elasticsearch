@@ -89,6 +89,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
                 other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
+        // check that we can update if the analyzer is unchanged
+        new Modifier("analyzer", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ft.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            }
+        },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
@@ -135,6 +146,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             @Override
             public void normalizeOther(MappedFieldType other) {
                 other.setSimilarity(new SimilarityProvider("bar", new BM25Similarity()));
+            }
+        },
+        // check that we can update if the similarity is unchanged
+        new Modifier("similarity", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ft.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                other.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
             }
         },
         new Modifier("eager_global_ordinals", true) {
@@ -330,14 +352,20 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             modifier.normalizeOther(ft1);
             modifier.modify(ft2);
             if (modifier.strictOnly) {
-                String[] conflicts = {
-                    "mapper [foo] is used by multiple types",
-                    "update [" + modifier.property + "]"
-                };
                 assertCompatible(modifier.property, ft1, ft2, false);
-                assertNotCompatible(modifier.property, ft1, ft2, true, conflicts);
                 assertCompatible(modifier.property, ft2, ft1, false); // always symmetric when not strict
-                assertNotCompatible(modifier.property, ft2, ft1, true, conflicts);
+                if (ft1.equals(ft2) == false) {
+                    String[] conflicts = {
+                        "mapper [foo] is used by multiple types",
+                        "update [" + modifier.property + "]"
+                    };
+                    assertNotCompatible(modifier.property, ft2, ft1, true, conflicts);
+                    assertNotCompatible(modifier.property, ft1, ft2, true, conflicts);
+                } else {
+                    // the modification is no-op so fields are always compatible
+                    assertCompatible(modifier.property, ft1, ft2, true);
+                    assertCompatible(modifier.property, ft2, ft1, true);
+                }
             } else {
                 // not compatible whether strict or not
                 String conflict = "different [" + modifier.property + "]";

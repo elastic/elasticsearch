@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -51,10 +50,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -66,6 +65,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -84,6 +84,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -107,11 +108,11 @@ public class ClusterModule extends AbstractModule {
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
                          ClusterInfoService clusterInfoService) {
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
-        this.allocationDeciders = new AllocationDeciders(settings, deciderList);
+        this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-        this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService);
     }
 
     public static Map<String, Supplier<ClusterState.Custom>> getClusterStateCustomSuppliers(List<ClusterPlugin> clusterPlugins) {
@@ -148,6 +149,35 @@ public class ClusterModule extends AbstractModule {
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
+    }
+
+    static final Set<String> PRE_6_3_METADATA_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+        IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE));
+
+    static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+        RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE));
+
+    /**
+     * For interoperability with transport clients older than 6.3, we need to strip customs
+     * from the cluster state that the client might not be able to deserialize
+     *
+     * @param clusterState the cluster state to filter the customs from
+     * @return the adapted cluster state
+     */
+    public static ClusterState filterCustomsForPre63Clients(ClusterState clusterState) {
+        final ClusterState.Builder builder = ClusterState.builder(clusterState);
+        clusterState.customs().keysIt().forEachRemaining(name -> {
+            if (PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST.contains(name) == false) {
+                builder.removeCustom(name);
+            }
+        });
+        final MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
+        clusterState.metaData().customs().keysIt().forEachRemaining(name -> {
+            if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
+                metaBuilder.removeCustom(name);
+            }
+        });
+        return builder.metaData(metaBuilder).build();
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXWriteables() {
@@ -192,16 +222,16 @@ public class ClusterModule extends AbstractModule {
                                                                          List<ClusterPlugin> clusterPlugins) {
         // collect deciders by class so that we can detect duplicates
         Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
-        addAllocationDecider(deciders, new MaxRetryAllocationDecider(settings));
-        addAllocationDecider(deciders, new ResizeAllocationDecider(settings));
-        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(settings));
-        addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider(settings));
+        addAllocationDecider(deciders, new MaxRetryAllocationDecider());
+        addAllocationDecider(deciders, new ResizeAllocationDecider());
+        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
+        addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider());
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
-        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings));
-        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider(settings));
+        addAllocationDecider(deciders, new NodeVersionAllocationDecider());
+        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
+        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
@@ -254,7 +284,6 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();
         bind(MetaDataMappingService.class).asEagerSingleton();

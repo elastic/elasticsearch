@@ -23,13 +23,14 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,7 +47,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -119,7 +119,11 @@ public class IndicesRequestCacheTests extends ESTestCase {
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
-
+        if (randomBoolean()) {
+            writer.flush();
+            IOUtils.close(writer);
+            writer = new IndexWriter(dir, newIndexWriterConfig());
+        }
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
@@ -424,14 +428,23 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
-    public void testEqualsKey() {
+    public void testEqualsKey() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);
-        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(1));
-        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(1));
-        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(new TestEntity(null, falseBoolean), 1L, new TestBytesReference(1));
-        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 2L, new TestBytesReference(1));
-        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(2));
+        Directory dir = newDirectory();
+        IndexWriterConfig config = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, config);
+        IndexReader reader1 = DirectoryReader.open(writer);
+        IndexReader.CacheKey rKey1 = reader1.getReaderCacheHelper().getKey();
+        writer.addDocument(new Document());
+        IndexReader reader2 = DirectoryReader.open(writer);
+        IndexReader.CacheKey rKey2 = reader2.getReaderCacheHelper().getKey();
+        IOUtils.close(reader1, reader2, writer, dir);
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(1));
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(1));
+        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(new TestEntity(null, falseBoolean), rKey1, new TestBytesReference(1));
+        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey2, new TestBytesReference(1));
+        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(2));
         String s = "Some other random object";
         assertEquals(key1, key1);
         assertEquals(key1, key2);
@@ -484,11 +497,6 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public long ramBytesUsed() {
             return 0;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return null;
         }
 
         @Override

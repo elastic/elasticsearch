@@ -285,6 +285,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
     }
 
+    public void testDeprecatedArgumanets() {
+        float weight = -1 * randomFloat();
+        new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(weight));
+        assertWarnings("Setting a negative [weight] in Function Score Query is deprecated "
+            + "and will throw an error in the next major version");
+    }
+
     public void testParseFunctionsArray() throws IOException {
         String functionScoreQuery = "{\n" +
             "    \"function_score\":{\n" +
@@ -686,6 +693,29 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
+    }
+
+    /**
+     * Please see https://github.com/elastic/elasticsearch/issues/35123 for context.
+     */
+    public void testSingleScriptFunction() throws IOException {
+        QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
+        ScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
+
+        FunctionScoreQueryBuilder builder = functionScoreQuery(queryBuilder, functionBuilder);
+        if (randomBoolean()) {
+            builder.boostMode(randomFrom(CombineFunction.values()));
+        }
+
+        Query query = builder.toQuery(createShardContext());
+        assertThat(query, instanceOf(FunctionScoreQuery.class));
+
+        CombineFunction expectedBoostMode = builder.boostMode() != null
+            ? builder.boostMode()
+            : FunctionScoreQueryBuilder.DEFAULT_BOOST_MODE;
+        CombineFunction actualBoostMode = ((FunctionScoreQuery) query).getCombineFunction();
+        assertEquals(expectedBoostMode, actualBoostMode);
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {

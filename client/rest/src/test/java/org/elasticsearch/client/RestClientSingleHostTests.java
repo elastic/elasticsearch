@@ -60,21 +60,25 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.elasticsearch.client.SyncResponseListenerTests.assertExceptionStackContainsCallingMethod;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -94,9 +98,10 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
     private Header[] defaultHeaders;
-    private HttpHost httpHost;
+    private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
+    private boolean strictDeprecationMode;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -108,7 +113,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                         HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
-                        assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                        assertThat(context.getAuthCache().get(node.getHost()), instanceOf(BasicScheme.class));
                         final FutureCallback<HttpResponse> futureCallback =
                             (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
@@ -146,9 +151,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 });
 
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
-        httpHost = new HttpHost("localhost", 9200);
+        node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
+        strictDeprecationMode = randomBoolean();
+        restClient = new RestClient(httpClient, 10000, defaultHeaders,
+                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
     }
 
     /**
@@ -244,7 +251,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
-                    failureListener.assertCalled(httpHost);
+                    failureListener.assertCalled(singletonList(node));
                 }
             }
         }
@@ -259,14 +266,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(singletonList(node));
             try {
                 performRequest(method, "/soe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(singletonList(node));
         }
     }
 
@@ -312,7 +319,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeaders()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
      */
     @Deprecated
     public void tesPerformRequestOldStyleNullHeaders() throws IOException {
@@ -362,9 +369,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header requestHeader : requestHeaders) {
-                request.addHeader(requestHeader.getName(), requestHeader.getValue());
+                options.addHeader(requestHeader.getName(), requestHeader.getValue());
             }
+            request.setOptions(options);
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(request);
@@ -373,7 +382,52 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
+            assertFalse(esResponse.hasWarnings());
         }
+    }
+
+    public void testDeprecationWarnings() throws IOException {
+        String chars = randomAsciiAlphanumOfLength(5);
+        assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
+        assertDeprecationWarnings(
+                Arrays.asList(formatWarning(chars), "another one", "and another"),
+                Arrays.asList(chars,                "another one", "and another"));
+
+    }
+
+    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
+        String method = randomFrom(getHttpMethods());
+        Request request = new Request(method, "/200");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        for (String warningHeaderText : warningHeaderTexts) {
+            options.addHeader("Warning", warningHeaderText);
+        }
+        request.setOptions(options);
+
+        Response response;
+        if (strictDeprecationMode) {
+            try {
+                restClient.performRequest(request);
+                fail("expected ResponseException because strict deprecation mode is enabled");
+                return;
+            } catch (ResponseException e) {
+                assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                response = e.getResponse();
+            }
+        } else {
+            response = restClient.performRequest(request);
+        }
+        assertTrue(response.hasWarnings());
+        assertEquals(warningBodyTexts, response.getWarnings());
+    }
+
+    /**
+     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * cases. We don't have that available because we're testing against 1.7.
+     */
+    private static String formatWarning(String warningBody) {
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {
@@ -438,11 +492,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header header : headers) {
-                request.addHeader(header.getName(), header.getValue());
-                expectedRequest.addHeader(new Request.ReqHeader(header.getName(), header.getValue()));
+                options.addHeader(header.getName(), header.getValue());
+                expectedRequest.addHeader(new RequestOptions.ReqHeader(header.getName(), header.getValue()));
                 uniqueNames.add(header.getName());
             }
+            request.setOptions(options);
         }
         for (Header defaultHeader : defaultHeaders) {
             // request level headers override default headers

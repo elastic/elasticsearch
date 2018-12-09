@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RunTask
 
+import java.nio.file.Files
 import java.nio.file.Path
 
 Collection distributions = project('archives').subprojects + project('packages').subprojects
@@ -34,7 +35,7 @@ Collection distributions = project('archives').subprojects + project('packages')
 task generateDependenciesReport(type: ConcatFilesTask) {
   files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
   headerLine = "name,version,url,license"
-  target = new File(System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv")
+  target = new File(System.getProperty('csv')?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 
 /*****************************************************************************
@@ -226,15 +227,24 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = copySpec {
-      // delay by using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':server').jar }
-      from { project(':server').configurations.runtime }
-      from { project(':libs:plugin-classloader').jar }
-      from { project(':distribution:tools:launchers').jar }
-      into('tools/plugin-cli') {
-        from { project(':distribution:tools:plugin-cli').jar }
-        from { project(':distribution:tools:plugin-cli').configurations.runtime }
+    libFiles = { oss ->
+      copySpec {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        from { project(':server').jar }
+        from { project(':server').configurations.runtime }
+        from { project(':libs:plugin-classloader').jar }
+        from { project(':distribution:tools:java-version-checker').jar }
+        from { project(':distribution:tools:launchers').jar }
+        into('tools/plugin-cli') {
+          from { project(':distribution:tools:plugin-cli').jar }
+          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+        }
+        if (oss == false) {
+          into('tools/security-cli') {
+            from { project(':x-pack:plugin:security:cli').jar }
+            from { project(':x-pack:plugin:security:cli').configurations.compile }
+          }
+        }
       }
     }
 
@@ -477,5 +487,17 @@ subprojects {
       result[key] = value
     }
     return result
+  }
+
+  ext.assertLinesInFile =  { Path path, List<String> expectedLines ->
+    final List<String> actualLines = Files.readAllLines(path)
+    int line = 0
+    for (final String expectedLine : expectedLines) {
+      final String actualLine = actualLines.get(line)
+      if (expectedLine != actualLine) {
+        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+      }
+      line++
+    }
   }
 }

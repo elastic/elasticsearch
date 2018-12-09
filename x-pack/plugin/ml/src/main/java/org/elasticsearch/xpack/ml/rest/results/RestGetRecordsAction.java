@@ -12,11 +12,10 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -54,8 +53,7 @@ public class RestGetRecordsAction extends BaseRestHandler {
             request.setRecordScore(
                     Double.parseDouble(restRequest.param(GetRecordsAction.Request.RECORD_SCORE_FILTER.getPreferredName(),
                             String.valueOf(request.getRecordScoreFilter()))));
-            request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
-                    AnomalyRecord.RECORD_SCORE.getPreferredName()));
+            request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(), request.getSort()));
             request.setDescending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(),
                     request.isDescending()));
         }

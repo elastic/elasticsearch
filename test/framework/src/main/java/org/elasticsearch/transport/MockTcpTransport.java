@@ -18,23 +18,28 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
@@ -43,17 +48,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -61,7 +65,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 /**
  * This is a socket based blocking TcpTransport implementation that is used for tests
@@ -69,12 +72,13 @@ import java.util.function.Consumer;
  * the networking layer in the worst possible way since it blocks and uses a thread per request model.
  */
 public class MockTcpTransport extends TcpTransport {
+    private static final Logger logger = LogManager.getLogger(MockTcpTransport.class);
 
     /**
      * A pre-built light connection profile that shares a single connection across all
      * types.
      */
-    public static final ConnectionProfile LIGHT_PROFILE;
+    static final ConnectionProfile LIGHT_PROFILE;
 
     private final Set<MockChannel> openChannels = new HashSet<>();
 
@@ -90,7 +94,6 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     private final ExecutorService executor;
-    private final Version mockVersion;
 
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -102,11 +105,11 @@ public class MockTcpTransport extends TcpTransport {
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                             NetworkService networkService, Version mockVersion) {
-        super("mock-tcp-transport", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        super("mock-tcp-transport", settings, mockVersion, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry,
+            networkService);
         // we have our own crazy cached threadpool this one is not bounded at all...
         // using the ES thread factory here is crucial for tests otherwise disruption tests won't block that thread
         executor = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX));
-        this.mockVersion = mockVersion;
     }
 
     @Override
@@ -142,65 +145,82 @@ public class MockTcpTransport extends TcpTransport {
 
     private void readMessage(MockChannel mockChannel, StreamInput input) throws IOException {
         Socket socket = mockChannel.activeChannel;
-        byte[] minimalHeader = new byte[TcpHeader.MARKER_BYTES_SIZE];
-        int firstByte = input.read();
-        if (firstByte == -1) {
+        byte[] minimalHeader = new byte[TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE];
+        try {
+            input.readFully(minimalHeader);
+        } catch (EOFException eof) {
             throw new IOException("Connection reset by peer");
         }
-        minimalHeader[0] = (byte) firstByte;
-        minimalHeader[1] = (byte) input.read();
-        int msgSize = input.readInt();
+
+        // Read message length will throw stream corrupted exception if the marker bytes incorrect
+        int msgSize = TcpTransport.readMessageLength(new BytesArray(minimalHeader));
         if (msgSize == -1) {
             socket.getOutputStream().flush();
         } else {
-            BytesStreamOutput output = new BytesStreamOutput();
             final byte[] buffer = new byte[msgSize];
             input.readFully(buffer);
-            output.write(minimalHeader);
-            output.writeInt(msgSize);
-            output.write(buffer);
-            final BytesReference bytes = output.bytes();
-            if (TcpTransport.validateMessageHeader(bytes)) {
-                InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
-                messageReceived(bytes.slice(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE, msgSize),
-                    mockChannel, mockChannel.profile, remoteAddress, msgSize);
-            } else {
-                // ping message - we just drop all stuff
+            int expectedSize = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE + msgSize;
+            try (BytesStreamOutput output = new ReleasableBytesStreamOutput(expectedSize, bigArrays)) {
+                output.write(minimalHeader);
+                output.write(buffer);
+                consumeNetworkReads(mockChannel, output.bytes());
             }
         }
     }
 
     @Override
-    protected MockChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
-        throws IOException {
+    @SuppressForbidden(reason = "real socket for mocking remote connections")
+    protected MockChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
+        final MockChannel channel = new MockChannel(socket, address, false, "none");
+
         boolean success = false;
         try {
             configureSocket(socket);
-            try {
-                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
-            } catch (SocketTimeoutException ex) {
-                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
-            }
-            MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
-            channel.loopRead(executor);
             success = true;
-            connectListener.onResponse(null);
-            return channel;
         } finally {
             if (success == false) {
                 IOUtils.close(socket);
             }
         }
+
+        executor.submit(() -> {
+            try {
+                socket.connect(address);
+                socket.setSoLinger(false, 0);
+                channel.connectFuture.complete(null);
+                channel.loopRead(executor);
+            } catch (Exception ex) {
+                channel.connectFuture.completeExceptionally(ex);
+            }
+        });
+
+        return channel;
     }
 
     @Override
-    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
-        ConnectionProfile connectionProfile1 = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder(LIGHT_PROFILE);
-        builder.setHandshakeTimeout(connectionProfile1.getHandshakeTimeout());
-        builder.setConnectTimeout(connectionProfile1.getConnectTimeout());
+    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        Set<TransportRequestOptions.Type> allTypesWithConnection = new HashSet<>();
+        Set<TransportRequestOptions.Type> allTypesWithoutConnection = new HashSet<>();
+        for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
+            Set<TransportRequestOptions.Type> types = handle.getTypes();
+            if (handle.length > 0) {
+                allTypesWithConnection.addAll(types);
+            } else {
+                allTypesWithoutConnection.addAll(types);
+            }
+        }
+        // make sure we maintain at least the types that are supported by this profile even if we only use a single channel for them.
+        builder.addConnections(1, allTypesWithConnection.toArray(new TransportRequestOptions.Type[0]));
+        if (allTypesWithoutConnection.isEmpty() == false) {
+            builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
+        }
+        builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
+        builder.setConnectTimeout(connectionProfile.getConnectTimeout());
+        builder.setPingInterval(connectionProfile.getPingInterval());
+        builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
     }
 
@@ -217,16 +237,18 @@ public class MockTcpTransport extends TcpTransport {
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
     }
 
-    public final class MockChannel implements Closeable, TcpChannel {
+    public final class MockChannel implements Closeable, TcpChannel, TcpServerChannel {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
         private final Set<MockChannel> workerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final Socket activeChannel;
+        private final boolean isServer;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
-        private final Closeable onClose;
-        private final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+        private final CompletableContext<Void> closeFuture = new CompletableContext<>();
+        private final CompletableContext<Void> connectFuture = new CompletableContext<>();
+        private final ChannelStats stats = new ChannelStats();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -234,14 +256,13 @@ public class MockTcpTransport extends TcpTransport {
          * @param socket The client socket. Mut not be null.
          * @param localAddress Address associated with the corresponding local server socket. Must not be null.
          * @param profile The associated profile name.
-         * @param onClose Callback to execute when this channel is closed.
          */
-        public MockChannel(Socket socket, InetSocketAddress localAddress, String profile, Consumer<MockChannel> onClose) {
+        MockChannel(Socket socket, InetSocketAddress localAddress, boolean isServer, String profile) {
             this.localAddress = localAddress;
             this.activeChannel = socket;
+            this.isServer = isServer;
             this.serverSocket = null;
             this.profile = profile;
-            this.onClose = () -> onClose.accept(this);
             synchronized (openChannels) {
                 openChannels.add(this);
             }
@@ -253,12 +274,12 @@ public class MockTcpTransport extends TcpTransport {
          * @param serverSocket The associated server socket. Must not be null.
          * @param profile The associated profile name.
          */
-        public MockChannel(ServerSocket serverSocket, String profile) {
+        MockChannel(ServerSocket serverSocket, String profile) {
             this.localAddress = (InetSocketAddress) serverSocket.getLocalSocketAddress();
             this.serverSocket = serverSocket;
             this.profile = profile;
+            this.isServer = false;
             this.activeChannel = null;
-            this.onClose = null;
             synchronized (openChannels) {
                 openChannels.add(this);
             }
@@ -272,9 +293,21 @@ public class MockTcpTransport extends TcpTransport {
                     configureSocket(incomingSocket);
                     synchronized (this) {
                         if (isOpen.get()) {
-                            incomingChannel = new MockChannel(incomingSocket,
-                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile,
-                                workerChannels::remove);
+                            InetSocketAddress localAddress = new InetSocketAddress(incomingSocket.getLocalAddress(),
+                                incomingSocket.getPort());
+                            incomingChannel = new MockChannel(incomingSocket, localAddress, true, profile);
+                            MockChannel finalIncomingChannel = incomingChannel;
+                            incomingChannel.addCloseListener(new ActionListener<Void>() {
+                                @Override
+                                public void onResponse(Void aVoid) {
+                                    workerChannels.remove(finalIncomingChannel);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    workerChannels.remove(finalIncomingChannel);
+                                }
+                            });
                             serverAcceptedChannel(incomingChannel);
                             //establish a happens-before edge between closing and accepting a new connection
                             workerChannels.add(incomingChannel);
@@ -294,7 +327,7 @@ public class MockTcpTransport extends TcpTransport {
             }
         }
 
-        public void loopRead(Executor executor) {
+        void loopRead(Executor executor) {
             executor.execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -319,7 +352,7 @@ public class MockTcpTransport extends TcpTransport {
             });
         }
 
-        public synchronized void close0() throws IOException {
+        synchronized void close0() throws IOException {
             // establish a happens-before edge between closing and accepting a new connection
             // we have to sync this entire block to ensure that our openChannels checks work correctly.
             // The close block below will close all worker channels but if one of the worker channels runs into an exception
@@ -332,7 +365,7 @@ public class MockTcpTransport extends TcpTransport {
                     removedChannel = openChannels.remove(this);
                 }
                 IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels),
-                    () -> cancellableThreads.cancel("channel closed"), onClose);
+                    () -> cancellableThreads.cancel("channel closed"));
                 assert removedChannel: "Channel was not removed or removed twice?";
             }
         }
@@ -358,16 +391,28 @@ public class MockTcpTransport extends TcpTransport {
         }
 
         @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-            closeFuture.whenComplete(ActionListener.toBiConsumer(listener));
+        public String getProfile() {
+            return profile;
         }
 
         @Override
-        public void setSoLinger(int value) throws IOException {
-            if (activeChannel != null && activeChannel.isClosed() == false) {
-                activeChannel.setSoLinger(true, value);
-            }
+        public boolean isServerChannel() {
+            return isServer;
+        }
 
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            closeFuture.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public void addConnectListener(ActionListener<Void> listener) {
+            connectFuture.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public ChannelStats getChannelStats() {
+            return stats;
         }
 
         @Override
@@ -378,6 +423,11 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public InetSocketAddress getLocalAddress() {
             return localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return (InetSocketAddress) activeChannel.getRemoteSocketAddress();
         }
 
         @Override
@@ -422,11 +472,6 @@ public class MockTcpTransport extends TcpTransport {
         synchronized (openChannels) {
             assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
         }
-    }
-
-    @Override
-    protected Version getCurrentVersion() {
-        return mockVersion;
     }
 }
 

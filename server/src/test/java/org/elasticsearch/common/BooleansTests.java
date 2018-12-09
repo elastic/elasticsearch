@@ -20,7 +20,6 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.Locale;
 

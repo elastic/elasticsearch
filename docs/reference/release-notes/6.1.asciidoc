@@ -1,0 +1,794 @@
+////
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases at the
+// top of the page. Note that release subheads must be floated and sections
+// cannot be empty.
+// TEMPLATE
+
+// [[release-notes-n.n.n]]
+// == {es} n.n.n
+
+//[float]
+[[breaking-n.n.n]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+//[float]
+//=== Bug Fixes
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+////
+
+[[release-notes-6.1.4]]
+== {es} version 6.1.4
+
+//[float]
+//[[breaking-6.1.4]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+[float]
+=== Enhancements
+
+Core::
+* Fix classes that can exit {pull}27518[#27518]
+
+[float]
+=== Bug Fixes
+
+Aggregations::
+* StringTerms.Bucket.getKeyAsNumber detection type {pull}28118[#28118] (issue: {issue}28012[#28012])
+
+Core::
+* Remove special handling for _all in nodes info {pull}28971[#28971] (issue: {issue}28797[#28797])
+
+Engine::
+* Avoid class cast exception from index writer {pull}28989[#28989]
+* Maybe die before failing engine {pull}28973[#28973] (issues: {issue}27265[#27265], {issue}28967[#28967])
+
+Scripting::
+* Painless: Fix For Loop NullPointerException {pull}28506[#28506] (issue: {issue}28501[#28501])
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[[release-notes-6.1.3]]
+== {es} version 6.1.3
+
+//[float]
+//[[breaking-6.1.3]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+[float]
+=== Bug Fixes
+
+Engine::
+* Replica recovery could go into an endless flushing loop {pull}28350[#28350]
+
+Internal::
+* Never return null from Strings.tokenizeToStringArray {pull}28224[#28224] (issue: {issue}28213[#28213])
+* Fallback to TransportMasterNodeAction for cluster health retries {pull}28195[#28195] (issue: {issue}28169[#28169])
+
+Mapping::
+* Allow update of `eager_global_ordinals` on `_parent`. {pull}28014[#28014] (issue: {issue}24407[#24407])
+
+Scripting::
+* Ensure we protect Collections obtained from scripts from self-referencing {pull}28335[#28335]
+
+Security::
+* Improved cache expiry handling in the token service. Previously, if the token
+service was idle for more than 60 minutes, the key expired and the service
+failed to generate user tokens.
+
+Settings::
+*  Fix setting notification for complex setting (affixMap settings) that could cause transient settings to be ignored {pull}28317[#28317] (issue: {issue}28316[#28316])
+* Fix environment variable substitutions in list setting {pull}28106[#28106] (issue: {issue}27926[#27926])
+
+Snapshot/Restore::
+* Avoid concurrent snapshot finalizations when deleting an INIT snapshot {pull}28078[#28078] (issues: {issue}27214[#27214], {issue}27931[#27931], {issue}27974[#27974])
+* Do not start snapshots that are deleted during initialization {pull}27931[#27931]
+
+Watcher::
+* Fixed a null pointer exception in the TemplateRegistry when there is no master
+node available.
+* Ensured collections obtained from scripts are protected from self-referencing.
+See https://github.com/elastic/elasticsearch/pull/28335.
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[[release-notes-6.1.2]]
+== {es} version 6.1.2
+
+//[float]
+//[[breaking-6.1.2]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+[float]
+=== Enhancements
+
+Internal::
+* Make AbstractQueryBuilder.declareStandardFields to be protected (#27865) {pull}27894[#27894] (issue: {issue}27865[#27865])
+
+Added new "Request" object flavored request methods. Prefer these instead of the
+multi-argument versions. ({pull}29623[#29623])
+
+
+[float]
+=== Bug Fixes
+
+Aggregations::
+* Fix incorrect results for aggregations nested under a nested aggregation {pull}27946[#27946] (issue: {issue}27912[#27912])
+* Fix composite aggregation when after term is missing in the shard {pull}27936[#27936]
+* Fix preserving FiltersAggregationBuilder#keyed field on rewrite {pull}27900[#27900] (issue: {issue}27841[#27841])
+
+Engine::
+* Use `_refresh` to shrink the version map on inactivity {pull}27918[#27918] (issue: {issue}27852[#27852])
+* Allow resize version map under lock even if there are pending operations {pull}27870[#27870] (issue: {issue}27852[#27852])
+
+Machine Learning::
+* Fixed the removal of tokens during categorization, where the tokens were
+incorrectly deemed to be hexadecimal numbers. For more information, see
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+* Reduced the sensitivity of the analysis to small perturbations in the input
+data.
+* Disabled the ability to create forecasts for jobs that were created before
+6.1.0.
+
+Monitoring::
+* Added a `cluster_alerts.management.blacklist` setting for HTTP Exporters,
+which you can use to block the creation of specific cluster alerts. For more
+information, see <<monitoring-settings>>.
+
+Network::
+* Only bind loopback addresses when binding to local {pull}28029[#28029]
+
+Recovery::
+* Allow shrinking of indices from a previous major {pull}28076[#28076] (issue: {issue}28061[#28061])
+
+Search::
+* Use the underlying connection version for CCS connections  {pull}28093[#28093]
+* Carry forward weights, etc on rescore rewrite {pull}27981[#27981] (issue: {issue}27979[#27979])
+
+Security::
+* Fixed an issue in the Active Directory realm when following referrals that
+resulted in an increase in the number of connections made to Active Directory.
+* Fixed exception that occurred when using auditing and transport clients. In
+particular, the problem occurred when the number of processors on the transport
+client did not match the number of processors on the server.
+* Ensured that TLS is not required to install a license if you are using
+single-node discovery. For more information, see <<single-node-discovery>> and
+{stack-ov}/ssl-tls.html[Setting up TLS on a Cluster].
+* Fixed the <<security-api-privileges,has_privileges API>>. In particular, the
+`has_all_requested` field in the API results was not taking cluster privileges
+into consideration.
+
+Snapshot/Restore::
+* Fail restore when the shard allocations max retries count is reached {pull}27493[#27493] (issue: {issue}26865[#26865])
+
+Translog::
+* Only sync translog when global checkpoint increased {pull}27973[#27973] (issues: {issue}27837[#27837], {issue}27970[#27970])
+
+Watcher::
+* Fixed encoding of UTF-8 data in the HTTP client.
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[[release-notes-6.1.1]]
+== {es} version 6.1.1
+
+//[float]
+//[[breaking-6.1.1]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+[float]
+=== Enhancements
+
+Snapshot/Restore::
+* Use AmazonS3.doesObjectExist() method in S3BlobContainer {pull}27723[#27723]
+
+Watcher::
+* Ensured the watcher thread pool size is reasonably bound. In particular, the
+watcher thread pool size is now five times the number of processors until 50
+threads are reached. If more than 50 cores exist and 50 threads exist, the
+watch thread pool size grows to match the number of processors.
+
+[float]
+=== Bug Fixes
+
+Inner Hits::
+* Add version support for inner hits in field collapsing (#27822) {pull}27833[#27833] (issue: {issue}27822[#27822])
+
+Java REST Client::
+* Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
+
+Monitoring::
+* Data collectors now all share the same cluster state that existed at the
+beginning of data collection. This removes the extremely rare race condition
+where the cluster state can change between some data collectors, which could
+cause temporary issues in the Monitoring UI.
+
+Search::
+* Fix routing with leading or trailing whitespace {pull}27712[#27712] (issue: {issue}27708[#27708])
+
+Sequence IDs::
+* Recovery from snapshot may leave seq# gaps {pull}27850[#27850]
+* No longer unidle shard during recovery {pull}27757[#27757] (issue: {issue}26591[#26591])
+
+Watcher::
+* Fixed the pagerduty action to send context data. For more information, see
+{stack-ov}/actions-pagerduty.html[PagerDuty Action].
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[float]
+=== Upgrades
+
+Ingest::
+* update ingest-attachment to use Tika 1.17 and newer deps {pull}27824[#27824]
+
+[[release-notes-6.1.0]]
+== {es} version 6.1.0
+
+[float]
+[[breaking-6.1.0]]
+=== Breaking Changes
+
+Network::
+* Allow only a fixed-size receive predictor {pull}26165[#26165] (issue: {issue}23185[#23185])
+
+REST::
+* Standardize underscore requirements in parameters {pull}27414[#27414] (issues: {issue}26886[#26886], {issue}27040[#27040])
+
+Scroll::
+* Fail queries with scroll that explicitely set request_cache {pull}27342[#27342]
+
+Search::
+* Add a limit to from + size in top_hits and inner hits. {pull}26492[#26492] (issue: {issue}11511[#11511])
+
+Security::
+* The `certgen` command now returns validation errors when it encounters problems
+reading from an input file (with the `-in` command option). Previously these
+errors might have been ignored or caused the command to abort with unclear
+messages. For more information, see <<certgen>>.
+
+[float]
+=== Breaking Java Changes
+
+Aggregations::
+* Moves deferring code into its own subclass {pull}26421[#26421]
+
+Core::
+* Unify Settings xcontent reading and writing {pull}26739[#26739]
+
+Settings::
+* Return List instead of an array from settings {pull}26903[#26903]
+* Remove `Settings,put(Map<String,String>)` {pull}26785[#26785]
+
+[float]
+=== Deprecations
+
+Aggregations::
+* Deprecate global_ordinals_hash and global_ordinals_low_cardinality {pull}26173[#26173] (issue: {issue}26014[#26014])
+
+Allocation::
+* Add deprecation warning for negative index.unassigned.node_left.delayed_timeout {pull}26832[#26832] (issue: {issue}26828[#26828])
+
+Analysis::
+* Add limits for ngram and shingle settings {pull}27411[#27411] (issues: {issue}25887[#25887], {issue}27211[#27211])
+
+Geo::
+* [GEO] 6x Deprecate ShapeBuilders and decouple geojson parse logic {pull}27345[#27345]
+
+Mapping::
+* Deprecate the `index_options` parameter for numeric fields {pull}26672[#26672] (issue: {issue}21475[#21475])
+
+Plugin Repository Azure::
+* Azure repository: Move to named configurations as we do for S3 repository and secure settings {pull}23405[#23405] (issues: {issue}22762[#22762], {issue}22763[#22763])
+
+Search::
+* doc: deprecate _primary and _replica shard option {pull}26792[#26792] (issue: {issue}26335[#26335])
+
+[float]
+=== New Features
+
+Aggregations::
+* Aggregations: bucket_sort pipeline aggregation {pull}27152[#27152] (issue: {issue}14928[#14928])
+* Add composite aggregator {pull}26800[#26800]
+
+Analysis::
+* Added Bengali Analyzer to Elasticsearch with respect to the lucene update {pull}26527[#26527]
+
+Ingest::
+* add URL-Decode Processor to Ingest {pull}26045[#26045] (issue: {issue}25837[#25837])
+
+Java High Level REST Client::
+* Added Delete Index support to high-level REST client {pull}27019[#27019] (issue: {issue}25847[#25847])
+
+Machine Learning::
+* Added the ability to create job forecasts. This feature enables you to use
+historical behavior to predict the future behavior of your time series. You can
+create forecasts in {kib} or by using the <<ml-forecast,forecast jobs>> API.
++
+--
+NOTE: You cannot create forecasts for jobs that were created in previous
+versions; this functionality is available only for jobs created in 6.1 or later.
+
+--
+* Added overall buckets, which summarize bucket results for multiple jobs.
+For more information, see the <<ml-get-overall-buckets,get overall buckets>> API.
+* Added job groups, which you can use to manage or retrieve information from
+multiple jobs at once. Also updated many {ml} APIs to support groups and
+wildcard expressions in the job identifier.
+
+Nested Docs::
+* Multi-level Nested Sort with Filters {pull}26395[#26395]
+
+Query DSL::
+* Add terms_set query {pull}27145[#27145] (issue: {issue}26915[#26915])
+* Introduce sorted_after query for sorted index {pull}26377[#26377]
+* Add support for auto_generate_synonyms_phrase_query in match_query, multi_match_query, query_string and simple_query_string {pull}26097[#26097]
+
+Search::
+* Expose `fuzzy_transpositions` parameter in fuzzy queries {pull}26870[#26870] (issue: {issue}18348[#18348])
+* Add upper limit for scroll expiry {pull}26448[#26448] (issues: {issue}11511[#11511], {issue}23268[#23268])
+* Implement adaptive replica selection {pull}26128[#26128] (issue: {issue}24915[#24915])
+* configure distance limit {pull}25731[#25731] (issue: {issue}25528[#25528])
+
+Similarities::
+* Add a scripted similarity. {pull}25831[#25831]
+
+Suggesters::
+* Expose duplicate removal in the completion suggester {pull}26496[#26496] (issue: {issue}23364[#23364])
+* Support must and should for context query in context suggester {pull}26407[#26407] (issues: {issue}24421[#24421], {issue}24565[#24565])
+
+[float]
+=== Enhancements
+
+Aggregations::
+* Allow aggregation sorting via nested aggregation {pull}26683[#26683] (issue: {issue}16838[#16838])
+
+Allocation::
+* Tie-break shard path decision based on total number of shards on path {pull}27039[#27039] (issue: {issue}26654[#26654])
+* Balance shards for an index more evenly across multiple data paths {pull}26654[#26654] (issue: {issue}16763[#16763])
+* Expand "NO" decision message in NodeVersionAllocationDecider {pull}26542[#26542] (issue: {issue}10403[#10403])
+* _reroute's retry_failed flag should reset failure counter {pull}25888[#25888] (issue: {issue}25291[#25291])
+
+Analysis::
+* Add configurable `max_token_length` parameter to whitespace tokenizer {pull}26749[#26749] (issue: {issue}26643[#26643])
+
+CRUD::
+* Add wait_for_active_shards parameter to index open command {pull}26682[#26682] (issue: {issue}20937[#20937])
+
+Core::
+* Fix classes that can exit {pull}27518[#27518]
+* Replace empty index block checks with global block checks in template delete/put actions {pull}27050[#27050] (issue: {issue}10530[#10530])
+* Allow Uid#decodeId to decode from a byte array slice {pull}26987[#26987] (issue: {issue}26931[#26931])
+* Use separate searchers for "search visibility" vs "move indexing buffer to disk {pull}26972[#26972] (issues: {issue}15768[#15768], {issue}26802[#26802], {issue}26912[#26912], {issue}3593[#3593])
+* Add ability to split shards {pull}26931[#26931]
+* Make circuit breaker mutations debuggable {pull}26067[#26067] (issue: {issue}25891[#25891])
+
+Dates::
+* DateProcessor Locale {pull}26186[#26186] (issue: {issue}25513[#25513])
+
+Discovery::
+* Stop responding to ping requests before master abdication {pull}27329[#27329] (issue: {issue}27328[#27328])
+
+Engine::
+* Ensure external refreshes will also refresh internal searcher to minimize segment creation {pull}27253[#27253] (issue: {issue}26972[#26972])
+* Move IndexShard#getWritingBytes() under InternalEngine {pull}27209[#27209] (issue: {issue}26972[#26972])
+* Refactor internal engine {pull}27082[#27082]
+
+Geo::
+* Add ignore_malformed to geo_shape fields {pull}24654[#24654] (issue: {issue}23747[#23747])
+
+Ingest::
+* add json-processor support for non-map json types {pull}27335[#27335] (issue: {issue}25972[#25972])
+* Introduce templating support to timezone/locale in DateProcessor {pull}27089[#27089] (issue: {issue}24024[#24024])
+* Add support for parsing inline script (#23824) {pull}26846[#26846] (issue: {issue}23824[#23824])
+* Consolidate locale parsing. {pull}26400[#26400]
+* Accept ingest simulate params as ints or strings {pull}23885[#23885] (issue: {issue}23823[#23823])
+
+Internal::
+* Avoid uid creation in ParsedDocument {pull}27241[#27241]
+* Upgrade to Lucene 7.1.0 snapshot version {pull}26864[#26864] (issue: {issue}26527[#26527])
+* Remove `_index` fielddata hack if cluster alias is present {pull}26082[#26082] (issue: {issue}25885[#25885])
+
+Java High Level REST Client::
+* Adjust RestHighLevelClient method modifiers {pull}27238[#27238]
+* Decouple BulkProcessor from ThreadPool {pull}26727[#26727] (issue: {issue}26028[#26028])
+
+Logging::
+* Add more information on _failed_to_convert_ exception (#21946) {pull}27034[#27034] (issue: {issue}21946[#21946])
+* Improve shard-failed log messages. {pull}26866[#26866]
+
+Machine Learning::
+* Improved the way {ml} jobs are allocated to nodes, such that it is primarily
+determined by the estimated memory requirement of the job. If there is insufficient
+information about the job's memory requirements, the allocation decision is based
+on job counts per node.
+* Increased the default value of the `xpack.ml.max_open_jobs` setting from `10`
+to `20`. The allocation of jobs to nodes now considers memory usage as well as
+job counts, so it's reasonable to permit more small jobs on a single node. For
+more information, see <<ml-settings>>.
+* Decreased the default `model_memory_limit` property value to 1 GB for new jobs.
+If you want to create a job that analyzes high cardinality fields, you can
+increase this property value. For more information, see <<ml-apilimits>>.
+* Improved analytics related to decay rates when predictions are very accurate.
+* Improved analytics related to detecting non-negative quantities and using this
+information to constrain analysis, predictions, and confidence intervals.
+* Improved periodic trough or spike detection.
+* Improved the speed of the aggregation of {ml} results.
+* Improved probability calculation performance.
+* Expedited bucket processing time in very large populations by determining when
+there are nearly duplicate values in a bucket and de-duplicating the samples that
+are added to the model.
+* Improved handling of periodically missing values.
+* Improved analytics related to diurnal periodicity.
+* Reduced memory usage during population analysis by releasing redundant memory
+after the bucket results are written.
+* Improved modeling of long periodic components, particularly when there is a
+long bucket span.
+
+Mapping::
+* Allow ip_range to accept CIDR notation {pull}27192[#27192] (issue: {issue}26260[#26260])
+* Deduplicate `_field_names`. {pull}26550[#26550]
+* Throw a better error message for empty field names {pull}26543[#26543] (issue: {issue}23348[#23348])
+* Stricter validation for min/max values for whole numbers {pull}26137[#26137]
+* Make FieldMapper.copyTo() always non-null. {pull}25994[#25994]
+
+Monitoring::
+* Added the new `interval_ms` field to monitoring documents. This field
+indicates the current collection interval for {es} or external monitored systems.
+
+Nested Docs::
+* Use the primary_term field to identify parent documents {pull}27469[#27469] (issue: {issue}24362[#24362])
+* Prohibit using `nested_filter`, `nested_path` and new `nested` Option at the same time in FieldSortBuilder {pull}26490[#26490] (issue: {issue}17286[#17286])
+
+Network::
+* Remove manual tracking of registered channels {pull}27445[#27445] (issue: {issue}27260[#27260])
+* Remove tcp profile from low level nio channel {pull}27441[#27441] (issue: {issue}27260[#27260])
+* Decouple `ChannelFactory` from Tcp classes {pull}27286[#27286] (issue: {issue}27260[#27260])
+
+Percolator::
+* Use Lucene's CoveringQuery to select percolate candidate matches {pull}27271[#27271] (issues: {issue}26081[#26081], {issue}26307[#26307])
+* Add support to percolate query to percolate multiple documents simultaneously {pull}26418[#26418]
+* Hint what clauses are important in a conjunction query based on fields {pull}26081[#26081]
+* Add support for selecting percolator query candidate matches containing range queries {pull}25647[#25647] (issue: {issue}21040[#21040])
+
+Plugin Discovery EC2::
+* update AWS SDK for ECS Task IAM support in discovery-ec2 {pull}26479[#26479] (issue: {issue}23039[#23039])
+
+Plugin Lang Painless::
+* Painless: Only allow Painless type names to be the same as the equivalent Java class. {pull}27264[#27264]
+* Allow for the Painless Definition to have multiple instances for white-listing {pull}27096[#27096]
+* Separate Painless Whitelist Loading from the Painless Definition {pull}26540[#26540]
+* Remove Sort enum from Painless Definition {pull}26179[#26179]
+
+Plugin Repository Azure::
+* Add azure storage endpoint suffix #26432 {pull}26568[#26568] (issue: {issue}26432[#26432])
+* Support for accessing Azure repositories through a proxy {pull}23518[#23518] (issues: {issue}23506[#23506], {issue}23517[#23517])
+
+Plugin Repository S3::
+* Remove S3 output stream {pull}27280[#27280] (issue: {issue}27278[#27278])
+* Update to AWS SDK 1.11.223 {pull}27278[#27278]
+
+Plugins::
+* Plugins: Add versionless alias to all security policy codebase properties {pull}26756[#26756] (issue: {issue}26521[#26521])
+* Allow plugins to plug rescore implementations {pull}26368[#26368] (issue: {issue}26208[#26208])
+
+Query DSL::
+* Add support for wildcard on `_index` {pull}27334[#27334] (issue: {issue}25722[#25722])
+
+Reindex API::
+* Update by Query is modified to accept short `script` parameter. {pull}26841[#26841] (issue: {issue}24898[#24898])
+* reindex: automatically choose the number of slices {pull}26030[#26030] (issues: {issue}24547[#24547], {issue}25582[#25582])
+
+Rollover::
+* Add size-based condition to the index rollover API {pull}27160[#27160] (issue: {issue}27004[#27004])
+* Add size-based condition to the index rollover API {pull}27115[#27115] (issue: {issue}27004[#27004])
+
+Scripting::
+* Script: Convert script query to a dedicated script context {pull}26003[#26003]
+
+Search::
+* Make fields optional in multi_match query and rely on index.query.default_field by default {pull}27380[#27380]
+* fix unnecessary logger creation {pull}27349[#27349]
+* `ObjectParser` : replace `IllegalStateException` with `ParsingException` {pull}27302[#27302] (issue: {issue}27147[#27147])
+* Uses norms for exists query if enabled {pull}27237[#27237]
+* Cross Cluster Search: make remote clusters optional {pull}27182[#27182] (issues: {issue}26118[#26118], {issue}27161[#27161])
+* Enhances exists queries to reduce need for `_field_names` {pull}26930[#26930] (issue: {issue}26770[#26770])
+* Change ParentFieldSubFetchPhase to create doc values iterator once per segment {pull}26815[#26815]
+* Change VersionFetchSubPhase to create doc values iterator once per segment {pull}26809[#26809]
+* Change ScriptFieldsFetchSubPhase to create search scripts once per segment {pull}26808[#26808] (issue: {issue}26775[#26775])
+* Make sure SortBuilders rewrite inner nested sorts {pull}26532[#26532]
+* Extend testing of build method in ScriptSortBuilder {pull}26520[#26520] (issues: {issue}17286[#17286], {issue}26490[#26490])
+* Accept an array of field names and boosts in the index.query.default_field setting {pull}26320[#26320] (issue: {issue}25946[#25946])
+* Reject IPv6-mapped IPv4 addresses when using the CIDR notation. {pull}26254[#26254] (issue: {issue}26078[#26078])
+* Rewrite range queries with open bounds to exists query {pull}26160[#26160] (issue: {issue}22640[#22640])
+
+Security::
+* Added the `manage_index_templates` cluster privilege to the built-in role
+`kibana_system`. For more information, see
+{stack-ov}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
+and {stack-ov}/built-in-roles.html[Built-in Roles].
+* Newly created or updated watches execute with the privileges of the user that
+last modified the watch.
+* Added log messages when a PEM key is found when a PEM certificate was
+expected (or vice versa) in the `xpack.ssl.key` or `xpack.ssl.certificate` settings.
+* Added the new `certutil` command to simplify the creation of certificates for
+use with the Elastic stack. For more information, see <<certutil>>.
+* Added automatic detection of support for AES 256 bit TLS ciphers and enabled
+their use when the JVM supports them.
+
+Sequence IDs::
+* Only fsync global checkpoint if needed {pull}27652[#27652]
+* Log primary-replica resync failures {pull}27421[#27421] (issues: {issue}24841[#24841], {issue}27418[#27418])
+* Lazy initialize checkpoint tracker bit sets {pull}27179[#27179] (issue: {issue}10708[#10708])
+* Returns the current primary_term for Get/MultiGet requests {pull}27177[#27177] (issue: {issue}26493[#26493])
+
+Settings::
+* Allow affix settings to specify dependencies {pull}27161[#27161]
+* Represent lists as actual lists inside Settings {pull}26878[#26878] (issue: {issue}26723[#26723])
+* Remove Settings#getAsMap() {pull}26845[#26845]
+* Replace group map settings with affix setting {pull}26819[#26819]
+* Throw exception if setting isn't recognized {pull}26569[#26569] (issue: {issue}25607[#25607])
+* Settings: Move keystore creation to plugin installation {pull}26329[#26329] (issue: {issue}26309[#26309])
+
+Snapshot/Restore::
+* Remove XContentType auto detection in BlobStoreRepository {pull}27480[#27480]
+* Snapshot: Migrate TransportRequestHandler to TransportMasterNodeAction {pull}27165[#27165] (issue: {issue}27151[#27151])
+* Fix toString of class SnapshotStatus (#26851) {pull}26852[#26852] (issue: {issue}26851[#26851])
+
+Stats::
+* Adds average document size to DocsStats {pull}27117[#27117] (issue: {issue}27004[#27004])
+* Stats to record how often the ClusterState diff mechanism is used successfully {pull}27107[#27107] (issue: {issue}26973[#26973])
+* Expose adaptive replica selection stats in /_nodes/stats API {pull}27090[#27090]
+* Add cgroup memory usage/limit to OS stats on Linux {pull}26166[#26166]
+* Add segment attributes to the `_segments` API. {pull}26157[#26157] (issue: {issue}26130[#26130])
+
+Suggesters::
+* Improve error message for parse failures of completion fields {pull}27297[#27297]
+* Support 'AND' operation for context query in context suggester {pull}24565[#24565] (issue: {issue}24421[#24421])
+
+Watcher::
+* Improved error messages when there are no accounts configured for {watcher}.
+* Added thread pool rejection information to execution state, which makes it
+easier to debug execution failures.
+* Added execution state information to watch status details. It is stored in the
+`status.execution_state` field.
+* Enabled the account monitoring `url` field in the `xpack.notification.jira`
+setting to support customized paths. For more information about configuring Jira
+accounts for use with watches, see
+{stack-ov}/actions-jira.html[Jira Action].
+* Improved handling of exceptions in {watcher} to make it easier to debug 
+problems.
+
+[float]
+=== Bug Fixes
+
+Aggregations::
+* Disable the "low cardinality" optimization of terms aggregations. {pull}27545[#27545] (issue: {issue}27543[#27543])
+* scripted_metric _agg parameter disappears if params are provided {pull}27159[#27159] (issues: {issue}19768[#19768], {issue}19863[#19863])
+
+Cluster::
+* Properly format IndexGraveyard deletion date as date {pull}27362[#27362]
+*  Remove optimisations to reuse objects when applying a new `ClusterState` {pull}27317[#27317]
+
+Core::
+* Do not set data paths on no local storage required {pull}27587[#27587] (issue: {issue}27572[#27572])
+* Ensure threadcontext is preserved when refresh listeners are invoked {pull}27565[#27565]
+* Ensure logging is configured for CLI commands {pull}27523[#27523] (issue: {issue}27521[#27521])
+* Protect shard splitting from illegal target shards {pull}27468[#27468] (issue: {issue}26931[#26931])
+* Avoid NPE when getting build information {pull}27442[#27442]
+* Fix `ShardSplittingQuery` to respect nested documents. {pull}27398[#27398] (issue: {issue}27378[#27378])
+* When building Settings do not set SecureSettings if empty {pull}26988[#26988] (issue: {issue}316[#316])
+
+Engine::
+* Reset LiveVersionMap on sync commit {pull}27534[#27534] (issue: {issue}27516[#27516])
+* Carry over version map size to prevent excessive resizing {pull}27516[#27516] (issue: {issue}20498[#20498])
+
+Geo::
+* Correct two equality checks on incomparable types {pull}27688[#27688]
+* [GEO] fix pointsOnly bug for MULTIPOINT {pull}27415[#27415]
+
+Index Templates::
+* Prevent constructing an index template without index patterns {pull}27662[#27662]
+
+Ingest::
+* Add pipeline support for REST API bulk upsert {pull}27075[#27075] (issue: {issue}25601[#25601])
+* Fixing Grok pattern for Apache 2.4 {pull}26635[#26635]
+
+Inner Hits::
+* Return an empty _source for nested inner hit when filtering on a field that doesn't exist {pull}27531[#27531]
+
+Internal::
+* When checking if key exists in ThreadContextStruct:putHeaders() method，should put requestHeaders in map first {pull}26068[#26068]
+* Adding a refresh listener to a recovering shard should be a noop {pull}26055[#26055]
+
+Java High Level REST Client::
+* Register ip_range aggregation with the high level client {pull}26383[#26383]
+* add top hits as a parsed aggregation to the rest high level client {pull}26370[#26370]
+
+Machine Learning::
+* Improved handling of scenarios where there are insufficient values to
+interpolate trend components.
+* Improved calculation of confidence intervals.
+* Fixed degrees of freedom calculation that could lead to excessive error logging.
+* Improved trend modeling with long bucket spans.
+* Fixed timing of when model size statistics are written. Previously, if there
+were multiple partitions, there could be multiple model size stats docs written
+within the same bucket.
+* Updated the calculation of the model memory to include the memory used by
+partition, over, by, or influencer fields.
+* Fixed calculation of the `frequency` property value for {dfeeds} that use
+aggregations. The value must be a multiple of the histogram interval. For more
+information, see
+{stack-ov}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
+* Removed unnecessary messages from logs when a job is forcefully closed.
+
+Mapping::
+* Fix dynamic mapping update generation. {pull}27467[#27467]
+* Fix merging of _meta field {pull}27352[#27352] (issue: {issue}27323[#27323])
+* Fixed rounding of bounds in scaled float comparison {pull}27207[#27207] (issue: {issue}27189[#27189])
+
+Nested Docs::
+* Ensure nested documents have consistent version and seq_ids {pull}27455[#27455]
+* Prevent duplicate fields when mixing parent and root nested includes {pull}27072[#27072] (issue: {issue}26990[#26990])
+
+Network::
+* Throw UOE from compressible bytes stream reset {pull}27564[#27564] (issue: {issue}24927[#24927])
+* Bubble exceptions when closing compressible streams {pull}27542[#27542] (issue: {issue}27540[#27540])
+* Do not set SO_LINGER on server channels {pull}26997[#26997]
+* Do not set SO_LINGER to 0 when not shutting down {pull}26871[#26871] (issue: {issue}26764[#26764])
+* Close TcpTransport on RST in some Spots to Prevent Leaking TIME_WAIT Sockets {pull}26764[#26764] (issue: {issue}26701[#26701])
+
+Packaging::
+* Removes minimum master nodes default number {pull}26803[#26803]
+* setgid on /etc/elasticearch on package install {pull}26412[#26412] (issue: {issue}26410[#26410])
+
+Percolator::
+* Avoid TooManyClauses exception if number of terms / ranges is exactly equal to 1024 {pull}27519[#27519] (issue: {issue}1[#1])
+
+Plugin Analysis ICU::
+* Catch InvalidPathException in IcuCollationTokenFilterFactory {pull}27202[#27202]
+
+Plugin Lang Painless::
+* Painless: Fix variable scoping issue in lambdas {pull}27571[#27571] (issue: {issue}26760[#26760])
+* Painless: Fix errors allowing void to be assigned to def. {pull}27460[#27460] (issue: {issue}27210[#27210])
+
+Plugin Repository GCS::
+* Create new handlers for every new request in GoogleCloudStorageService {pull}27339[#27339] (issue: {issue}27092[#27092])
+
+Recovery::
+* Flush old indices on primary promotion and relocation {pull}27580[#27580] (issue: {issue}27536[#27536])
+
+Reindex API::
+* Reindex: Fix headers in reindex action {pull}26937[#26937] (issue: {issue}22976[#22976])
+
+Scroll::
+* Fix scroll query with a sort that is a prefix of the index sort {pull}27498[#27498]
+
+Search::
+* Fix profiling naming issues {pull}27133[#27133]
+* Fix max score tracking with field collapsing {pull}27122[#27122] (issue: {issue}23840[#23840])
+* Apply missing request options to the expand phase {pull}27118[#27118] (issues: {issue}26649[#26649], {issue}27079[#27079])
+* Calculate and cache result when advanceExact is called {pull}26920[#26920] (issue: {issue}26817[#26817])
+* Filter unsupported relation for RangeQueryBuilder {pull}26620[#26620] (issue: {issue}26575[#26575])
+* Handle leniency for phrase query on a field indexed without positions {pull}26388[#26388]
+
+Security::
+* Fixed REST requests that required a body but did not validate it, resulting in
+null pointer exceptions.
+
+Sequence IDs::
+* Obey translog durability in global checkpoint sync {pull}27641[#27641]
+* Fix resync request serialization {pull}27418[#27418] (issue: {issue}24841[#24841])
+
+Settings::
+* Allow index settings to be reset by wildcards {pull}27671[#27671] (issue: {issue}27537[#27537])
+
+Snapshot/Restore::
+* Do not swallow exception in ChecksumBlobStoreFormat.writeAtomic() {pull}27597[#27597]
+* Delete shard store files before restoring a snapshot {pull}27476[#27476] (issues: {issue}20220[#20220], {issue}26865[#26865])
+* Fix snapshot getting stuck in INIT state {pull}27214[#27214] (issue: {issue}27180[#27180])
+* Fix default value of ignore_unavailable for snapshot REST API (#25359) {pull}27056[#27056] (issue: {issue}25359[#25359])
+* Do not create directory on readonly repository (#21495) {pull}26909[#26909] (issue: {issue}21495[#21495])
+
+Stats::
+* Include internal refreshes in refresh stats {pull}27615[#27615]
+* Make Segment statistics aware of segments hold by internal readers {pull}27558[#27558]
+* Ensure `doc_stats` are changing even if refresh is disabled {pull}27505[#27505]
+
+Watcher::
+* Fixed handling of watcher templates. Missing watcher templates can be added by
+any node if that node has a higher version than the master node.
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Jackson 2.8.10 {pull}27230[#27230]
+* Upgrade to Lucene 7.1 {pull}27225[#27225]
+
+Plugin Discovery EC2::
+* Upgrade AWS SDK Jackson Databind to 2.6.7.1 {pull}27361[#27361] (issues: {issue}27278[#27278], {issue}27359[#27359])
+
+Plugin Discovery GCE::
+* Update Google SDK to version 1.23.0 {pull}27381[#27381] (issue: {issue}26636[#26636])
+
+Plugin Lang Painless::
+* Upgrade Painless from ANTLR 4.5.1-1 to  ANTLR 4.5.3. {pull}27153[#27153]

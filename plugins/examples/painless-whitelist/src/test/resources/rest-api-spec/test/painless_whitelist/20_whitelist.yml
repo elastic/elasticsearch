@@ -11,8 +11,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     match_all: {}

@@ -150,7 +150,9 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         request.patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
         int numAlias = between(0, 5);
         for (int i = 0; i < numAlias; i++) {
-            Alias alias = new Alias(randomRealisticUnicodeOfLengthBetween(1, 10));
+            // some ASCII or Latin-1 control characters, especially newline, can lead to
+            // problems with yaml parsers, that's why we filter them here (see #30911)
+            Alias alias = new Alias(randomRealisticUnicodeOfLengthBetween(1, 10).replaceAll("\\p{Cc}", ""));
             if (randomBoolean()) {
                 alias.indexRouting(randomRealisticUnicodeOfLengthBetween(1, 10));
             }

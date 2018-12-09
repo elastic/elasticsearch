@@ -4,7 +4,7 @@
 A variable loads and stores a value for evaluation during
 <<painless-operators, operations>>.
 
-[[declaration]]
+[[variable-declaration]]
 ==== Declaration
 
 Declare a variable before use with the format of <<painless-types, type>>
@@ -12,16 +12,17 @@ followed by <<painless-identifiers, identifier>>. Declare an
 <<array-type, array type>> variable using an opening `[` token and a closing `]`
 token for each dimension directly after the identifier. Specify a
 comma-separated list of identifiers following the type to declare multiple
-variables in a single statement. Use an <<assignment, assignment operator>>
-combined with a declaration to immediately assign a value to a variable.
-A variable not immediately assigned a value will have a default value assigned
-implicitly based on the type.
+variables in a single statement. Use an
+<<variable-assignment, assignment operator>> combined with a declaration to
+immediately assign a value to a variable. A variable not immediately assigned a
+value will have a default value assigned implicitly based on the type.
 
 *Errors*
 
 * If a variable is used prior to or without declaration.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 declaration : type ID assignment? (',' ID assignment?)*;
@@ -45,37 +46,39 @@ assignment: '=' expression;
 ----
 +
 <1> declare `int x`;
-    assign default `null` to `x`
+    store default `null` to `x`
 <2> declare `List y`;
-    assign default `null` to `y`
+    store default `null` to `y`
 <3> declare `int x`;
-    assign default `int 0` to `x`;
+    store default `int 0` to `x`;
     declare `int y`;
-    assign `int 5` to `y`;
+    store `int 5` to `y`;
     declare `int z`;
-    assign default `int 0` to `z`;
+    store default `int 0` to `z`;
 <4> declare `def d`;
-    assign default `null` to `d`
+    store default `null` to `d`
 <5> declare `int i`;
-    assign `int 10` to `i`
+    store `int 10` to `i`
 <6> declare `float[] f`;
-    assign default `null` to `f`
+    store default `null` to `f`
 <7> declare `Map[][] m`;
-    assign default `null` to `m`
+    store default `null` to `m`
 
-[[assignment]]
+[[variable-assignment]]
 ==== Assignment
 
-Use the *assignment operator* to store a value in a variable. Any operation
-that produces a value can be assigned to any variable as long as the
-<<painless-types, types>> are the same or the resultant type can be
-<<painless-casting, implicitly cast>> to the variable type.
+Use the `assignment operator '='` to store a value in a variable for use in
+subsequent operations. Any operation that produces a value can be assigned to
+any variable as long as the <<painless-types, types>> are the same or the
+resultant type can be <<painless-casting, implicitly cast>> to the variable
+type.
 
 *Errors*
 
 * If the type of value is unable to match the type of variable.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 assignment: ID '=' expression
@@ -92,8 +95,8 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int i`;
-    assign default `int 0` to `i`
-<2> assign `int 10` to `i`
+    store default `int 0` to `i`
+<2> store `int 10` to `i`
 +
 * Declaration combined with immediate assignment.
 +
@@ -104,11 +107,11 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int i`;
-    assign `int 10` to `i`
+    store `int 10` to `i`
 <2> declare `double j`;
-    assign `double 2.0` to `j`
+    store `double 2.0` to `j`
 +
-* Assignment of one variable to another using primitive types.
+* Assignment of one variable to another using primitive type values.
 +
 [source,Painless]
 ----
@@ -117,12 +120,13 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int i`;
-    assign `int 10` to `i`
+    store `int 10` to `i`
 <2> declare `int j`;
-    access `i` -> `int 10`;
-    assign `int 10` to `j`
+    load from `i` -> `int 10`;
+    store `int 10` to `j`
 +
-* Assignment with reference types using the *new instance operator*.
+* Assignment with reference types using the
+  <<new-instance-operator, new instance operator>>.
 +
 [source,Painless]
 ----
@@ -132,13 +136,13 @@ assignment: ID '=' expression
 +
 <1> declare `ArrayList l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    assign `ArrayList reference` to `l`
+    store `ArrayList reference` to `l`
 <2> declare `Map m`;
     allocate `HashMap` instance -> `HashMap reference`;
     implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
-    assign `Map reference` to `m`
+    store `Map reference` to `m`
 +
-* Assignment of one variable to another using reference types.
+* Assignment of one variable to another using reference type values.
 +
 [source,Painless]
 ----
@@ -151,18 +155,19 @@ assignment: ID '=' expression
 <1> declare `List l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `l`
+    store `List reference` to `l`
 <2> declare `List k`;
-    access `l` -> `List reference`;
-    assign `List reference` to `k`;
+    load from `l` -> `List reference`;
+    store `List reference` to `k`;
     (note `l` and `k` refer to the same instance known as a shallow-copy)
 <3> declare `List m`;
-    assign default `null` to `m`
-<4> access `k` -> `List reference`;
-    assign `List reference` to `m`;
+    store default `null` to `m`
+<4> load from `k` -> `List reference`;
+    store `List reference` to `m`;
     (note `l`, `k`, and `m` refer to the same instance)
 +
-* Assignment with an array type variable using the *new array operator*.
+* Assignment with array type variables using the
+  <<new-array-operator, new array operator>>.
 +
 [source,Painless]
 ----
@@ -176,24 +181,24 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int[] ia1`;
-    assign default `null` to `ia1`
+    store default `null` to `ia1`
 <2> allocate `1-d int array` instance with `length [2]`
             -> `1-d int array reference`;
-    assign `1-d int array reference` to `ia1`
-<3> access `ia1` -> `1-d int array reference`;
-    assign `int 1` to `index [0]` of `1-d int array reference`
+    store `1-d int array reference` to `ia1`
+<3> load from `ia1` -> `1-d int array reference`;
+    store `int 1` to `index [0]` of `1-d int array reference`
 <4> declare `int[] ib1`;
-    access `ia1` -> `1-d int array reference`;
-    assign `1-d int array reference` to `ib1`;
+    load from `ia1` -> `1-d int array reference`;
+    store `1-d int array reference` to `ib1`;
     (note `ia1` and `ib1` refer to the same instance known as a shallow copy)
 <5> declare `int[][] ic2`;
     allocate `2-d int array` instance with `length [2, 5]`
             -> `2-d int array reference`;
-    assign `2-d int array reference` to `ic2`
-<6> access `ic2` -> `2-d int array reference`;
-    assign `int 2` to `index [1, 3]` of `2-d int array reference`
-<7> access `ia1` -> `1-d int array reference`;
-    access `ic2` -> `2-d int array reference`;
-    assign `1-d int array reference` to
+    store `2-d int array reference` to `ic2`
+<6> load from `ic2` -> `2-d int array reference`;
+    store `int 2` to `index [1, 3]` of `2-d int array reference`
+<7> load from `ia1` -> `1-d int array reference`;
+    load from `ic2` -> `2-d int array reference`;
+    store `1-d int array reference` to
             `index [0]` of `2-d int array reference`;
     (note `ia1`, `ib1`, and `index [0]` of `ia2` refer to the same instance)

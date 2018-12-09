@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,7 +68,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return parsedScriptFields;
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
-        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.CONFIG_PARSER, DatafeedConfig.CHUNKING_CONFIG);
+        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.STRICT_PARSER, DatafeedConfig.CHUNKING_CONFIG);
+        PARSER.declareObject(Builder::setDelayedDataCheckConfig,
+            DelayedDataCheckConfig.STRICT_PARSER,
+            DatafeedConfig.DELAYED_DATA_CHECK_CONFIG);
     }
 
     private final String id;
@@ -83,10 +85,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
+    private final DelayedDataCheckConfig delayedDataCheckConfig;
 
     private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -98,6 +101,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scriptFields = scriptFields;
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
+        this.delayedDataCheckConfig = delayedDataCheckConfig;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -128,6 +132,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             in.readOptionalBoolean();
         }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        } else {
+            delayedDataCheckConfig = null;
+        }
     }
 
     /**
@@ -169,6 +178,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeOptionalBoolean(null);
         }
         out.writeOptionalWriteable(chunkingConfig);
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeOptionalWriteable(delayedDataCheckConfig);
+        }
     }
 
     @Override
@@ -195,6 +207,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         addOptionalField(builder, DatafeedConfig.SCROLL_SIZE, scrollSize);
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
+        addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
         builder.endObject();
         return builder;
     }
@@ -260,11 +273,15 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return chunkingConfig;
     }
 
+    public DelayedDataCheckConfig getDelayedDataCheckConfig() {
+        return delayedDataCheckConfig;
+    }
+
     /**
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -286,10 +303,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setTypes(types);
         }
         if (query != null) {
-            builder.setQuery(query);
+            builder.setParsedQuery(query);
         }
         if (aggregations != null) {
-            builder.setAggregations(aggregations);
+            DatafeedConfig.validateAggregations(aggregations);
+            builder.setParsedAggregations(aggregations);
         }
         if (scriptFields != null) {
             builder.setScriptFields(scriptFields);
@@ -300,13 +318,16 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (chunkingConfig != null) {
             builder.setChunkingConfig(chunkingConfig);
         }
+        if (delayedDataCheckConfig != null) {
+            builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
+        }
 
-        if (threadContext != null) {
+        if (headers.isEmpty() == false) {
             // Adjust the request, adding security headers from the current thread context
-            Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
+            Map<String, String> securityHeaders = headers.entrySet().stream()
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(headers);
+            builder.setHeaders(securityHeaders);
         }
 
         return builder.build();
@@ -338,6 +359,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.query, that.query)
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
+                && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
                 && Objects.equals(this.scriptFields, that.scriptFields)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig);
     }
@@ -345,12 +367,25 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
-                chunkingConfig);
+                chunkingConfig, delayedDataCheckConfig);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    boolean isNoop(DatafeedConfig datafeed) {
+        return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
+                && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
+                && (indices == null || Objects.equals(indices, datafeed.getIndices()))
+                && (types == null || Objects.equals(types, datafeed.getTypes()))
+                && (query == null || Objects.equals(query, datafeed.getParsedQuery()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (aggregations == null || Objects.equals(aggregations, datafeed.getParsedAggregations()))
+                && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
+                && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))
+                && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
     }
 
     public static class Builder {
@@ -366,6 +401,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
+        private DelayedDataCheckConfig delayedDataCheckConfig;
 
         public Builder() {
         }
@@ -386,6 +422,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
+            this.delayedDataCheckConfig = config.delayedDataCheckConfig;
         }
 
         public void setId(String datafeedId) {
@@ -426,6 +463,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scriptFields = sorted;
         }
 
+        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+            this.delayedDataCheckConfig = delayedDataCheckConfig;
+        }
+
         public void setScrollSize(int scrollSize) {
             this.scrollSize = scrollSize;
         }
@@ -436,7 +477,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public DatafeedUpdate build() {
             return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                    chunkingConfig);
+                    chunkingConfig, delayedDataCheckConfig);
         }
     }
 }

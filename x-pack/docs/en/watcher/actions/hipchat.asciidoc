@@ -37,6 +37,7 @@ attribute is the message itself:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The name of a HipChat account configured in `elasticsearch.yml`.
 <2> The message you want to send to HipChat.
 
@@ -66,6 +67,7 @@ For example, the following action is configured to send messages to the
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 To send messages with a HipChat account that uses the <<hipchat-api-v1, v1>>
 profile, you need to specify what room or rooms you want to send the message to.
@@ -92,7 +94,7 @@ For example, the following action is configured to send messages to the
   }
 }
 --------------------------------------------------
-
+// NOTCONSOLE
 
 [[hipchat-action-attributes]]
 ==== HipChat Action Attributes

@@ -129,7 +129,8 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
                 "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null,
+            RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE);
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }
 

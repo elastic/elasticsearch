@@ -27,7 +27,6 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
-import com.google.cloud.storage.Storage.CopyRequest;
 import com.google.cloud.storage.StorageException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayOutputStream;
@@ -55,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
@@ -65,16 +64,21 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
     private static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE = 5 * 1024 * 1024;
 
-    private final Storage storage;
-    private final String bucket;
+    private final String bucketName;
+    private final String clientName;
+    private final GoogleCloudStorageService storageService;
 
-    GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storage) {
-        super(settings);
-        this.bucket = bucket;
-        this.storage = storage;
-        if (doesBucketExist(bucket) == false) {
-            throw new BlobStoreException("Bucket [" + bucket + "] does not exist");
+    GoogleCloudStorageBlobStore(String bucketName, String clientName, GoogleCloudStorageService storageService) {
+        this.bucketName = bucketName;
+        this.clientName = clientName;
+        this.storageService = storageService;
+        if (doesBucketExist(bucketName) == false) {
+            throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
+    }
+
+    private Storage client() throws IOException {
+        return storageService.client(clientName);
     }
 
     @Override
@@ -92,14 +96,14 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Return true if the given bucket exists
+     * Return true iff the given bucket exists
      *
      * @param bucketName name of the bucket
-     * @return true if the bucket exists, false otherwise
+     * @return true iff the bucket exists
      */
     boolean doesBucketExist(String bucketName) {
         try {
-            final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> storage.get(bucketName));
+            final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> client().get(bucketName));
             return bucket != null;
         } catch (final Exception e) {
             throw new BlobStoreException("Unable to check if bucket [" + bucketName + "] exists", e);
@@ -107,10 +111,9 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * List blobs in the bucket under the specified path. The path root is removed.
+     * List blobs in the specific bucket under the specified path. The path root is removed.
      *
-     * @param path
-     *            base path of the blobs to list
+     * @param path base path of the blobs to list
      * @return a map of blob names and their metadata
      */
     Map<String, BlobMetaData> listBlobs(String path) throws IOException {
@@ -118,20 +121,19 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * List all blobs in the bucket which have a prefix
+     * List all blobs in the specific bucket with names prefixed
      *
      * @param path
      *            base path of the blobs to list. This path is removed from the
      *            names of the blobs returned.
-     * @param prefix
-     *            prefix of the blobs to list.
+     * @param prefix prefix of the blobs to list.
      * @return a map of blob names and their metadata.
      */
     Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final MapBuilder<String, BlobMetaData> mapBuilder = MapBuilder.newMapBuilder();
         SocketAccess.doPrivilegedVoidIOException(() -> {
-            storage.get(bucket).list(BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
+            client().get(bucketName).list(BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
                 assert blob.getName().startsWith(path);
                 final String suffixName = blob.getName().substring(path.length());
                 mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
@@ -141,35 +143,38 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Returns true if the blob exists in the bucket
+     * Returns true if the blob exists in the specific bucket
      *
      * @param blobName name of the blob
-     * @return true if the blob exists, false otherwise
+     * @return true iff the blob exists
      */
     boolean blobExists(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucket, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> storage.get(blobId));
+        final BlobId blobId = BlobId.of(bucketName, blobName);
+        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
         return blob != null;
     }
 
     /**
-     * Returns an {@link java.io.InputStream} for a given blob
+     * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob
-     * @return an InputStream
+     * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucket, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> storage.get(blobId));
-        if (blob == null) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exit");
-        }
-        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(blob::reader);
+        final BlobId blobId = BlobId.of(bucketName, blobName);
+        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
         return Channels.newInputStream(new ReadableByteChannel() {
             @SuppressForbidden(reason = "Channel is based of a socket not a file")
             @Override
             public int read(ByteBuffer dst) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                try {
+                    return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                } catch (StorageException e) {
+                    if (e.getCode() == HTTP_NOT_FOUND) {
+                        throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+                    }
+                    throw e;
+                }
             }
 
             @Override
@@ -185,17 +190,17 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Writes a blob in the bucket.
-     *
-     * @param inputStream content of the blob to be written
+     * Writes a blob in the specific bucket
+     *  @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        final BlobInfo blobInfo = BlobInfo.newBuilder(bucket, blobName).build();
+    void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
         if (blobSize > LARGE_BLOB_THRESHOLD_BYTE_SIZE) {
-            writeBlobResumable(blobInfo, inputStream);
+            writeBlobResumable(blobInfo, inputStream, failIfAlreadyExists);
         } else {
-            writeBlobMultipart(blobInfo, inputStream, blobSize);
+            writeBlobMultipart(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         }
     }
 
@@ -203,14 +208,17 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * Uploads a blob using the "resumable upload" method (multiple requests, which
      * can be independently retried in case of failure, see
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-     *
      * @param blobInfo the info for the blob to be uploaded
      * @param inputStream the stream containing the blob data
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream) throws IOException {
+    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
         try {
-            final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
-                () -> storage.writer(blobInfo, Storage.BlobWriteOption.doesNotExist()));
+            final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
+                new Storage.BlobWriteOption[] { Storage.BlobWriteOption.doesNotExist() } :
+                new Storage.BlobWriteOption[0];
+            final WriteChannel writeChannel = SocketAccess
+                    .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
             Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
                 @Override
                 public boolean isOpen() {
@@ -228,8 +236,8 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                     return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
                 }
             }));
-        } catch (StorageException se) {
-            if (se.getCode() == HTTP_PRECON_FAILED) {
+        } catch (final StorageException se) {
+            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
             }
             throw se;
@@ -241,54 +249,56 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * 'multipart/related' request containing both data and metadata. The request is
      * gziped), see:
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
-     *
-     * @param blobInfo the info for the blob to be uploaded
+     *  @param blobInfo the info for the blob to be uploaded
      * @param inputStream the stream containing the blob data
      * @param blobSize the size
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize) throws IOException {
+    private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
         assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
-        SocketAccess.doPrivilegedVoidIOException(
-            () -> {
-                try {
-                    storage.create(blobInfo, baos.toByteArray(), Storage.BlobTargetOption.doesNotExist());
-                } catch (StorageException se) {
-                    if (se.getCode() == HTTP_PRECON_FAILED) {
-                        throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
-                    }
-                    throw se;
-                }
-            });
+        try {
+            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
+                new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :
+                new Storage.BlobTargetOption[0];
+            SocketAccess.doPrivilegedVoidIOException(
+                    () -> client().create(blobInfo, baos.toByteArray(), targetOptions));
+        } catch (final StorageException se) {
+            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
+                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+            }
+            throw se;
+        }
     }
 
     /**
-     * Deletes a blob in the bucket
+     * Deletes the blob from the specific bucket
      *
      * @param blobName name of the blob
      */
     void deleteBlob(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucket, blobName);
-        final boolean deleted = SocketAccess.doPrivilegedIOException(() -> storage.delete(blobId));
+        final BlobId blobId = BlobId.of(bucketName, blobName);
+        final boolean deleted = SocketAccess.doPrivilegedIOException(() -> client().delete(blobId));
         if (deleted == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
     }
 
     /**
-     * Deletes multiple blobs in the bucket that have a given prefix
+     * Deletes multiple blobs from the specific bucket all of which have prefixed names
      *
-     * @param prefix prefix of the buckets to delete
+     * @param prefix prefix of the blobs to delete
      */
     void deleteBlobsByPrefix(String prefix) throws IOException {
         deleteBlobs(listBlobsByPrefix("", prefix).keySet());
     }
 
     /**
-     * Deletes multiple blobs in the given bucket (uses a batch request to perform this)
+     * Deletes multiple blobs from the specific bucket using a batch request
      *
-     * @param blobNames names of the bucket to delete
+     * @param blobNames names of the blobs to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
         if (blobNames.isEmpty()) {
@@ -299,42 +309,19 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
             deleteBlob(blobNames.iterator().next());
             return;
         }
-        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blobName -> BlobId.of(bucket, blobName)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> storage.delete(blobIdsToDelete));
+        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
+        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> client().delete(blobIdsToDelete));
         assert blobIdsToDelete.size() == deletedStatuses.size();
         boolean failed = false;
         for (int i = 0; i < blobIdsToDelete.size(); i++) {
             if (deletedStatuses.get(i) == false) {
-                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucket);
+                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucketName);
                 failed = true;
             }
         }
         if (failed) {
             throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
         }
-    }
-
-    /**
-     * Moves a blob within the same bucket
-     *
-     * @param sourceBlobName name of the blob to move
-     * @param targetBlobName new name of the blob in the same bucket
-     */
-    void moveBlob(String sourceBlobName, String targetBlobName) throws IOException {
-        final BlobId sourceBlobId = BlobId.of(bucket, sourceBlobName);
-        final BlobId targetBlobId = BlobId.of(bucket, targetBlobName);
-        final CopyRequest request = CopyRequest.newBuilder()
-                .setSource(sourceBlobId)
-                .setTarget(targetBlobId)
-                .build();
-        SocketAccess.doPrivilegedVoidIOException(() -> {
-            // There's no atomic "move" in GCS so we need to copy and delete
-            storage.copy(request).getResult();
-            final boolean deleted = storage.delete(sourceBlobId);
-            if (deleted == false) {
-                throw new IOException("Failed to move source [" + sourceBlobName + "] to target [" + targetBlobName + "]");
-            }
-        });
     }
 
     private static String buildKey(String keyPath, String s) {

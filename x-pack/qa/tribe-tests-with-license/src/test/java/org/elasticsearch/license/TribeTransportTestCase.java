@@ -20,7 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
@@ -191,9 +191,9 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         tribe1Defaults.normalizePrefix("tribe.t1.");
         tribe2Defaults.normalizePrefix("tribe.t2.");
         // give each tribe it's unicast hosts to connect to
-        tribe1Defaults.putList("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
+        tribe1Defaults.putList("tribe.t1." + SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
                 getUnicastHosts(internalCluster().client()));
-        tribe1Defaults.putList("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
+        tribe1Defaults.putList("tribe.t2." + SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
                 getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()

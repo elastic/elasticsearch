@@ -3,11 +3,11 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called tweet, with id valued 1:
+twitter, under a type called `_doc``, with id valued 1:
 
 [source,java]
 --------------------------------------------------
-GetResponse response = client.prepareGet("twitter", "tweet", "1").get();
+GetResponse response = client.prepareGet("twitter", "_doc", "1").get();
 --------------------------------------------------
 
 For more information on the get operation, check out the REST

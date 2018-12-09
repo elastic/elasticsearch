@@ -19,21 +19,24 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -53,6 +56,9 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
@@ -85,7 +91,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -481,8 +486,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 "type", "past", "type=date", "future", "type=date"
         ));
 
-        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
-        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
+        String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
@@ -552,23 +558,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]").timeZone("+0200"))
                 .get();
         assertHitCount(searchResponse, 0L);
-    }
-
-    public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-                client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
-                client().prepareIndex("test", "type2", "2").setSource("field1", "value1"),
-                client().prepareIndex("test", "type2", "3").setSource("field1", "value1"));
-
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type1")).get(), 2L);
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type2")).get(), 3L);
-
-        assertHitCount(client().prepareSearch().setTypes("type1").setQuery(matchAllQuery()).get(), 2L);
-        assertHitCount(client().prepareSearch().setTypes("type2").setQuery(matchAllQuery()).get(), 3L);
-
-        assertHitCount(client().prepareSearch().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 5L);
     }
 
     public void testIdsQueryTestsIdIndexed() throws Exception {
@@ -1219,39 +1208,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
     }
 
-    public void testBasicQueryByIdMultiType() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2").addIds("1", "2")).get();
-        assertHitCount(searchResponse, 2L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
-        assertHitCount(searchResponse, 2L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "2")).get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "type3").addIds("1", "2", "3", "4")).get();
-        assertHitCount(searchResponse, 2L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-    }
-
-
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
@@ -1855,4 +1811,113 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
+    public void testRangeQueryTypeField_31476() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
+
+        client().prepareIndex("test", "foo", "1").setSource("field", "value").get();
+        refresh();
+
+        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+    public void testNestedQueryWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("section")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("distance")
+                                    .field("type", "long")
+                                .endObject()
+                                .startObject("route_length_miles")
+                                    .field("type", "alias")
+                                    .field("path", "section.distance")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("section")
+                .field("distance", 42)
+            .endObject()
+        .endObject();
+
+        index("index", "_doc", "1", source);
+        refresh();
+
+        QueryBuilder nestedQuery = QueryBuilders.nestedQuery("section",
+            QueryBuilders.termQuery("section.route_length_miles", 42),
+            ScoreMode.Max);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(nestedQuery).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+   public void testFieldAliasesForMetaFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("id-alias")
+                            .field("type", "alias")
+                            .field("path", "_id")
+                        .endObject()
+                        .startObject("routing-alias")
+                            .field("type", "alias")
+                            .field("path", "_routing")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+            .setId("1")
+            .setRouting("custom")
+            .setSource("field", "value");
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(termQuery("routing-alias", "custom"))
+            .addDocValueField("id-alias")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(2, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("id-alias"));
+
+        DocumentField field = hit.getFields().get("id-alias");
+        assertThat(field.getValue().toString(), equalTo("1"));
+   }
 }

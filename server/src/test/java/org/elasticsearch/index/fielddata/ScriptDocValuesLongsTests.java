@@ -20,10 +20,10 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.security.AccessControlContext;
@@ -32,11 +32,13 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 
 public class ScriptDocValuesLongsTests extends ESTestCase {
     public void testLongs() throws IOException {
@@ -47,13 +49,22 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = randomLong();
             }
         }
-        Longs longs = wrap(values, deprecationMessage -> {fail("unexpected deprecation: " + deprecationMessage);});
+
+        Set<String> warnings = new HashSet<>();
+        Set<String> keys = new HashSet<>();
+
+        Longs longs = wrap(values, (deprecationKey, deprecationMessage) -> {
+            keys.add(deprecationKey);
+            warnings.add(deprecationMessage);
+            
+            // Create a temporary directory to prove we are running with the server's permissions.
+            createTempDir();
+        });
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
             assertEquals(values[d].length > 0 ? values[d][0] : 0, longs.getValue());
-
             assertEquals(values[d].length, longs.size());
             assertEquals(values[d].length, longs.getValues().size());
             for (int i = 0; i < values[d].length; i++) {
@@ -64,38 +75,67 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getValues().add(100L));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
+
+        /*
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
+         */
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
+            public Void run() {
+                longs.getValues();
+                return null;
+            }
+        }, noPermissionsAcc);
+
+        assertThat(warnings, hasItems(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+            + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, hasItems("ScriptDocValues#getValues"));
+
     }
 
     public void testDates() throws IOException {
         long[][] values = new long[between(3, 10)][];
-        ReadableDateTime[][] dates = new ReadableDateTime[values.length][];
+        JodaCompatibleZonedDateTime[][] dates = new JodaCompatibleZonedDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
-            dates[d] = new ReadableDateTime[values[d].length];
+            dates[d] = new JodaCompatibleZonedDateTime[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
-                dates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
-                values[d][i] = dates[d][i].getMillis();
+                values[d][i] = randomNonNegativeLong();
+                dates[d][i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(values[d][i]), ZoneOffset.UTC);
+
             }
         }
         Set<String> warnings = new HashSet<>();
-        Longs longs = wrap(values, deprecationMessage -> {
+        Longs longs = wrap(values, (key, deprecationMessage) -> {
             warnings.add(deprecationMessage);
             /* Create a temporary directory to prove we are running with the
              * server's permissions. */
             createTempDir();
         });
 
+        boolean valuesExist = false;
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            assertEquals(dates[d].length > 0 ? dates[d][0] : new DateTime(0, DateTimeZone.UTC), longs.getDate());
-
-            assertEquals(values[d].length, longs.getDates().size());
-            for (int i = 0; i < values[d].length; i++) {
-                assertEquals(dates[d][i], longs.getDates().get(i));
+            if (dates[d].length > 0) {
+                assertEquals(dates[d].length > 0 ? dates[d][0] : new DateTime(0, DateTimeZone.UTC), longs.getDate());
+                assertEquals(values[d].length, longs.getDates().size());
+                for (int i = 0; i < values[d].length; i++) {
+                    assertEquals(dates[d][i], longs.getDates().get(i));
+                }
+                valuesExist = true;
             }
 
-            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getDates().add(new DateTime()));
+            Exception e = expectThrows(UnsupportedOperationException.class,
+                () -> longs.getDates().add(new JodaCompatibleZonedDateTime(Instant.now(), ZoneOffset.UTC)));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
 
@@ -123,12 +163,17 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }, noPermissionsAcc);
 
-        assertThat(warnings, containsInAnyOrder(
+        if (valuesExist) {
+            // using "hasItems" here instead of "containsInAnyOrder",
+            // because values are randomly initialized, sometimes some of docs will not have any values
+            // and warnings in this case will contain another deprecation warning on missing values
+            assertThat(warnings, hasItems(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
                 "getDates on numeric fields is deprecated. Use a date field to get dates."));
+        }
     }
 
-    private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {
+    private Longs wrap(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;

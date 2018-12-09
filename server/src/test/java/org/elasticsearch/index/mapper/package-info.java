@@ -19,9 +19,7 @@
 
 /**
  * Mappings. Mappings define the way that documents should be translated to
- * Lucene indices, for instance how the
- * {@link org.elasticsearch.index.mapper.UidFieldMapper document identifier}
- * should be indexed, whether a string field should be indexed as a
+ * Lucene indices, for instance whether a string field should be indexed as a
  * {@link org.elasticsearch.index.mapper.TextFieldMapper text} or
  * {@link org.elasticsearch.index.mapper.KeywordFieldMapper keyword} field,
  * etc. This parsing is done by the

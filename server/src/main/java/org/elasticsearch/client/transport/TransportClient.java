@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -47,6 +45,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
@@ -78,7 +78,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
- * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
+ * or more nodes directly by adding their respective addresses using
+ * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
  * <p>
  * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
@@ -96,6 +97,8 @@ public abstract class TransportClient extends AbstractClient {
         Setting.boolSetting("client.transport.ignore_cluster_name", false, Setting.Property.NodeScope);
     public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
         Setting.boolSetting("client.transport.sniff", false, Setting.Property.NodeScope);
+
+    public static final String TRANSPORT_CLIENT_FEATURE = "transport_client";
 
     private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
@@ -129,8 +132,12 @@ public abstract class TransportClient extends AbstractClient {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
-        final Settings settings = Settings.builder().put(defaultSettings).put(pluginsService.updatedSettings()).put(ThreadContext.PREFIX
-            + "." + "transport_client", true).build();
+        final Settings settings =
+                Settings.builder()
+                        .put(defaultSettings)
+                        .put(pluginsService.updatedSettings())
+                        .put(TcpTransport.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+                        .build();
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -141,12 +148,15 @@ public abstract class TransportClient extends AbstractClient {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
-            SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
+            SettingsModule settingsModule =
+                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, Collections.emptySet());
 
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
+            IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
+            entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(ClusterModule.getNamedWriteables());
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
@@ -215,7 +225,8 @@ public abstract class TransportClient extends AbstractClient {
             transportService.start();
             transportService.acceptIncomingRequests();
 
-            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy, namedWriteableRegistry);
+            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy,
+                namedWriteableRegistry);
             resourcesToClose.clear();
             return transportClient;
         } finally {
@@ -369,7 +380,9 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+            Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 

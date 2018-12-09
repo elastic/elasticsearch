@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -192,7 +191,7 @@ public class IndicesPermissionTests extends ESTestCase {
         indicesPrivileges.build().writeTo(out);
         out.close();
         StreamInput in = out.bytes().streamInput();
-        RoleDescriptor.IndicesPrivileges readIndicesPrivileges = RoleDescriptor.IndicesPrivileges.createFrom(in);
+        RoleDescriptor.IndicesPrivileges readIndicesPrivileges = new RoleDescriptor.IndicesPrivileges(in);
         assertEquals(readIndicesPrivileges, indicesPrivileges.build());
 
         out = new BytesStreamOutput();
@@ -207,7 +206,7 @@ public class IndicesPermissionTests extends ESTestCase {
         out.close();
         in = out.bytes().streamInput();
         in.setVersion(Version.V_5_0_0);
-        RoleDescriptor.IndicesPrivileges readIndicesPrivileges2 = RoleDescriptor.IndicesPrivileges.createFrom(in);
+        RoleDescriptor.IndicesPrivileges readIndicesPrivileges2 = new RoleDescriptor.IndicesPrivileges(in);
         assertEquals(readIndicesPrivileges, readIndicesPrivileges2);
     }
 

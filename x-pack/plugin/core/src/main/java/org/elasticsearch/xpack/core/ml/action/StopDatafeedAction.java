@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -79,17 +79,27 @@ public class StopDatafeedAction
         }
 
         private String datafeedId;
-        private String[] resolvedStartedDatafeedIds;
+        private String[] resolvedStartedDatafeedIds = new String[] {};
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
         private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
-            this.resolvedStartedDatafeedIds = new String[] { datafeedId };
         }
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+            resolvedStartedDatafeedIds = in.readStringArray();
+            stopTimeout = in.readTimeValue();
+            force = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
         }
 
         public String getDatafeedId() {
@@ -131,7 +141,7 @@ public class StopDatafeedAction
         @Override
         public boolean match(Task task) {
             for (String id : resolvedStartedDatafeedIds) {
-                String expectedDescription = MLMetadataField.datafeedTaskId(id);
+                String expectedDescription = MlTasks.datafeedTaskId(id);
                 if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())){
                     return true;
                 }
@@ -142,18 +152,6 @@ public class StopDatafeedAction
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            resolvedStartedDatafeedIds = in.readStringArray();
-            stopTimeout = in.readTimeValue();
-            force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
         }
 
         @Override

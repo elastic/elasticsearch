@@ -86,6 +86,6 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
 
     @Override
     protected Job.Builder doParseInstance(XContentParser parser) {
-        return Job.CONFIG_PARSER.apply(parser, null);
+        return Job.STRICT_PARSER.apply(parser, null);
     }
 }

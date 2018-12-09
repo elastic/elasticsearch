@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -21,7 +20,6 @@ import java.net.SocketTimeoutException;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.Mockito.mock;
 
 public class HttpReadTimeoutTests extends ESTestCase {
 
@@ -45,8 +43,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .path("/")
                 .build();
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class),
-            new SSLService(environment.settings(), environment))) {
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null)) {
             long start = System.nanoTime();
 
             expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
@@ -68,8 +65,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build();
 
         try (HttpClient httpClient = new HttpClient(Settings.builder()
-            .put("xpack.http.default_read_timeout", "3s").build()
-            , mock(HttpAuthRegistry.class), new SSLService(environment.settings(), environment))) {
+            .put("xpack.http.default_read_timeout", "3s").build(), new SSLService(environment.settings(), environment), null)) {
 
             long start = System.nanoTime();
             expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
@@ -92,8 +88,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build();
 
         try (HttpClient httpClient = new HttpClient(Settings.builder()
-            .put("xpack.http.default_read_timeout", "10s").build()
-            , mock(HttpAuthRegistry.class), new SSLService(environment.settings(), environment))) {
+            .put("xpack.http.default_read_timeout", "10s").build(), new SSLService(environment.settings(), environment), null)) {
 
             long start = System.nanoTime();
             expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));

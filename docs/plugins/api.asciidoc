@@ -26,6 +26,9 @@ A number of plugins have been contributed by our community:
 * https://github.com/NLPchina/elasticsearch-sql/[SQL language Plugin]:
   Allows Elasticsearch to be queried with SQL (by nlpcn)
 
+* https://github.com/ritesh-kapoor/elasticsearch-pql[PQL language Plugin]:
+  Allows Elasticsearch to be queried with simple pipeline query syntax.
+
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin]:
   Mahout Taste-based Collaborative Filtering implementation (by CodeLibs Project)
 

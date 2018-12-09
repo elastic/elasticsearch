@@ -30,6 +30,10 @@ import java.nio.charset.StandardCharsets;
  * Basic test that indexed documents survive the rolling restart. See
  * {@link RecoveryIT} for much more in depth testing of the mechanism
  * by which they survive.
+ * <p>
+ * This test is an almost exact copy of <code>IndexingIT</code> in the
+ * xpack rolling restart tests. We should work on a way to remove this
+ * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractRollingTestCase {
     public void testIndexing() throws IOException {

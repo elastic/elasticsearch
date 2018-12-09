@@ -164,8 +164,9 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected MappedFieldType mockFieldType() {
+    protected MappedFieldType mockFieldType(String fieldName) {
         CompletionFieldType completionFieldType = new CompletionFieldType();
+        completionFieldType.setName(fieldName);
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
         return completionFieldType;
     }

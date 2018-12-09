@@ -18,9 +18,8 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
@@ -61,38 +60,17 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         ObjectParser<Builder, Void> parser = new ObjectParser<>(TYPE.getPreferredName(), ignoreUnknownFields, Builder::new);
 
         parser.declareString(Builder::setJobId, Job.ID);
-        parser.declareField(Builder::setTimestamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+        parser.declareField(Builder::setTimestamp,
+                p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ValueType.VALUE);
         parser.declareString(Builder::setDescription, DESCRIPTION);
         parser.declareString(Builder::setSnapshotId, ModelSnapshotField.SNAPSHOT_ID);
         parser.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
         parser.declareObject(Builder::setModelSizeStats, ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
                 ModelSizeStats.RESULT_TYPE_FIELD);
-        parser.declareField(Builder::setLatestRecordTimeStamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
-        }, LATEST_RECORD_TIME, ValueType.VALUE);
-        parser.declareField(Builder::setLatestResultTimeStamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_RESULT_TIME.getPreferredName() + "]");
-        }, LATEST_RESULT_TIME, ValueType.VALUE);
+        parser.declareField(Builder::setLatestRecordTimeStamp,
+                p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()), LATEST_RECORD_TIME, ValueType.VALUE);
+        parser.declareField(Builder::setLatestResultTimeStamp,
+                p -> TimeUtils.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()), LATEST_RESULT_TIME, ValueType.VALUE);
         parser.declareObject(Builder::setQuantiles, ignoreUnknownFields ? Quantiles.LENIENT_PARSER : Quantiles.STRICT_PARSER, QUANTILES);
         parser.declareBoolean(Builder::setRetain, RETAIN);
 
@@ -318,7 +296,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
         try (InputStream stream = bytesReference.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(bytesReference))
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return LENIENT_PARSER.apply(parser, null).build();
         } catch (IOException e) {

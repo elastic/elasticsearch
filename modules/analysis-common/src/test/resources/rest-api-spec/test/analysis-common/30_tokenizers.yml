@@ -5,9 +5,22 @@
         indices.analyze:
           body:
             text:      Foo Bar!
+            explain: true
             tokenizer: keyword
-    - length:    { tokens: 1 }
-    - match:     { tokens.0.token: Foo Bar! }
+    - length:    { detail.tokenizer.tokens: 1 }
+    - match:     { detail.tokenizer.name: keyword }
+    - match:     { detail.tokenizer.tokens.0.token: Foo Bar! }
+
+    - do:
+        indices.analyze:
+          body:
+            text: Foo Bar!
+            explain: true
+            tokenizer:
+              type: keyword
+    - length: { detail.tokenizer.tokens: 1 }
+    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.tokens.0.token: Foo Bar! }
 
 ---
 "nGram":

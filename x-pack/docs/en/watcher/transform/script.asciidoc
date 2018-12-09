@@ -20,6 +20,7 @@ TIP:  The `script` transform is often useful when used in combination with the
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> A simple `painless` script that creates a new payload with a single `time`
     field holding the scheduled time.
 

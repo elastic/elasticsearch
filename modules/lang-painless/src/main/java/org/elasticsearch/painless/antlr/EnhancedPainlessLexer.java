@@ -20,14 +20,11 @@
 package org.elasticsearch.painless.antlr;
 
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.misc.Interval;
-import org.antlr.v4.runtime.misc.Pair;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 
 /**
  * A lexer that is customized for painless. It:
@@ -42,14 +39,14 @@ import org.elasticsearch.painless.Location;
  */
 final class EnhancedPainlessLexer extends PainlessLexer {
     private final String sourceName;
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
 
     private Token current = null;
 
-    EnhancedPainlessLexer(CharStream charStream, String sourceName, Definition definition) {
+    EnhancedPainlessLexer(CharStream charStream, String sourceName, PainlessLookup painlessLookup) {
         super(charStream);
         this.sourceName = sourceName;
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
     }
 
     @Override
@@ -77,8 +74,8 @@ final class EnhancedPainlessLexer extends PainlessLexer {
     }
 
     @Override
-    protected boolean isSimpleType(String name) {
-        return definition.isSimpleType(name);
+    protected boolean isType(String name) {
+        return painlessLookup.isValidCanonicalClassName(name);
     }
 
     @Override

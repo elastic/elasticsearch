@@ -20,12 +20,8 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -34,12 +30,7 @@ import java.io.IOException;
 /**
  * Rescore phase of a search request, used to run potentially expensive scoring models against the top matching documents.
  */
-public class RescorePhase extends AbstractComponent implements SearchPhase {
-
-    public RescorePhase(Settings settings) {
-        super(settings);
-    }
-
+public class RescorePhase implements SearchPhase {
     @Override
     public void preProcess(SearchContext context) {
     }

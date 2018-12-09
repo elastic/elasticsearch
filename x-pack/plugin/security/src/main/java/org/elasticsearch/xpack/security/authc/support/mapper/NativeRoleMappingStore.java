@@ -16,7 +16,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,7 +34,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -57,6 +56,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
@@ -96,13 +96,14 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         }
     };
 
+    private final Settings settings;
     private final Client client;
     private final boolean isTribeNode;
     private final SecurityIndexManager securityIndex;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityIndex = securityIndex;
@@ -132,7 +133,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
             SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
-                    .setScroll(TimeValue.timeValueSeconds(10L))
+                    .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                     .setTypes(SECURITY_GENERIC_TYPE)
                     .setQuery(query)
                     .setSize(1000)
@@ -225,32 +226,35 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         });
     }
 
-    private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
-        if (securityIndex.isIndexUpToDate() == false) {
-            listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - the native realm will not be operational until " +
-                "the upgrade API is run on the security index"));
-            return;
-        }
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
+    private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(false);
+        } else if (securityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
-                new ActionListener<DeleteResponse>() {
+                    new ActionListener<DeleteResponse>() {
 
-                    @Override
-                    public void onResponse(DeleteResponse deleteResponse) {
-                        boolean deleted = deleteResponse.getResult() == DELETED;
-                        listener.onResponse(deleted);
-                    }
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            boolean deleted = deleteResponse.getResult() == DELETED;
+                            listener.onResponse(deleted);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("failed to delete role-mapping [{}]", request.getName()), e);
-                        listener.onFailure(e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(new ParameterizedMessage("failed to delete role-mapping [{}]", request.getName()), e);
+                            listener.onFailure(e);
 
-                    }
-                }, client::delete);
+                        }
+                    }, client::delete);
+            });
+        }
     }
 
     /**
@@ -306,7 +310,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.isAvailable() == false) {
             reportStats(listener, Collections.emptyList());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));
@@ -374,7 +378,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * @see ClearRealmCacheAction
      */
     @Override
-    public void refreshRealmOnChange(CachingUsernamePasswordRealm realm) {
+    public void refreshRealmOnChange(CachingRealm realm) {
         realmsToRefresh.add(realm.name());
     }
 }

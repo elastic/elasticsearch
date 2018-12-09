@@ -23,6 +23,7 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchResultReference;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -32,7 +33,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +55,7 @@ public final class LdapUtils {
 
     public static final Filter OBJECT_CLASS_PRESENCE_FILTER = Filter.createPresenceFilter("objectClass");
 
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(LdapUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(LdapUtils.class);
 
     private LdapUtils() {
     }
@@ -134,11 +134,13 @@ public final class LdapUtils {
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
                 privilegedConnect(() -> ldapPool.bindAndRevertAuthentication(bind.duplicate()));
+                LOGGER.trace("LDAP bind [{}] succeeded for [{}]", bind, ldapPool);
                 runnable.run();
             }
 
             @Override
             public void onFailure(Exception e) {
+                LOGGER.debug("LDAP bind [{}] failed for [{}] - [{}]", bind, ldapPool, e.toString());
                 runnable.onFailure(e);
             }
 
@@ -179,11 +181,13 @@ public final class LdapUtils {
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
                 privilegedConnect(() -> ldap.bind(bind.duplicate()));
+                LOGGER.trace("LDAP bind [{}] succeeded for [{}]", bind, ldap);
                 runnable.run();
             }
 
             @Override
             public void onFailure(Exception e) {
+                LOGGER.debug("LDAP bind [{}] failed for [{}] - [{}]", bind, ldap, e.toString());
                 runnable.onFailure(e);
             }
 

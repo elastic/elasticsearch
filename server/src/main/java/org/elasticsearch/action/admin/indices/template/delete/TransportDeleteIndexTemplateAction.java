@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.template.delete;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,7 +37,8 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexTemplateAction extends TransportMasterNodeAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
+public class TransportDeleteIndexTemplateAction
+        extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
@@ -44,7 +46,8 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
     public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
+        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -55,8 +58,8 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected DeleteIndexTemplateResponse newResponse() {
-        return new DeleteIndexTemplateResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -65,18 +68,23 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) {
-        indexTemplateService.removeTemplates(new MetaDataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexTemplateService.RemoveListener() {
-            @Override
-            public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
-                listener.onResponse(new DeleteIndexTemplateResponse(response.acknowledged()));
-            }
+    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
+        indexTemplateService.removeTemplates(
+            new MetaDataIndexTemplateService
+                .RemoveRequest(request.name())
+                .masterTimeout(request.masterNodeTimeout()),
+            new MetaDataIndexTemplateService.RemoveListener() {
+                @Override
+                public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
+                    listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
-                listener.onFailure(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
+                    listener.onFailure(e);
+                }
+            });
     }
 }

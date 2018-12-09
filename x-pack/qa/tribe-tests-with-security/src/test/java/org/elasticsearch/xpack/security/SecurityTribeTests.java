@@ -38,6 +38,7 @@ import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -74,6 +75,13 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
     private static final String SECOND_CLUSTER_NODE_PREFIX = "node_cluster2_";
     private static InternalTestCluster cluster2;
     private static boolean useSSL;
+    private static Hasher hasher;
+
+    @BeforeClass
+    public static void setHasher() {
+        hasher = Hasher.resolve("BCRYPT");
+    }
+
 
     private Node tribeNode;
     private Client tribeClient;
@@ -86,8 +94,8 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return builder.build();
     }
 
@@ -96,7 +104,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         super.setUp();
         if (cluster2 == null) {
             SecuritySettingsSource cluster2SettingsSource =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useSSL, createTempDir(), Scope.SUITE) {
+                    new SecuritySettingsSource(useSSL, createTempDir(), Scope.SUITE) {
                         @Override
                         public Settings nodeSettings(int nodeOrdinal) {
                             Settings.Builder builder = Settings.builder()
@@ -231,13 +239,13 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
 
     private void setupTribeNode(Settings settings) throws Exception {
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(1, useSSL, createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(useSSL, createTempDir(), Scope.TEST) {
                     @Override
                     public Settings nodeSettings(int nodeOrdinal) {
                         return Settings.builder()
-                                .put(super.nodeSettings(nodeOrdinal))
-                                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                                .build();
+                            .put(super.nodeSettings(nodeOrdinal))
+                            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                            .build();
                     }
                 };
         final Settings settingsTemplate = cluster2SettingsSource.nodeSettings(0);
@@ -285,7 +293,6 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .setSecureSettings(secureSettings)
                 .build();
-
         final List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>(nodePlugins());
         classpathPlugins.addAll(getMockPlugins());
         tribeNode = new MockNode(merged, classpathPlugins, cluster2SettingsSource.nodeConfigPath(0)).start();
@@ -338,7 +345,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         InternalTestCluster cluster = randomBoolean() ? internalCluster() : cluster2;
         ensureElasticPasswordBootstrapped(cluster);
         setupTribeNode(Settings.EMPTY);
-        securityClient(cluster.client()).prepareChangePassword("elastic", "password".toCharArray()).get();
+        securityClient(cluster.client()).prepareChangePassword("elastic", "password".toCharArray(), hasher).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
@@ -351,8 +358,9 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         ensureElasticPasswordBootstrapped(internalCluster());
         ensureElasticPasswordBootstrapped(cluster2);
         setupTribeNode(Settings.EMPTY);
-        securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
-        securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
+        securityClient().prepareChangePassword("elastic", "password".toCharArray(), hasher).get();
+        securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray(), hasher)
+            .get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
@@ -378,8 +386,8 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
             final String username = "user" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
 
-            PutUserResponse response =
-                    securityClient(clusterClient).preparePutUser(username, "password".toCharArray(), "superuser").get();
+            PutUserResponse response = securityClient(clusterClient)
+                .preparePutUser(username, "password".toCharArray(), hasher, "superuser").get();
             assertTrue(response.created());
 
             // if it was the first client, we should expect authentication to succeed
@@ -420,8 +428,8 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
 
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
-            PutUserResponse response =
-                    securityClient(nonPreferredCluster.client()).preparePutUser(username, "password".toCharArray(), "superuser").get();
+            PutUserResponse response = securityClient(nonPreferredCluster.client())
+                .preparePutUser(username, "password".toCharArray(), hasher, "superuser").get();
             assertTrue(response.created());
             shouldBeSuccessfulUsers.add(username);
         }
@@ -451,12 +459,12 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         setupTribeNode(Settings.EMPTY);
         SecurityClient securityClient = securityClient(tribeClient);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-                () -> securityClient.preparePutUser("joe", "password".toCharArray()).get());
+                () -> securityClient.preparePutUser("joe", "password".toCharArray(), hasher).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class, () -> securityClient.prepareSetEnabled("elastic", randomBoolean()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class,
-                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray()).get());
+                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray(), hasher).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class, () -> securityClient.prepareDeleteUser("joe").get());
         assertThat(e.getMessage(), containsString("users may not be deleted using a tribe node"));
@@ -546,6 +554,22 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         TribeService.TRIBE_SETTING_KEYS
                 .forEach(s -> assertThat("a new setting has been introduced for tribe that security needs to know about in Security.java",
                         s, anyOf(startsWith("tribe.blocks"), startsWith("tribe.name"), startsWith("tribe.on_conflict"))));
+    }
+
+    public void testNoTribeSecureSettings() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        Path home = createTempDir();
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "dummypass");
+        secureSettings.setString("xpack.security.authc.token.passphrase", "dummypass");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings)
+            .put("path.home", home)
+            .put("tribe.t1.cluster.name", "foo")
+            .put("xpack.security.enabled", true).build();
+        Security security = new Security(settings, home.resolve("config"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, security::additionalSettings);
+        // can't rely on order of the strings printed in the exception message
+        assertThat(e.getMessage(), containsString("xpack.security.http.ssl.keystore.secure_password"));
+        assertThat(e.getMessage(), containsString("xpack.security.authc.token.passphrase"));
     }
 
     private void assertTribeNodeHasAllIndices() throws Exception {

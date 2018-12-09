@@ -292,7 +292,6 @@ PUT /standard_example
         "rebuilt_standard": {
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase"       <1>
           ]
         }

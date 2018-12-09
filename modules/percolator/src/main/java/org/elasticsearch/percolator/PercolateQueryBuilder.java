@@ -19,6 +19,7 @@
 
 package org.elasticsearch.percolator;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
@@ -55,7 +56,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -98,7 +98,7 @@ import static org.elasticsearch.percolator.PercolatorFieldMapper.parseQuery;
 public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
     public static final String NAME = "percolate";
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(ParseField.class));
 
     static final ParseField DOCUMENT_FIELD = new ParseField("document");
     static final ParseField DOCUMENTS_FIELD = new ParseField("documents");
@@ -634,13 +634,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getMapper(field);
-        boolean mapUnmappedFieldsAsString = percolatorFieldMapper.isMapUnmappedFieldAsText();
-        QueryShardContext percolateShardContext = wrap(context);
-
-        String name = this.name != null ? this.name : field;
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
+        String name = this.name != null ? this.name : pft.name();
+        QueryShardContext percolateShardContext = wrap(context);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
+            percolateShardContext,
+            pft.mapUnmappedFieldsAsText);
+
         return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
     }
 
@@ -772,7 +772,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             @SuppressWarnings("unchecked")
             public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndexName());
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndex().getName());
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(shardContext.getIndexSettings(), fieldType, cache, circuitBreaker,
@@ -780,5 +780,4 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
         };
     }
-
 }

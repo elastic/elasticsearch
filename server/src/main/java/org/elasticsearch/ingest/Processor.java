@@ -25,6 +25,9 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
+import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 /**
  * A processor implementation may modify the data belonging to a document.
@@ -37,7 +40,7 @@ public interface Processor {
     /**
      * Introspect and potentially modify the incoming data.
      */
-    void execute(IngestDocument ingestDocument) throws Exception;
+    IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
     /**
      * Gets the type of a processor
@@ -95,12 +98,25 @@ public interface Processor {
          */
         public final ThreadContext threadContext;
 
-        public Parameters(Environment env, ScriptService scriptService,
-                          AnalysisRegistry analysisRegistry, ThreadContext threadContext) {
+        public final LongSupplier relativeTimeSupplier;
+
+        public final IngestService ingestService;
+
+        /**
+         * Provides scheduler support
+         */
+        public final BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler;
+
+        public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
+                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler,
+            IngestService ingestService) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
+            this.relativeTimeSupplier = relativeTimeSupplier;
+            this.scheduler = scheduler;
+            this.ingestService = ingestService;
         }
 
     }

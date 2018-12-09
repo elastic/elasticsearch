@@ -79,6 +79,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         SearchRequest request = new SearchRequest();
+        request.scroll(TimeValue.timeValueHours(10L));
 
         String scrollId = randomAlphaOfLength(5);
         SearchHit[] hits = new SearchHit[] {new SearchHit(1), new SearchHit(2)};

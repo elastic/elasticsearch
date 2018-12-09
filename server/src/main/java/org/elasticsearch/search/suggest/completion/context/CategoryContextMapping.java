@@ -23,7 +23,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -112,9 +111,9 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser)
+    public Set<String> parseContext(ParseContext parseContext, XContentParser parser)
             throws IOException, ElasticsearchParseException {
-        final Set<CharSequence> contexts = new HashSet<>();
+        final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
             contexts.add(parser.text());
@@ -135,8 +134,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    public Set<CharSequence> parseContext(Document document) {
-        Set<CharSequence> values = null;
+    public Set<String> parseContext(Document document) {
+        Set<String> values = null;
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);

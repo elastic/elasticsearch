@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.file;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -16,7 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
 import java.io.IOException;
@@ -42,14 +43,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 public class FileUserPasswdStore {
-
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(FileUserPasswdStore.class);
 
     private final Path file;
-    private final Hasher hasher = Hasher.BCRYPT;
     private final Settings settings;
     private final CopyOnWriteArrayList<Runnable> listeners;
-
     private volatile Map<String, char[]> users;
 
     public FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService) {
@@ -57,7 +55,6 @@ public class FileUserPasswdStore {
     }
 
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
-        logger = config.logger(FileUserPasswdStore.class);
         file = resolveFile(config.env());
         settings = config.globalSettings();
         users = parseFileLenient(file, logger, settings);
@@ -84,7 +81,7 @@ public class FileUserPasswdStore {
         if (hash == null) {
             return AuthenticationResult.notHandled();
         }
-        if (hasher.verify(password, hash) == false) {
+        if (Hasher.verifyHash(password, hash) == false) {
             return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null);
         }
         return AuthenticationResult.success(user.get());
@@ -95,7 +92,7 @@ public class FileUserPasswdStore {
     }
 
     public static Path resolveFile(Environment env) {
-        return XPackPlugin.resolveConfigFile(env, "users");
+        return Security.resolveConfigFile(env, "users");
     }
 
     /**
@@ -149,7 +146,7 @@ public class FileUserPasswdStore {
             // only trim the line because we have a format, our tool generates the formatted text and we shouldn't be lenient
             // and allow spaces in the format
             line = line.trim();
-            int i = line.indexOf(":");
+            int i = line.indexOf(':');
             if (i <= 0 || i == line.length() - 1) {
                 logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;

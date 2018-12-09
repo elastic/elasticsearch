@@ -58,8 +58,8 @@ public class TransportBulkActionTests extends ESTestCase {
 
         TestTransportBulkAction() {
             super(Settings.EMPTY, TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
-                    null, new ActionFilters(Collections.emptySet()), new Resolver(Settings.EMPTY),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(Settings.EMPTY)));
+                    null, new ActionFilters(Collections.emptySet()), new Resolver(),
+                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()));
         }
 
         @Override
@@ -80,8 +80,8 @@ public class TransportBulkActionTests extends ESTestCase {
         threadPool = new TestThreadPool("TransportBulkActionTookTests");
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();

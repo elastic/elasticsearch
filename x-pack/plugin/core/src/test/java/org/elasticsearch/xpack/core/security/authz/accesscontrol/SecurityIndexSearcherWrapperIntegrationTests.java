@@ -60,7 +60,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         ScriptService  scriptService = mock(ScriptService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
-        when(mapperService.simpleMatchToIndexNames(anyString()))
+        when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -87,8 +87,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         });
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(indexSettings, s -> queryShardContext,
+        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(s -> queryShardContext,
                 bitsetFilterCache, threadContext, licenseState, scriptService) {
 
             @Override

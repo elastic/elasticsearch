@@ -22,8 +22,12 @@ public class FlushListenerTests extends ESTestCase {
         FlushListener listener = new FlushListener();
         AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
         new Thread(() -> {
-            FlushAcknowledgement flushAcknowledgement = listener.waitForFlush("_id", Duration.ofMillis(10000));
-            flushAcknowledgementHolder.set(flushAcknowledgement);
+            try {
+                FlushAcknowledgement flushAcknowledgement = listener.waitForFlush("_id", Duration.ofMillis(10000));
+                flushAcknowledgementHolder.set(flushAcknowledgement);
+            } catch (InterruptedException _ex) {
+                Thread.currentThread().interrupt();
+            }
         }).start();
         assertBusy(() -> assertTrue(listener.awaitingFlushed.containsKey("_id")));
         assertNull(flushAcknowledgementHolder.get());
@@ -46,13 +50,17 @@ public class FlushListenerTests extends ESTestCase {
             AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
             flushAcknowledgementHolders.add(flushAcknowledgementHolder);
             new Thread(() -> {
-                FlushAcknowledgement flushAcknowledgement = listener.waitForFlush(String.valueOf(id), Duration.ofMillis(10000));
-                flushAcknowledgementHolder.set(flushAcknowledgement);
+                try {
+                    FlushAcknowledgement flushAcknowledgement = listener.waitForFlush(String.valueOf(id), Duration.ofMillis(10000));
+                    flushAcknowledgementHolder.set(flushAcknowledgement);
+                } catch (InterruptedException _ex) {
+                    Thread.currentThread().interrupt();
+                }
             }).start();
         }
         assertBusy(() -> assertEquals(numWaits, listener.awaitingFlushed.size()));
         assertThat(flushAcknowledgementHolders.stream().map(f -> f.get()).filter(f -> f != null).findAny().isPresent(), is(false));
-        assertFalse(listener.cleared.get());
+        assertFalse(listener.onClear.hasRun());
 
         listener.clear();
 
@@ -60,6 +68,6 @@ public class FlushListenerTests extends ESTestCase {
             assertBusy(() -> assertNotNull(f.get()));
         }
         assertTrue(listener.awaitingFlushed.isEmpty());
-        assertTrue(listener.cleared.get());
+        assertTrue(listener.onClear.hasRun());
     }
 }

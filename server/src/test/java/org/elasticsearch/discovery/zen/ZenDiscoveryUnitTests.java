@@ -54,7 +54,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -83,7 +82,6 @@ import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAl
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -107,13 +105,16 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         currentState.version(2);
         newState.version(1);
-        assertTrue("should ignore, because new state's version is lower to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertTrue("should ignore, because new state's version is lower to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
         currentState.version(1);
         newState.version(1);
-        assertTrue("should ignore, because new state's version is equal to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertTrue("should ignore, because new state's version is equal to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
         currentState.version(1);
         newState.version(2);
-        assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because new state's version is higher to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b").add(new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
@@ -145,7 +146,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             currentState.version(1);
             newState.version(2);
         }
-        assertFalse("should not ignore, because current state doesn't have a master", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because current state doesn't have a master",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
     }
 
     public void testFilterNonMasterPingResponse() {
@@ -317,8 +319,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 listener.onSuccess(source);
             }
         };
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService(),
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
+            ESAllocationTestCase.createAllocationService(),
             Collections.emptyList());
         zenDiscovery.start();
         return zenDiscovery;
@@ -347,8 +351,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 (() -> localNode, ZenDiscovery.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
-                .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
-                    : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+                .put(SETTING_VERSION_CREATED,
+                    incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                        : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
                 .state(IndexMetaData.State.OPEN)
@@ -390,11 +395,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                     @Override
                     public void sendResponse(TransportResponse response) throws IOException {
                         sendResponse.set(true);
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-
                     }
 
                     @Override

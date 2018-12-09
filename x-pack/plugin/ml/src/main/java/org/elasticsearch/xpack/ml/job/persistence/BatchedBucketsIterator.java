@@ -11,8 +11,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -30,7 +30,7 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
     protected Result<Bucket> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source)).createParser(NamedXContentRegistry.EMPTY,
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, stream)) {
             Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), bucket);

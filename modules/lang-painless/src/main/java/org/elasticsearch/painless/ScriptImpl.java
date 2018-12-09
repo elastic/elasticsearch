@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -31,7 +30,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 
 /**
- * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link SearchScript}
+ * ScriptImpl can be used as a {@link SearchScript}
  * to run a previously compiled Painless script.
  */
 final class ScriptImpl extends SearchScript {

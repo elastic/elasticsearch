@@ -19,11 +19,14 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -32,20 +35,29 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.FileUtils.getDefaultArchiveInstallPath;
-import static org.elasticsearch.packaging.util.FileUtils.getPackagingArchivesDir;
+import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
 
 import static org.elasticsearch.packaging.util.FileUtils.mv;
+import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.hamcrest.core.IsNot.not;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Installation and verification logic for archive distributions
  */
 public class Archives {
+
+    // in the future we'll run as a role user on Windows
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS
+        ? "vagrant"
+        : "elasticsearch";
 
     public static Installation installArchive(Distribution distribution) {
         return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
@@ -54,7 +66,7 @@ public class Archives {
     public static Installation installArchive(Distribution distribution, Path fullInstallPath, String version) {
         final Shell sh = new Shell();
 
-        final Path distributionFile = getPackagingArchivesDir().resolve(distribution.filename(version));
+        final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
 
@@ -63,21 +75,20 @@ public class Archives {
 
         if (distribution.packaging == Distribution.Packaging.TAR) {
 
-            if (Platforms.LINUX) {
-                sh.run("tar", "-C", baseInstallPath.toString(), "-xzpf", distributionFile.toString());
-            } else {
+            Platforms.onLinux(() -> sh.run("tar -C " + baseInstallPath + " -xzpf " + distributionFile));
+
+            if (Platforms.WINDOWS) {
                 throw new RuntimeException("Distribution " + distribution + " is not supported on windows");
             }
 
         } else if (distribution.packaging == Distribution.Packaging.ZIP) {
 
-            if (Platforms.LINUX) {
-                sh.run("unzip", distributionFile.toString(), "-d", baseInstallPath.toString());
-            } else {
-                sh.run("powershell.exe", "-Command",
-                    "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
-                    "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')");
-            }
+            Platforms.onLinux(() -> sh.run("unzip " + distributionFile + " -d " + baseInstallPath));
+
+            Platforms.onWindows(() -> sh.run(
+                "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
+                "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')"
+            ));
 
         } else {
             throw new RuntimeException("Distribution " + distribution + " is not a known archive type");
@@ -92,58 +103,66 @@ public class Archives {
         assertThat("only the intended installation exists", installations, hasSize(1));
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
-        if (Platforms.LINUX) {
-            setupArchiveUsersLinux(fullInstallPath);
-        }
+        Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
+        Platforms.onWindows(() -> setupArchiveUsersWindows(fullInstallPath));
 
-        return new Installation(fullInstallPath);
+        return Installation.ofArchive(fullInstallPath);
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
         final Shell sh = new Shell();
 
-        if (sh.runIgnoreExitCode("getent", "group", "elasticsearch").isSuccess() == false) {
+        if (sh.runIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.run("addgroup", "--system", "elasticsearch");
+                sh.run("addgroup --system elasticsearch");
             } else {
-                sh.run("groupadd", "-r", "elasticsearch");
+                sh.run("groupadd -r elasticsearch");
             }
         }
 
-        if (sh.runIgnoreExitCode("id", "elasticsearch").isSuccess() == false) {
+        if (sh.runIgnoreExitCode("id elasticsearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.run("adduser",
-                    "--quiet",
-                    "--system",
-                    "--no-create-home",
-                    "--ingroup", "elasticsearch",
-                    "--disabled-password",
-                    "--shell", "/bin/false",
+                sh.run("adduser " +
+                    "--quiet " +
+                    "--system " +
+                    "--no-create-home " +
+                    "--ingroup elasticsearch " +
+                    "--disabled-password " +
+                    "--shell /bin/false " +
                     "elasticsearch");
             } else {
-                sh.run("useradd",
-                    "--system",
-                    "-M",
-                    "--gid", "elasticsearch",
-                    "--shell", "/sbin/nologin",
-                    "--comment", "elasticsearch user",
+                sh.run("useradd " +
+                    "--system " +
+                    "-M " +
+                    "--gid elasticsearch " +
+                    "--shell /sbin/nologin " +
+                    "--comment 'elasticsearch user' " +
                     "elasticsearch");
             }
         }
-        sh.run("chown", "-R", "elasticsearch:elasticsearch", installPath.toString());
+        sh.run("chown -R elasticsearch:elasticsearch " + installPath);
+    }
+
+    private static void setupArchiveUsersWindows(Path installPath) {
+        // we want the installation to be owned as the vagrant user rather than the Administrators group
+
+        final Shell sh = new Shell();
+        sh.run(
+            "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
+            "$install = Get-ChildItem -Path '" + installPath + "' -Recurse; " +
+            "$install += Get-Item -Path '" + installPath + "'; " +
+            "$install | ForEach-Object { " +
+                "$acl = Get-Acl $_.FullName; " +
+                "$acl.SetOwner($account); " +
+                "Set-Acl $_.FullName $acl " +
+            "}"
+        );
     }
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
-        // on Windows for now we leave the installation owned by the vagrant user that the tests run as. Since the vagrant account
-        // is a local administrator, the files really end up being owned by the local administrators group. In the future we'll
-        // install and run elasticesearch with a role user on Windows
-        final String owner = Platforms.WINDOWS
-            ? "BUILTIN\\Administrators"
-            : "elasticsearch";
-
-        verifyOssInstallation(installation, distribution, owner);
+        verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
         if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, owner);
+            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
         }
     }
 
@@ -157,40 +176,40 @@ public class Archives {
         ).forEach(dir -> assertThat(dir, file(Directory, owner, owner, p755)));
 
         assertThat(Files.exists(es.data), is(false));
-        assertThat(Files.exists(es.scripts), is(false));
 
-        assertThat(es.home.resolve("bin"), file(Directory, owner, owner, p755));
-        assertThat(es.home.resolve("lib"), file(Directory, owner, owner, p755));
-        assertThat(Files.exists(es.config.resolve("elasticsearch.keystore")), is(false));
+        assertThat(es.bin, file(Directory, owner, owner, p755));
+        assertThat(es.lib, file(Directory, owner, owner, p755));
+        assertThat(Files.exists(es.config("elasticsearch.keystore")), is(false));
 
         Stream.of(
-            "bin/elasticsearch",
-            "bin/elasticsearch-env",
-            "bin/elasticsearch-keystore",
-            "bin/elasticsearch-plugin",
-            "bin/elasticsearch-translog"
+            "elasticsearch",
+            "elasticsearch-env",
+            "elasticsearch-keystore",
+            "elasticsearch-plugin",
+            "elasticsearch-shard",
+            "elasticsearch-translog"
         ).forEach(executable -> {
 
-            assertThat(es.home.resolve(executable), file(File, owner, owner, p755));
+            assertThat(es.bin(executable), file(File, owner, owner, p755));
 
             if (distribution.packaging == Distribution.Packaging.ZIP) {
-                assertThat(es.home.resolve(executable + ".bat"), file(File, owner));
+                assertThat(es.bin(executable + ".bat"), file(File, owner));
             }
         });
 
         if (distribution.packaging == Distribution.Packaging.ZIP) {
             Stream.of(
-                "bin/elasticsearch-service.bat",
-                "bin/elasticsearch-service-mgr.exe",
-                "bin/elasticsearch-service-x64.exe"
-            ).forEach(executable -> assertThat(es.home.resolve(executable), file(File, owner)));
+                "elasticsearch-service.bat",
+                "elasticsearch-service-mgr.exe",
+                "elasticsearch-service-x64.exe"
+            ).forEach(executable -> assertThat(es.bin(executable), file(File, owner)));
         }
 
         Stream.of(
             "elasticsearch.yml",
             "jvm.options",
             "log4j2.properties"
-        ).forEach(config -> assertThat(es.config.resolve(config), file(File, owner, owner, p660)));
+        ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
 
         Stream.of(
             "NOTICE.txt",
@@ -202,30 +221,30 @@ public class Archives {
     private static void verifyDefaultInstallation(Installation es, Distribution distribution, String owner) {
 
         Stream.of(
-            "bin/elasticsearch-certgen",
-            "bin/elasticsearch-certutil",
-            "bin/elasticsearch-croneval",
-            "bin/elasticsearch-migrate",
-            "bin/elasticsearch-saml-metadata",
-            "bin/elasticsearch-setup-passwords",
-            "bin/elasticsearch-sql-cli",
-            "bin/elasticsearch-syskeygen",
-            "bin/elasticsearch-users",
-            "bin/x-pack-env",
-            "bin/x-pack-security-env",
-            "bin/x-pack-watcher-env"
+            "elasticsearch-certgen",
+            "elasticsearch-certutil",
+            "elasticsearch-croneval",
+            "elasticsearch-migrate",
+            "elasticsearch-saml-metadata",
+            "elasticsearch-setup-passwords",
+            "elasticsearch-sql-cli",
+            "elasticsearch-syskeygen",
+            "elasticsearch-users",
+            "x-pack-env",
+            "x-pack-security-env",
+            "x-pack-watcher-env"
         ).forEach(executable -> {
 
-            assertThat(es.home.resolve(executable), file(File, owner, owner, p755));
+            assertThat(es.bin(executable), file(File, owner, owner, p755));
 
             if (distribution.packaging == Distribution.Packaging.ZIP) {
-                assertThat(es.home.resolve(executable + ".bat"), file(File, owner));
+                assertThat(es.bin(executable + ".bat"), file(File, owner));
             }
         });
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
-        assertThat(es.home.resolve("bin/elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(File, owner, owner, p755));
+        assertThat(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(File, owner, owner, p755));
 
         Stream.of(
             "users",
@@ -233,7 +252,72 @@ public class Archives {
             "roles.yml",
             "role_mapping.yml",
             "log4j2.properties"
-        ).forEach(config -> assertThat(es.config.resolve(config), file(File, owner, owner, p660)));
+        ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
+    }
+
+    public static void runElasticsearch(Installation installation) throws IOException {
+        runElasticsearch(installation, new Shell());
+    }
+
+    public static void runElasticsearch(Installation installation, Shell sh) throws IOException {
+        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+
+        final Installation.Executables bin = installation.executables();
+
+        Platforms.onLinux(() -> {
+            // If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
+            // If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
+            // This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
+            if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
+                sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
+            }
+            sh.run("sudo -E -u " + ARCHIVE_OWNER + " " +
+                bin.elasticsearch + " -d -p " + installation.home.resolve("elasticsearch.pid"));
+        });
+
+        Platforms.onWindows(() -> {
+            // this starts the server in the background. the -d flag is unsupported on windows
+            // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
+            // username and password to the process which has the effect of starting it not as Administrator.
+            sh.run(
+                "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
+                "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
+                "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
+                "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                "$processInfo.Username = 'vagrant'; " +
+                "$processInfo.Password = $password; " +
+                "$processInfo.RedirectStandardOutput = $true; " +
+                "$processInfo.RedirectStandardError = $true; " +
+                sh.env.entrySet().stream()
+                    .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                    .collect(joining()) +
+                "$processInfo.UseShellExecute = $false; " +
+                "$process = New-Object System.Diagnostics.Process; " +
+                "$process.StartInfo = $processInfo; " +
+                "$process.Start() | Out-Null; " +
+                "$process.Id;"
+            );
+        });
+
+        ServerUtils.waitForElasticsearch();
+
+        assertTrue(Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        assertThat(pid, not(isEmptyOrNullString()));
+
+        Platforms.onLinux(() -> sh.run("ps " + pid));
+        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid));
+    }
+
+    public static void stopElasticsearch(Installation installation) {
+        Path pidFile = installation.home.resolve("elasticsearch.pid");
+        assertTrue(Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        assertThat(pid, not(isEmptyOrNullString()));
+
+        final Shell sh = new Shell();
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid));
+        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force"));
     }
 
 }

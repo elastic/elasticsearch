@@ -31,7 +31,21 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
+
 public class URLRepositoryTests extends ESTestCase {
+
+    private URLRepository createRepository(Settings baseSettings, RepositoryMetaData repositoryMetaData) {
+        return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList())) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually on test/main threads
+            }
+        };
+    }
 
     public void testWhiteListingRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
@@ -41,8 +55,12 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        repository.start();
+
+        assertThat("blob store has to be lazy initialized", repository.getBlobStore(), is(nullValue()));
+        repository.blobContainer();
+        assertThat("blobContainer has to initialize blob store", repository.getBlobStore(), not(nullValue()));
     }
 
     public void testIfNotWhiteListedMustSetRepoURL() throws IOException {
@@ -52,9 +70,10 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        repository.start();
         try {
-            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-                new NamedXContentRegistry(Collections.emptyList()));
+            repository.blobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             String msg = "[url] file url [" + repoPath
@@ -73,12 +92,32 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.SUPPORTED_PROTOCOLS_SETTING.getKey(), "http,https")
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        repository.start();
         try {
-            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-                new NamedXContentRegistry(Collections.emptyList()));
+            repository.blobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath +"]", e.getMessage());
+        }
+    }
+
+    public void testNonNormalizedUrl() throws IOException {
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(URLRepository.ALLOWED_URLS_SETTING.getKey(), "file:/tmp/")
+            .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), "file:/var/" )
+            .build();
+        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        repository.start();
+        try {
+            repository.blobContainer();
+            fail("RepositoryException should have been thrown.");
+        } catch (RepositoryException e) {
+            assertEquals("[url] file url [file:/var/] doesn't match any of the locations "
+                + "specified by path.repo or repositories.url.allowed_urls",
+                e.getMessage());
         }
     }
 

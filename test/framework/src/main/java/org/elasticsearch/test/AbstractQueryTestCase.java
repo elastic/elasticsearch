@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -49,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -77,21 +77,21 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
 
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
+        return createTestQueryBuilder(supportsBoost(), supportsQueryName());
+    }
+
+    public final QB createTestQueryBuilder(boolean supportsBoost, boolean supportsQueryName) {
         QB query = doCreateTestQueryBuilder();
-        //we should not set boost and query name for queries that don't parse it
-        if (supportsBoostAndQueryName()) {
-            if (randomBoolean()) {
-                query.boost(2.0f / randomIntBetween(1, 20));
-            }
-            if (randomBoolean()) {
-                query.queryName(createUniqueRandomName());
-            }
+        if (supportsBoost && randomBoolean()) {
+            query.boost(2.0f / randomIntBetween(1, 20));
+        }
+        if (supportsQueryName && randomBoolean()) {
+            query.queryName(createUniqueRandomName());
         }
         return query;
     }
@@ -100,6 +100,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Create the query that is being tested
      */
     protected abstract QB doCreateTestQueryBuilder();
+
+    public void testNegativeBoosts() {
+        QB testQuery = createTestQueryBuilder();
+        testQuery.boost(-0.5f);
+        assertWarnings("setting a negative [boost] on a query" +
+            " is deprecated and will throw an error in the next version. You can use a value between 0 and 1 to deboost.");
+    }
 
     /**
      * Generic test that creates new query from the test query and checks both for equality
@@ -133,7 +140,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * all query builders support. The added bogus field after that should trigger the exception.
      * Queries that allow arbitrary field names at this level need to override this test.
      */
-    public void testUnknownField() {
+    public void testUnknownField() throws IOException {
         String marker = "#marker#";
         QB testQuery;
         do {
@@ -141,9 +148,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         } while (testQuery.toString().contains(marker));
         testQuery.queryName(marker); // to find root query to add additional bogus field there
         String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker + "\", \"bogusField\" : \"someValue\"");
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryAsString));
-        // we'd like to see the offending field name here
-        assertThat(e.getMessage(), containsString("bogusField"));
+        try {
+            parseQuery(queryAsString);
+            fail("expected ParsingException or XContentParsingException");
+        } catch (ParsingException | XContentParseException e) {
+            // we'd like to see the offending field name here
+            assertThat(e.getMessage(), containsString("bogusField"));
+        }
+
     }
 
     /**
@@ -448,7 +460,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
-            if (supportsBoostAndQueryName()) {
+            if (supportsBoost()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
@@ -460,6 +472,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setIsFilter(filterFlag);
             rewriteQuery(firstQuery, context).toQuery(context);
             assertEquals("isFilter should be unchanged", filterFlag, context.isFilter());
+            if (filterFlag && firstQuery instanceof BoolQueryBuilder) {
+                BoolQueryBuilder bq = (BoolQueryBuilder) firstQuery;
+                if (bq.should().size() > 0 &&
+                        bq.minimumShouldMatch() == null &&
+                        (bq.filter().size() > 0 || bq.must().size() > 0 || bq.mustNot().size() > 0)) {
+                    assertWarnings("Should clauses in the filter context will no longer automatically set the minimum" +
+                        " should match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
+                        " [minimum_should_match] to 1 to restore this behavior in the next major version.");
+                }
+            }
         }
     }
 
@@ -475,12 +497,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser
-     * doesn't parse them as they are not supported. This method allows to disable boost and queryName related tests for those queries.
-     * Those queries are easy to identify: their parsers don't parse `boost` and `_name` as they don't apply to the specific query:
-     * wrapper query and match_none
+     * Few queries allow you to set the boost on the Java API, although the corresponding parser
+     * doesn't parse it as it isn't supported. This method allows to disable boost related tests for those queries.
+     * Those queries are easy to identify: their parsers don't parse {@code boost} as they don't apply to the specific query:
+     * wrapper query and {@code match_none}.
      */
-    protected boolean supportsBoostAndQueryName() {
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    /**
+     * Few queries allow you to set the query name on the Java API, although the corresponding parser
+     * doesn't parse it as it isn't supported. This method allows to disable query name related tests for those queries.
+     * Those queries are easy to identify: their parsers don't parse {@code _name} as they don't apply to the specific query:
+     * wrapper query and {@code match_none}.
+     */
+    protected boolean supportsQueryName() {
         return true;
     }
 
@@ -517,7 +549,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
 
-    protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
+    protected void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(query, instanceOf(BoostQuery.class));
             BoostQuery boostQuery = (BoostQuery) query;
@@ -527,10 +559,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertTermQuery(query, field, value);
     }
 
-    protected static void assertTermQuery(Query query, String field, String value) {
+    protected void assertTermQuery(Query query, String field, String value) {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
-        assertThat(termQuery.getTerm().field(), equalTo(field));
+
+        String expectedFieldName = expectedFieldName(field);
+        assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
         assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
     }
 
@@ -620,6 +654,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Object value;
         switch (fieldName) {
             case STRING_FIELD_NAME:
+            case STRING_ALIAS_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -777,5 +812,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
         return future.actionGet();
+    }
+
+    public boolean isTextField(String fieldName) {
+        return fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME);
     }
 }

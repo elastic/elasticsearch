@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Request;
 
-public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class StopDatafeedActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -24,6 +25,9 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         if (randomBoolean()) {
             request.setAllowNoDatafeeds(randomBoolean());
         }
+        if (randomBoolean()) {
+            request.setResolvedStartedDatafeedIds(generateRandomStringArray(4, 8, false));
+        }
         return request;
     }
 
@@ -33,8 +37,8 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

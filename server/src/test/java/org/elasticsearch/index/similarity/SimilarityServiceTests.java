@@ -19,7 +19,11 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BasicStats;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
+import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.similarities.SimilarityBase;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -56,4 +60,48 @@ public class SimilarityServiceTests extends ESTestCase {
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof BooleanSimilarity);
     }
+
+    public void testSimilarityValidation() {
+        Similarity negativeScoresSim = new SimilarityBase() {
+            @Override
+            public String toString() {
+                return "negativeScoresSim";
+            }
+            @Override
+            protected float score(BasicStats stats, float freq, float docLen) {
+                return -1;
+            }
+        };
+        SimilarityService.validateSimilarity(Version.V_6_5_0, negativeScoresSim);
+        assertWarnings("Similarities should not return negative scores:\n-1.0 = score(, doc=0, freq=1.0), computed from:\n");
+
+        Similarity decreasingScoresWithFreqSim = new SimilarityBase() {
+            @Override
+            public String toString() {
+                return "decreasingScoresWithFreqSim";
+            }
+            @Override
+            protected float score(BasicStats stats, float freq, float docLen) {
+                return 1 / (freq + docLen);
+            }
+        };
+        SimilarityService.validateSimilarity(Version.V_6_5_0, decreasingScoresWithFreqSim);
+        assertWarnings("Similarity scores should not decrease when term frequency increases:\n0.04761905 = score(, doc=0, freq=1.0), " +
+                "computed from:\n\n0.045454547 = score(, doc=0, freq=2.0), computed from:\n");
+
+        Similarity increasingScoresWithNormSim = new SimilarityBase() {
+            @Override
+            public String toString() {
+                return "increasingScoresWithNormSim";
+            }
+            @Override
+            protected float score(BasicStats stats, float freq, float docLen) {
+                return freq + docLen;
+            }
+        };
+        SimilarityService.validateSimilarity(Version.V_6_5_0, increasingScoresWithNormSim);
+        assertWarnings("Similarity scores should not increase when norm increases:\n2.0 = score(, doc=0, freq=1.0), " +
+                "computed from:\n\n3.0 = score(, doc=0, freq=1.0), computed from:\n");
+    }
+
 }

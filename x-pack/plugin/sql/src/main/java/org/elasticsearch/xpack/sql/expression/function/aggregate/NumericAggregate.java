@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.List;
 
@@ -25,7 +25,7 @@ abstract class NumericAggregate extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field());
+        return Expressions.typeMustBeNumeric(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     @Override

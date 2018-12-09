@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.similarity;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.similarities.AfterEffect;
 import org.apache.lucene.search.similarities.AfterEffectB;
 import org.apache.lucene.search.similarities.AfterEffectL;
@@ -55,7 +56,6 @@ import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
@@ -70,7 +70,7 @@ final class SimilarityProviders {
 
     private SimilarityProviders() {} // no instantiation
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SimilarityProviders.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(SimilarityProviders.class));
     static final String DISCOUNT_OVERLAPS = "discount_overlaps";
 
     private static final Map<String, BasicModel> BASIC_MODELS;

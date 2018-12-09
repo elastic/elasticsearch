@@ -4,7 +4,7 @@
 Use a literal to specify a value directly in an
 <<painless-operators, operation>>.
 
-[[integers]]
+[[integer-literals]]
 ==== Integers
 
 Use an integer literal to specify an integer type value in decimal, octal, or
@@ -16,6 +16,7 @@ to specify an integer literal as octal, and use `0x` or `0X` as a prefix to
 specify an integer literal as hex.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
@@ -44,7 +45,7 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 <5> `int -18` in octal
 <6> `int 3882` in hex
 
-[[floats]]
+[[float-literals]]
 ==== Floats
 
 Use a floating point literal to specify a floating point type value of a
@@ -53,6 +54,7 @@ single letter designations to specify the primitive type: `f` or `F` for `float`
 and `d` or `D` for `double`. If not specified, the type defaults to `double`.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? EXPONENT? [fFdD]?;
@@ -78,7 +80,7 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 <4> `double -126.34`
 <5> `float 89.9`
 
-[[strings]]
+[[string-literals]]
 ==== Strings
 
 Use a string literal to specify a <<string-type, `String` type>> value with
@@ -88,6 +90,7 @@ include a single-quote as part of a single-quoted string literal.  Use a `\\`
 token to include a backslash as part of any string literal.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
@@ -114,9 +117,9 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 "double-quoted with non-escaped 'single-quotes'"
 ----
 
-[[characters]]
+[[character-literals]]
 ==== Characters
 
-A character literal cannot be specified directly. Instead, use the
+Character literals are not specified directly. Instead, use the
 <<string-character-casting, cast operator>> to convert a `String` type value
 into a `char` type value.

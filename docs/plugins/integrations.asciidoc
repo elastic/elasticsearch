@@ -17,14 +17,11 @@ Integrations are not plugins, but are external tools or modules that make it eas
 * https://drupal.org/project/elasticsearch_connector[Drupal]:
   Drupal Elasticsearch integration.
 
-* https://wordpress.org/plugins/wpsolr-search-engine/[WPSOLR]:
-  Elasticsearch (and Apache Solr) WordPress Plugin
- 
-* http://searchbox-io.github.com/wp-elasticsearch/[Wp-Elasticsearch]:
+* https://wordpress.org/plugins/elasticpress/[ElasticPress]:
   Elasticsearch WordPress Plugin
 
-* https://github.com/wallmanderco/elasticsearch-indexer[Elasticsearch Indexer]:
-  Elasticsearch WordPress Plugin
+* https://wordpress.org/plugins/wpsolr-search-engine/[WPSOLR]:
+  Elasticsearch (and Apache Solr) WordPress Plugin
 
 * https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]:
   Tiki has native support for Elasticsearch. This provides faster & better
@@ -59,8 +56,8 @@ releases 2.0 and later do not support rivers.
 * https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
   The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for indexing into Elasticsearch (by Jörg Prante)
 
-* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer/tree/branch2.0[Kafka Standalone Consumer(Indexer)]:
-  Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.(Please use branch 2.0)!
+* https://github.com/BigDataDevs/kafka-elasticsearch-consumer [Kafka Standalone Consumer(Indexer)]:
+  Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.
 
 * https://github.com/ozlerhakan/mongolastic[Mongolastic]:
   A tool that clones data from Elasticsearch to MongoDB and vice versa

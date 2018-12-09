@@ -5,7 +5,14 @@
 --
 This section summarizes the changes in each release.
 
+* <<release-notes-6.5.2>>
+* <<release-notes-6.5.1>>
+* <<release-notes-6.5.0>>
+* <<release-notes-6.4.3>>
+* <<release-notes-6.4.2>>
+* <<release-notes-6.4.1>>
 * <<release-notes-6.4.0>>
+* <<release-notes-6.3.2>>
 * <<release-notes-6.3.1>>
 * <<release-notes-6.3.0>>
 * <<release-notes-6.2.4>>
@@ -30,4 +37,9 @@ This section summarizes the changes in each release.
 
 --
 
-include::release-notes/6.4.0.asciidoc[]
+include::release-notes/6.5.asciidoc[]
+include::release-notes/6.4.asciidoc[]
+include::release-notes/6.3.asciidoc[]
+include::release-notes/6.2.asciidoc[]
+include::release-notes/6.1.asciidoc[]
+include::release-notes/6.0.asciidoc[]

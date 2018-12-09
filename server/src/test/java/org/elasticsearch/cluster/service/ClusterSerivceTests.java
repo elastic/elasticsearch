@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.service;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +42,11 @@ public class ClusterSerivceTests extends ESTestCase {
             @Override
             public String getWriteableName() {
                 return null;
+            }
+
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
             }
 
             @Override

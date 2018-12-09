@@ -45,7 +45,8 @@ public class UsernamePasswordTokenTests extends ESTestCase {
 
     public void testExtractToken() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        String header = "Basic " + Base64.getEncoder().encodeToString("user1:test123".getBytes(StandardCharsets.UTF_8));
+        final String header = randomFrom("Basic ", "basic ", "BASIC ")
+                + Base64.getEncoder().encodeToString("user1:test123".getBytes(StandardCharsets.UTF_8));
         threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
         UsernamePasswordToken token = UsernamePasswordToken.extractToken(threadContext);
         assertThat(token, notNullValue());
@@ -54,7 +55,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     }
 
     public void testExtractTokenInvalid() throws Exception {
-        String[] invalidValues = { "Basic ", "Basic f" };
+        final String[] invalidValues = { "Basic ", "Basic f", "basic " };
         for (String value : invalidValues) {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, value);
@@ -70,7 +71,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
 
     public void testHeaderNotMatchingReturnsNull() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        String header = randomFrom("BasicBroken", "invalid", "Basic");
+        final String header = randomFrom("Basic", "BasicBroken", "invalid", "   basic   ");
         threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
         UsernamePasswordToken extracted = UsernamePasswordToken.extractToken(threadContext);
         assertThat(extracted, nullValue());

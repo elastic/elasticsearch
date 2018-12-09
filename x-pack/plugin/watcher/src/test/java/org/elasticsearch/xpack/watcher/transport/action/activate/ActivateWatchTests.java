@@ -15,13 +15,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -47,7 +47,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
     protected boolean timeWarped() {
         return false;
     }
-    
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30699")
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()

@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -14,8 +17,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.io.IOException;
@@ -25,6 +28,9 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteWatchAction extends WatcherRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestDeleteWatchAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestDeleteWatchAction(Settings settings, RestController controller) {
         super(settings);
         // @deprecated Remove deprecations in 6.0

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -14,7 +16,11 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggreg
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RollupField {
     // Fields that are used both in core Rollup actions and Rollup plugin
@@ -31,8 +37,31 @@ public class RollupField {
     public static final String TYPE_NAME = "_doc";
     public static final String AGG = "agg";
     public static final String ROLLUP_MISSING = "ROLLUP_MISSING_40710B25931745D4B0B8B310F6912A69";
-    public static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
+    public static final List<String> SUPPORTED_NUMERIC_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
             SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
+    public static final List<String> SUPPORTED_DATE_METRICS = Arrays.asList(MaxAggregationBuilder.NAME,
+        MinAggregationBuilder.NAME,
+        ValueCountAggregationBuilder.NAME);
+
+    // a set of ALL our supported metrics, to be a union of all other supported metric types (numeric, date, etc.)
+    public static final Set<String> SUPPORTED_METRICS;
+    static {
+        SUPPORTED_METRICS = new HashSet<>();
+        SUPPORTED_METRICS.addAll(SUPPORTED_NUMERIC_METRICS);
+        SUPPORTED_METRICS.addAll(SUPPORTED_DATE_METRICS);
+    }
+
+    // these mapper types are used by the configs (metric, histo, etc) to validate field mappings
+    public static final List<String> NUMERIC_FIELD_MAPPER_TYPES;
+    static {
+        List<String> types = Stream.of(NumberFieldMapper.NumberType.values())
+            .map(NumberFieldMapper.NumberType::typeName)
+            .collect(Collectors.toList());
+        types.add("scaled_float"); // have to add manually since scaled_float is in a module
+        NUMERIC_FIELD_MAPPER_TYPES = types;
+    }
+
+    public static final String DATE_FIELD_MAPPER_TYPE = DateFieldMapper.CONTENT_TYPE;
 
     /**
      * Format to the appropriate Rollup field name convention

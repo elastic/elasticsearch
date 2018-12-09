@@ -73,7 +73,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();;
+        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();

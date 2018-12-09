@@ -20,10 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -54,16 +54,15 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         return Collections.singletonList(TestPlugin.class);
     }
 
-    public static class TestPlugin extends Plugin {
+    public static final class TestPlugin extends Plugin {
         // This setting is used to simulate cluster state updates
         static final Setting<Integer> UPDATE_TEMPLATE_DUMMY_SETTING =
             Setting.intSetting("tests.update_template_count", 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
+        private static final Logger logger = LogManager.getLogger(TestPlugin.class);
 
-        protected final Logger logger;
         protected final Settings settings;
 
         public TestPlugin(Settings settings) {
-            this.logger = Loggers.getLogger(getClass(), settings);
             this.settings = settings;
         }
 

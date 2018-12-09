@@ -19,13 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,6 +44,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,7 +62,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     private static final ParseField PREDICT = new ParseField("predict");
     private static final ParseField MINIMIZE = new ParseField("minimize");
     private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(Loggers.getLogger(MovAvgPipelineAggregationBuilder.class));
+        = new DeprecationLogger(LogManager.getLogger(MovAvgPipelineAggregationBuilder.class));
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -261,8 +261,8 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
-            List<PipelineAggregationBuilder> pipelineAggregatoractories) {
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception

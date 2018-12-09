@@ -35,12 +35,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matcher;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 
@@ -68,16 +69,23 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8))).execute().actionGet().isValid(), equalTo(false));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8))).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false)).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test")
+            .setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
     public void testExplainValidateQueryTwoNodes() throws IOException {
@@ -87,9 +95,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
-                        .startObject("baz").field("type", "text").field("analyzer", "snowball").endObject()
-                        .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
-                        .endObject().endObject().endObject())
+                        .startObject("baz").field("type", "text").field("analyzer", "standard").endObject()
+                        .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point")
+                        .endObject().endObject().endObject().endObject().endObject().endObject())
                 .execute().actionGet();
 
         refresh();
@@ -113,7 +121,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
-            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") | foo:foo | baz:foo)"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(),
+                equalTo("(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") " +
+                    "| foo:foo | baz:foo)"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }
@@ -124,8 +134,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
-        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
-        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plus(1, ChronoUnit.MONTHS));
+        String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minus(1, ChronoUnit.MONTHS));
 
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
@@ -137,10 +148,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
-        DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
-        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay().minusMillis(1);
-        assertThat(response.getQueryExplanation().get(0).getExplanation(),
-                equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
+
+        long twoMonthsAgo = now.minus(2, ChronoUnit.MONTHS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000;
+        long rangeEnd = (now.plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000) - 1;
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]"));
         assertThat(response.isValid(), equalTo(true));
     }
 
@@ -291,7 +302,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(
+            new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
     }
 
     public void testIrrelevantPropertiesAfterQuery() throws IOException {
@@ -299,7 +311,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}"))).get().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(
+            new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}"))).get().isValid(), equalTo(false));
     }
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {

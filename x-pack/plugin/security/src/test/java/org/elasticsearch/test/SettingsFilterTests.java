@@ -20,7 +20,9 @@ import org.hamcrest.Matcher;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,13 +62,16 @@ public class SettingsFilterTests extends ESTestCase {
         // pki filtering
         configureUnfilteredSetting("xpack.security.authc.realms.pki1.type", "pki");
         configureUnfilteredSetting("xpack.security.authc.realms.pki1.order", "0");
-        configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.path",
+        if (inFipsJvm() == false) {
+            configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks").toString());
+            configureFilteredSetting("xpack.ssl.keystore.path",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+        }
         configureSecureSetting("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only");
         configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.algorithm", "SunX509");
 
-        configureFilteredSetting("xpack.ssl.keystore.path",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+
         configureFilteredSetting("xpack.ssl.cipher_suites",
                 Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
         configureFilteredSetting("xpack.ssl.supported_protocols", randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
@@ -78,8 +83,10 @@ public class SettingsFilterTests extends ESTestCase {
 
         // client profile
         configureUnfilteredSetting("transport.profiles.client.port", "9500-9600");
-        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.path",
+        if (inFipsJvm() == false) {
+            configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+        }
         configureFilteredSetting("transport.profiles.client.xpack.security.ssl.cipher_suites",
                 Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
         configureFilteredSetting("transport.profiles.client.xpack.security.ssl.supported_protocols",
@@ -116,7 +123,7 @@ public class SettingsFilterTests extends ESTestCase {
         List<String> settingsFilterList = new ArrayList<>();
         settingsFilterList.addAll(securityPlugin.getSettingsFilter());
         // custom settings, potentially added by a plugin
-        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList);
+        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList, Collections.emptySet());
 
         Injector injector = Guice.createInjector(settingsModule);
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);

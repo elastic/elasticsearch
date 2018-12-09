@@ -29,6 +29,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -58,7 +59,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -100,11 +100,18 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(STRING_FIELD_NAME, AbstractQueryBuilder.DEFAULT_BOOST);
+                String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+                fields.put(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
         }
+        // special handling if query is "now" and no field specified. This hits the "mapped_date" field which leads to the query not being
+        // cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
+        if (fieldCount == 0 && result.value().equalsIgnoreCase("now")) {
+            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
+        }
+
         result.fields(fields);
         if (randomBoolean()) {
             result.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -234,7 +241,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultFieldParsing() throws IOException {
         assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1));
+                indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1));
 
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
@@ -265,8 +272,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     @Override
     protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
-
-        if (queryBuilder.value().isEmpty()) {
+        if (queryBuilder.value().isEmpty() || getCurrentTypes().length == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else if (queryBuilder.fields().size() > 1) {
             assertThat(query, instanceOf(DisjunctionMaxQuery.class));
@@ -542,16 +548,25 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
             // phrase with slop
             query = parser.parse("big \"tiny guinea pig\"~2");
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "tiny"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "tiny"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .setSlop(2)
+                .build();
 
             expectedQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "big")), defaultOp)
-                .add(new SpanNearQuery(new SpanQuery[] {
-                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "tiny")),
-                    new SpanOrQuery(
-                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
-                    )
-                }, 2, true), defaultOp)
+                .add(new BooleanQuery.Builder()
+                        .add(pq1, BooleanClause.Occur.SHOULD)
+                        .add(pq2, BooleanClause.Occur.SHOULD)
+                        .build(),
+                    defaultOp)
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }
@@ -630,12 +645,60 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder()
+        Query expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "quick")),
+                    new TermQuery(new Term(STRING_FIELD_NAME_2, "quick"))
+                ), 1.0f), BooleanClause.Occur.SHOULD)
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "fox")),
+                    new TermQuery(new Term(STRING_FIELD_NAME_2, "fox"))
+                ), 1.0f), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new SimpleQueryStringBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new SimpleQueryStringBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
         assertEquals(expected, query);
     }
 
@@ -643,13 +706,34 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+    }
+
+    /**
+     * Test for behavior reported in https://github.com/elastic/elasticsearch/issues/34708
+     * Unmapped field can lead to MatchNoDocsQuerys in disjunction queries. If tokens are eliminated (e.g. because
+     * the tokenizer removed them as punctuation) on regular fields, this can leave only MatchNoDocsQuerys in the
+     * disjunction clause. Instead those disjunctions should be eliminated completely.
+     */
+    public void testUnmappedFieldNoTokenWithAndOperator() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new SimpleQueryStringBuilder("first & second")
+                .field(STRING_FIELD_NAME)
+                .field("unmapped")
+                .field("another_unmapped")
+                .defaultOperator(Operator.AND)
+                .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
+                .build();
         assertEquals(expected, query);
     }
 

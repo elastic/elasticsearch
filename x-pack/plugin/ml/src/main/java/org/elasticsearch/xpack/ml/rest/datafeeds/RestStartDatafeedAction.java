@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,9 +18,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -60,10 +61,10 @@ public class RestStartDatafeedAction extends BaseRestHandler {
         }
         return channel -> {
             client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
-                    new RestBuilderListener<StartDatafeedAction.Response>(channel) {
+                    new RestBuilderListener<AcknowledgedResponse>(channel) {
 
                         @Override
-                        public RestResponse buildResponse(StartDatafeedAction.Response r, XContentBuilder builder) throws Exception {
+                        public RestResponse buildResponse(AcknowledgedResponse r, XContentBuilder builder) throws Exception {
                             builder.startObject();
                             builder.field("started", r.isAcknowledged());
                             builder.endObject();

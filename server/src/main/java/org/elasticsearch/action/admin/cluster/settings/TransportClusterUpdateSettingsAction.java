@@ -179,8 +179,12 @@ public class TransportClusterUpdateSettingsAction extends
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                ClusterState clusterState =
-                        updater.updateSettings(currentState, request.transientSettings(), request.persistentSettings(), logger);
+                final ClusterState clusterState =
+                        updater.updateSettings(
+                                currentState,
+                                clusterSettings.upgradeSettings(request.transientSettings()),
+                                clusterSettings.upgradeSettings(request.persistentSettings()),
+                                logger);
                 changed = clusterState != currentState;
                 return clusterState;
             }

@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -223,8 +224,10 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws IOException {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
         Request request = new Request("GET", "/" + queryIndex + "/_search");
-        request.addHeader(CUSTOM_HEADER, randomHeaderValue);
-        request.addHeader(IRRELEVANT_HEADER, randomHeaderValue);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(CUSTOM_HEADER, randomHeaderValue);
+        options.addHeader(IRRELEVANT_HEADER, randomHeaderValue);
+        request.setOptions(options);
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
@@ -297,7 +300,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            loggingFilter.set(new LoggingFilter(clusterService.getSettings(), threadPool));
+            loggingFilter.set(new LoggingFilter(threadPool));
             return Collections.emptyList();
         }
 
@@ -312,8 +315,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
         private final ThreadPool threadPool;
 
-        public LoggingFilter(Settings settings, ThreadPool pool) {
-            super(settings);
+        public LoggingFilter(ThreadPool pool) {
             this.threadPool = pool;
         }
 

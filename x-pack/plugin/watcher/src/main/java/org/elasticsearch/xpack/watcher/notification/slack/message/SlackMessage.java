@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +30,11 @@ public class SlackMessage implements MessageElement {
     final String text;
     final Attachment[] attachments;
 
-    public SlackMessage(String from, String[] to, String icon, String text, Attachment[] attachments) {
+    public SlackMessage(String from, String[] to, String icon, @Nullable String text, @Nullable Attachment[] attachments) {
+        if(text == null && attachments == null) {
+            throw new IllegalArgumentException("Both text and attachments cannot be null.");
+        }
+
         this.from = from;
         this.to = to;
         this.icon = icon;

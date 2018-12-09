@@ -63,11 +63,12 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
+        //status and headers hold arbitrary content, we can't inject random fields in them
         return field -> "status".equals(field) || "headers".equals(field);
     }
 
     @Override
-    protected TaskInfo mutateInstance(TaskInfo info) throws IOException {
+    protected TaskInfo mutateInstance(TaskInfo info) {
         switch (between(0, 9)) {
             case 0:
                 TaskId taskId = new TaskId(info.getTaskId().getNodeId() + randomAlphaOfLength(5), info.getTaskId().getId());

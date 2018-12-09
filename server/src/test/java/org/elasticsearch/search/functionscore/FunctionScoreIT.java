@@ -134,15 +134,12 @@ public class FunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testMinScoreFunctionScoreBasic() throws IOException {
-        index(INDEX, TYPE, jsonBuilder().startObject().field("num", 2).endObject());
-        refresh();
         float score = randomFloat();
         float minScore = randomFloat();
-
         index(INDEX, TYPE, jsonBuilder().startObject()
-                .field("num", 2)
-                .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
-                .endObject());
+            .field("num", 2)
+            .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
+            .endObject());
         refresh();
         ensureYellow();
 

@@ -17,21 +17,21 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 public class TransportGetInfluencersAction extends HandledTransportAction<GetInfluencersAction.Request, GetInfluencersAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final Client client;
     private final JobManager jobManager;
 
     @Inject
     public TransportGetInfluencersAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         JobProvider jobProvider, Client client, JobManager jobManager) {
+                                         JobResultsProvider jobResultsProvider, Client client, JobManager jobManager) {
         super(settings, GetInfluencersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 GetInfluencersAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.client = client;
         this.jobManager = jobManager;
     }
@@ -49,7 +49,7 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
                 .influencerScoreThreshold(request.getInfluencerScore())
                 .sortField(request.getSort())
                 .sortDescending(request.isDescending()).build();
-        jobProvider.influencers(request.getJobId(), query,
+        jobResultsProvider.influencers(request.getJobId(), query,
                 page -> listener.onResponse(new GetInfluencersAction.Response(page)), listener::onFailure, client);
     }
 }

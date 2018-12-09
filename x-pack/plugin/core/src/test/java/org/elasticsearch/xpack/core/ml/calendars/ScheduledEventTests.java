@@ -11,12 +11,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.Connective;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
-import org.elasticsearch.xpack.core.ml.job.config.RuleConditionType;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -56,25 +54,22 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         ScheduledEvent event = createTestInstance();
         DetectionRule rule = event.toDetectionRule(TimeValue.timeValueSeconds(bucketSpanSecs));
 
-        assertEquals(Connective.AND, rule.getConditionsConnective());
-        assertEquals(rule.getActions(), EnumSet.of(RuleAction.FILTER_RESULTS, RuleAction.SKIP_SAMPLING));
-        assertNull(rule.getTargetFieldName());
-        assertNull(rule.getTargetFieldValue());
+        assertEquals(rule.getActions(), EnumSet.of(RuleAction.SKIP_RESULT, RuleAction.SKIP_MODEL_UPDATE));
 
         List<RuleCondition> conditions = rule.getConditions();
         assertEquals(2, conditions.size());
-        assertEquals(RuleConditionType.TIME, conditions.get(0).getType());
-        assertEquals(RuleConditionType.TIME, conditions.get(1).getType());
-        assertEquals(Operator.GTE, conditions.get(0).getCondition().getOperator());
-        assertEquals(Operator.LT, conditions.get(1).getCondition().getOperator());
+        assertEquals(RuleCondition.AppliesTo.TIME, conditions.get(0).getAppliesTo());
+        assertEquals(RuleCondition.AppliesTo.TIME, conditions.get(1).getAppliesTo());
+        assertEquals(Operator.GTE, conditions.get(0).getOperator());
+        assertEquals(Operator.LT, conditions.get(1).getOperator());
 
         // Check times are aligned with the bucket
-        long conditionStartTime = Long.parseLong(conditions.get(0).getCondition().getValue());
+        long conditionStartTime = (long) conditions.get(0).getValue();
         assertEquals(0, conditionStartTime % bucketSpanSecs);
         long bucketCount = conditionStartTime / bucketSpanSecs;
         assertEquals(bucketSpanSecs * bucketCount, conditionStartTime);
 
-        long conditionEndTime = Long.parseLong(conditions.get(1).getCondition().getValue());
+        long conditionEndTime = (long) conditions.get(1).getValue();
         assertEquals(0, conditionEndTime % bucketSpanSecs);
 
         long eventTime = event.getEndTime().toEpochSecond() - conditionStartTime;

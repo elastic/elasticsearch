@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.put;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 
 /**
  * This action puts an watch into the watch index and adds it to the scheduler

@@ -21,8 +21,6 @@ package com.google.cloud.storage;
 
 import com.google.cloud.storage.spi.v1.StorageRpc;
 
-import static org.mockito.Mockito.mock;
-
 /**
  * Utility class that exposed Google SDK package protected methods to
  * create specific StorageRpc objects in unit tests.
@@ -41,14 +39,5 @@ public class StorageRpcOptionUtils {
             }
         }
         return null;
-    }
-
-    public static CopyWriter createCopyWriter(final Blob result) {
-        return new CopyWriter(mock(StorageOptions.class), mock(StorageRpc.RewriteResponse.class)) {
-            @Override
-            public Blob getResult() {
-                return result;
-            }
-        };
     }
 }

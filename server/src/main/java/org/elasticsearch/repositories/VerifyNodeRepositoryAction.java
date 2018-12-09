@@ -21,15 +21,16 @@ package org.elasticsearch.repositories;
 
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -46,7 +47,10 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class VerifyNodeRepositoryAction  extends AbstractComponent {
+public class VerifyNodeRepositoryAction {
+
+    private static final Logger logger = LogManager.getLogger(VerifyNodeRepositoryAction.class);
+
     public static final String ACTION_NAME = "internal:admin/repository/verify";
 
     private final TransportService transportService;
@@ -55,15 +59,14 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
     private final RepositoriesService repositoriesService;
 
-    public VerifyNodeRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService, RepositoriesService repositoriesService) {
-        super(settings);
+    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService, RepositoriesService repositoriesService) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT, new VerifyNodeRepositoryRequestHandler());
     }
 
-    public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
+    public void verify(String repository, boolean readOnly, String verificationToken, final ActionListener<VerifyResponse> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
@@ -71,6 +74,9 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
+            if (readOnly && node.getVersion().before(Version.V_6_6_0)) {
+                continue;
+            }
             nodes.add(node);
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();

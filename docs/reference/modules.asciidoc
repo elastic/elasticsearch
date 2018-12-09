@@ -78,6 +78,11 @@ The modules in this section are:
     A tribe node joins one or more clusters and acts as a federated
     client across them.
 
+<<modules-remote-clusters, Remote clusters>>::
+
+    Remote clusters are used in features that work by connecting across clusters
+    on the transport layer.
+
 <<modules-cross-cluster-search, Cross cluster Search>>::
 
     Cross cluster search enables executing search requests across more than one cluster without joining them and acts
@@ -111,5 +116,7 @@ include::modules/threadpool.asciidoc[]
 include::modules/transport.asciidoc[]
 
 include::modules/tribe.asciidoc[]
+
+include::modules/remote-clusters.asciidoc[]
 
 include::modules/cross-cluster-search.asciidoc[]

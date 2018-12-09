@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -354,7 +355,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
-            return mode.select(new SortingNumericDoubleValues() {
+            return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (geoPointValues.advanceExact(docId)) {
@@ -372,7 +373,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            }), 0);
         }
 
         @Override
@@ -436,7 +437,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
-            return mode.select(new SortingNumericDoubleValues() {
+            return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (doubleValues.advanceExact(docId)) {
@@ -451,7 +452,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            }), 0);
         }
 
         @Override

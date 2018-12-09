@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
@@ -36,16 +38,19 @@ import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
  * An input that executes search and returns the search response as the initial payload
  */
 public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchInput.Result> {
-
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
+
+    private static final Logger logger = LogManager.getLogger(ExecutableSearchInput.class);
+
+    private static final Params EMPTY_PARAMS = new MapParams(Collections.emptyMap());
 
     private final Client client;
     private final WatcherSearchTemplateService searchTemplateService;
     private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, Logger logger, Client client, WatcherSearchTemplateService searchTemplateService,
+    public ExecutableSearchInput(SearchInput input, Client client, WatcherSearchTemplateService searchTemplateService,
                                  TimeValue defaultTimeout) {
-        super(input, logger);
+        super(input);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
         this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;
@@ -83,7 +88,13 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         final Payload payload;
         if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
+            Params params;
+            if (request.isRestTotalHitsAsint()) {
+                params = new MapParams(Collections.singletonMap("rest_total_hits_a_int", "true"));
+            } else {
+                params = EMPTY_PARAMS;
+            }
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = XContentHelper
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {

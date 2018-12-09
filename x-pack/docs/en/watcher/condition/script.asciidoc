@@ -19,6 +19,7 @@ The following snippet configures an inline `script` condition that always return
   "script" : "return true"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 This example defines a script as a simple string. This format is actually a
 shortcut for defining an <<condition-script-inline, inline>> script. The
@@ -43,6 +44,7 @@ parameter, `result`:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 [[condition-script-inline]]
 ==== Inline Scripts
@@ -59,6 +61,7 @@ always returns `true`.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 [[condition-script-stored]]
 ==== Stored Scripts
@@ -74,6 +77,7 @@ in Elasticsearch. The following snippet shows how to refer to a script by its `i
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 As with <<condition-script-inline, Inline>>
 scripts, you can also specify the script language and parameters:
@@ -88,6 +92,7 @@ scripts, you can also specify the script language and parameters:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 [[accessing-watch-payload]]
 ==== Accessing the Watch Payload
@@ -121,6 +126,7 @@ threshold:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 When you're using a scripted condition to evaluate an Elasticsearch response,
 keep in mind that the fields in the response are no longer in their native data
@@ -132,6 +138,7 @@ you need to parse the `@timestamp` string into a `DateTime`. For example:
 --------------------------------------------------
 org.elasticsearch.common.joda.time.DateTime.parse(@timestamp)
 --------------------------------------------------
+// NOTCONSOLE
 
 You can reference the following variables in the watch context:
 

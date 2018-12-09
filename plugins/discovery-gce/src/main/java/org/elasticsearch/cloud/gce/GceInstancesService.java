@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.gce;
 
 import com.google.api.services.compute.model.Instance;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -76,4 +75,8 @@ public interface GceInstancesService extends Closeable {
      * @return a collection of running instances within the same GCE project
      */
     Collection<Instance> instances();
+
+    String projectId();
+
+    List<String> zones();
 }

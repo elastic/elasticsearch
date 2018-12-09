@@ -40,7 +40,8 @@ public interface ElasticsearchClient {
      * @param <RequestBuilder> The request builder type.
      * @return A future allowing to get back the response.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
+    <Request extends ActionRequest, Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
             Action<Request, Response, RequestBuilder> action, Request request);
 
     /**
@@ -53,7 +54,8 @@ public interface ElasticsearchClient {
      * @param <Response>       The response type.
      * @param <RequestBuilder> The request builder type.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
+    <Request extends ActionRequest, Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
             Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener);
 
     /**
@@ -65,7 +67,8 @@ public interface ElasticsearchClient {
      * @param <RequestBuilder> The request builder.
      * @return The request builder, that can, at a later stage, execute the request.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
+    <Request extends ActionRequest, Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
             Action<Request, Response, RequestBuilder> action);
 
     /**

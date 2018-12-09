@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;

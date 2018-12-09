@@ -10,11 +10,17 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.junit.BeforeClass;
 
 /**
  * An extremely simple test that shows SSL will work with a cipher that does not perform encryption
  */
 public class SslNullCipherTests extends SecurityIntegTestCase {
+
+    @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
+    }
 
     @Override
     public boolean transportSSLEnabled() {

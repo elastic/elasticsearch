@@ -19,17 +19,16 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -37,7 +36,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -58,7 +56,7 @@ import static org.junit.Assert.assertThat;
  */
 public final class ExternalTestCluster extends TestCluster {
 
-    private static final Logger logger = Loggers.getLogger(ExternalTestCluster.class);
+    private static final Logger logger = LogManager.getLogger(ExternalTestCluster.class);
 
     private static final AtomicInteger counter = new AtomicInteger();
     public static final String EXTERNAL_CLUSTER_PREFIX = "external_";
@@ -85,12 +83,9 @@ public final class ExternalTestCluster extends TestCluster {
         if (addMockTcpTransport) {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
-            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false &&
-                pluginClasses.contains(NioTransportPlugin.class) == false) {
+            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false) {
                 pluginClasses = new ArrayList<>(pluginClasses);
-                if (transport.equals(NioTransportPlugin.NIO_TRANSPORT_NAME)) {
-                    pluginClasses.add(NioTransportPlugin.class);
-                } else {
+                if (transport.equals(MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)) {
                     pluginClasses.add(MockTcpTransportPlugin.class);
                 }
             }

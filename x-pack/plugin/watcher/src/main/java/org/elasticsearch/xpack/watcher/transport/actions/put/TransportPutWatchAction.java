@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -20,13 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -99,27 +101,45 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             try (XContentBuilder builder = jsonBuilder()) {
                 watch.toXContent(builder, DEFAULT_PARAMS);
 
-                UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
-                updateRequest.docAsUpsert(isUpdate == false);
-                updateRequest.version(request.getVersion());
-                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                updateRequest.doc(builder);
+                if (isUpdate) {
+                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    updateRequest.version(request.getVersion());
+                    updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    updateRequest.doc(builder);
 
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
-                        ActionListener.<UpdateResponse>wrap(response -> {
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
+                            ActionListener.<UpdateResponse>wrap(response -> {
+                                boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
+                                if (shouldBeTriggeredLocally(request, watch)) {
+                                    triggerService.add(watch);
+                                }
+                                listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));
+                            }, listener::onFailure),
+                            client::update);
+                } else {
+                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    indexRequest.source(builder);
+                    indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, indexRequest,
+                        ActionListener.<IndexResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
                             // if not yet in distributed mode (mixed 5/6 version in cluster), only trigger on the master node
-                            if (localExecute(request) == false &&
-                                this.clusterService.state().nodes().isLocalNodeElectedMaster() &&
-                                watch.status().state().isActive()) {
+                            if (shouldBeTriggeredLocally(request, watch)) {
                                 triggerService.add(watch);
                             }
                             listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));
                         }, listener::onFailure),
-                        client::update);
+                        client::index);
+                }
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private boolean shouldBeTriggeredLocally(PutWatchRequest request, Watch watch) {
+        return localExecute(request) == false &&
+            this.clusterService.state().nodes().isLocalNodeElectedMaster() &&
+            watch.status().state().isActive();
     }
 }

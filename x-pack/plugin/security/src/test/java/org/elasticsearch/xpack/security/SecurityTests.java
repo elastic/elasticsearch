@@ -28,6 +28,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -43,11 +44,15 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
+import org.elasticsearch.xpack.security.audit.logfile.DeprecatedLoggingAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,10 +65,12 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -109,7 +116,8 @@ public class SecurityTests extends ESTestCase {
             protected SSLService getSslService() {
                 return sslService;
             }
-        };        ThreadPool threadPool = mock(ThreadPool.class);
+        };
+        ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true, false);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
@@ -162,8 +170,8 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
+                containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME));
     }
 
     public void testDisabledByDefault() throws Exception {
@@ -179,8 +187,8 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(IndexAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
+                containsInAnyOrder(IndexAuditTrail.NAME));
     }
 
     public void testIndexAndLoggingAuditTrail() throws Exception {
@@ -190,9 +198,8 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(2, service.getAuditTrails().size());
-        assertEquals(IndexAuditTrail.NAME, service.getAuditTrails().get(0).name());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(1).name());
+        assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
+                containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME, IndexAuditTrail.NAME));
     }
 
     public void testUnknownOutput() {
@@ -278,6 +285,39 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
+    public void testJoinValidatorForLicenseDeserialization() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            VersionUtils.randomVersionBetween(random(), null, Version.V_6_3_0));
+        MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(null,
+            randomIntBetween(License.VERSION_CRYPTO_ALGORITHMS, License.VERSION_CURRENT), -1, TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> new Security.ValidateLicenseCanBeDeserialized().accept(node, state));
+        assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
+    }
+
+    public void testJoinValidatorForFIPSLicense() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
+        MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+
+        final boolean isLicenseValidForFips =
+            FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
+        if (isLicenseValidForFips) {
+            new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        } else {
+            IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
+            assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
+        }
+    }
+
     public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
@@ -345,7 +385,7 @@ public class SecurityTests extends ESTestCase {
             .nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);
     }
-    
+
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
@@ -385,7 +425,8 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
-        licenseState.update(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true);
+        licenseState.update(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true, null);
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
@@ -419,5 +460,64 @@ public class SecurityTests extends ESTestCase {
             assertWarnings("[indices.admin.filtered_fields] setting was deprecated in Elasticsearch and will be removed in a " +
                     "future release! See the breaking changes documentation for the next major version.");
         }
+    }
+
+    /**
+     * Tests the default file comparison check. Note: this will fail when run in an IDE as the
+     * processing of resources isn't handled properly.
+     *
+     * TODO: can we add an assume for whether the test should run if it is an IDE context?
+     */
+    public void testIsDefaultFileCheck() throws Exception {
+        Path homeDir = createTempDir();
+        Path configDir = homeDir.resolve("config");
+        Path xPackConfigDir = configDir.resolve("x-pack");
+        Environment environment = new Environment(Settings.builder().put("path.home", homeDir).build(), configDir);
+
+        List<String> defaultFiles = Arrays.asList("roles.yml", "role_mapping.yml", "users", "users_roles");
+        Files.createDirectories(xPackConfigDir);
+
+        for (String defaultFileName : defaultFiles) {
+            logger.info("testing default file: {}", defaultFileName);
+            Path defaultFile = getDataPath("/config/" + defaultFileName);
+            final byte[] defaultBytes = Files.readAllBytes(defaultFile);
+            final Path defaultFileConfigPath = configDir.resolve(defaultFileName);
+            Path resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+
+            Files.write(defaultFileConfigPath, defaultBytes);
+            assertTrue(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
+
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+
+            // put a file in x-pack dir
+            final Path xPackFilePath = xPackConfigDir.resolve(defaultFileName);
+            Files.write(xPackFilePath, Collections.singletonList(randomAlphaOfLength(8)));
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(xPackFilePath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] exists in a deprecated location and non-deprecated location. The" +
+                " file in the non-deprecated location is the default file. Using file found in the deprecated location. Move " +
+                xPackFilePath + " to " + defaultFileConfigPath);
+
+            // modify file in new location
+            Files.write(defaultFileConfigPath, Collections.singletonList(randomAlphaOfLength(8)),
+                randomBoolean() ? StandardOpenOption.TRUNCATE_EXISTING : StandardOpenOption.APPEND);
+
+            assertFalse(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] exists in a deprecated location and non-deprecated location. " +
+                "Using file found in the non-deprecated location [" + defaultFileConfigPath + "]. Determine which file should be kept and" +
+                    " move it to " + defaultFileConfigPath + ", then remove " + xPackFilePath);
+
+            // remove default file
+            Files.delete(defaultFileConfigPath);
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(xPackFilePath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] is in a deprecated location. Move from " +
+                xPackFilePath + " to " + defaultFileConfigPath);
+        }
+
     }
 }

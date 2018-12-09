@@ -219,6 +219,11 @@ access any data.
 
 Your SAML users cannot do anything until they are mapped to {security}
 roles. See {stack-ov}/saml-role-mapping.html[Configuring role mappings]. 
+
+NOTE: The SAML realm supports
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+alternative to role mapping.
+
 --
 
 . {stack-ov}/saml-kibana.html[Configure {kib} to use SAML SSO]. 

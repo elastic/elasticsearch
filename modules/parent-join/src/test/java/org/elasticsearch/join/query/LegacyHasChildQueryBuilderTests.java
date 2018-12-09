@@ -20,6 +20,7 @@
 package org.elasticsearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -33,7 +34,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -112,9 +112,9 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
     }
 
     @Override
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         return Settings.builder()
-            .put(super.indexSettings())
+            .put(super.createTestIndexSettings())
             .put("index.version.created", Version.V_5_6_0) // multi type
             .build();
     }

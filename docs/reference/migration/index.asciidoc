@@ -17,7 +17,10 @@ As a general rule:
 * Migration between non-consecutive major versions -- e.g. `2.x` to `6.x` --
   is not supported.
 
-See <<setup-upgrade>> for more info.
+For more information, see <<setup-upgrade>>.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
 --
 include::migrate_6_0.asciidoc[]
 
@@ -28,3 +31,7 @@ include::migrate_6_2.asciidoc[]
 include::migrate_6_3.asciidoc[]
 
 include::migrate_6_4.asciidoc[]
+
+include::migrate_6_5.asciidoc[]
+
+include::migrate_6_6.asciidoc[]

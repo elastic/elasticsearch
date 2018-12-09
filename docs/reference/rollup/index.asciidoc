@@ -1,0 +1,34 @@
+[role="xpack"]
+[testenv="basic"]
+[[xpack-rollup]]
+= Rolling up historical data
+
+[partintro]
+--
+
+experimental[]
+
+Keeping historical data around for analysis is extremely useful but often avoided due to the financial cost of
+archiving massive amounts of data.  Retention periods are thus driven by financial realities rather than by the
+usefulness of extensive historical data.
+
+The Rollup feature in {xpack} provides a means to summarize and store historical data so that it can still be used
+for analysis, but at a fraction of the storage cost of raw data.
+
+
+* <<rollup-overview, Overview>>
+* <<rollup-getting-started,Getting Started>>
+* <<rollup-api-quickref, API Quick Reference>>
+* <<rollup-understanding-groups,Understanding Rollup Grouping>>
+* <<rollup-agg-limitations,Rollup aggregation limitations>>
+* <<rollup-search-limitations,Rollup Search limitations>>
+
+
+--
+
+include::overview.asciidoc[]
+include::api-quickref.asciidoc[]
+include::rollup-getting-started.asciidoc[]
+include::understanding-groups.asciidoc[]
+include::rollup-agg-limitations.asciidoc[]
+include::rollup-search-limitations.asciidoc[]

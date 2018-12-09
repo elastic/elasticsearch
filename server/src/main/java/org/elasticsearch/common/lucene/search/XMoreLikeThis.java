@@ -157,7 +157,8 @@ import java.util.Set;
 public final class XMoreLikeThis {
 
 //    static {
-//        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this class once we upgrade to Lucene 5.0";
+//        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9:
+//                   "Remove this class once we upgrade to Lucene 5.0";
 //    }
 
     /**

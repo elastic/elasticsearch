@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, DeleteCalendarAction.Response,
+public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, AcknowledgedResponse,
         DeleteCalendarAction.RequestBuilder> {
 
     public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
@@ -35,8 +35,8 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -88,32 +88,10 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response,
-                RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteCalendarAction action) {
             super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 }

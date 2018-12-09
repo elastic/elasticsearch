@@ -19,34 +19,33 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -68,6 +67,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         setRequest.persistentSettings(map);
 
         ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::putSettings,
+                highLevelClient().cluster()::putSettingsAsync, highLevelClient().cluster()::putSettings,
                 highLevelClient().cluster()::putSettingsAsync);
 
         assertAcked(setResponse);
@@ -90,6 +90,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(resetRequest, highLevelClient().cluster()::putSettings,
+                highLevelClient().cluster()::putSettingsAsync, highLevelClient().cluster()::putSettings,
                 highLevelClient().cluster()::putSettingsAsync);
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
@@ -111,71 +112,187 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         clusterUpdateSettingsRequest.transientSettings(Settings.builder().put(setting, value).build());
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(clusterUpdateSettingsRequest,
+                highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync,
                 highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
     }
 
-    public void testListTasks() throws IOException {
-        ListTasksRequest request = new ListTasksRequest();
-        ListTasksResponse response = execute(request, highLevelClient().cluster()::listTasks, highLevelClient().cluster()::listTasksAsync);
+    public void testClusterGetSettings() throws IOException {
+        final String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
+        final int transientSettingValue = 10;
 
-        assertThat(response, notNullValue());
-        assertThat(response.getNodeFailures(), equalTo(emptyList()));
-        assertThat(response.getTaskFailures(), equalTo(emptyList()));
-        // It's possible that there are other tasks except 'cluster:monitor/tasks/lists[n]' and 'action":"cluster:monitor/tasks/lists'
-        assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
-        boolean listTasksFound = false;
-        for (TaskGroup taskGroup : response.getTaskGroups()) {
-            TaskInfo parent = taskGroup.getTaskInfo();
-            if ("cluster:monitor/tasks/lists".equals(parent.getAction())) {
-                assertThat(taskGroup.getChildTasks().size(), equalTo(1));
-                TaskGroup childGroup = taskGroup.getChildTasks().iterator().next();
-                assertThat(childGroup.getChildTasks().isEmpty(), equalTo(true));
-                TaskInfo child = childGroup.getTaskInfo();
-                assertThat(child.getAction(), equalTo("cluster:monitor/tasks/lists[n]"));
-                assertThat(child.getParentTaskId(), equalTo(parent.getTaskId()));
-                listTasksFound = true;
-            }
-        }
-        assertTrue("List tasks were not found", listTasksFound);
+        final String persistentSettingKey = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
+        final String persistentSettingValue = EnableAllocationDecider.Allocation.NONE.name();
+
+        Settings transientSettings =
+            Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build();
+        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build();
+        clusterUpdateSettings(persistentSettings, transientSettings);
+
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+        ClusterGetSettingsResponse response = execute(
+            request, highLevelClient().cluster()::getSettings, highLevelClient().cluster()::getSettingsAsync);
+        assertEquals(persistentSettings, response.getPersistentSettings());
+        assertEquals(transientSettings, response.getTransientSettings());
+        assertEquals(0, response.getDefaultSettings().size());
     }
 
-    public void testPutPipeline() throws IOException {
-        String id = "some_pipeline_id";
-        XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
-        pipelineBuilder.startObject();
-        {
-            pipelineBuilder.field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
-            pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
-            {
-                pipelineBuilder.startObject().startObject("set");
-                {
-                    pipelineBuilder
-                        .field("field", "foo")
-                        .field("value", "bar");
-                }
-                pipelineBuilder.endObject().endObject();
-                pipelineBuilder.startObject().startObject("convert");
-                {
-                    pipelineBuilder
-                        .field("field", "rank")
-                        .field("type", "integer");
-                }
-                pipelineBuilder.endObject().endObject();
-            }
-            pipelineBuilder.endArray();
-        }
-        pipelineBuilder.endObject();
-        PutPipelineRequest request = new PutPipelineRequest(
-            id,
-            BytesReference.bytes(pipelineBuilder),
-            pipelineBuilder.contentType());
+    public void testClusterGetSettingsWithDefault() throws IOException {
+        final String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
+        final int transientSettingValue = 10;
 
-        PutPipelineResponse putPipelineResponse =
-            execute(request, highLevelClient().cluster()::putPipeline, highLevelClient().cluster()::putPipelineAsync);
-        assertTrue(putPipelineResponse.isAcknowledged());
+        final String persistentSettingKey = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
+        final String persistentSettingValue = EnableAllocationDecider.Allocation.NONE.name();
+
+        Settings transientSettings =
+            Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build();
+        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build();
+        clusterUpdateSettings(persistentSettings, transientSettings);
+
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest().includeDefaults(true);
+        ClusterGetSettingsResponse response = execute(
+            request, highLevelClient().cluster()::getSettings, highLevelClient().cluster()::getSettingsAsync);
+        assertEquals(persistentSettings, response.getPersistentSettings());
+        assertEquals(transientSettings, response.getTransientSettings());
+        assertThat(response.getDefaultSettings().size(), greaterThan(0));
+    }
+
+    public void testClusterHealthGreen() throws IOException {
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        request.timeout("5s");
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertNoIndices(response);
+    }
+
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
+    public void testClusterHealthYellowClusterLevel() throws IOException {
+        createIndex("index", Settings.EMPTY);
+        createIndex("index2", Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        request.timeout("5s");
+        request.level(ClusterHealthRequest.Level.CLUSTER);
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        logger.info("Shard stats\n{}", EntityUtils.toString(
+                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
+        assertYellowShards(response);
+        assertThat(response.getIndices().size(), equalTo(0));
+    }
+
+    public void testClusterHealthYellowIndicesLevel() throws IOException {
+        createIndex("index", Settings.EMPTY);
+        createIndex("index2", Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        request.timeout("5s");
+        request.level(ClusterHealthRequest.Level.INDICES);
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        logger.info("Shard stats\n{}", EntityUtils.toString(
+                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
+        assertYellowShards(response);
+        assertThat(response.getIndices().size(), equalTo(2));
+        for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
+            assertYellowIndex(entry.getKey(), entry.getValue(), true);
+        }
+    }
+
+    private static void assertYellowShards(ClusterHealthResponse response) {
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(response.getActivePrimaryShards(), equalTo(10));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(10));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(10));
+        assertThat(response.getActiveShardsPercent(), equalTo(50d));
+    }
+
+    public void testClusterHealthYellowSpecificIndex() throws IOException {
+        createIndex("index", Settings.EMPTY);
+        createIndex("index2", Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest("index");
+        request.timeout("5s");
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(response.getActivePrimaryShards(), equalTo(5));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(5));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(5));
+        assertThat(response.getActiveShardsPercent(), equalTo(50d));
+        assertThat(response.getIndices().size(), equalTo(1));
+        Map.Entry<String, ClusterIndexHealth> index = response.getIndices().entrySet().iterator().next();
+        assertYellowIndex(index.getKey(), index.getValue(), false);
+    }
+
+    private static void assertYellowIndex(String indexName, ClusterIndexHealth indexHealth, boolean emptyShards) {
+        assertThat(indexHealth, notNullValue());
+        assertThat(indexHealth.getIndex(),equalTo(indexName));
+        assertThat(indexHealth.getActivePrimaryShards(),equalTo(5));
+        assertThat(indexHealth.getActiveShards(),equalTo(5));
+        assertThat(indexHealth.getNumberOfReplicas(),equalTo(1));
+        assertThat(indexHealth.getInitializingShards(),equalTo(0));
+        assertThat(indexHealth.getUnassignedShards(),equalTo(5));
+        assertThat(indexHealth.getRelocatingShards(),equalTo(0));
+        assertThat(indexHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        if (emptyShards) {
+            assertThat(indexHealth.getShards().size(), equalTo(0));
+        } else {
+            assertThat(indexHealth.getShards().size(), equalTo(5));
+            for (Map.Entry<Integer, ClusterShardHealth> entry : indexHealth.getShards().entrySet()) {
+                assertYellowShard(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    private static void assertYellowShard(int shardId, ClusterShardHealth shardHealth) {
+        assertThat(shardHealth, notNullValue());
+        assertThat(shardHealth.getShardId(), equalTo(shardId));
+        assertThat(shardHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(shardHealth.getActiveShards(), equalTo(1));
+        assertThat(shardHealth.getInitializingShards(), equalTo(0));
+        assertThat(shardHealth.getUnassignedShards(), equalTo(1));
+        assertThat(shardHealth.getRelocatingShards(), equalTo(0));
+    }
+
+    public void testClusterHealthNotFoundIndex() throws IOException {
+        ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
+        request.timeout("5s");
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(true));
+        assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+        assertNoIndices(response);
+    }
+
+    private static void assertNoIndices(ClusterHealthResponse response) {
+        assertThat(response.getIndices(), equalTo(emptyMap()));
+        assertThat(response.getActivePrimaryShards(), equalTo(0));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(0));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(0));
+        assertThat(response.getActiveShardsPercent(), equalTo(100d));
     }
 }

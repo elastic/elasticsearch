@@ -74,6 +74,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         enableRandomFailures = randomBoolean();
     }
 
+    protected void disableRandomFailures() {
+        enableRandomFailures = false;
+    }
+
     protected void failRandomly() {
         if (enableRandomFailures && rarely()) {
             throw new RuntimeException("dummy test failure");
@@ -269,16 +273,16 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
+        public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
             failRandomly();
             return false;
         }
 
         @Override
-        public void updateMetaData(IndexMetaData indexMetaData) {
-            indexSettings.updateIndexMetaData(indexMetaData);
+        public void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
+            indexSettings.updateIndexMetaData(newIndexMetaData);
             for (MockIndexShard shard: shards.values()) {
-                shard.updateTerm(indexMetaData.primaryTerm(shard.shardId().id()));
+                shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
             }
         }
 
@@ -355,6 +359,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
             if (this.shardRouting.active()) {
                 assertTrue("and active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
+                    shardRouting.active());
+            }
+            if (this.shardRouting.primary()) {
+                assertTrue("a primary shard can't be demoted", shardRouting.primary());
+            } else if (shardRouting.primary()) {
+                // note: it's ok for a replica in post recovery to be started and promoted at once
+                // this can happen when the primary failed after we sent the start shard message
+                assertTrue("a replica can only be promoted when active. current: " + this.shardRouting + " new: " + shardRouting,
                     shardRouting.active());
             }
             this.shardRouting = shardRouting;

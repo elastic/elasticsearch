@@ -19,6 +19,8 @@
 
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -29,28 +31,26 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.decider.AssignmentDecision;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
-import org.elasticsearch.tasks.Task;
 
 import java.util.Objects;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
  */
-public class PersistentTasksClusterService extends AbstractComponent implements ClusterStateListener {
+public class PersistentTasksClusterService implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(PersistentTasksClusterService.class);
 
     private final ClusterService clusterService;
     private final PersistentTasksExecutorRegistry registry;
     private final EnableAssignmentDecider decider;
 
     public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService) {
-        super(settings);
         this.clusterService = clusterService;
         clusterService.addListener(this);
         this.registry = registry;
@@ -65,7 +65,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param taskParams the task's parameters
      * @param listener   the listener that will be called when task is started
      */
-    public <Params extends PersistentTaskParams> void createPersistentTask(String taskId, String taskName, @Nullable Params taskParams,
+    public <Params extends PersistentTaskParams> void createPersistentTask(String taskId, String taskName, Params taskParams,
                                                                            ActionListener<PersistentTask<?>> listener) {
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
@@ -179,27 +179,30 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
     }
 
     /**
-     * Update task status
+     * Update the state of a persistent task
      *
-     * @param id           the id of a persistent task
-     * @param allocationId the expected allocation id of the persistent task
-     * @param status       new status
-     * @param listener     the listener that will be called when task is removed
+     * @param taskId           the id of a persistent task
+     * @param taskAllocationId the expected allocation id of the persistent task
+     * @param taskState        new state
+     * @param listener         the listener that will be called when task is removed
      */
-    public void updatePersistentTaskStatus(String id, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("update task status", new ClusterStateUpdateTask() {
+    public void updatePersistentTaskState(final String taskId,
+                                          final long taskAllocationId,
+                                          final PersistentTaskState taskState,
+                                          final ActionListener<PersistentTask<?>> listener) {
+        clusterService.submitStateUpdateTask("update task state", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(id, allocationId)) {
-                    return update(currentState, tasksInProgress.updateTaskStatus(id, status));
+                if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
+                    return update(currentState, tasksInProgress.updateTaskState(taskId, taskState));
                 } else {
-                    if (tasksInProgress.hasTask(id)) {
-                        logger.warn("trying to update status on task {} with unexpected allocation id {}", id, allocationId);
+                    if (tasksInProgress.hasTask(taskId)) {
+                        logger.warn("trying to update state on task {} with unexpected allocation id {}", taskId, taskAllocationId);
                     } else {
-                        logger.warn("trying to update status on non-existing task {}", id);
+                        logger.warn("trying to update state on non-existing task {}", taskId);
                     }
-                    throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", id, allocationId);
+                    throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
             }
 
@@ -210,7 +213,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, id));
+                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, taskId));
             }
         });
     }
@@ -225,7 +228,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @return a new {@link Assignment}
      */
     private <Params extends PersistentTaskParams> Assignment createAssignment(final String taskName,
-                                                                              final @Nullable Params taskParams,
+                                                                              final Params taskParams,
                                                                               final ClusterState currentState) {
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
 

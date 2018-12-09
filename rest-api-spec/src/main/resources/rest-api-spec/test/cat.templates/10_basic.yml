@@ -20,6 +20,7 @@
     - skip:
         version: " - 5.0.99"
         reason:  templates were introduced in 5.1.0
+        features: default_shards, no_xpack
     - do:
         cat.templates: {}
 
@@ -197,6 +198,7 @@
     - skip:
         version: " - 5.99.99"
         reason:  this uses a new API that has been added in 6.0
+        features: default_shards, no_xpack
     - do:
         indices.put_template:
           name: test
@@ -248,6 +250,7 @@
     - skip:
         version: " - 5.99.99"
         reason:  this uses a new API that has been added in 6.0
+        features: default_shards, no_xpack
     - do:
         indices.put_template:
           name: test_1

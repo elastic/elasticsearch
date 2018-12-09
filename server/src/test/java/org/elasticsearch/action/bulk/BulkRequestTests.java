@@ -126,7 +126,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<DocWriteRequest> requests = new ArrayList<>();
+        List<DocWriteRequest<?>> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));
@@ -151,7 +151,7 @@ public class BulkRequestTests extends ESTestCase {
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
         assertThat(exc.getMessage(),
-            containsString("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"));
+            containsString("Malformed action/metadata line [5], expected a simple value for field [_unknown] but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk8() throws Exception {
@@ -167,7 +167,8 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
-        assertThat(exc.getMessage(), containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"));
+        assertThat(exc.getMessage(),
+            containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk10() throws Exception {
@@ -199,7 +200,8 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
-        assertThat(exc.getMessage(), containsString("Malformed action/metadata line [" + emptyLine + "], expected FIELD_NAME but found [END_OBJECT]"));
+        assertThat(exc.getMessage(), containsString("Malformed action/metadata line ["
+            + emptyLine + "], expected FIELD_NAME but found [END_OBJECT]"));
     }
 
     // issue 7361

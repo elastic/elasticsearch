@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -76,10 +77,6 @@ public enum ValueType implements Writeable {
         }
     },
     GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH) {
-        @Override
-        public boolean isGeoPoint() {
-            return true;
-        }
     },
     BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN) {
         @Override
@@ -95,6 +92,8 @@ public enum ValueType implements Writeable {
     private final byte id;
     private String preferredName;
 
+    public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
+
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
@@ -105,20 +104,12 @@ public enum ValueType implements Writeable {
         this.defaultFormat = defaultFormat;
     }
 
-    public String description() {
-        return description;
-    }
-
     public String getPreferredName() {
         return preferredName;
     }
-    
+
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
-    }
-
-    public boolean compatibleWith(IndexFieldData fieldData) {
-        return fieldDataType.isInstance(fieldData);
     }
 
     public boolean isA(ValueType valueType) {
@@ -139,10 +130,6 @@ public enum ValueType implements Writeable {
     }
 
     public boolean isFloatingPoint() {
-        return false;
-    }
-
-    public boolean isGeoPoint() {
         return false;
     }
 

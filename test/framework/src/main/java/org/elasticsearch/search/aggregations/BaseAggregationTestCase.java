@@ -22,31 +22,20 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.hasSize;
@@ -79,6 +68,58 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     }
 
     /**
+     * Create at least 2 aggregations and test equality and hash
+     */
+    public void testFromXContentMulti() throws IOException {
+        AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
+        List<AB> testAggs = createTestAggregatorBuilders();
+
+        for (AB testAgg : testAggs) {
+            factoriesBuilder.addAggregator(testAgg);
+        }
+
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = shuffleXContent(builder);
+        XContentParser parser = createParser(shuffled);
+
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
+
+        assertThat(parsed.getAggregatorFactories(), hasSize(testAggs.size()));
+        assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
+        assertEquals(factoriesBuilder, parsed);
+        assertEquals(factoriesBuilder.hashCode(), parsed.hashCode());
+    }
+
+    /**
+     * Create at least 2 aggregations and test equality and hash
+     */
+    public void testSerializationMulti() throws IOException {
+        AggregatorFactories.Builder builder = AggregatorFactories.builder();
+        List<AB> testAggs = createTestAggregatorBuilders();
+
+        for (AB testAgg : testAggs) {
+            builder.addAggregator(testAgg);
+        }
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            builder.writeTo(output);
+
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
+                AggregatorFactories.Builder newBuilder = new AggregatorFactories.Builder(in);
+
+                assertEquals(builder, newBuilder);
+                assertEquals(builder.hashCode(), newBuilder.hashCode());
+                assertNotSame(builder, newBuilder);
+            }
+        }
+    }
+
+    /**
      * Generic test that checks that the toString method renders the XContent
      * correctly.
      */
@@ -97,7 +138,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
         assertThat(parsed.getAggregatorFactories(), hasSize(1));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
-        AggregationBuilder newAgg = parsed.getAggregatorFactories().get(0);
+        AggregationBuilder newAgg = parsed.getAggregatorFactories().iterator().next();
         assertNull(parser.nextToken());
         assertNotNull(newAgg);
         return newAgg;
@@ -174,5 +215,22 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         default:
             throw new AssertionError("Unknow random operation [" + choice + "]");
         }
+    }
+
+    private List<AB> createTestAggregatorBuilders() {
+        int numberOfAggregatorBuilders = randomIntBetween(2, 10);
+
+        // ensure that we do not create 2 aggregations with the same name
+        Set<String> names = new HashSet<>();
+        List<AB> aggBuilders = new ArrayList<>();
+
+        while (names.size() < numberOfAggregatorBuilders) {
+            AB aggBuilder = createTestAggregatorBuilder();
+
+            if (names.add(aggBuilder.getName())) {
+                aggBuilders.add(aggBuilder);
+            }
+        }
+        return aggBuilders;
     }
 }

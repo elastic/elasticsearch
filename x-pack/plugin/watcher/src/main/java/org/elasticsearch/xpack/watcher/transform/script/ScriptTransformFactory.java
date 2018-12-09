@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
@@ -17,8 +16,8 @@ public class ScriptTransformFactory extends TransformFactory<ScriptTransform, Sc
 
     private final ScriptService scriptService;
 
-    public ScriptTransformFactory(Settings settings, ScriptService scriptService) {
-        super(Loggers.getLogger(ExecutableScriptTransform.class, settings));
+    public ScriptTransformFactory(ScriptService scriptService) {
+        super(LogManager.getLogger(ExecutableScriptTransform.class));
         this.scriptService = scriptService;
     }
 

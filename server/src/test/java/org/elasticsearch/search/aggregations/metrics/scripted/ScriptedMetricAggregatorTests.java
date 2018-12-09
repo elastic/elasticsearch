@@ -26,12 +26,9 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -79,53 +76,53 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     @SuppressWarnings("unchecked")
     public static void initMockScripts() {
         SCRIPTS.put("initScript", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            agg.put("collector", new ArrayList<Integer>());
-            return agg;
-            });
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            state.put("collector", new ArrayList<Integer>());
+            return state;
+        });
         SCRIPTS.put("mapScript", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Integer>) agg.get("collector")).add(1); // just add 1 for each doc the script is run on
-            return agg;
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            ((List<Integer>) state.get("collector")).add(1); // just add 1 for each doc the script is run on
+            return state;
         });
         SCRIPTS.put("combineScript", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).sum();
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).sum();
         });
 
         SCRIPTS.put("initScriptScore", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            agg.put("collector", new ArrayList<Double>());
-            return agg;
-            });
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            state.put("collector", new ArrayList<Double>());
+            return state;
+        });
         SCRIPTS.put("mapScriptScore", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
-            return agg;
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            ((List<Double>) state.get("collector")).add(((Number) params.get("_score")).doubleValue());
+            return state;
         });
         SCRIPTS.put("combineScriptScore", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            return ((List<Double>) agg.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            return ((List<Double>) state.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
         });
 
         SCRIPTS.put("initScriptParams", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            Integer initialValue = (Integer)params.get("initialValue");
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            Integer initialValue = (Integer)((Map<String,Object>)params.get("params")).get("initialValue");
             ArrayList<Integer> collector = new ArrayList();
             collector.add(initialValue);
-            agg.put("collector", collector);
-            return agg;
+            state.put("collector", collector);
+            return state;
         });
         SCRIPTS.put("mapScriptParams", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            Integer itemValue = (Integer) params.get("itemValue");
-            ((List<Integer>) agg.get("collector")).add(itemValue);
-            return agg;
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            Integer itemValue = (Integer) ((Map<String,Object>)params.get("params")).get("itemValue");
+            ((List<Integer>) state.get("collector")).add(itemValue);
+            return state;
         });
         SCRIPTS.put("combineScriptParams", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            int divisor = ((Integer) params.get("divisor"));
-            return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            int divisor = ((Integer) ((Map<String,Object>)params.get("params")).get("divisor"));
+            return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
         });
     }
 
@@ -142,12 +139,15 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(0, ((HashMap<Object, String>) scriptedMetric.aggregation()).size());
+            } finally {
+                assertWarnings("[combineScript] must be provided for metric aggregations.",
+                    "[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
 
     /**
-     * without combine script, the "_aggs" map should contain a list of the size of the number of documents matched
+     * without combine script, the "states" map should contain a list of the size of the number of documents matched
      */
     @SuppressWarnings("unchecked")
     public void testScriptedMetricWithoutCombine() throws IOException {
@@ -166,6 +166,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertNotNull(scriptedMetric.aggregation());
                 Map<String, Object> agg = (Map<String, Object>) scriptedMetric.aggregation();
                 assertEquals(numDocs, ((List<Integer>) agg.get("collector")).size());
+            } finally {
+                assertWarnings("[combineScript] must be provided for metric aggregations.",
+                    "[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -188,6 +191,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -211,6 +216,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertNotNull(scriptedMetric.aggregation());
                 // all documents have score of 1.0
                 assertEquals((double) numDocs, scriptedMetric.aggregation());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -230,6 +237,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
                 // The result value depends on the script params.
                 assertEquals(306, scriptedMetric.aggregation());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -253,6 +262,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 );
                 assertEquals("Parameter name \"" + CONFLICTING_PARAM_NAME + "\" used in both aggregation and script parameters",
                     ex.getMessage());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -263,9 +274,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      * is final and cannot be mocked
      */
     @Override
-    protected QueryShardContext queryShardContextMock(MapperService mapperService, final MappedFieldType[] fieldTypes,
-            CircuitBreakerService circuitBreakerService) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
+    protected QueryShardContext queryShardContextMock(MapperService mapperService) {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,

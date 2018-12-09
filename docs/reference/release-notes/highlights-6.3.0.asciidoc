@@ -1,0 +1,69 @@
+[[release-highlights-6.3.0]]
+== 6.3.0 release highlights
+++++
+<titleabbrev>6.3.0</titleabbrev>
+++++
+
+Here are the highlights of features that were added in {es} 6.3.0.
+
+Refer to the <<release-notes-6.3.0,{es} 6.3.0 release notes>> for the full list
+of changes in this release.
+
+NOTE: We want your feedback on the experimental features in this release! Let
+us know what you’d like to see next and any problems you encounter.
+
+[float]
+=== License management and X-Pack code
+
+Starting with version 6.3, the default distribution of {es} contains open source 
+and free commercial features and access to paid commercial features. You no 
+longer need to install {xpack} as a separate step. When you install {es}, it 
+generates a basic license with no expiration date. All the free commercial 
+features are enabled by default and will never expire. 
+
+You can view the status of your license, update your license, or start a 30-day 
+trial of platinum features by using the <<licensing-apis>> or {kib}. The trial 
+enables you to try out features such as security, machine learning, alerting, 
+graph capabilities, and more.
+
+For more information about licenses, see https://www.elastic.co/subscriptions
+
+
+[float]
+=== SQL
+This experimental feature enables users who are familiar with SQL to
+use SQL statements to query {es} indices. In addition to querying
+through the SQL API, you can use the Translate API to see how SQL queries
+are translated to native Elasticsearch queries.
+
+The included SQL CLI provides a simple way to submit SQL queries to {es}.
+Similarly, the {es} JDBC driver enables you to connect your favorite
+JDBC-compatible tool to {es}.
+
+For more information, see <<xpack-sql, SQL Access>>.
+
+[float]
+=== Rollups
+This experimental feature enables you to summarize and store historical data
+so that is still available for analysis, but consumes significantly less
+storage space. This is particularly useful when you're working with monitoring
+and metrics data where it's not feasible to retain the raw data indefinitely.
+
+When you ask {es} to store a rollup of data, it also stores the underlying
+statistics. For example, if you roll up an average, the sum and count are also
+stored so that the average can be recomputed at query time. This enables you to
+query both rolled up data and “live” data simultaneously using the standard
+query DSL.
+
+For more information, see <<xpack-rollup, Rolling up historical data>>.
+
+[float]
+=== Java 10 Support
+Java 9 was a short-term release that reached EOL in March 2018. 6.3.0 introduces
+support for Java 10, which is scheduled to reach EOL in September 2018.
+
+If you are not comfortable with the rapid release cycle of Java short term
+versions (and EOL dates), you can continue to use Java 8. See the
+https://www.elastic.co/support/matrix#matrix_jvm[support matrix]
+for all of the JVM options for {es}.
+

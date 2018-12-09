@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -40,10 +41,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -82,19 +82,19 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("doc['d'].values", vars -> {
+            scripts.put("doc['d']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles value = (ScriptDocValues.Doubles) doc.get("d");
                 return value.getValues();
             });
 
-            scripts.put("doc['l'].values", vars -> {
+            scripts.put("doc['l']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("l");
                 return value.getValues();
             });
 
-            scripts.put("doc['s'].values", vars -> {
+            scripts.put("doc['s']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get("s");
                 return value.getValues();
@@ -123,8 +123,9 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 longTerm = randomInt(cardinality * 2);
             } while (!longTerms.add(longTerm));
             double doubleTerm = longTerm * Math.PI;
-            String dateTerm = DateTimeFormat.forPattern("yyyy-MM-dd")
-                    .print(new DateTime(2014, 1, ((int) longTerm % 20) + 1, 0, 0, DateTimeZone.UTC));
+
+            ZonedDateTime time = ZonedDateTime.of(2014, 1, ((int) longTerm % 20) + 1, 0, 0, 0, 0, ZoneOffset.UTC);
+            String dateTerm = DateFormatters.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -154,7 +155,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
                 return builder.script(new org.elasticsearch.script.Script(ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
+                    CustomScriptPlugin.NAME, "doc['" + field + "']", Collections.emptyMap()));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);
@@ -162,7 +163,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     // check that terms2 is a subset of terms1
     private void assertSubset(Terms terms1, Terms terms2, long minDocCount, int size, String include) {
-        final Matcher matcher = include == null ? null : Pattern.compile(include).matcher("");;
+        final Matcher matcher = include == null ? null : Pattern.compile(include).matcher("");
         final Iterator<? extends Terms.Bucket> it1 = terms1.getBuckets().iterator();
         final Iterator<? extends Terms.Bucket> it2 = terms2.getBuckets().iterator();
         int size2 = 0;

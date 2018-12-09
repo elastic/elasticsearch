@@ -122,8 +122,9 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getHttp().getAddress().publishAddress();
-            RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
-                    null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+            RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), null,
+                new BytesArray("{\"match_all\":{}}"), null, null, emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
             ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client).source("source").destination("dest")
                     .setRemoteInfo(remote);
             return request;
@@ -184,7 +185,7 @@ public class RetryTests extends ESIntegTestCase {
         }
 
         Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
-        BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
+        BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
 

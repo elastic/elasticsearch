@@ -87,9 +87,12 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion) {
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     /**

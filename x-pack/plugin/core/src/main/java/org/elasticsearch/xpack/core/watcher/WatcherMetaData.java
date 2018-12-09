@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -13,12 +14,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
 
-public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
 
     public static final String TYPE = "watcher";
 
@@ -35,6 +37,11 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

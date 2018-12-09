@@ -10,11 +10,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.Script;
@@ -47,7 +47,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeAction;
@@ -145,7 +144,6 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return (client, clusterService) -> {
             final Client clientWithOrigin = clientWithOrigin(client, SECURITY_ORIGIN);
             return new IndexUpgradeCheck<Void>("security",
-                    settings,
                     indexMetaData -> {
                         if (".security".equals(indexMetaData.getIndex().getName())
                                 || indexMetaData.getAliases().containsKey(".security")) {
@@ -245,7 +243,6 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return (client, clusterService) -> {
             final Client clientWithOrigin = clientWithOrigin(client, WATCHER_ORIGIN);
             return new IndexUpgradeCheck<Boolean>("watches",
-                    settings,
                     indexMetaData -> {
                         if (indexOrAliasExists(indexMetaData, ".watches")) {
                             if (checkInternalIndexFormat(indexMetaData)) {
@@ -274,7 +271,6 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return (client, clusterService) -> {
             final Client clientWithOrigin = clientWithOrigin(client, WATCHER_ORIGIN);
             return new IndexUpgradeCheck<Boolean>("triggered-watches",
-                    settings,
                     indexMetaData -> {
                         if (indexOrAliasExists(indexMetaData, TriggeredWatchStoreField.INDEX_NAME)) {
                             if (checkInternalIndexFormat(indexMetaData)) {
@@ -324,11 +320,11 @@ public class Upgrade extends Plugin implements ActionPlugin {
                                                         final boolean restart) {
         final String legacyTriggeredWatchesTemplateName = "triggered_watches";
 
-        ActionListener<DeleteIndexTemplateResponse> returnToCallerListener =
+        ActionListener<AcknowledgedResponse> returnToCallerListener =
                 deleteIndexTemplateListener(legacyTriggeredWatchesTemplateName, listener, () -> listener.onResponse(restart));
 
         // step 2, after put new .triggered_watches template: delete triggered_watches index template, then return to caller
-        ActionListener<PutIndexTemplateResponse> putTriggeredWatchesListener =
+        ActionListener<AcknowledgedResponse> putTriggeredWatchesListener =
                 putIndexTemplateListener(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, listener,
                         () -> client.admin().indices().prepareDeleteTemplate(legacyTriggeredWatchesTemplateName)
                                 .execute(returnToCallerListener));
@@ -365,11 +361,11 @@ public class Upgrade extends Plugin implements ActionPlugin {
 
     private static void preWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener, final boolean restart) {
         final String legacyWatchesTemplateName = "watches";
-        ActionListener<DeleteIndexTemplateResponse> returnToCallerListener =
+        ActionListener<AcknowledgedResponse> returnToCallerListener =
                 deleteIndexTemplateListener(legacyWatchesTemplateName, listener, () -> listener.onResponse(restart));
 
         // step 3, after put new .watches template: delete watches index template, then return to caller
-        ActionListener<PutIndexTemplateResponse> putTriggeredWatchesListener =
+        ActionListener<AcknowledgedResponse> putTriggeredWatchesListener =
                 putIndexTemplateListener(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, listener,
                         () -> client.admin().indices().prepareDeleteTemplate(legacyWatchesTemplateName)
                                 .execute(returnToCallerListener));
@@ -379,7 +375,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                 WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
                 Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
 
-        ActionListener<DeleteIndexTemplateResponse> deleteWatchHistoryTemplatesListener = deleteIndexTemplateListener("watch_history_*",
+        ActionListener<AcknowledgedResponse> deleteWatchHistoryTemplatesListener = deleteIndexTemplateListener("watch_history_*",
                 listener,
                 () -> client.admin().indices().preparePutTemplate(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME)
                         .setSource(watchesTemplate, XContentType.JSON)
@@ -432,8 +428,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
         }, listener::onFailure);
     }
 
-    private static ActionListener<PutIndexTemplateResponse> putIndexTemplateListener(String name, ActionListener<Boolean> listener,
-                                                                                     Runnable runnable) {
+    private static ActionListener<AcknowledgedResponse> putIndexTemplateListener(String name, ActionListener<Boolean> listener,
+                                                                                 Runnable runnable) {
         return ActionListener.wrap(
                 r -> {
                     if (r.isAcknowledged()) {
@@ -445,8 +441,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
                 listener::onFailure);
     }
 
-    private static ActionListener<DeleteIndexTemplateResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
-                                                                                           Runnable runnable) {
+    private static ActionListener<AcknowledgedResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
+                                                                                    Runnable runnable) {
         return ActionListener.wrap(
                 r -> {
                     if (r.isAcknowledged()) {

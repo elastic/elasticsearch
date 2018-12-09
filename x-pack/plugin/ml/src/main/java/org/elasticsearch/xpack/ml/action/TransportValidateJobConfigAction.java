@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -16,7 +17,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 
 public class TransportValidateJobConfigAction extends HandledTransportAction<ValidateJobConfigAction.Request,
-        ValidateJobConfigAction.Response> {
+        AcknowledgedResponse> {
 
     @Inject
     public TransportValidateJobConfigAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -26,8 +27,8 @@ public class TransportValidateJobConfigAction extends HandledTransportAction<Val
     }
 
     @Override
-    protected void doExecute(ValidateJobConfigAction.Request request, ActionListener<ValidateJobConfigAction.Response> listener) {
-        listener.onResponse(new ValidateJobConfigAction.Response(true));
+    protected void doExecute(ValidateJobConfigAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        listener.onResponse(new AcknowledgedResponse(true));
     }
 
 }

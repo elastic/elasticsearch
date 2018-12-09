@@ -31,8 +31,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,7 +54,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

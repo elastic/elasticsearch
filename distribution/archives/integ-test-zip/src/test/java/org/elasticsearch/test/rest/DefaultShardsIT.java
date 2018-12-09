@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
@@ -33,8 +34,16 @@ public class DefaultShardsIT extends ESRestTestCase {
     public void testDefaultShards() throws IOException {
         final Response response = client().performRequest(new Request("PUT", "/index"));
         final String warning = response.getHeader("Warning");
+        if (warning == null) {
+            StringBuilder explanation = new StringBuilder("expected response to contain a warning but did not ");
+            explanation.append(response);
+            if (response.getEntity() != null) {
+                explanation.append(" entity:\n").append(EntityUtils.toString(response.getEntity()));
+            }
+            fail(explanation.toString());
+        }
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(warning);
-        assertTrue(matcher.matches());
+        assertTrue("warning didn't match warning header pattern but was [" + warning + "]", matcher.matches());
         final String message = matcher.group(1);
         assertThat(message, equalTo("the default number of shards will change from [5] to [1] in 7.0.0; "
                 + "if you wish to continue using the default of [5] shards, "

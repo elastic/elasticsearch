@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices;
 
 import org.apache.lucene.analysis.MockTokenFilter;
+import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -106,6 +108,12 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             }
 
             @Override
+            public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+                return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+            }
+
+            @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("mock", MockFactory::new);
             }
@@ -136,7 +144,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addTokenFilter("mock");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+            randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("qu1ck", tokens.get(0).getTerm());
@@ -148,7 +157,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addCharFilter("append_foo");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+            randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -162,7 +172,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("standard");
         request.addCharFilter("append");
         request.text("the qu1ck brown fox");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+            randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());

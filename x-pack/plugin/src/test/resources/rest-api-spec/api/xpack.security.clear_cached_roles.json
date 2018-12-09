@@ -1,6 +1,6 @@
 {
   "xpack.security.clear_cached_roles": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-roles.html#security-api-clear-role-cache",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/security/role/{name}/_clear_cache",

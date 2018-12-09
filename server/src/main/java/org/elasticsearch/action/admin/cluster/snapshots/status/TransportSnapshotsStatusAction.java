@@ -69,7 +69,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                           ThreadPool threadPool, SnapshotsService snapshotsService,
                                           TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, SnapshotsStatusRequest::new);
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, SnapshotsStatusRequest::new);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }
@@ -116,7 +117,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
 
-            TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
+            TransportNodesSnapshotsStatus.Request nodesRequest =
+                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout());
             transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
                         @Override
@@ -143,7 +145,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     }
 
     private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshotEntries,
-                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
+                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses)
+                                                  throws IOException {
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.action.interceptor;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -25,35 +24,32 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request extends I
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    FieldAndDocumentLevelSecurityRequestInterceptor(Settings settings, ThreadContext threadContext,
-                                                           XPackLicenseState licenseState) {
-        super(settings);
+    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
     }
 
     @Override
     public void intercept(Request request, Authentication authentication, Role userPermissions, String action) {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
-            return;
-        }
-        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-        for (String index : request.indices()) {
-            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-            if (indexAccessControl != null) {
-                boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                boolean documentLevelSecurityEnabled = indexAccessControl.getQueries() != null;
-                if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            for (String index : request.indices()) {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
+                if (indexAccessControl != null) {
+                    boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                    boolean documentLevelSecurityEnabled = indexAccessControl.getQueries() != null;
                     if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {
-                        logger.trace("intercepted request for index [{}] with field level access controls [{}] document level access " +
-                                        "controls [{}]. disabling conflicting features", index, fieldLevelSecurityEnabled,
+                        if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {
+                            logger.trace("intercepted request for index [{}] with field level access controls [{}] document level access " +
+                                    "controls [{}]. disabling conflicting features", index, fieldLevelSecurityEnabled,
                                 documentLevelSecurityEnabled);
+                        }
+                        disableFeatures(request, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
+                        return;
                     }
-                    disableFeatures(request, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
-                    return;
                 }
+                logger.trace("intercepted request for index [{}] without field or document level access controls", index);
             }
-            logger.trace("intercepted request for index [{}] without field or document level access controls", index);
         }
     }
 

@@ -1,0 +1,64 @@
+[[java-rest-high-x-pack-info]]
+=== X-Pack Info API
+
+[[java-rest-high-x-pack-info-execution]]
+==== Execution
+
+General information about the installed {xpack} features can be retrieved
+using the `xPackInfo()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute]
+--------------------------------------------------
+<1> Enable verbose mode. The default is `false` but `true` will return
+more information.
+<2> Set the categories of information to retrieve. The default is to
+return no information which is useful for checking if {xpack} is installed
+but not much else.
+
+[[java-rest-high-x-pack-info-response]]
+==== Response
+
+The returned `XPackInfoResponse` can contain `BuildInfo`, `LicenseInfo`,
+and `FeatureSetsInfo` depending on the categories requested.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-response]
+--------------------------------------------------
+<1> `BuildInfo` contains the commit hash from which Elasticsearch was
+built and the timestamp that the x-pack module was created.
+<2> `LicenseInfo` contains the type of license that the cluster is using
+and its expiration date.
+<3> Basic licenses do not expire and will return this constant.
+<4> `FeatureSetsInfo` contains a `Map` from the name of a feature to
+information about a feature like whether or not it is available under
+the current license.
+
+[[java-rest-high-x-pack-info-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute-async]
+--------------------------------------------------
+<1> The `XPackInfoRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `XPackInfoResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

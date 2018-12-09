@@ -35,14 +35,17 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-public class TransportPendingClusterTasksAction extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
+public class TransportPendingClusterTasksAction
+        extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
 
     private final ClusterService clusterService;
 
     @Inject
     public TransportPendingClusterTasksAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PendingClusterTasksRequest::new);
+                                              ThreadPool threadPool, ActionFilters actionFilters,
+                                              IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, PendingClusterTasksRequest::new);
         this.clusterService = clusterService;
     }
 
@@ -63,7 +66,8 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
     }
 
     @Override
-    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) {
+    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state,
+                                   ActionListener<PendingClusterTasksResponse> listener) {
         logger.trace("fetching pending tasks from cluster service");
         final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();
         logger.trace("done fetching pending tasks from cluster service");

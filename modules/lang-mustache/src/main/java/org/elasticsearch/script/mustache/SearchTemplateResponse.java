@@ -66,6 +66,11 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
     public boolean hasResponse() {
         return response != null;
+    }        
+
+    @Override
+    public String toString() {
+        return "SearchTemplateResponse [source=" + source + ", response=" + response + "]";
     }
 
     @Override

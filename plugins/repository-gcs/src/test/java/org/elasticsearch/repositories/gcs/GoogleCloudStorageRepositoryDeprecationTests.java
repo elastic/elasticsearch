@@ -20,14 +20,15 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.storage.Storage;
+
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
@@ -39,21 +40,19 @@ public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
             .put("http.read_timeout", "10s")
             .put("http.connect_timeout", "20s")
             .build();
-
         final RepositoryMetaData repositoryMetaData = new RepositoryMetaData("test", "gcs", repositorySettings);
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-
         new GoogleCloudStorageRepository(repositoryMetaData, environment, NamedXContentRegistry.EMPTY,
-            new GoogleCloudStorageService(environment, GoogleCloudStorageClientSettings.load(Settings.EMPTY)) {
-                @Override
-                public Storage createClient(String clientName, String application, TimeValue connect, TimeValue read) throws Exception {
-                    return new MockStorage("test", new ConcurrentHashMap<>());
-                }
-            });
+                new GoogleCloudStorageService() {
+                    @Override
+                    public Storage client(String clientName) throws IOException {
+                        return new MockStorage("test", new ConcurrentHashMap<>());
+                    }
+                });
 
         assertWarnings(
-            "Setting [application_name] in repository settings is deprecated, it must be specified in the client settings instead",
-            "Setting [http.read_timeout] in repository settings is deprecated, it must be specified in the client settings instead",
-            "Setting [http.connect_timeout] in repository settings is deprecated, it must be specified in the client settings instead");
+                "Setting [application_name] in repository settings is deprecated, it must be specified in the client settings instead",
+                "Setting [http.read_timeout] in repository settings is deprecated, it must be specified in the client settings instead",
+                "Setting [http.connect_timeout] in repository settings is deprecated, it must be specified in the client settings instead");
     }
 }

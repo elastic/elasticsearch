@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
@@ -29,7 +30,6 @@ import org.junit.Before;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
@@ -46,7 +46,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null,
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         action = new TransportGetRoleMappingsAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),

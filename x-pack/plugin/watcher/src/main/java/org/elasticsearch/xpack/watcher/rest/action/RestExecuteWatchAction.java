@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -42,6 +43,8 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
 
 public class RestExecuteWatchAction extends WatcherRestHandler implements RestRequestFilter {
+    private static final Logger logger = LogManager.getLogger(RestExecuteWatchAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private static final List<String> RESERVED_FIELD_NAMES = Arrays.asList(WatchField.TRIGGER.getPreferredName(),
             WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),

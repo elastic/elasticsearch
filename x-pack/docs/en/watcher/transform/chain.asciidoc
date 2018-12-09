@@ -33,6 +33,7 @@ following snippet:
   ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The `chain` transform definition
 <2> The first transform in the chain (in this case, a `search` transform)
 <3> The second and final transform in the chain (in this case, a `script`

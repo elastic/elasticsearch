@@ -66,6 +66,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         String routing = null;
         String indexRouting = null;
         String searchRouting = null;
+        Boolean writeIndex = null;
 
         if (request.hasContent()) {
             try (XContentParser parser = request.contentParser()) {
@@ -90,6 +91,8 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                         } else if ("searchRouting".equals(currentFieldName)
                                 || "search-routing".equals(currentFieldName) || "search_routing".equals(currentFieldName)) {
                             searchRouting = parser.textOrNull();
+                        } else if ("is_write_index".equals(currentFieldName)) {
+                            writeIndex = parser.booleanValue();
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("filter".equals(currentFieldName)) {
@@ -116,6 +119,9 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         }
         if (filter != null) {
             aliasAction.filter(filter);
+        }
+        if (writeIndex != null) {
+            aliasAction.writeIndex(writeIndex);
         }
         indicesAliasesRequest.addAliasAction(aliasAction);
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));

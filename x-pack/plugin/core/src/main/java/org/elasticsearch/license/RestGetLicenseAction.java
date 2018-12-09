@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.inject.Inject;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -26,13 +29,13 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetLicenseAction extends XPackRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestGetLicenseAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    @Inject
     public RestGetLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(GET,  URI_BASE + "/license", this,
-                                                 GET, "/_license", deprecationLogger);
+        controller.registerHandler(GET,  URI_BASE + "/license", this);
+        controller.registerHandler(GET,  "/_license", this);
 
         // Remove _licenses support entirely in 6.0
         controller.registerAsDeprecatedHandler(GET, "/_licenses", this,

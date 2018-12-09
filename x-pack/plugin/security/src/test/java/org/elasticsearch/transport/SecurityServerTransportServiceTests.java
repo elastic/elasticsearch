@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.transport;
 
-import java.util.Map;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -24,15 +22,13 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
 
     public void testSecurityServerTransportServiceWrapsAllHandlers() {
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
-                RequestHandlerRegistry handler = entry.getValue();
-                assertEquals(
-                        "handler not wrapped by " + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class +
-                                "; do all the handler registration methods have overrides?",
-                        handler.toString(),
-                        "ProfileSecuredRequestHandler{action='" + handler.getAction() + "', executorName='" + handler.getExecutor()
-                                + "', forceExecution=" + handler.isForceExecution() + "}");
-            }
+            RequestHandlerRegistry handler = transportService.transport.getRequestHandler(TransportService.HANDSHAKE_ACTION_NAME);
+            assertEquals(
+                    "handler not wrapped by " + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class +
+                            "; do all the handler registration methods have overrides?",
+                    handler.toString(),
+                    "ProfileSecuredRequestHandler{action='" + handler.getAction() + "', executorName='" + handler.getExecutor()
+                            + "', forceExecution=" + handler.isForceExecution() + "}");
         }
     }
 }

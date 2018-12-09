@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -13,7 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashSet;
 
 import static org.hamcrest.Matchers.arrayContaining;

@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Builds the graphs of objects that make up your application. The injector tracks the dependencies

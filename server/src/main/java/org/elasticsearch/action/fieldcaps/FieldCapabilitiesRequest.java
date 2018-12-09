@@ -123,7 +123,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     /**
-     *
      * The list of indices to lookup
      */
     public FieldCapabilitiesRequest indices(String... indices) {

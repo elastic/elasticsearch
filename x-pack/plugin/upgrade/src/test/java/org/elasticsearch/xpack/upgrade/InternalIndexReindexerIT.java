@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.upgrade;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;

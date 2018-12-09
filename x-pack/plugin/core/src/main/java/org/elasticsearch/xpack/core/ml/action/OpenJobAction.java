@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,15 +23,15 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
+public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedResponse, OpenJobAction.RequestBuilder> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
@@ -46,8 +47,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -131,13 +132,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    public static class JobParams implements PersistentTaskParams {
+    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, JobParams::new);
+        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, JobParams::new);
 
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
@@ -241,43 +242,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         public String toString() {
             return Strings.toString(this);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AcknowledgedResponse that = (AcknowledgedResponse) o;
-            return isAcknowledged() == that.isAcknowledged();
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());
@@ -287,10 +259,15 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     public interface JobTaskMatcher {
 
         static boolean match(Task task, String expectedJobId) {
-            String expectedDescription = "job-" + expectedJobId;
-            return task instanceof JobTaskMatcher && expectedDescription.equals(task.getDescription());
+            if (task instanceof JobTaskMatcher) {
+                if (MetaData.ALL.equals(expectedJobId)) {
+                    return true;
+                }
+                String expectedDescription = "job-" + expectedJobId;
+                return expectedDescription.equals(task.getDescription());
+            }
+            return false;
         }
     }
-
 
 }

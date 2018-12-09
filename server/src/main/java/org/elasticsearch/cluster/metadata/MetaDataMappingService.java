@@ -20,25 +20,24 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -59,7 +58,9 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting mapping changes
  */
-public class MetaDataMappingService extends AbstractComponent {
+public class MetaDataMappingService {
+
+    private static final Logger logger = LogManager.getLogger(MetaDataMappingService.class);
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -69,8 +70,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
 
     @Inject
-    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
-        super(settings);
+    public MetaDataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -211,8 +211,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest>
+        execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
@@ -301,6 +301,7 @@ public class MetaDataMappingService extends AbstractComponent {
             MetaData.Builder builder = MetaData.builder(metaData);
             boolean updated = false;
             for (IndexMetaData indexMetaData : updateList) {
+                boolean updatedMapping = false;
                 // do the actual merge here on the master, and update the mapping source
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetaData.getIndex();
@@ -310,14 +311,15 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource,
+                    MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
                     if (existingSource.equals(updatedSource)) {
                         // same source, no changes, ignore it
                     } else {
-                        updated = true;
+                        updatedMapping = true;
                         // use the merged mapping source
                         if (logger.isDebugEnabled()) {
                             logger.debug("{} update_mapping [{}] with source [{}]", index, mergedMapper.type(), updatedSource);
@@ -327,7 +329,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     }
                 } else {
-                    updated = true;
+                    updatedMapping = true;
                     if (logger.isDebugEnabled()) {
                         logger.debug("{} create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
                     } else if (logger.isInfoEnabled()) {
@@ -341,7 +343,16 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (DocumentMapper mapper : mapperService.docMappers(true)) {
                     indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                 }
+                if (updatedMapping) {
+                    indexMetaDataBuilder.mappingVersion(1 + indexMetaDataBuilder.mappingVersion());
+                }
+                /*
+                 * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
+                 * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
+                 * statement.
+                 */
                 builder.put(indexMetaDataBuilder);
+                updated |= updatedMapping;
             }
             if (updated) {
                 return ClusterState.builder(currentState).metaData(builder).build();

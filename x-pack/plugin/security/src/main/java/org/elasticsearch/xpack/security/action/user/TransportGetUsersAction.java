@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore usersStore;
     private final ReservedRealm reservedRealm;
 
@@ -42,6 +43,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                                    TransportService transportService, ReservedRealm reservedRealm) {
         super(settings, GetUsersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 GetUsersRequest::new);
+        this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
@@ -32,17 +33,15 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -57,21 +56,24 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-public class PluginsService extends AbstractComponent {
+public class PluginsService {
 
+    private static final Logger logger = LogManager.getLogger(PluginsService.class);
+
+    private final Settings settings;
     private final Path configPath;
 
     /**
@@ -79,6 +81,7 @@ public class PluginsService extends AbstractComponent {
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
+
     public static final Setting<List<String>> MANDATORY_SETTING =
         Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
@@ -98,8 +101,7 @@ public class PluginsService extends AbstractComponent {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings);
-
+        this.settings = settings;
         this.configPath = configPath;
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
@@ -196,6 +198,7 @@ public class PluginsService extends AbstractComponent {
 
     public Settings updatedSettings() {
         Map<String, String> foundSettings = new HashMap<>();
+        final Map<String, String> features = new TreeMap<>();
         final Settings.Builder builder = Settings.builder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
@@ -207,6 +210,23 @@ public class PluginsService extends AbstractComponent {
                 }
             }
             builder.put(settings);
+            final Optional<String> maybeFeature = plugin.v2().getFeature();
+            if (maybeFeature.isPresent()) {
+                final String feature = maybeFeature.get();
+                if (features.containsKey(feature)) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "duplicate feature [%s] in plugin [%s], already added in [%s]",
+                            feature,
+                            plugin.v1().getName(),
+                            features.get(feature));
+                    throw new IllegalArgumentException(message);
+                }
+                features.put(feature, plugin.v1().getName());
+            }
+        }
+        for (final String feature : features.keySet()) {
+            builder.put(TcpTransport.FEATURE_PREFIX + "." + feature, true);
         }
         return builder.put(this.settings).build();
     }
@@ -366,7 +386,7 @@ public class PluginsService extends AbstractComponent {
 
     // get a bundle for a single plugin dir
     private static Bundle readPluginBundle(final Set<Bundle> bundles, final Path plugin, String type) throws IOException {
-        Loggers.getLogger(PluginsService.class).trace("--- adding [{}] [{}]", type, plugin.toAbsolutePath());
+        LogManager.getLogger(PluginsService.class).trace("--- adding [{}] [{}]", type, plugin.toAbsolutePath());
         final PluginInfo info;
         try {
             info = PluginInfo.readFromProperties(plugin);
@@ -456,7 +476,7 @@ public class PluginsService extends AbstractComponent {
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
         try {
-            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            final Logger logger = LogManager.getLogger(JarHell.class);
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);

@@ -42,10 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

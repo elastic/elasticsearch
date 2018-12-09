@@ -69,26 +69,29 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         public final Field seqNo;
         public final Field seqNoDocValue;
         public final Field primaryTerm;
+        public final Field tombstoneField;
 
-        public SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm) {
+        public SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
             Objects.requireNonNull(seqNo, "sequence number field cannot be null");
             Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
             Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
             this.seqNo = seqNo;
             this.seqNoDocValue = seqNoDocValue;
             this.primaryTerm = primaryTerm;
+            this.tombstoneField = tombstoneField;
         }
 
         public static SequenceIDFields emptySeqID() {
             return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                     new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
+                    new NumericDocValuesField(PRIMARY_TERM_NAME, 0), new NumericDocValuesField(TOMBSTONE_NAME, 0));
         }
     }
 
     public static final String NAME = "_seq_no";
     public static final String CONTENT_TYPE = "_seq_no";
     public static final String PRIMARY_TERM_NAME = "_primary_term";
+    public static final String TOMBSTONE_NAME = "_tombstone";
 
     public static class SeqNoDefaults {
         public static final String NAME = SeqNoFieldMapper.NAME;
@@ -239,9 +242,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // fields are added in parseCreateField
-        return null;
     }
 
     @Override

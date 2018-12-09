@@ -125,32 +125,22 @@ Closure commonPackageConfig(String type, boolean oss) {
         fileMode 0644
       }
       into('lib') {
-        with copySpec {
-          with libFiles
-          // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
-          eachFile { FileCopyDetails fcp ->
-            String[] segments = fcp.relativePath.segments
-            for (int i = segments.length - 2; i > 0 && segments[i] != 'lib'; --i) {
-              directory('/' + segments[0..i].join('/'), 0755)
-            }
-            fcp.mode = 0644
-          }
-        }
+          with libFiles(oss)
       }
       into('modules') {
-        with copySpec {
-          with modulesFiles(oss)
-          // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
-          eachFile { FileCopyDetails fcp ->
-            String[] segments = fcp.relativePath.segments
-            for (int i = segments.length - 2; i > 0 && segments[i] != 'modules'; --i) {
-              directory('/' + segments[0..i].join('/'), 0755)
-            }
-            if (segments[-2] == 'bin') {
-              fcp.mode = 0755
-            } else {
-              fcp.mode = 0644
-            }
+        with modulesFiles(oss)
+      }
+      // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
+      // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
+      // directory are fine
+      eachFile { FileCopyDetails fcp ->
+        String[] segments = fcp.relativePath.segments
+        for (int i = segments.length - 2; i > 2; --i) {
+          directory('/' + segments[0..i].join('/'), 0755)
+          if (segments[-2] == 'bin') {
+            fcp.mode = 0755
+          } else {
+            fcp.mode = 0644
           }
         }
       }
@@ -177,6 +167,12 @@ Closure commonPackageConfig(String type, boolean oss) {
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
+    if (oss == false) {
+      configurationFile '/etc/elasticsearch/role_mapping.yml'
+      configurationFile '/etc/elasticsearch/roles.yml'
+      configurationFile '/etc/elasticsearch/users'
+      configurationFile '/etc/elasticsearch/users_roles'
+    }
     into('/etc/elasticsearch') {
       dirMode 0750
       fileMode 0660
@@ -334,12 +330,6 @@ Closure commonRpmConfig(boolean oss) {
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
     addParentDirs false
-
-    // Declare the folders so that the RPM package manager removes
-    // them when upgrading or removing the package
-    directory('/usr/share/elasticsearch/bin', 0755)
-    directory('/usr/share/elasticsearch/lib', 0755)
-    directory('/usr/share/elasticsearch/modules', 0755)
   }
 }
 
@@ -370,7 +360,7 @@ subprojects {
 
   // sanity checks if packages can be extracted
   final File extractionDir = new File(buildDir, 'extracted')
-  final File packageExtractionDir
+  File packageExtractionDir
   if (project.name.contains('deb')) {
     packageExtractionDir = new File(extractionDir, 'deb-extracted')
   } else {
@@ -417,9 +407,9 @@ subprojects {
     checkLicense {
       onlyIf dpkgExists
       doLast {
-        final Path copyrightPath
-        final String expectedLicense
-        final String licenseFilename
+        Path copyrightPath
+        String expectedLicense
+        String licenseFilename
         if (project.name.contains('oss-')) {
           copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
           expectedLicense = "ASL-2.0"
@@ -442,7 +432,7 @@ subprojects {
     checkLicense {
       onlyIf rpmExists
       doLast {
-        final String licenseFilename
+        String licenseFilename
         if (project.name.contains('oss-')) {
           licenseFilename = "APACHE-LICENSE-2.0.txt"
         } else {
@@ -477,7 +467,7 @@ subprojects {
       exec.commandLine 'dpkg-deb', '--info', "${ -> buildDist.outputs.files.filter(debFilter).singleFile}"
       exec.standardOutput = output
       doLast {
-        final String expectedLicense
+        String expectedLicense
         if (project.name.contains('oss-')) {
           expectedLicense = "ASL-2.0"
         } else {
@@ -513,8 +503,8 @@ subprojects {
       exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.outputs.files.singleFile}"
       exec.standardOutput = output
       doLast {
-        final String license = output.toString('UTF-8')
-        final String expectedLicense
+        String license = output.toString('UTF-8')
+        String expectedLicense
         if (project.name.contains('oss-')) {
           expectedLicense = "ASL 2.0"
         } else {

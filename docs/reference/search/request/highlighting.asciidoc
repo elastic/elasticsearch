@@ -82,6 +82,10 @@ This highlighter can be used on fields with `term_vector` set to
   for things like phrase matches being sorted above term matches when
   highlighting a Boosting Query that boosts phrase matches over term matches
 
+[WARNING]
+The `fvh` highlighter does not support span queries. If you need support for
+span queries, try an alternative highlighter, such as the `unified` highlighter.
+
 [[offsets-strategy]]
 ==== Offsets Strategy
 To create meaningful search snippets from the terms being queried,
@@ -261,7 +265,6 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 * <<set-highlighter-type, Set highlighter type>>
 * <<configure-tags, Configure highlighting tags>>
 * <<highlight-source, Highlight source>>
-* <<highlight-all, Highlight all fields>>
 * <<matched-fields, Combine matches on multiple fields>>
 * <<explicit-field-order, Explicitly order highlighted fields>>
 * <<control-highlighted-frags, Control highlighted fragments>>
@@ -478,32 +481,6 @@ GET /_search
     "highlight" : {
         "fields" : {
             "comment" : {"force_source" : true}
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-
-[[highlight-all]]
-[float]
-=== Highlight in all fields
-
-By default, only fields that contains a query match are highlighted. Set
-`require_field_match` to `false` to highlight all fields.
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "require_field_match": false,
-        "fields": {
-                "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
         }
     }
 }

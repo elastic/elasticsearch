@@ -198,10 +198,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        Exception e = expectThrows(RuntimeException.class,
-                () -> RollupResponseTranslator.combineResponses(msearch,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
-        assertThat(e.getMessage(), equalTo("Expected to find aggregations in rollup response, but none found."));
+        SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
+            new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
+        assertNotNull(response);
+        Aggregations responseAggs = response.getAggregations();
+        assertThat(responseAggs.asList().size(), equalTo(0));
     }
 
     public void testMissingRolledIndex() {
@@ -442,8 +443,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         fieldType.setIndexOptions(IndexOptions.DOCS);
         fieldType.setName("foo");
         QueryBuilder filter = QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery("field", "foo"))
-                .should(QueryBuilders.termQuery("field", "bar"));
+                .filter(QueryBuilders.termQuery("field", "foo"))
+                .filter(QueryBuilders.termQuery("field", "bar"));
         SignificantTermsAggregationBuilder builder = new SignificantTermsAggregationBuilder(
                 "test", ValueType.STRING)
                 .field("field")
@@ -508,10 +509,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
-        Exception e = expectThrows(RuntimeException.class,
+        ClassCastException e = expectThrows(ClassCastException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch, reduceContext));
-        assertThat(e.getMessage(), equalTo("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds " +
-                "cannot be cast to org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
+        assertThat(e.getMessage(),
+            containsString("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds"));
+        assertThat(e.getMessage(),
+            containsString("org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
     }
 
     public void testDateHisto() throws IOException {
@@ -1078,6 +1081,54 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MappedFieldType[]{nrFTterm}, new MappedFieldType[]{rFTterm, rFTvalue});
 
         InternalAggregation unrolled = RollupResponseTranslator.unrollAgg(responses.get(1), null, null, 0);
+        assertThat(unrolled.toString(), equalTo(responses.get(0).toString()));
+        assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
+    }
+
+    public void testStringTermsNullValue() throws IOException {
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+            .field("stringField");
+
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+            .field("stringfield.terms." + RollupField.VALUE)
+            .subAggregation(new SumAggregationBuilder("terms." + COUNT_FIELD)
+                .field("stringfield.terms." + RollupField.COUNT_FIELD));
+
+        KeywordFieldMapper.Builder nrBuilder = new KeywordFieldMapper.Builder("terms");
+        KeywordFieldMapper.KeywordFieldType nrFTterm = nrBuilder.fieldType();
+        nrFTterm.setHasDocValues(true);
+        nrFTterm.setName(nonRollupTerms.field());
+
+        KeywordFieldMapper.Builder rBuilder = new KeywordFieldMapper.Builder("terms");
+        KeywordFieldMapper.KeywordFieldType rFTterm = rBuilder.fieldType();
+        rFTterm.setHasDocValues(true);
+        rFTterm.setName(rollupTerms.field());
+
+        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("terms." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
+        MappedFieldType rFTvalue = valueBuilder.fieldType();
+        rFTvalue.setHasDocValues(true);
+        rFTvalue.setName("stringfield.terms." + RollupField.COUNT_FIELD);
+
+        List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(stringValueDoc("abc"));
+                iw.addDocument(stringValueDoc("abc"));
+                iw.addDocument(stringValueDoc("abc"));
+
+                // off target
+                Document doc = new Document();
+                doc.add(new SortedSetDocValuesField("otherField", new BytesRef("other")));
+                iw.addDocument(doc);
+            }, nonRollupTerms,
+            iw -> {
+                iw.addDocument(stringValueRollupDoc("abc", 3));
+            }, rollupTerms,
+            new MappedFieldType[]{nrFTterm}, new MappedFieldType[]{rFTterm, rFTvalue});
+
+        InternalAggregation unrolled = RollupResponseTranslator.unrollAgg(responses.get(1), null, null, 0);
+
+        // The null_value placeholder should be removed from the response and not visible here
         assertThat(unrolled.toString(), equalTo(responses.get(0).toString()));
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }

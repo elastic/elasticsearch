@@ -32,17 +32,20 @@ public class DocsTestPlugin extends RestTestPlugin {
     public void apply(Project project) {
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
         super.apply(project)
+        // The distribution can be configured with -Dtests.distribution on the command line
+        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'zip')
         // Docs are published separately so no need to assemble
-        project.tasks.remove(project.assemble)
-        project.build.dependsOn.remove('assemble')
+        project.tasks.assemble.enabled = false
         Map<String, String> defaultSubstitutions = [
             /* These match up with the asciidoc syntax for substitutions but
              * the values may differ. In particular {version} needs to resolve
              * to the version being built for testing but needs to resolve to
              * the last released version for docs. */
             '\\{version\\}':
-                VersionProperties.elasticsearch.toString().replace('-SNAPSHOT', ''),
+                VersionProperties.elasticsearch.replace('-SNAPSHOT', ''),
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
+            '\\{build_flavor\\}' :
+                project.integTestCluster.distribution.startsWith('oss-') ? 'oss' : 'default',
         ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)
         listSnippets.group 'Docs'

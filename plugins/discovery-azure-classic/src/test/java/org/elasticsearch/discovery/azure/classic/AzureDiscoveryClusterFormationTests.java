@@ -24,10 +24,10 @@ import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -40,6 +40,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -86,6 +88,14 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     }
 
     private static Path keyStoreFile;
+
+    @ClassRule
+    public static final ExternalResource MUTE_IN_FIPS_JVM = new ExternalResource() {
+        @Override
+        protected void before() {
+            assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
+        }
+    };
 
     @BeforeClass
     public static void setupKeyStore() throws IOException {
@@ -233,7 +243,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
                 responseBody.write(responseAsBytes);
                 responseBody.close();
             } catch (XMLStreamException e) {
-                Loggers.getLogger(AzureDiscoveryClusterFormationTests.class).error("Failed serializing XML", e);
+                LogManager.getLogger(AzureDiscoveryClusterFormationTests.class).error("Failed serializing XML", e);
                 throw new RuntimeException(e);
             }
         });

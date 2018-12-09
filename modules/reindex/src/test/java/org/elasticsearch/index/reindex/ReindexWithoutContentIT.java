@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -30,7 +31,7 @@ public class ReindexWithoutContentIT extends ESRestTestCase {
 
     public void testReindexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
-                "POST", "/_reindex"));
+                new Request("POST", "/_reindex")));
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
         assertThat(responseException.getMessage(), containsString("request body is required"));
     }

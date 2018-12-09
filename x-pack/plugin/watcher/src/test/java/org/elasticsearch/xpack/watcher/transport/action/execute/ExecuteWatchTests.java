@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.transport.action.execute;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
@@ -259,7 +259,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         }
 
         if (mode.force()) {
-            // since we're forcing, lets ack the action, such that it'd suppoed to be throttled
+            // since we're forcing, lets ack the action, such that it'd supposed to be throttled
             // but forcing will ignore the throttling
 
             // lets wait for the watch to be ackable

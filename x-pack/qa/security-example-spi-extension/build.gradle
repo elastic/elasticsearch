@@ -8,7 +8,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'runtime')
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 
@@ -27,6 +27,7 @@ integTestCluster {
   setting 'xpack.security.authc.realms.native.type', 'native'
   setting 'xpack.security.authc.realms.native.order', '2'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

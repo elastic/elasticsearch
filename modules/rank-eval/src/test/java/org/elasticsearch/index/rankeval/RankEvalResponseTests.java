@@ -102,7 +102,7 @@ public class RankEvalResponseTests extends ESTestCase {
             try (StreamInput in = output.bytes().streamInput()) {
                 RankEvalResponse deserializedResponse = new RankEvalResponse();
                 deserializedResponse.readFrom(in);
-                assertEquals(randomResponse.getEvaluationResult(), deserializedResponse.getEvaluationResult(), Double.MIN_VALUE);
+                assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), Double.MIN_VALUE);
                 assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
                 assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
                 assertNotSame(randomResponse, deserializedResponse);
@@ -130,7 +130,7 @@ public class RankEvalResponseTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         // We cannot check equality of object here because some information (e.g.
         // SearchHit#shard)  cannot fully be parsed back.
-        assertEquals(testItem.getEvaluationResult(), parsedItem.getEvaluationResult(), 0.0);
+        assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
         assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
         for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
             EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
@@ -154,11 +154,11 @@ public class RankEvalResponseTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
         assertEquals(("{" +
-                "    \"quality_level\": 0.123," +
+                "    \"metric_score\": 0.123," +
                 "    \"details\": {" +
                 "        \"coffee_query\": {" +
-                "            \"quality_level\": 0.1," +
-                "            \"unknown_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
+                "            \"metric_score\": 0.1," +
+                "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
                 "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
                 "                       \"rating\":5}," +
                 "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +

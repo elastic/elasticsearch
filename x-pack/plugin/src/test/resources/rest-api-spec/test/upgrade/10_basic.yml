@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      version: "all"
-      reason: "AwaitsFix'ing, see x-pack-elasticsearch #4197"
   - do:
       xpack.license.post:
         body: >

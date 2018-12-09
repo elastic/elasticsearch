@@ -9,8 +9,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.ssl.SSLContextBuilder;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,14 +25,10 @@ import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
-import javax.security.auth.x500.X500Principal;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +36,6 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
 import java.security.KeyManagementException;
-import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -51,7 +44,8 @@ import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -85,16 +79,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests reloading a keystore that is used in the KeyManager of SSLContext
      */
     public void testReloadingKeyStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         final Path tempDir = createTempDir();
         final Path keystorePath = tempDir.resolve("testnode.jks");
+        final Path updatedKeystorePath = tempDir.resolve("testnode_updated.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"), updatedKeystorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         final Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.ssl.keystore.path", keystorePath)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.ssl.keystore.path", keystorePath)
+            .setSecureSettings(secureSettings)
+            .build();
         final Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         //Load HTTPClient only once. Client uses the same store as a truststore
         try (CloseableHttpClient client = getSSLClient(keystorePath, "testnode")) {
@@ -110,22 +107,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    // modify the keystore that the KeyManager uses
-                    KeyStore keyStore = KeyStore.getInstance("jks");
-                    keyStore.load(null, null);
-                    final KeyPair keyPair = CertUtils.generateKeyPair(512);
-                    X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=localhost"), null, keyPair,
-                        null, null, 365);
-                    keyStore.setKeyEntry("key", keyPair.getPrivate(), "testnode".toCharArray(), new X509Certificate[]{cert});
-                    Path updated = tempDir.resolve("updated.jks");
-                    try (OutputStream out = Files.newOutputStream(updated)) {
-                        keyStore.store(out, "testnode".toCharArray());
-                    }
-                    atomicMoveIfPossible(updated, keystorePath);
+                    atomicMoveIfPossible(updatedKeystorePath, keystorePath);
                 } catch (Exception e) {
                     throw new RuntimeException("modification failed", e);
                 }
             };
+
             // The new server certificate is not in the client's truststore so SSLHandshake should fail
             final Consumer<SSLContext> keyMaterialPostChecks = (updatedContext) -> {
                 try (MockWebServer server = new MockWebServer(updatedContext, true)) {
@@ -133,7 +120,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     server.start();
                     SSLHandshakeException sslException = expectThrows(SSLHandshakeException.class, () ->
                         privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close()));
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path building failed"));
+                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
                 } catch (Exception e) {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
@@ -141,17 +128,18 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             validateSSLConfigurationIsReloaded(settings, env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
         }
     }
-
     /**
      * Tests the reloading of SSLContext when a PEM key and certificate are used.
      */
-    public void testPEMKeyCertConfigReloading() throws Exception {
-        final Path tempDir = createTempDir();
-        final Path keyPath = tempDir.resolve("testnode.pem");
-        final Path certPath = tempDir.resolve("testnode.crt");
-        final Path clientTruststorePath = tempDir.resolve("testnode.jks");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), clientTruststorePath);
+    public void testPEMKeyConfigReloading() throws Exception {
+        Path tempDir = createTempDir();
+        Path keyPath = tempDir.resolve("testnode.pem");
+        Path updatedKeyPath = tempDir.resolve("testnode_updated.pem");
+        Path certPath = tempDir.resolve("testnode.crt");
+        Path updatedCertPath = tempDir.resolve("testnode_updated.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), keyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), updatedKeyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCertPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
@@ -164,7 +152,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final Environment env = randomBoolean() ? null :
             TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         // Load HTTPClient once. Client uses a keystore containing testnode key/cert as a truststore
-        try (CloseableHttpClient client = getSSLClient(clientTruststorePath, "testnode")) {
+        try (CloseableHttpClient client = getSSLClient(Collections.singletonList(certPath))) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
                 try (MockWebServer server = new MockWebServer(context, false)) {
                     server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -176,27 +164,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             };
             final Runnable modifier = () -> {
                 try {
-                    final KeyPair keyPair = CertUtils.generateKeyPair(512);
-                    X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=localhost"), null, keyPair,
-                        null, null, 365);
-                    Path updatedKeyPath = tempDir.resolve("updated.pem");
-                    Path updatedCertPath = tempDir.resolve("updated.crt");
-                    try (OutputStream os = Files.newOutputStream(updatedKeyPath);
-                         OutputStreamWriter osWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8);
-                         JcaPEMWriter writer = new JcaPEMWriter(osWriter)) {
-                        writer.writeObject(keyPair,
-                                new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(CertUtils.BC_PROV).build("testnode".toCharArray()));
-                    }
-                    try (BufferedWriter out = Files.newBufferedWriter(updatedCertPath);
-                         JcaPEMWriter pemWriter = new JcaPEMWriter(out)) {
-                        pemWriter.writeObject(cert);
-                    }
                     atomicMoveIfPossible(updatedKeyPath, keyPath);
                     atomicMoveIfPossible(updatedCertPath, certPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
             };
+
             // The new server certificate is not in the client's truststore so SSLHandshake should fail
             final Consumer<SSLContext> keyMaterialPostChecks = (updatedContext) -> {
                 try (MockWebServer server = new MockWebServer(updatedContext, false)) {
@@ -204,12 +178,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     server.start();
                     SSLHandshakeException sslException = expectThrows(SSLHandshakeException.class, () ->
                         privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close()));
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path building failed"));
+                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
                 } catch (Exception e) {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-
             validateSSLConfigurationIsReloaded(settings, env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
         }
     }
@@ -219,9 +192,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
     public void testReloadingTrustStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
         Path trustStorePath = tempDir.resolve("testnode.jks");
+        Path updatedTruststorePath = tempDir.resolve("testnode_updated.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"),
+            updatedTruststorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -231,9 +208,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
-        try(MockWebServer server = getSslServer(trustStorePath, "testnode")){
+        try (MockWebServer server = getSslServer(trustStorePath, "testnode")) {
             final Consumer<SSLContext> trustMaterialPreChecks = (context) -> {
-                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()){
+                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
                     privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close());
                 } catch (Exception e) {
                     throw new RuntimeException("Error connecting to the mock server", e);
@@ -242,17 +219,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    Path updatedTrustStore = tempDir.resolve("updated.jks");
-                    KeyStore keyStore = KeyStore.getInstance("jks");
-                    keyStore.load(null, null);
-                    final KeyPair keyPair = CertUtils.generateKeyPair(512);
-                    X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=localhost"), null, keyPair,
-                        null, null, 365);
-                    keyStore.setKeyEntry("newKey", keyPair.getPrivate(), "testnode".toCharArray(), new Certificate[]{cert});
-                    try (OutputStream out = Files.newOutputStream(updatedTrustStore)) {
-                        keyStore.store(out, "testnode".toCharArray());
-                    }
-                    atomicMoveIfPossible(updatedTrustStore, trustStorePath);
+                    atomicMoveIfPossible(updatedTruststorePath, trustStorePath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
@@ -260,7 +227,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             // Client's truststore doesn't contain the server's certificate anymore so SSLHandshake should fail
             final Consumer<SSLContext> trustMaterialPostChecks = (updatedContext) -> {
-                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(updatedContext).build()){
+                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(updatedContext).build()) {
                     SSLHandshakeException sslException = expectThrows(SSLHandshakeException.class, () ->
                         privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close()));
                     assertThat(sslException.getCause().getMessage(), containsString("PKIX path building failed"));
@@ -268,29 +235,31 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }
             };
-
             validateSSLConfigurationIsReloaded(settings, env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
         }
     }
-
     /**
      * Test the reloading of SSLContext whose trust config is backed by PEM certificate files.
      */
     public void testReloadingPEMTrustConfig() throws Exception {
         Path tempDir = createTempDir();
-        Path clientCertPath = tempDir.resolve("testnode.crt");
-        Path keyStorePath = tempDir.resolve("testnode.jks");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keyStorePath);
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), clientCertPath);
+        Path serverCertPath = tempDir.resolve("testnode.crt");
+        Path serverKeyPath = tempDir.resolve("testnode.pem");
+        Path updatedCert = tempDir.resolve("updated.crt");
+        //Our keystore contains two Certificates it can present. One build from the RSA keypair and one build from the EC keypair. EC is
+        // used since it keyManager presents the first one in alias alphabetical order (and testnode_ec comes before testnode_rsa)
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), serverCertPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), serverKeyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCert);
         Settings settings = Settings.builder()
-                .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.ssl.certificate_authorities", serverCertPath)
+            .put("path.home", createTempDir())
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
-        try(MockWebServer server = getSslServer(keyStorePath, "testnode")){
+        try (MockWebServer server = getSslServer(serverKeyPath, serverCertPath, "testnode")) {
             final Consumer<SSLContext> trustMaterialPreChecks = (context) -> {
-                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()){
+                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
                     privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close());
                 } catch (Exception e) {
                     throw new RuntimeException("Exception connecting to the mock server", e);
@@ -299,30 +268,22 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    final KeyPair keyPair = CertUtils.generateKeyPair(512);
-                    X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=localhost"), null, keyPair,
-                        null, null, 365);
-                    Path updatedCertPath = tempDir.resolve("updated.crt");
-                    try (BufferedWriter out = Files.newBufferedWriter(updatedCertPath);
-                         JcaPEMWriter pemWriter = new JcaPEMWriter(out)) {
-                        pemWriter.writeObject(cert);
-                    }
-                    atomicMoveIfPossible(updatedCertPath, clientCertPath);
+                    atomicMoveIfPossible(updatedCert, serverCertPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
             };
+
             // Client doesn't trust the Server certificate anymore so SSLHandshake should fail
             final Consumer<SSLContext> trustMaterialPostChecks = (updatedContext) -> {
-                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(updatedContext).build()){
+                try (CloseableHttpClient client = HttpClients.custom().setSSLContext(updatedContext).build()) {
                     SSLHandshakeException sslException = expectThrows(SSLHandshakeException.class, () ->
                         privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close()));
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path building failed"));
+                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
                 } catch (Exception e) {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }
             };
-
             validateSSLConfigurationIsReloaded(settings, env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
         }
     }
@@ -332,20 +293,21 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * that is being monitored
      */
     public void testReloadingKeyStoreException() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
         Path keystorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", keystorePath)
-                .setSecureSettings(secureSettings)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.ssl.keystore.path", keystorePath)
+            .setSecureSettings(secureSettings)
+            .put("path.home", createTempDir())
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [keystore reload exception]");
@@ -377,16 +339,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.key", keyPath)
-                .put("xpack.ssl.certificate", certPath)
-                .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.key", keyPath)
+            .put("xpack.ssl.certificate", certPath)
+            .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem key reload exception]");
@@ -414,14 +376,14 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.truststore.path", trustStorePath)
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.truststore.path", trustStorePath)
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [truststore reload exception]");
@@ -447,13 +409,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-                .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
-                .put("path.home", createTempDir())
-                .build();
+            .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
+            .put("path.home", createTempDir())
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem trust reload exception]");
@@ -471,18 +433,18 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         // we intentionally don't wait here as we rely on concurrency to catch a failure
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
-    }
 
+    }
     private void validateSSLConfigurationIsReloaded(Settings settings, Environment env,
                                                     Consumer<SSLContext> preChecks,
                                                     Runnable modificationFunction,
                                                     Consumer<SSLContext> postChecks)
-                                                    throws Exception {
+        throws Exception {
 
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 super.reloadSSLContext(configuration);
@@ -512,10 +474,24 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private static MockWebServer getSslServer(Path keyStorePath, String keyStorePass) throws KeyStoreException, CertificateException,
         NoSuchAlgorithmException, IOException, KeyManagementException, UnrecoverableKeyException {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        try(InputStream is = Files.newInputStream(keyStorePath)) {
+        try (InputStream is = Files.newInputStream(keyStorePath)) {
             keyStore.load(is, keyStorePass.toCharArray());
         }
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keyStorePass.toCharArray())
+            .build();
+        MockWebServer server = new MockWebServer(sslContext, false);
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        server.start();
+        return server;
+    }
+
+    private static MockWebServer getSslServer(Path keyPath, Path certPath, String password) throws KeyStoreException, CertificateException,
+        NoSuchAlgorithmException, IOException, KeyManagementException, UnrecoverableKeyException {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, password.toCharArray());
+        keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
+            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, password.toCharArray())
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -527,8 +503,25 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         NoSuchAlgorithmException,
         KeyManagementException, IOException, CertificateException {
         KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        try(InputStream is = Files.newInputStream(trustStorePath)) {
+        try (InputStream is = Files.newInputStream(trustStorePath)) {
             trustStore.load(is, trustStorePass.toCharArray());
+        }
+        final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
+        return HttpClients.custom().setSSLContext(sslContext).build();
+    }
+
+    /**
+     * Creates a {@link CloseableHttpClient} that only trusts the given certificate(s)
+     *
+     * @param trustedCertificatePaths The certificates this client trusts
+     **/
+    private static CloseableHttpClient getSSLClient(List<Path> trustedCertificatePaths) throws KeyStoreException,
+        NoSuchAlgorithmException,
+        KeyManagementException, IOException, CertificateException {
+        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        trustStore.load(null, null);
+        for (Certificate cert : CertParsingUtils.readCertificates(trustedCertificatePaths)) {
+            trustStore.setCertificateEntry(cert.toString(), cert);
         }
         final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
         return HttpClients.custom().setSSLContext(sslContext).build();
@@ -544,5 +537,4 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             throw (Exception) e.getCause();
         }
     }
-
 }

@@ -61,6 +61,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -111,6 +112,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
@@ -137,6 +139,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         PathUtilsForTesting.installMock(fs);
         javaIoTmpdir = System.getProperty("java.io.tmpdir");
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
+    }
+
+    @BeforeClass
+    public static void testIfFipsMode() {
+        assumeFalse("Can't run in a FIPS JVM because this depends on BouncyCastle (non-fips)", inFipsJvm());
     }
 
     @Override
@@ -720,7 +727,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env.v2());
     }
 
-    public void testOfficialPluginsHelpSorted() throws Exception {
+    public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
         MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand() {
             @Override
@@ -743,6 +750,9 @@ public class InstallPluginCommandTests extends ESTestCase {
                 assertTrue(prev + " < " + line, prev.compareTo(line) < 0);
                 prev = line;
                 line = reader.readLine();
+                // qa is not really a plugin and it shouldn't sneak in
+                assertThat(line, not(endsWith("qa")));
+                assertThat(line, not(endsWith("example")));
             }
         }
     }

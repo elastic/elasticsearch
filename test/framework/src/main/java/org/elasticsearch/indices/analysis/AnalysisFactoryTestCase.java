@@ -24,13 +24,11 @@ import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
@@ -68,7 +66,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
         StringBuffer sb = new StringBuffer();
         while (m.find()) {
-            m.appendReplacement(sb, m.group(1).toUpperCase());
+            m.appendReplacement(sb, m.group(1).toUpperCase(Locale.ROOT));
         }
         m.appendTail(sb);
         sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
@@ -79,7 +77,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // exposed in ES
         .put("classic", MovedToAnalysisCommon.class)
         .put("edgengram", MovedToAnalysisCommon.class)
-        .put("keyword", KeywordTokenizerFactory.class)
+        .put("keyword", MovedToAnalysisCommon.class)
         .put("letter", MovedToAnalysisCommon.class)
         .put("lowercase", MovedToAnalysisCommon.class)
         .put("ngram", MovedToAnalysisCommon.class)
@@ -168,7 +166,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("soraninormalization",       MovedToAnalysisCommon.class)
         .put("soranistem",                MovedToAnalysisCommon.class)
         .put("spanishlightstem",          MovedToAnalysisCommon.class)
-        .put("standard",                  StandardTokenFilterFactory.class)
+        .put("standard",                  Deprecated.class)
         .put("stemmeroverride",           MovedToAnalysisCommon.class)
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          MovedToAnalysisCommon.class)
@@ -217,9 +215,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // should we expose it, or maybe think about higher level integration of the
         // fake term frequency feature (LUCENE-7854)
         .put("delimitedtermfrequency",    Void.class)
-        // LUCENE-8273: ConditionalTokenFilter allows analysis chains to skip
+        // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
         // particular token filters based on the attributes of the current token.
-        .put("termexclusion", Void.class)
+        .put("protectedterm", Void.class)
+        // LUCENE-8332
+        .put("concatenategraph", Void.class)
 
         .immutableMap();
 

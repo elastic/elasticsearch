@@ -19,21 +19,18 @@
 
 package org.elasticsearch.test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
@@ -225,6 +222,13 @@ public class VersionUtils {
     public static Version incompatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
         assert opt.isPresent() : "no future incompatible version for " + version;
+        return opt.get();
+    }
+
+    /** returns the first future compatible version */
+    public static Version compatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
+        assert opt.isPresent() : "no future compatible version for " + version;
         return opt.get();
     }
 

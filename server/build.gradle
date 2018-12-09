@@ -17,9 +17,7 @@
  * under the License.
  */
 
-
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
@@ -58,13 +56,12 @@ if (!isEclipse && !isIdea) {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
-  
-  /* Enable this when forbiddenapis was updated to 2.6.
-   * See: https://github.com/elastic/elasticsearch/issues/29292
+
   forbiddenApisJava9 {
-    targetCompatibility = 9
+    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+    }
   }
-  */
 
   jar {
     metaInf {
@@ -106,7 +103,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.9.9'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
@@ -156,6 +153,19 @@ if (isEclipse) {
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+task testScriptDocValuesMissingV7Behaviour(type: RandomizedTestingTask) {
+  include '**/ScriptDocValuesMissingV7BehaviourTests.class'
+  systemProperty 'es.scripting.exception_for_missing_value', 'true'
+  classpath = tasks.test.classpath
+  testClassesDirs = tasks.test.testClassesDirs
+}
+check.dependsOn(testScriptDocValuesMissingV7Behaviour)
+
+test {
+  // these are tested explicitly in separate test tasks
+  exclude '**/*ScriptDocValuesMissingV7BehaviourTests.class'
+}
+
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
@@ -175,9 +185,9 @@ task generateModulesList {
 }
 
 task generatePluginsList {
-  List<String> plugins = project(':plugins').subprojects
-    .findAll { it.name.contains('example') == false }
-    .collect { it.name }
+  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+  plugins.remove('example')
+
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
   processResources.from(pluginsFile)
   inputs.property('plugins', plugins)
@@ -220,7 +230,6 @@ thirdPartyAudit.excludes = [
   'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
   'com.fasterxml.jackson.dataformat.xml.XmlMapper',
   'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-  'com.fasterxml.jackson.databind.node.JsonNodeFactory',
   'com.fasterxml.jackson.databind.node.ObjectNode',
   'org.fusesource.jansi.Ansi',
   'org.fusesource.jansi.AnsiRenderer$Code',
@@ -262,12 +271,6 @@ thirdPartyAudit.excludes = [
   'javax.mail.internet.MimeMultipart',
   'javax.mail.internet.MimeUtility',
   'javax.mail.util.ByteArrayDataSource',
-  'javax.persistence.AttributeConverter',
-  'javax.persistence.EntityManager',
-  'javax.persistence.EntityManagerFactory',
-  'javax.persistence.EntityTransaction',
-  'javax.persistence.Persistence',
-  'javax.persistence.PersistenceException',
   'org.apache.commons.compress.compressors.CompressorStreamFactory',
   'org.apache.commons.compress.utils.IOUtils',
   'org.apache.commons.csv.CSVFormat',
@@ -311,7 +314,7 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2LatLng',
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
 }
 
@@ -330,11 +333,21 @@ if (isEclipse == false || project.path == ":server-tests") {
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
                  dependsOn: test.dependsOn) {
-    configure(BuildPlugin.commonTestConfig(project))
-    classpath = project.test.classpath
-    testClassesDir = project.test.testClassesDir
     include '**/*IT.class'
   }
-  check.dependsOn integTest
-  integTest.mustRunAfter test
+}
+// TODO: remove these compatibility tests in 7.0
+task testScriptedMetricAggParamsV6Compatibility(type: RandomizedTestingTask) {
+  include '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
+  include '**/InternalScriptedMetricAggStateV6CompatTests.class'
+  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'true'
+  classpath = tasks.test.classpath
+  testClassesDirs = tasks.test.testClassesDirs
+}
+check.dependsOn(testScriptedMetricAggParamsV6Compatibility)
+
+test {
+  // these are tested explicitly in separate test tasks
+  exclude '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
+  exclude '**/InternalScriptedMetricAggStateV6CompatTests.class'
 }

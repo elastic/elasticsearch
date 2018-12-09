@@ -1,6 +1,6 @@
 {
   "xpack.security.get_role": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-roles.html#security-api-get-role",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/role/{name}",

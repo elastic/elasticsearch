@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -70,8 +70,8 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
                 item.routing(clusterState.metaData().resolveIndexRouting(item.parent(), item.routing(), item.index()));
                 if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type()))) {
-                    String message = "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]";
-                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(), new IllegalArgumentException(message)));
+                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(),
+                        new RoutingMissingException(concreteSingleIndex, item.type(), item.id())));
                     continue;
                 }
             } catch (Exception e) {
@@ -96,6 +96,12 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
             listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
         }
 
+        executeShardAction(listener, responses, shardRequests);
+    }
+
+    protected void executeShardAction(ActionListener<MultiGetResponse> listener,
+                                      AtomicArray<MultiGetItemResponse> responses,
+                                      Map<ShardId, MultiGetShardRequest> shardRequests) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {

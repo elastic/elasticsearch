@@ -5,16 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AttributeInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ConstantInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * An expression that has a name. Named expressions can be used as a result
+ * (by converting to an attribute).
+ */
 public abstract class NamedExpression extends Expression {
 
     private final String name;
     private final ExpressionId id;
     private final boolean synthetic;
+    private Pipe lazyPipe = null;
+
 
     public NamedExpression(Location location, String name, List<Expression> children, ExpressionId id) {
         this(location, name, children, id, false);
@@ -40,6 +50,20 @@ public abstract class NamedExpression extends Expression {
     }
 
     public abstract Attribute toAttribute();
+
+    public Pipe asPipe() {
+        if (lazyPipe == null) {
+            lazyPipe = foldable() ? new ConstantInput(location(), this, fold()) : makePipe();
+        }
+
+        return lazyPipe;
+    }
+
+    protected Pipe makePipe() {
+        return new AttributeInput(location(), this, toAttribute());
+    }
+
+    public abstract ScriptTemplate asScript();
 
     @Override
     public int hashCode() {

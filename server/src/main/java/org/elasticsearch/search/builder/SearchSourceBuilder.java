@@ -20,7 +20,7 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.util.BytesRef;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -80,7 +79,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
+        new DeprecationLogger(LogManager.getLogger(SearchSourceBuilder.class));
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -1163,9 +1162,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1303,6 +1300,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }

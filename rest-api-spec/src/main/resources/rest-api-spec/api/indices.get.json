@@ -39,6 +39,10 @@
           "type": "boolean",
           "description": "Whether to return all default setting for each of the indices.",
           "default": false
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
         }
       }
     },

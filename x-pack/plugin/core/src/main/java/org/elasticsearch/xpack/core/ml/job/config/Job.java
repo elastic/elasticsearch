@@ -20,10 +20,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -36,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,74 +75,54 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
-    public static final ParseField DELETED = new ParseField("deleted");
+    public static final ParseField DELETING = new ParseField("deleting");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("job_details", true, Builder::new);
-    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("job_details", false, Builder::new);
-    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
     public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(100, ByteSizeUnit.MB);
 
     public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareString(Builder::setId, ID);
-            parser.declareString(Builder::setJobType, JOB_TYPE);
-            parser.declareString(Builder::setJobVersion, JOB_VERSION);
-            parser.declareStringArray(Builder::setGroups, GROUPS);
-            parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
-            parser.declareField(Builder::setCreateTime, p -> {
-                if (p.currentToken() == Token.VALUE_NUMBER) {
-                    return new Date(p.longValue());
-                } else if (p.currentToken() == Token.VALUE_STRING) {
-                    return new Date(TimeUtils.dateStringToEpoch(p.text()));
-                }
-                throw new IllegalArgumentException("unexpected token [" + p.currentToken() +
-                        "] for [" + CREATE_TIME.getPreferredName() + "]");
-            }, CREATE_TIME, ValueType.VALUE);
-            parser.declareField(Builder::setFinishedTime, p -> {
-                if (p.currentToken() == Token.VALUE_NUMBER) {
-                    return new Date(p.longValue());
-                } else if (p.currentToken() == Token.VALUE_STRING) {
-                    return new Date(TimeUtils.dateStringToEpoch(p.text()));
-                }
-                throw new IllegalArgumentException(
-                        "unexpected token [" + p.currentToken() + "] for [" + FINISHED_TIME.getPreferredName() + "]");
-            }, FINISHED_TIME, ValueType.VALUE);
-            parser.declareField(Builder::setLastDataTime, p -> {
-                if (p.currentToken() == Token.VALUE_NUMBER) {
-                    return new Date(p.longValue());
-                } else if (p.currentToken() == Token.VALUE_STRING) {
-                    return new Date(TimeUtils.dateStringToEpoch(p.text()));
-                }
-                throw new IllegalArgumentException(
-                        "unexpected token [" + p.currentToken() + "] for [" + LAST_DATA_TIME.getPreferredName() + "]");
-            }, LAST_DATA_TIME, ValueType.VALUE);
-            parser.declareLong(Builder::setEstablishedModelMemory, ESTABLISHED_MODEL_MEMORY);
-            parser.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSERS.get(parserType), ANALYSIS_CONFIG);
-            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSERS.get(parserType), ANALYSIS_LIMITS);
-            parser.declareObject(Builder::setDataDescription, DataDescription.PARSERS.get(parserType), DATA_DESCRIPTION);
-            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSERS.get(parserType), MODEL_PLOT_CONFIG);
-            parser.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
-            parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
-                    TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
-            parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
-            parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
-            parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
-            parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
-            parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
-            parser.declareBoolean(Builder::setDeleted, DELETED);
-        }
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setId, ID);
+        parser.declareString(Builder::setJobType, JOB_TYPE);
+        parser.declareString(Builder::setJobVersion, JOB_VERSION);
+        parser.declareStringArray(Builder::setGroups, GROUPS);
+        parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
+        parser.declareField(Builder::setCreateTime,
+                p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ValueType.VALUE);
+        parser.declareField(Builder::setFinishedTime,
+                p -> TimeUtils.parseTimeField(p, FINISHED_TIME.getPreferredName()), FINISHED_TIME, ValueType.VALUE);
+        parser.declareField(Builder::setLastDataTime,
+                p -> TimeUtils.parseTimeField(p, LAST_DATA_TIME.getPreferredName()), LAST_DATA_TIME, ValueType.VALUE);
+        parser.declareLong(Builder::setEstablishedModelMemory, ESTABLISHED_MODEL_MEMORY);
+        parser.declareObject(Builder::setAnalysisConfig, ignoreUnknownFields ? AnalysisConfig.LENIENT_PARSER : AnalysisConfig.STRICT_PARSER,
+            ANALYSIS_CONFIG);
+        parser.declareObject(Builder::setAnalysisLimits, ignoreUnknownFields ? AnalysisLimits.LENIENT_PARSER : AnalysisLimits.STRICT_PARSER,
+            ANALYSIS_LIMITS);
+        parser.declareObject(Builder::setDataDescription,
+            ignoreUnknownFields ? DataDescription.LENIENT_PARSER : DataDescription.STRICT_PARSER, DATA_DESCRIPTION);
+        parser.declareObject(Builder::setModelPlotConfig,
+            ignoreUnknownFields ? ModelPlotConfig.LENIENT_PARSER : ModelPlotConfig.STRICT_PARSER, MODEL_PLOT_CONFIG);
+        parser.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
+        parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
+            TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
+        parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
+        parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
+        parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
+        parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
+        parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
+        parser.declareBoolean(Builder::setDeleting, DELETING);
+
+        return parser;
     }
 
     private final String jobId;
@@ -178,19 +153,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final String resultsIndexName;
-    private final boolean deleted;
+    private final boolean deleting;
 
     private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description, Date createTime,
                 Date finishedTime, Date lastDataTime, Long establishedModelMemory,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, String resultsIndexName, boolean deleted) {
+                String modelSnapshotId, String resultsIndexName, boolean deleting) {
 
         this.jobId = jobId;
         this.jobType = jobType;
         this.jobVersion = jobVersion;
-        this.groups = groups;
+        this.groups = Collections.unmodifiableList(groups);
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
@@ -204,10 +179,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.customSettings = customSettings;
+        this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.resultsIndexName = resultsIndexName;
-        this.deleted = deleted;
+        this.deleting = deleting;
     }
 
     public Job(StreamInput in) throws IOException {
@@ -219,7 +194,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             jobVersion = null;
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = in.readList(StreamInput::readString);
+            groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
         } else {
             groups = Collections.emptyList();
         }
@@ -240,10 +215,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        customSettings = in.readMap();
+        Map<String, Object> readCustomSettings = in.readMap();
+        customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
         resultsIndexName = in.readString();
-        deleted = in.readBoolean();
+        deleting = in.readBoolean();
     }
 
     /**
@@ -400,8 +376,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return modelSnapshotId;
     }
 
-    public boolean isDeleted() {
-        return deleted;
+    public boolean isDeleting() {
+        return deleting;
     }
 
     /**
@@ -510,7 +486,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         out.writeString(resultsIndexName);
-        out.writeBoolean(deleted);
+        out.writeBoolean(deleting);
     }
 
     @Override
@@ -576,8 +552,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
         }
         builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-        if (params.paramAsBoolean("all", false)) {
-            builder.field(DELETED.getPreferredName(), deleted);
+        if (deleting) {
+            builder.field(DELETING.getPreferredName(), deleting);
         }
         return builder;
     }
@@ -603,7 +579,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.lastDataTime, that.lastDataTime)
                 && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
-                && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
+                && Objects.equals(this.analysisLimits, that.analysisLimits)
+                && Objects.equals(this.dataDescription, that.dataDescription)
                 && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
@@ -612,7 +589,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                && Objects.equals(this.deleted, that.deleted);
+                && Objects.equals(this.deleting, that.deleting);
     }
 
     @Override
@@ -620,7 +597,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, resultsIndexName, deleted);
+                modelSnapshotId, resultsIndexName, deleting);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -670,7 +647,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private String resultsIndexName;
-        private boolean deleted;
+        private boolean deleting;
 
         public Builder() {
         }
@@ -700,7 +677,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
-            this.deleted = job.isDeleted();
+            this.deleting = job.isDeleting();
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -732,7 +709,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
             resultsIndexName = in.readOptionalString();
-            deleted = in.readBoolean();
+            deleting = in.readBoolean();
         }
 
         public Builder setId(String id) {
@@ -775,8 +752,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public AnalysisLimits getAnalysisLimits() {
-             return analysisLimits;
+        public AnalysisConfig getAnalysisConfig() {
+             return analysisConfig;
         }
 
         public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
@@ -848,8 +825,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public Builder setDeleted(boolean deleted) {
-            this.deleted = deleted;
+        public Builder setDeleting(boolean deleting) {
+            this.deleting = deleting;
             return this;
         }
 
@@ -924,7 +901,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             out.writeOptionalString(resultsIndexName);
-            out.writeBoolean(deleted);
+            out.writeBoolean(deleting);
         }
 
         @Override
@@ -985,8 +962,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (resultsIndexName != null) {
                 builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
             }
-            if (params.paramAsBoolean("all", false)) {
-                builder.field(DELETED.getPreferredName(), deleted);
+            if (deleting) {
+                builder.field(DELETING.getPreferredName(), deleting);
             }
 
             builder.endObject();
@@ -1002,6 +979,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.equals(this.id, that.id)
                     && Objects.equals(this.jobType, that.jobType)
                     && Objects.equals(this.jobVersion, that.jobVersion)
+                    && Objects.equals(this.groups, that.groups)
                     && Objects.equals(this.description, that.description)
                     && Objects.equals(this.analysisConfig, that.analysisConfig)
                     && Objects.equals(this.analysisLimits, that.analysisLimits)
@@ -1018,15 +996,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.customSettings, that.customSettings)
                     && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                     && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                    && Objects.equals(this.deleted, that.deleted);
+                    && Objects.equals(this.deleting, that.deleting);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, jobType, jobVersion, description, analysisConfig, analysisLimits, dataDescription, createTime,
+            return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription, createTime,
                     finishedTime, lastDataTime, establishedModelMemory, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    resultsIndexName, deleted);
+                    resultsIndexName, deleting);
         }
 
         /**
@@ -1076,18 +1054,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public void validateAnalysisLimitsAndSetDefaults(@Nullable ByteSizeValue maxModelMemoryLimit) {
             analysisLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
                     AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
-        }
-
-        /**
-         * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
-         * The overall structure can be validated at parse time, but the exact names need to be checked separately,
-         * as plugins that provide the functionality can be installed/uninstalled.
-         */
-        public void validateCategorizationAnalyzer(AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
-            CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
-            if (categorizationAnalyzerConfig != null) {
-                new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig).verify(analysisRegistry, environment);
-            }
         }
 
         private void validateGroups() {
@@ -1151,7 +1117,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     id, jobType, jobVersion, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                    modelSnapshotId, resultsIndexName, deleted);
+                    modelSnapshotId, resultsIndexName, deleting);
         }
 
         private void checkValidBackgroundPersistInterval() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -32,7 +33,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +55,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  * A field mapper for boolean fields.
  */
 public class BooleanFieldMapper extends FieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BooleanFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(BooleanFieldMapper.class));
 
     public static final String CONTENT_TYPE = "boolean";
 
@@ -82,14 +82,6 @@ public class BooleanFieldMapper extends FieldMapper {
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             this.builder = this;
-        }
-
-        @Override
-        public Builder tokenized(boolean tokenized) {
-            if (tokenized) {
-                throw new IllegalArgumentException("bool field can't be tokenized");
-            }
-            return super.tokenized(tokenized);
         }
 
         @Override

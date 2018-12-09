@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.index.search.QueryParserHelper;
-import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;

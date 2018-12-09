@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -181,7 +182,8 @@ public class RealmSettings {
         settingSet.add(TYPE_SETTING);
         settingSet.add(ENABLED_SETTING);
         settingSet.add(ORDER_SETTING);
-        final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingSet, Setting.Property.NodeScope) { };
+        final AbstractScopedSettings validator =
+                new AbstractScopedSettings(settings, settingSet, Collections.emptySet(), Setting.Property.NodeScope) { };
         try {
             validator.validate(settings, false);
         } catch (RuntimeException e) {

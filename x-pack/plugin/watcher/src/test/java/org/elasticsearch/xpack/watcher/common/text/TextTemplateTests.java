@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.watcher.common.text;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.Script;
@@ -20,6 +20,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -30,7 +31,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class TextTemplateTests extends ESTestCase {
@@ -42,11 +46,11 @@ public class TextTemplateTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         service = mock(ScriptService.class);
-        engine = new TextTemplateEngine(Settings.EMPTY, service);
+        engine = new TextTemplateEngine(service);
     }
 
     public void testRender() throws Exception {
-        String templateText = "_template";
+        String templateText = "{{_template}}";
         Map<String, Object> params = singletonMap("param_key", "param_val");
         Map<String, Object> model = singletonMap("model_key", "model_val");
         Map<String, Object> merged = new HashMap<>(params);
@@ -71,7 +75,7 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testRenderOverridingModel() throws Exception {
-        String templateText = "_template";
+        String templateText = "{{_template}}";
         Map<String, Object> params = singletonMap("key", "param_val");
         Map<String, Object> model = singletonMap("key", "model_val");
         ScriptType type = randomFrom(ScriptType.values());
@@ -93,7 +97,7 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testRenderDefaults() throws Exception {
-        String templateText = "_template";
+        String templateText = "{{_template}}";
         Map<String, Object> model = singletonMap("key", "model_val");
 
         TemplateScript.Factory compiledTemplate = templateParams ->
@@ -110,6 +114,39 @@ public class TextTemplateTests extends ESTestCase {
 
         TextTemplate template = new TextTemplate(templateText);
         assertThat(engine.render(template, model), is("rendered_text"));
+    }
+
+    public void testDontInvokeScriptServiceOnNonMustacheText() {
+        assertNoCompilation("this is my text");
+        assertScriptServiceInvoked("}}{{");
+        assertScriptServiceInvoked("}}{{ctx.payload}}");
+    }
+
+    private void assertNoCompilation(String input) {
+        String output = engine.render(new TextTemplate(input), Collections.emptyMap());
+        assertThat(input, is(output));
+        verifyZeroInteractions(service);
+    }
+
+    private void assertScriptServiceInvoked(final String input) {
+        ScriptService scriptService = mock(ScriptService.class);
+        TextTemplateEngine e = new TextTemplateEngine(scriptService);
+
+        TemplateScript.Factory compiledTemplate = templateParams ->
+            new TemplateScript(templateParams) {
+                @Override
+                public String execute() {
+                    return input.toUpperCase(Locale.ROOT);
+                }
+            };
+
+        when(scriptService.compile(new Script(ScriptType.INLINE, lang, input,
+            Collections.singletonMap("content_type", "text/plain"), Collections.emptyMap()), Watcher.SCRIPT_TEMPLATE_CONTEXT))
+            .thenReturn(compiledTemplate);
+
+        String output = e.render(new TextTemplate(input), Collections.emptyMap());
+        verify(scriptService).compile(any(), any());
+        assertThat(output, is(input.toUpperCase(Locale.ROOT)));
     }
 
     public void testParser() throws Exception {
@@ -172,12 +209,8 @@ public class TextTemplateTests extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        try {
-            TextTemplate.parse(parser);
-            fail("expected parse exception when script type is unknown");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("[script] unknown field [template], parser not found"));
-        }
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> TextTemplate.parse(parser));
+        assertEquals("[1:2] [script] unknown field [template], parser not found", ex.getMessage());
     }
 
     public void testParserInvalidMissingText() throws Exception {
@@ -188,12 +221,8 @@ public class TextTemplateTests extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        try {
-            TextTemplate.parse(parser);
-            fail("expected parse exception when template text is missing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[script] unknown field [type], parser not found"));
-        }
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> TextTemplate.parse(parser));
+        assertEquals("[1:2] [script] unknown field [type], parser not found", ex.getMessage());
     }
 
     public void testNullObject() throws Exception {

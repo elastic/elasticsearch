@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -61,16 +61,21 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -131,12 +136,10 @@ public class UpdateRequestTests extends ESTestCase {
                     return null;
                 });
         scripts.put("return", vars -> null);
-        final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
+        final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
-        final Settings settings = settings(Version.CURRENT).build();
-
-        updateHelper = new UpdateHelper(settings, scriptService);
+        updateHelper = new UpdateHelper(scriptService);
     }
 
     public void testFromXContent() throws Exception {
@@ -277,17 +280,62 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
+    public void testFromXContentBothScriptAndNestedDocs() throws Exception {
+        // related to https://github.com/elastic/elasticsearch/issues/34069
+        UpdateRequest request = new UpdateRequest("test", "type1", "1")
+            .fromXContent(
+                createParser(JsonXContent.jsonXContent,
+                    new BytesArray("{\"any_odd_name_for_update\":{\"doc\":{\"message\":\"set by update:doc\"}},"
+                        + "\"script\":{\"source\":\"ctx._source.message = 'set by script'\"}}")));
+
+        assertWarnings("Unknown field [any_odd_name_for_update] used in UpdateRequest"
+            + " which has no value and will not be accepted in future");
+
+        assertThat(request.doc(), notNullValue());
+        assertThat(request.script(), notNullValue());
+
+        ActionRequestValidationException validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.validationErrors(), not(empty()));
+        assertThat(String.valueOf(validate.validationErrors()),
+            validate.validationErrors(), contains("can't provide both script and doc"));
+
+        request = new UpdateRequest("test", "type1", "1")
+            .fromXContent(
+                createParser(JsonXContent.jsonXContent,
+                    new BytesArray("{\"whatever\": {\"script\":{\"source\":\"ctx._source.message = 'set by script'\"}},"
+                        + "\"nested_update1\":{\"nested_update2\":{\"doc\":{\"message\":\"set by update:doc\"}}}}")));
+
+        assertWarnings("Unknown field [whatever] used in UpdateRequest"
+            + " which has no value and will not be accepted in future",
+            "Unknown field [nested_update1] used in UpdateRequest"
+                + " which has no value and will not be accepted in future",
+            "Unknown field [nested_update2] used in UpdateRequest"
+                + " which has no value and will not be accepted in future");
+
+        assertThat(request.doc(), notNullValue());
+        assertThat(request.script(), notNullValue());
+
+        validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.validationErrors(), not(empty()));
+        assertThat(String.valueOf(validate.validationErrors()),
+            validate.validationErrors(), contains("can't provide both script and doc"));
+    }
+
     // Related to issue 15338
     public void testFieldsParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
                 createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
         assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(request.fields(), arrayContaining("_source"));
+        assertWarnings("Deprecated field [fields] used, expected [_source] instead");
 
         request = new UpdateRequest("test", "type2", "2").fromXContent(createParser(JsonXContent.jsonXContent,
                 new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
         assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(request.fields(), arrayContaining("field1", "field2"));
+        assertWarnings("Deprecated field [fields] used, expected [_source] instead");
     }
 
     public void testFetchSourceParsing() throws Exception {
@@ -444,7 +492,9 @@ public class UpdateRequestTests extends ESTestCase {
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
-        if (randomBoolean()) {
+
+        final boolean fieldsAreUsed = randomBoolean();
+        if (fieldsAreUsed) {
             String[] fields = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < fields.length; i++) {
                 fields[i] = randomAlphaOfLength(5);
@@ -495,6 +545,10 @@ public class UpdateRequestTests extends ESTestCase {
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+
+        if (fieldsAreUsed) {
+            assertWarnings("Deprecated field [fields] used, expected [_source] instead");
+        }
     }
 
     public void testToValidateUpsertRequestAndVersion() {
@@ -510,6 +564,25 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
+    }
+
+    public void testValidate() {
+        {
+            UpdateRequest request = new UpdateRequest("index", "type", "id");
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, nullValue());
+        }
+
+        {
+            UpdateRequest request = new UpdateRequest("index", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, not(nullValue()));
+            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+        }
     }
 
     public void testParentAndRoutingExtraction() throws Exception {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -38,6 +37,9 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setProbability(randomDouble());
+        if (randomBoolean()) {
+            anomalyRecord.setMultiBucketImpact(randomDouble());
+        }
         anomalyRecord.setRecordScore(randomDouble());
         anomalyRecord.setInitialRecordScore(randomDouble());
         anomalyRecord.setInterim(randomBoolean());

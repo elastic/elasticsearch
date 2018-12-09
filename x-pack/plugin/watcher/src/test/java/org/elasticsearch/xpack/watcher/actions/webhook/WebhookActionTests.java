@@ -28,8 +28,6 @@ import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -47,7 +45,6 @@ import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -73,7 +70,6 @@ public class WebhookActionTests extends ESTestCase {
     private static final String TEST_PATH_STRING = "/testPath";
 
     private TextTemplateEngine templateEngine;
-    private HttpAuthRegistry authRegistry;
     private TextTemplate testBody;
     private TextTemplate testPath;
 
@@ -82,7 +78,6 @@ public class WebhookActionTests extends ESTestCase {
         templateEngine = new MockTextTemplateEngine();
         testBody = new TextTemplate(TEST_BODY_STRING);
         testPath = new TextTemplate(TEST_PATH_STRING);
-        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
     }
 
     public void testExecute() throws Exception {
@@ -213,14 +208,14 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
-        return new WebhookActionFactory(Settings.EMPTY, client, new HttpRequestTemplate.Parser(authRegistry), templateEngine);
+        return new WebhookActionFactory(client, templateEngine);
     }
 
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry,
-            new SSLService(environment.settings(), environment)); MockWebServer proxyServer = new MockWebServer()) {
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null);
+             MockWebServer proxyServer = new MockWebServer()) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -39,6 +39,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedFunction;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -67,6 +69,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -79,6 +82,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -89,6 +95,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -96,6 +103,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -116,10 +124,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -143,10 +155,30 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
+    private static final Logger logger = LogManager.getLogger(IndicesService.class);
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
+    private static final boolean ENFORCE_MAX_SHARDS_PER_NODE;
+
+    static {
+        final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce_max_shards_per_node";
+        final String enforceMaxShardsPerNode = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
+        if (enforceMaxShardsPerNode == null) {
+            ENFORCE_MAX_SHARDS_PER_NODE = false;
+        } else if ("true".equals(enforceMaxShardsPerNode)) {
+            ENFORCE_MAX_SHARDS_PER_NODE = true;
+        } else {
+            throw new IllegalArgumentException(ENFORCE_SHARD_LIMIT_KEY + " may only be unset or set to [true] but was [" +
+                enforceMaxShardsPerNode + "]");
+        }
+    }
+
+    /**
+     * The node's settings.
+     */
+    private final Settings settings;
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
@@ -172,6 +204,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesRequestCache indicesRequestCache;
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
+    private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
+    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
 
     @Override
     protected void doStart() {
@@ -183,8 +217,11 @@ public class IndicesService extends AbstractLifecycleComponent
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
-                          ScriptService scriptService, Client client, MetaStateService metaStateService) {
+                          ScriptService scriptService, Client client, MetaStateService metaStateService,
+                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+                          Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -207,18 +244,30 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or equal to 0 and not [" + sizeInBytes + "]";
+                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or " +
+                    "equal to 0 and not [" + sizeInBytes + "]";
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
         });
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
+        this.engineFactoryProviders = engineFactoryProviders;
+
+        // do not allow any plugin-provided index store type to conflict with a built-in type
+        for (final String indexStoreType : indexStoreFactories.keySet()) {
+            if (IndexModule.isBuiltinType(indexStoreType)) {
+                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+            }
+        }
+
+        this.indexStoreFactories = indexStoreFactories;
     }
 
     @Override
     protected void doStop() {
-        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
+        ExecutorService indicesStopExecutor =
+            Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
@@ -245,7 +294,13 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     protected void doClose() {
-        IOUtils.closeWhileHandlingException(analysisRegistry, indexingMemoryController, indicesFieldDataCache, cacheCleaner, indicesRequestCache, indicesQueryCache);
+        IOUtils.closeWhileHandlingException(
+            analysisRegistry,
+            indexingMemoryController,
+            indicesFieldDataCache,
+            cacheCleaner,
+            indicesRequestCache,
+            indicesQueryCache);
     }
 
     /**
@@ -324,13 +379,24 @@ public class IndicesService extends AbstractLifecycleComponent
             return null;
         }
 
+        CommitStats commitStats;
+        SeqNoStats seqNoStats;
+        try {
+            commitStats = indexShard.commitStats();
+            seqNoStats = indexShard.seqNoStats();
+        } catch (AlreadyClosedException e) {
+            // shard is closed - no stats is fine
+            commitStats = null;
+            seqNoStats = null;
+        }
+
         return new IndexShardStats(indexShard.shardId(),
                                    new ShardStats[] {
                                        new ShardStats(indexShard.routingEntry(),
                                                       indexShard.shardPath(),
                                                       new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      indexShard.commitStats(),
-                                                      indexShard.seqNoStats())
+                                                      commitStats,
+                                                      seqNoStats)
                                    });
     }
 
@@ -362,7 +428,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
-
     /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
@@ -371,7 +436,8 @@ public class IndicesService extends AbstractLifecycleComponent
         if (indexService == null) {
             throw new IndexNotFoundException(index);
         }
-        assert indexService.indexUUID().equals(index.getUUID()) : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
+        assert indexService.indexUUID().equals(index.getUUID()) : "uuid mismatch local: " + indexService.indexUUID() +
+            " incoming: " + index.getUUID();
         return indexService;
     }
 
@@ -433,7 +499,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          IndicesFieldDataCache indicesFieldDataCache,
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, settings, indexScopedSettings);
         // we ignore private settings since they are not registered settings
         indexScopedSettings.validate(indexMetaData.getSettings(), true, true, true);
         logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",
@@ -442,7 +508,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -466,6 +532,34 @@ public class IndicesService extends AbstractLifecycleComponent
         );
     }
 
+    private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
+        final List<Optional<EngineFactory>> engineFactories =
+                engineFactoryProviders
+                        .stream()
+                        .map(engineFactoryProvider -> engineFactoryProvider.apply(idxSettings))
+                        .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
+                        .collect(Collectors.toList());
+        if (engineFactories.isEmpty()) {
+            return new InternalEngineFactory();
+        } else if (engineFactories.size() == 1) {
+            assert engineFactories.get(0).isPresent();
+            return engineFactories.get(0).get();
+        } else {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "multiple engine factories provided for %s: %s",
+                    idxSettings.getIndex(),
+                    engineFactories
+                            .stream()
+                            .map(t -> {
+                                assert t.isPresent();
+                                return "[" + t.get().getClass().getName() + "]";
+                            })
+                            .collect(Collectors.joining(",")));
+            throw new IllegalStateException(message);
+        }
+    }
+
     /**
      * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
      * This *should not* be used for document parsing. Doing so will result in an exception.
@@ -474,14 +568,15 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
 
     /**
      * This method verifies that the given {@code metaData} holds sane values to create an {@link IndexService}.
-     * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate} is different from the given {@code metaData}.
+     * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate}
+     * is different from the given {@code metaData}.
      * This method will throw an exception if the creation or the update fails.
      * The created {@link IndexService} will not be registered and will be closed immediately.
      */
@@ -498,7 +593,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             if (metaData.equals(metaDataUpdate) == false) {
-                service.updateMetaData(metaDataUpdate);
+                service.updateMetaData(metaData, metaDataUpdate);
             }
         } finally {
             IOUtils.close(closeables);
@@ -518,15 +613,11 @@ public class IndicesService extends AbstractLifecycleComponent
             (type, mapping) -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
                     "mapping update consumer only required by local shards recovery";
-                try {
-                    client.admin().indices().preparePutMapping()
-                        .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                        .setType(type)
-                        .setSource(mapping.source().string(), XContentType.JSON)
-                        .get();
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed to stringify mapping source", ex);
-                }
+                client.admin().indices().preparePutMapping()
+                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                    .setType(type)
+                    .setSource(mapping.source().string(), XContentType.JSON)
+                    .get();
             }, this);
         return indexShard;
     }
@@ -617,7 +708,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])",
+                    metaData.getIndex(), reason), e);
             }
         }
     }
@@ -634,7 +726,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 Index index = metaData.getIndex();
                 if (hasIndex(index)) {
                     String localUUid = indexService(index).indexUUID();
-                    throw new IllegalStateException("Can't delete index store for [" + index.getName() + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
+                    throw new IllegalStateException("Can't delete index store for [" + index.getName() +
+                        "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
                 }
 
                 if (clusterState.metaData().hasIndex(index.getName()) && (clusterState.nodes().getLocalNode().isMasterNode() == true)) {
@@ -669,7 +762,8 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             success = true;
         } catch (LockObtainFailedException ex) {
-            logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index), ex);
+            logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
+                ex);
         } catch (Exception ex) {
             logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
         } finally {
@@ -701,7 +795,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
      *
-     * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
+     * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
+     * the index folder as well.
      *
      * @param reason the reason for the shard deletion
      * @param shardId the shards ID to delete
@@ -720,7 +815,8 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
-        if (clusterState.nodes().getLocalNode().isMasterNode() == false && // master nodes keep the index meta data, even if having no shards..
+        // master nodes keep the index meta data, even if having no shards..
+        if (clusterState.nodes().getLocalNode().isMasterNode() == false &&
                 canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
@@ -774,7 +870,8 @@ public class IndicesService extends AbstractLifecycleComponent
             try {
                 metaData = metaStateService.loadIndexState(index);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +
+                    "folders will be left on disk", index), e);
                 return null;
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -1006,8 +1103,9 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents while deletion still ongoing.
-     * The reason is that, on Windows, browsing the directory contents can interfere with the deletion process and delay it unnecessarily.
+     * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents
+     * while deletion still ongoing. * The reason is that, on Windows, browsing the directory contents can interfere
+     * with the deletion process and delay it unnecessarily.
      */
     public boolean hasUncompletedPendingDeletes() {
         return numUncompletedDeletes.get() > 0;
@@ -1032,7 +1130,11 @@ public class IndicesService extends AbstractLifecycleComponent
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final IndicesRequestCache requestCache;
 
-        CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, Logger logger, ThreadPool threadPool, TimeValue interval) {
+        CacheCleaner(IndicesFieldDataCache cache,
+                     IndicesRequestCache requestCache,
+                     Logger logger,
+                     ThreadPool threadPool,
+                     TimeValue interval) {
             this.cache = cache;
             this.requestCache = requestCache;
             this.logger = logger;
@@ -1052,7 +1154,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("periodic field data cache cleanup finished in {} milliseconds", TimeValue.nsecToMSec(System.nanoTime() - startTimeNS));
+                logger.trace("periodic field data cache cleanup finished in {} milliseconds",
+                    TimeValue.nsecToMSec(System.nanoTime() - startTimeNS));
             }
 
             try {
@@ -1105,10 +1208,9 @@ public class IndicesService extends AbstractLifecycleComponent
         } else if (request.requestCache() == false) {
             return false;
         }
-        // if the reader is not a directory reader, we can't get the version from it
-        if ((context.searcher().getIndexReader() instanceof DirectoryReader) == false) {
-            return false;
-        }
+        // We use the cacheKey of the index reader as a part of a key of the IndicesRequestCache.
+        assert context.searcher().getIndexReader().getReaderCacheHelper() != null;
+
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
         if (context.getQueryShardContext().isCachable() == false) {
@@ -1130,7 +1232,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+            out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
@@ -1171,7 +1274,10 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Consumer<StreamOutput> loader)
+    private BytesReference cacheShardLevelResult(IndexShard shard,
+                                                 DirectoryReader reader,
+                                                 BytesReference cacheKey,
+                                                 Consumer<StreamOutput> loader)
             throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         Supplier<BytesReference> supplier = () -> {
@@ -1285,5 +1391,42 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean isMetaDataField(String field) {
         return mapperRegistry.isMetaDataField(field);
+    }
+
+    /**
+     * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit. Adds a deprecation
+     * warning or returns an error message as appropriate
+     *
+     * @param newShards         The number of shards to be added by this operation
+     * @param state             The current cluster state
+     * @param deprecationLogger The logger to use for deprecation warnings
+     * @return If present, an error message to be given as the reason for failing
+     * an operation. If empty, a sign that the operation is valid.
+     */
+    public static Optional<String> checkShardLimit(int newShards, ClusterState state, DeprecationLogger deprecationLogger) {
+        Settings theseSettings = state.metaData().settings();
+        int nodeCount = state.getNodes().getDataNodes().size();
+
+        // Only enforce the shard limit if we have at least one data node, so that we don't block
+        // index creation during cluster setup
+        if (nodeCount == 0 || newShards < 0) {
+            return Optional.empty();
+        }
+        int maxShardsPerNode = MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(theseSettings);
+        int maxShardsInCluster = maxShardsPerNode * nodeCount;
+        int currentOpenShards = state.getMetaData().getTotalOpenIndexShards();
+
+        if ((currentOpenShards + newShards) > maxShardsInCluster) {
+            String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
+                currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
+            if (ENFORCE_MAX_SHARDS_PER_NODE) {
+                return Optional.of(errorMessage);
+            } else {
+                deprecationLogger.deprecated("In a future major version, this request will fail because {}. Before upgrading, " +
+                        "reduce the number of shards in your cluster or adjust the cluster setting [{}].",
+                    errorMessage, MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
+            }
+        }
+        return Optional.empty();
     }
 }

@@ -23,7 +23,6 @@ import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
 import org.apache.commons.codec.language.ColognePhonetic;
-import org.apache.commons.codec.language.DaitchMokotoffSoundex;
 import org.apache.commons.codec.language.Metaphone;
 import org.apache.commons.codec.language.RefinedSoundex;
 import org.apache.commons.codec.language.Soundex;
@@ -31,11 +30,13 @@ import org.apache.commons.codec.language.bm.Languages.LanguageSet;
 import org.apache.commons.codec.language.bm.NameType;
 import org.apache.commons.codec.language.bm.PhoneticEngine;
 import org.apache.commons.codec.language.bm.RuleType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -47,6 +48,10 @@ import java.util.HashSet;
 import java.util.List;
 
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
+
+
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(PhoneticTokenFilterFactory.class));
 
     private final Encoder encoder;
     private final boolean replace;
@@ -62,7 +67,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
-        this.replace = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "replace", true, deprecationLogger);
+        this.replace = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(),
+                "replace", true, deprecationLogger);
         this.isDaitchMokotoff = false;
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
         String encodername = settings.get("encoder", "metaphone");
@@ -83,7 +89,9 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("double_metaphone".equalsIgnoreCase(encodername) || "doubleMetaphone".equalsIgnoreCase(encodername)) {
             this.encoder = null;
             this.maxcodelength = settings.getAsInt("max_code_len", 4);
-        } else if ("bm".equalsIgnoreCase(encodername) || "beider_morse".equalsIgnoreCase(encodername) || "beidermorse".equalsIgnoreCase(encodername)) {
+        } else if ("bm".equalsIgnoreCase(encodername)
+                || "beider_morse".equalsIgnoreCase(encodername)
+                || "beidermorse".equalsIgnoreCase(encodername)) {
             this.encoder = null;
             this.languageset = settings.getAsList("languageset");
             String ruleType = settings.get("rule_type", "approx");
@@ -136,5 +144,12 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             return new PhoneticFilter(tokenStream, encoder, !replace);
         }
         throw new IllegalArgumentException("encoder error");
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+            + "] will not be usable to parse synonyms after v7.0");
+        return this;
     }
 }

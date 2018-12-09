@@ -28,12 +28,12 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.util.LazyInitializable;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -41,47 +41,143 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Collections.emptyMap;
 
 public class GoogleCloudStorageService extends AbstractComponent {
 
-    /** Clients settings identified by client name. */
-    private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
+    /**
+     * Dictionary of client instances. Client instances are built lazily from the
+     * latest settings.
+     */
+    private final AtomicReference<Map<String, LazyInitializable<Storage, IOException>>> clientsCache = new AtomicReference<>(emptyMap());
 
-    public GoogleCloudStorageService(final Environment environment, final Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        super(environment.settings());
-        this.clientsSettings = clientsSettings;
+    /**
+     * Overrides application name for client creation.
+     */
+    @Deprecated
+    private String applicationName;
+    /**
+     * Overrides connect timeout for client creation.
+     */
+    @Deprecated
+    private TimeValue connectTimeout;
+    /**
+     * Overrides read timeout for client creation.
+     */
+    @Deprecated
+    private TimeValue readTimeout;
+
+    /**
+     * Refreshes the client settings and clears the client cache. Subsequent calls to
+     * {@code GoogleCloudStorageService#client} will return new clients constructed
+     * using the parameter settings.
+     *
+     * @param clientsSettings the new settings used for building clients for subsequent requests
+     */
+    public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        // build the new lazy clients
+        final MapBuilder<String, LazyInitializable<Storage, IOException>> newClientsCache = MapBuilder.newMapBuilder();
+        for (final Map.Entry<String, GoogleCloudStorageClientSettings> entry : clientsSettings.entrySet()) {
+            newClientsCache.put(entry.getKey(),
+                    new LazyInitializable<Storage, IOException>(() -> createClient(entry.getKey(), entry.getValue())));
+        }
+        // make the new clients available
+        final Map<String, LazyInitializable<Storage, IOException>> oldClientCache = clientsCache.getAndSet(newClientsCache.immutableMap());
+        // release old clients
+        oldClientCache.values().forEach(LazyInitializable::reset);
     }
 
     /**
-     * Creates a client that can be used to manage Google Cloud Storage objects.
+     * Attempts to retrieve a client from the cache. If the client does not exist it
+     * will be created from the latest settings and will populate the cache. The
+     * returned instance should not be cached by the calling code. Instead, for each
+     * use, the (possibly updated) instance should be requested by calling this
+     * method.
+     *
+     * @param clientName name of the client settings used to create the client
+     * @return a cached client storage instance that can be used to manage objects
+     *         (blobs)
+     */
+    public Storage client(final String clientName) throws IOException {
+        final LazyInitializable<Storage, IOException> lazyClient = clientsCache.get().get(clientName);
+        if (lazyClient == null) {
+            throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
+                    + Strings.collectionToDelimitedString(clientsCache.get().keySet(), ","));
+        }
+        return lazyClient.getOrCompute();
+    }
+
+    /**
+     * Sets the value that overrides the application name while creating the client.
+     * Normally the application name is the picked up from the GCS client settings in the
+     * elasticsearch conf file. Set to <code>null</code> to not override.
+     */
+    @Deprecated
+    public void setOverrideApplicationName(String applicationName) {
+        this.applicationName = applicationName;
+        // release any existing client
+        clientsCache.get().values().forEach(LazyInitializable::reset);
+    }
+
+    /**
+     * Sets the value that overrides the connect timeout while creating the client.
+     * Normally the connect timeout is picket up from the GCS client settings in
+     * the elasticsearch conf file. Set to <code>null</code> to not override.
+     */
+    @Deprecated
+    public void setOverrideConnectTimeout(TimeValue connectTimeout) {
+        this.connectTimeout = connectTimeout;
+        // release any existing client
+        clientsCache.get().values().forEach(LazyInitializable::reset);
+    }
+
+    /**
+     * Sets the value that overrides the read timeout while creating the client.
+     * Normally the read timeout is picked up from the GCS client settings in the
+     * elasticsearch conf file. Set to <code>null</code> to not override.
+     */
+    @Deprecated
+    public void setOverrideReadTimeout(TimeValue readTimeout) {
+        this.readTimeout = readTimeout;
+        // release any existing client
+        clientsCache.get().values().forEach(LazyInitializable::reset);
+    }
+
+    /**
+     * Creates a client that can be used to manage Google Cloud Storage objects. The client is thread-safe.
      *
      * @param clientName name of client settings to use, including secure settings
-     * @param application deprecated application name setting overriding client settings
-     * @param connectTimeout deprecated connect timeout setting overriding client settings
-     * @param readTimeout deprecated read timeout setting overriding client settings
-     * @return a Client instance that can be used to manage Storage objects
+     * @param clientSettings name of client settings to use, including secure settings
+     * @return a new client storage instance that can be used to manage objects
+     *         (blobs)
      */
-    public Storage createClient(final String clientName,
-                                @Nullable final String application,
-                                @Nullable final TimeValue connectTimeout,
-                                @Nullable final TimeValue readTimeout) throws Exception {
-
-        final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
-        if (clientSettings == null) {
-            throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
-                    + Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
+    private Storage createClient(final String clientName, final GoogleCloudStorageClientSettings clientSettings) throws IOException {
+        logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
+                clientSettings.getHost()));
+        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> createHttpTransport(clientSettings.getHost()));
+        TimeValue connectTimeout = this.connectTimeout;
+        if (connectTimeout == null) {
+            connectTimeout = clientSettings.getConnectTimeout();
         }
-        final HttpTransport httpTransport = createHttpTransport(clientSettings.getHost());
+        TimeValue readTimeout = this.readTimeout;
+        if (readTimeout == null) {
+            readTimeout = clientSettings.getReadTimeout();
+        }
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
-                .setConnectTimeout(connectTimeout != null ? toTimeout(connectTimeout) : toTimeout(clientSettings.getConnectTimeout()))
-                .setReadTimeout(readTimeout != null ? toTimeout(readTimeout) : toTimeout(clientSettings.getReadTimeout()))
+                .setConnectTimeout(toTimeout(connectTimeout))
+                .setReadTimeout(toTimeout(readTimeout))
                 .setHttpTransportFactory(() -> httpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
                 .setTransportOptions(httpTransportOptions)
                 .setHeaderProvider(() -> {
                     final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-                    final String applicationName = Strings.hasLength(application) ? application : clientSettings.getApplicationName();
+                    String applicationName = this.applicationName;
+                    if (false == Strings.hasLength(applicationName)) {
+                        applicationName = clientSettings.getApplicationName();
+                    }
                     if (Strings.hasLength(applicationName)) {
                         mapBuilder.put("user-agent", applicationName);
                     }
@@ -123,6 +219,9 @@ public class GoogleCloudStorageService extends AbstractComponent {
         builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
         if (Strings.hasLength(endpoint)) {
             final URL endpointUrl = URI.create(endpoint).toURL();
+            // it is crucial to open a connection for each URL (see {@code
+            // DefaultConnectionFactory#openConnection}) instead of reusing connections,
+            // because the storage instance has to be thread-safe as it is cached.
             builder.setConnectionFactory(new DefaultConnectionFactory() {
                 @Override
                 public HttpURLConnection openConnection(final URL originalUrl) throws IOException {

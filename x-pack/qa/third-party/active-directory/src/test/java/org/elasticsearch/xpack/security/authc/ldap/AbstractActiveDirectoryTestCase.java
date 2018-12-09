@@ -22,9 +22,16 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
@@ -35,23 +42,38 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     // as we cannot control the URL of the referral which may contain a non-resolvable DNS name as
     // this name would be served by the samba4 instance
     public static final Boolean FOLLOW_REFERRALS = Booleans.parseBoolean(getFromEnv("TESTS_AD_FOLLOW_REFERRALS", "false"));
-    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:61636");
-    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:63269");
+    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:" + getFromProperty("636"));
+    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:" + getFromProperty("3269"));
     public static final String PASSWORD = getFromEnv("TESTS_AD_USER_PASSWORD", "Passw0rd");
-    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", "61389");
-    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT", "61636");
-    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", "63268");
-    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", "63269");
+    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", getFromProperty("389"));
+
+    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT",  getFromProperty("636"));
+    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", getFromProperty("3268"));
+    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", getFromProperty("3269"));
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
     protected SSLService sslService;
     protected Settings globalSettings;
     protected boolean useGlobalSSL;
+    protected List<String> certificatePaths;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
         useGlobalSSL = randomBoolean();
-        Path truststore = getDataPath("../ldap/support/ADtrust.jks");
+        // We use certificates in PEM format and `ssl.certificate_authorities` instead of ssl.trustore
+        // so that these tests can also run in a FIPS JVM where JKS keystores can't be used.
+        certificatePaths = new ArrayList<>();
+        Files.walkFileTree(getDataPath
+            ("../ldap/support"), new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                String fileName = file.getFileName().toString();
+                if (fileName.endsWith(".crt")) {
+                    certificatePaths.add(getDataPath("../ldap/support/" + fileName).toString());
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -59,20 +81,16 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
          */
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore)
-                    .put("xpack.ssl.truststore.password", "changeit");
+            builder.putList("xpack.ssl.certificate_authorities", certificatePaths);
 
             // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+            builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
+            builder.putList("xpack.security.authc.realms.foo.ssl.certificate_authorities", certificatePaths);
             builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+            builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         globalSettings = builder.build();
@@ -98,8 +116,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
             builder.put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
         }
         if (useGlobalSSL == false) {
-            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit");
+            builder.putList("ssl.certificate_authorities", certificatePaths);
         }
         return builder.build();
     }
@@ -127,5 +144,12 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     private static String getFromEnv(String envVar, String defaultValue) {
         final String value = System.getenv(envVar);
         return value == null ? defaultValue : value;
+    }
+
+    private static String getFromProperty(String port) {
+        String key = "test.fixtures.smb-fixture.fixture." + port;
+        final String value = System.getProperty(key);
+        assertNotNull("Expected the actual value for " + port + " to be in system property " + key, value);
+        return value;
     }
 }

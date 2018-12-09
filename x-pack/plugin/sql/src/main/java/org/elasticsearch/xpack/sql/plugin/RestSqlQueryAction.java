@@ -18,18 +18,26 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xpack.sql.action.SqlQueryAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public class RestSqlQueryAction extends BaseRestHandler {
+    private static String CLIENT_ID = "client.id";
 
     public RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
@@ -41,7 +49,16 @@ public class RestSqlQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlQueryRequest.fromXContent(parser,Mode.fromString(request.param("mode")));
+            String clientId = request.param(CLIENT_ID);
+            if (clientId != null) {
+                clientId = clientId.toLowerCase(Locale.ROOT);
+                if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                    clientId = null;
+                }
+            }
+            
+            sqlRequest = SqlQueryRequest.fromXContent(parser,
+                    new RequestInfo(Mode.fromString(request.param("mode")), clientId));
         }
 
         /*
@@ -114,6 +131,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_sql_action";
+        return "xpack_sql_query_action";
     }
 }

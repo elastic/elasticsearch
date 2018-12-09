@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -42,6 +44,12 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             if (randomBoolean()) {
                 sizeStats = new ModelSizeStats.Builder("foo").build();
             }
+
+            ForecastStats forecastStats = null;
+            if (randomBoolean()) {
+                forecastStats = new ForecastStatsTests().createTestInstance();
+            }
+
             JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
 
             DiscoveryNode node = null;
@@ -56,7 +64,8 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             if (randomBoolean()) {
                 openTime = parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
             }
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node, explanation, openTime);
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, forecastStats, jobState, node, explanation,
+                    openTime);
             jobStatsList.add(jobStats);
         }
 

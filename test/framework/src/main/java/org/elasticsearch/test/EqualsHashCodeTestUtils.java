@@ -33,7 +33,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class EqualsHashCodeTestUtils {
 
-    private static Object[] someObjects = new Object[] { "some string", new Integer(1), new Double(1.0) };
+    private static Object[] someObjects = new Object[] { "some string", Integer.valueOf(1), Double.valueOf(1.0) };
 
     /**
      * A function that makes a copy of its input argument

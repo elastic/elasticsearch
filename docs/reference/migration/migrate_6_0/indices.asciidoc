@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_indices_changes]]
 === Indices changes
 
+[float]
 ==== Index templates use `index_patterns` instead of `template`
 
 Previously templates expressed the indices that they should match using a glob
@@ -28,7 +30,7 @@ PUT _template/template_2
 --------------------------------------------------
 // CONSOLE
 
-
+[float]
 ==== Shadow Replicas have been removed
 
 Shadow replicas don't see enough usage, and have been removed. This includes the
@@ -38,6 +40,7 @@ following settings:
 - `index.shadow_replicas`
 - `node.add_lock_id_to_custom_path`
 
+[float]
 ==== Open/Close index API allows wildcard expressions that match no indices by default
 
 The default value of the `allow_no_indices` option for the Open/Close index API
@@ -45,35 +48,41 @@ has been changed from `false` to `true` so it is aligned with the behaviour of t
 Delete index API. As a result, Open/Close index API don't return an error by
 default when a provided wildcard expression doesn't match any closed/open index.
 
+[float]
 ==== Delete a document
 
 Delete a document from non-existing index has been modified to not create the index.
 However if an external versioning is used the index will be created and the document
 will be marked for deletion. 
 
+[float]
 ==== Indices aliases api resolves indices expressions only against indices
 
 The index parameter in the update-aliases, put-alias, and delete-alias APIs no
 longer accepts alias names. Instead, it accepts only index names (or wildcards
 which will expand to matching indices).
 
+[float]
 ==== Delete index api resolves indices expressions only against indices
 
 The index parameter in the delete index API no longer accepts alias names.
 Instead, it accepts only index names (or wildcards which will expand to
 matching indices).
 
+[float]
 ==== Support for `+` has been removed in index expressions
 
 Omitting the `+` has the same effect as specifying it, hence support for `+`
 has been removed in index expressions.
 
+[float]
 ==== Translog retention
 
 Translog files are now kept for up to 12 hours (by default), with a maximum size of `512mb` (default), and
 are no longer deleted on `flush`. This is to increase the chance of doing an operation based recovery when
 bringing up replicas up to speed.
 
+[float]
 ==== Limit to the difference between max_size and min_size in NGramTokenFilter and NGramTokenizer
 
 To safeguard against creating too many index terms, the difference between
@@ -82,6 +91,7 @@ limited to 1. This default limit can be changed with the index setting
 index.max_ngram_diff. Note that if the limit is exceeded a deprecation
 warning is logged.
 
+[float]
 ==== Limit to the difference between max_size and min_size in ShingleTokenFilter
 
 To safeguard against creating too many tokens, the difference between

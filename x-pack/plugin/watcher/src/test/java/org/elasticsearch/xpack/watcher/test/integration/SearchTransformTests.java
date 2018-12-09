@@ -205,7 +205,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap());
+        final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap(), Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
 
@@ -230,7 +230,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     }
 
     public void testDifferentSearchType() throws Exception {
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
               .must(matchQuery("event_type", "a")));
         final SearchType searchType = getRandomSupportedSearchType();
@@ -260,7 +260,7 @@ public class SearchTransformTests extends ESIntegTestCase {
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
         String master = internalCluster().getMasterName();
-        return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
+        return new WatcherSearchTemplateService(
                 internalCluster().getInstance(ScriptService.class, master),
                 xContentRegistry()
         );
@@ -276,7 +276,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
 
         @Override
-        public List<ScriptContext> getContexts() {
+        public List<ScriptContext<?>> getContexts() {
             return Collections.singletonList(Watcher.SCRIPT_TEMPLATE_CONTEXT);
         }
     }

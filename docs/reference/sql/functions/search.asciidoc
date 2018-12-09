@@ -1,0 +1,35 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-search]]
+=== Full-Text Search Functions
+
+Search functions should be used when performing full-text search, namely
+when the `MATCH` or `QUERY` predicates are being used.
+Outside a, so-called, search context, these functions will return default values
+such as `0` or `NULL`.
+
+[[sql-functions-search-score]]
+==== `SCORE`
+
+*Input*: None, *Output*: `double`
+
+Returns the {defguide}/relevance-intro.html[relevance] of a given input to the executed query. 
+The higher score, the more relevant the data.
+
+NOTE: When doing multiple text queries in the `WHERE` clause then, their scores will be
+combined using the same rules as {es}'s
+<<query-dsl-bool-query,bool query>>. 
+
+Typically `SCORE` is used for ordering the results of a query based on their relevance:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[orderByScore]
+----
+
+However, it is perfectly fine to return the score without sorting by it:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[scoreWithMatch]
+----

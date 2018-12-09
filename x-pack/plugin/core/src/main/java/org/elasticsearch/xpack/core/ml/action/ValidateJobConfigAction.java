@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class ValidateJobConfigAction
-extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response, ValidateJobConfigAction.RequestBuilder> {
+    extends Action<ValidateJobConfigAction.Request, AcknowledgedResponse, ValidateJobConfigAction.RequestBuilder> {
 
     public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";
@@ -38,11 +38,11 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, ValidateJobConfigAction action) {
             super(client, action, new Request());
@@ -55,7 +55,7 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
         private Job job;
 
         public static Request parseRequest(XContentParser parser) {
-            Job.Builder job = Job.CONFIG_PARSER.apply(parser, null);
+            Job.Builder job = Job.STRICT_PARSER.apply(parser, null);
             // When jobs are PUT their ID must be supplied in the URL - assume this will
             // be valid unless an invalid job ID is specified in the JSON to be validated
             job.setId(job.getId() != null ? job.getId() : "ok");
@@ -117,28 +117,4 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
         }
 
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
-    }
-
 }

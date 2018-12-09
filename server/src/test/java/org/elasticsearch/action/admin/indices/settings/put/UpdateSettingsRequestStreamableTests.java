@@ -41,7 +41,7 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation
                 .masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout().getStringRep(), ESTestCase::randomTimeValue)));
-        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.masterNodeTimeout().getStringRep(), ESTestCase::randomTimeValue)));
+        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout().getStringRep(), ESTestCase::randomTimeValue)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),

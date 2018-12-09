@@ -9,8 +9,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -39,38 +40,48 @@ import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 public class SysColumns extends Command {
 
     private final String catalog;
-    private final LikePattern indexPattern;
+    private final String index;
+    private final LikePattern pattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Location location, String catalog, LikePattern indexPattern, LikePattern columnPattern) {
+    public SysColumns(Location location, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
         super(location);
         this.catalog = catalog;
-        this.indexPattern = indexPattern;
+        this.index = index;
+        this.pattern = pattern;
         this.columnPattern = columnPattern;
     }
 
     @Override
     protected NodeInfo<SysColumns> info() {
-        return NodeInfo.create(this, SysColumns::new, catalog, indexPattern, columnPattern);
+        return NodeInfo.create(this, SysColumns::new, catalog, index, pattern, columnPattern);
     }
 
     @Override
     public List<Attribute> output() {
+        return output(false);
+    }
+    
+    private List<Attribute> output(boolean odbcCompatible) {
+        // https://github.com/elastic/elasticsearch/issues/35376
+        // ODBC expects some fields as SHORT while JDBC as Integer
+        // which causes conversion issues and CCE
+        DataType clientBasedType = odbcCompatible ? SHORT : INTEGER;
         return asList(keyword("TABLE_CAT"),
                       keyword("TABLE_SCHEM"),
                       keyword("TABLE_NAME"),
                       keyword("COLUMN_NAME"),
-                      field("DATA_TYPE", INTEGER),
+                      field("DATA_TYPE", clientBasedType),
                       keyword("TYPE_NAME"),
                       field("COLUMN_SIZE", INTEGER),
                       field("BUFFER_LENGTH", INTEGER),
-                      field("DECIMAL_DIGITS", INTEGER),
-                      field("NUM_PREC_RADIX", INTEGER),
-                      field("NULLABLE", INTEGER),
+                      field("DECIMAL_DIGITS", clientBasedType),
+                      field("NUM_PREC_RADIX", clientBasedType),
+                      field("NULLABLE", clientBasedType),
                       keyword("REMARKS"),
                       keyword("COLUMN_DEF"),
-                      field("SQL_DATA_TYPE", INTEGER),
-                      field("SQL_DATETIME_SUB", INTEGER),
+                      field("SQL_DATA_TYPE", clientBasedType),
+                      field("SQL_DATETIME_SUB", clientBasedType),
                       field("CHAR_OCTET_LENGTH", INTEGER),
                       field("ORDINAL_POSITION", INTEGER),
                       keyword("IS_NULLABLE"),
@@ -86,31 +97,33 @@ public class SysColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+        boolean isOdbcClient = session.configuration().mode() == Mode.ODBC;
+        List<Attribute> output = output(isOdbcClient);
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
         if (Strings.hasText(catalog) && !cluster.equals(catalog)) {
-            listener.onResponse(Rows.empty(output()));
+            listener.onResponse(Rows.empty(output));
             return;
         }
 
-        String index = indexPattern != null ? indexPattern.asIndexNameWildcard() : "*";
-        String regex = indexPattern != null ? indexPattern.asJavaRegex() : null;
+        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
+        String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
 
-        session.indexResolver().resolveAsSeparateMappings(index, regex, ActionListener.wrap(esIndices -> {
+        session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
             List<List<?>> rows = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
-                fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher);
+                fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, isOdbcClient);
             }
 
-            listener.onResponse(Rows.of(output(), rows));
+            listener.onResponse(Rows.of(output, rows));
         }, listener::onFailure));
     }
 
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
-                            Pattern columnMatcher) {
+            Pattern columnMatcher, boolean isOdbcClient) {
         int pos = 0;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             pos++; // JDBC is 1-based so we start with 1 here
@@ -126,24 +139,24 @@ public class SysColumns extends Command {
                         null,
                         indexName,
                         name,
-                        type.jdbcType.getVendorTypeNumber(),
+                        odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
                         type.esType.toUpperCase(Locale.ROOT),
                         type.displaySize,
                         // TODO: is the buffer_length correct?
                         type.size,
                         // no DECIMAL support
                         null,
-                        DataTypes.metaSqlRadix(type),
+                        odbcCompatible(DataTypes.metaSqlRadix(type), isOdbcClient),
                         // everything is nullable
-                        DatabaseMetaData.columnNullable,
+                        odbcCompatible(DatabaseMetaData.columnNullable, isOdbcClient),
                         // no remarks
                         null,
                         // no column def
                         null,
                         // SQL_DATA_TYPE apparently needs to be same as DATA_TYPE except for datetime and interval data types
-                        DataTypes.metaSqlDataType(type),
+                        odbcCompatible(DataTypes.metaSqlDataType(type), isOdbcClient),
                         // SQL_DATETIME_SUB ?
-                        DataTypes.metaSqlDateTimeSub(type),
+                        odbcCompatible(DataTypes.metaSqlDateTimeSub(type), isOdbcClient),
                         // char octet length
                         type.isString() || type == DataType.BINARY ? type.size : null,
                         // position
@@ -158,14 +171,21 @@ public class SysColumns extends Command {
                         ));
             }
             if (field.getProperties() != null) {
-                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher);
+                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, isOdbcClient);
             }
         }
     }
     
+    private static Object odbcCompatible(Integer value, boolean isOdbcClient) {
+        if (isOdbcClient && value != null) {
+            return Short.valueOf(value.shortValue());
+        }
+        return value;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(catalog, indexPattern, columnPattern);
+        return Objects.hash(catalog, index, pattern, columnPattern);
     }
 
     @Override
@@ -180,7 +200,8 @@ public class SysColumns extends Command {
 
         SysColumns other = (SysColumns) obj;
         return Objects.equals(catalog, other.catalog)
-                && Objects.equals(indexPattern, other.indexPattern)
+                && Objects.equals(index, other.index)
+                && Objects.equals(pattern, other.pattern)
                 && Objects.equals(columnPattern, other.columnPattern);
     }
 }

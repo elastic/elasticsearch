@@ -13,6 +13,8 @@ bucket aggregations (some bucket aggregations enable you to sort the returned bu
 
 include::metrics/avg-aggregation.asciidoc[]
 
+include::metrics/weighted-avg-aggregation.asciidoc[]
+
 include::metrics/cardinality-aggregation.asciidoc[]
 
 include::metrics/extendedstats-aggregation.asciidoc[]
@@ -38,6 +40,8 @@ include::metrics/sum-aggregation.asciidoc[]
 include::metrics/tophits-aggregation.asciidoc[]
 
 include::metrics/valuecount-aggregation.asciidoc[]
+
+include::metrics/median-absolute-deviation-aggregation.asciidoc[]
 
 
 

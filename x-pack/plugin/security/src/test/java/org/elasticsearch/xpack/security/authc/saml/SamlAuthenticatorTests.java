@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.EncryptedData;
 import org.apache.xml.security.encryption.EncryptedKey;
@@ -16,14 +17,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -62,7 +57,6 @@ import javax.xml.crypto.dsig.spec.TransformParameterSpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -101,7 +95,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML20P_NS;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML20_NS;
+import static org.opensaml.saml.saml2.core.AuthnContext.KERBEROS_AUTHN_CTX;
 import static org.opensaml.saml.saml2.core.AuthnContext.PASSWORD_AUTHN_CTX;
+import static org.opensaml.saml.saml2.core.AuthnContext.X509_AUTHN_CTX;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_ATTRIB_NAME;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
@@ -126,7 +122,9 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     @BeforeClass
     public static void init() throws Exception {
-        SamlUtils.initialize(Loggers.getLogger(SamlAuthenticatorTests.class));
+        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
+        // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
+        SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
         Init.init();
     }
@@ -153,9 +151,9 @@ public class SamlAuthenticatorTests extends SamlTestCase {
      */
     @BeforeClass
     public static void initCredentials() throws Exception {
-        idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
-        spSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
-        spEncryptionCertificatePairs = Arrays.asList(createKeyPair("RSA"), createKeyPair("RSA"));
+        idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
+        spSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
+        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("RSA_2048"), readKeyPair("RSA_4096"));
     }
 
     private static String randomSigningAlgorithm() {
@@ -175,23 +173,21 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void setupAuthenticator() throws Exception {
         this.clock = new ClockMock();
         this.maxSkew = TimeValue.timeValueMinutes(1);
-        this.authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair));
+        this.authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
         this.requestId = randomId();
     }
 
-    private SamlAuthenticator buildAuthenticator(Supplier<List<Credential>> credentials) throws Exception {
-        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final Settings realmSettings = Settings.EMPTY;
+    private SamlAuthenticator buildAuthenticator(Supplier<List<Credential>> credentials, List<String> reqAuthnCtxClassRef)
+            throws Exception {
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, credentials);
 
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"),
                 (X509Credential) buildOpenSamlCredential(spSigningCertificatePair).get(0));
         final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
                 .map((cred) -> (X509Credential) cred).collect(Collectors.<X509Credential>toList());
-        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials);
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
+        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials,
+            reqAuthnCtxClassRef);
         return new SamlAuthenticator(
-                new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
                 clock,
                 idp,
                 sp,
@@ -214,7 +210,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">" +
                 IDP_ENTITY_ID + "</saml2:Issuer>" +
                 "<saml2p:Status><saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\"/></saml2p:Status>" +
-                "</saml2p:Response>");
+            "</saml2p:Response>");
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("No assertions found in SAML response"));
         assertThat(exception.getCause(), nullValue());
@@ -374,7 +370,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String xml = getSimpleResponse(now);
 
         // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAssertions(xml, createKeyPair("RSA"));
+        final String encrypted = encryptAssertions(xml, readKeyPair("RSA_4096_updated"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -391,7 +387,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String xml = getSimpleResponse(now);
 
         // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAttributes(xml, createKeyPair("RSA"));
+        final String encrypted = encryptAttributes(xml, readKeyPair("RSA_4096_updated"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -523,11 +519,57 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</assert:Attribute></assert:AttributeStatement>" +
                 "</assert:Assertion>" +
                 "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        SamlToken token = randomBoolean() ? token(signDoc(xml)) : token(signAssertions(xml, idpSigningCertificatePair));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("destination"));
         assertThat(exception.getCause(), nullValue());
         assertThat(SamlUtils.isSamlException(exception), is(true));
+    }
+
+    public void testMissingDestinationIsNotRejectedForNotSignedResponse() throws Exception {
+        Instant now = clock.instant();
+        Instant validUntil = now.plusSeconds(30);
+        String sessionindex = randomId();
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
+            "<proto:Response ID='" + randomId() + "' InResponseTo='" + requestId +
+            "' IssueInstant='" + now + "' Version='2.0'" +
+            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
+            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
+            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
+            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
+            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<assert:Subject>" +
+            "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
+            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
+            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
+            "   InResponseTo='" + requestId + "'/>" +
+            "</assert:SubjectConfirmation>" +
+            "</assert:Subject>" +
+            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
+            "' SessionIndex='" + sessionindex + "'>" +
+            "<assert:AuthnContext>" +
+            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
+            "</assert:AuthnContext>" +
+            "</assert:AuthnStatement>" +
+            "<assert:AttributeStatement><assert:Attribute " +
+            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
+            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
+            "</assert:Attribute></assert:AttributeStatement>" +
+            "</assert:Assertion>" +
+            "</proto:Response>";
+        SamlToken token = token(signAssertions(xml, idpSigningCertificatePair));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(1));
+        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
     }
 
     public void testIncorrectRequestIdIsRejected() throws Exception {
@@ -643,7 +685,143 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("has no Subject"));
         assertThat(exception.getCause(), nullValue());
         assertThat(SamlUtils.isSamlException(exception), is(true));
+    }
 
+    public void testAssertionWithoutAuthnStatementIsRejected() throws Exception {
+        Instant now = clock.instant();
+        Instant validUntil = now.plusSeconds(30);
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
+            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
+            "' IssueInstant='" + now + "' Version='2.0'" +
+            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
+            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
+            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
+            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
+            "<assert:Assertion ID='" + randomId() + "' IssueInstant='" + now + "' Version='2.0'>" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<assert:Subject>" +
+            "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
+            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
+            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
+            "   InResponseTo='" + requestId + "'/>" +
+            "</assert:SubjectConfirmation>" +
+            "</assert:Subject>" +
+            "<assert:AttributeStatement><assert:Attribute " +
+            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
+            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
+            "</assert:Attribute></assert:AttributeStatement>" +
+            "</assert:Assertion>" +
+            "</proto:Response>";
+        SamlToken token = token(signDoc(xml));
+        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        assertThat(exception.getMessage(), containsString("Authn Statements while exactly one was expected."));
+        assertThat(exception.getCause(), nullValue());
+        assertThat(SamlUtils.isSamlException(exception), is(true));
+    }
+
+    public void testExpiredAuthnStatementSessionIsRejected() throws Exception {
+        Instant now = clock.instant();
+        Instant validUntil = now.plusSeconds(120);
+        Instant sessionValidUntil = now.plusSeconds(60);
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
+            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
+            "' IssueInstant='" + now + "' Version='2.0'" +
+            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
+            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
+            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
+            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
+            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<assert:Subject>" +
+            "<assert:NameID Format='" + TRANSIENT + "'>" + nameId + "</assert:NameID>" +
+            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
+            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
+            "   InResponseTo='" + requestId + "'/>" +
+            "</assert:SubjectConfirmation>" +
+            "</assert:Subject>" +
+            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + sessionValidUntil +
+            "' SessionIndex='" + sessionindex + "'>" +
+            "<assert:AuthnContext>" +
+            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
+            "</assert:AuthnContext>" +
+            "</assert:AuthnStatement>" +
+            "<assert:AttributeStatement><assert:Attribute " +
+            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
+            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
+            "</assert:Attribute></assert:AttributeStatement>" +
+            "</assert:Assertion>" +
+            "</proto:Response>";
+        // check that the content is valid "now"
+        final SamlToken token = token(signDoc(xml));
+        assertThat(authenticator.authenticate(token), notNullValue());
+
+        // and still valid if we advance partway through the session expiry time
+        clock.fastForwardSeconds(30);
+        assertThat(authenticator.authenticate(token), notNullValue());
+
+        // and still valid if we advance past the expiry time, but allow for clock skew
+        clock.fastForwardSeconds((int) (30 + maxSkew.seconds() / 2));
+        assertThat(authenticator.authenticate(token), notNullValue());
+
+        // but fails once we get past the clock skew allowance
+        clock.fastForwardSeconds((int) (1 + maxSkew.seconds() / 2));
+        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        assertThat(exception.getMessage(), containsString("on/after"));
+        assertThat(exception.getMessage(), containsString("Authentication Statement"));
+        assertThat(exception.getCause(), nullValue());
+        assertThat(SamlUtils.isSamlException(exception), is(true));
+    }
+
+    public void testIncorrectAuthnContextClassRefIsRejected() throws Exception {
+        Instant now = clock.instant();
+        Instant validUntil = now.plusSeconds(30);
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
+            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
+            "' IssueInstant='" + now + "' Version='2.0'" +
+            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
+            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
+            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
+            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
+            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<assert:Subject>" +
+            "<assert:NameID Format='" + TRANSIENT + "'>" + nameId + "</assert:NameID>" +
+            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
+            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
+            "   InResponseTo='" + requestId + "'/>" +
+            "</assert:SubjectConfirmation>" +
+            "</assert:Subject>" +
+            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
+            "' SessionIndex='" + sessionindex + "'>" +
+            "<assert:AuthnContext>" +
+            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
+            "</assert:AuthnContext>" +
+            "</assert:AuthnStatement>" +
+            "<assert:AttributeStatement><assert:Attribute " +
+            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
+            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
+            "</assert:Attribute></assert:AttributeStatement>" +
+            "</assert:Assertion>" +
+            "</proto:Response>";
+        SamlAuthenticator authenticatorWithReqAuthnCtx = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair),
+            Arrays.asList(X509_AUTHN_CTX, KERBEROS_AUTHN_CTX));
+        SamlToken token = token(signDoc(xml));
+        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticatorWithReqAuthnCtx.authenticate(token));
+        assertThat(exception.getMessage(), containsString("Rejecting SAML assertion as the AuthnContextClassRef"));
+        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssertionWithoutSubjectConfirmationIsRejected() throws Exception {
@@ -937,7 +1115,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         // check is rejected when signed by a different key-pair
-        final Tuple<X509Certificate, PrivateKey> wrongKey = createKeyPair(randomSigningAlgorithm());
+        final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticator.authenticate(token(signer.transform(xml, wrongKey))));
         assertThat(exception.getMessage(), containsString("SAML Signature"));
@@ -953,9 +1131,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         final Tuple<X509Certificate, PrivateKey> oldKeyPair = idpSigningCertificatePair;
-        idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
+        // Ensure we won't read any of the ones we could have picked randomly before
+        idpSigningCertificatePair = readKeyPair("RSA_4096_updated");
         assertThat(idpSigningCertificatePair.v2(), not(equalTo(oldKeyPair.v2())));
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
+        // Restore the keypair to one from the keypair pool of all algorithms and keys
+        idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
     }
 
     public void testParsingRejectsTamperedContent() throws Exception {
@@ -1013,11 +1194,11 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final List<Tuple<X509Certificate, PrivateKey>> keys = new ArrayList<>(numberOfKeys);
         final List<Credential> credentials = new ArrayList<>(numberOfKeys);
         for (int i = 0; i < numberOfKeys; i++) {
-            final Tuple<X509Certificate, PrivateKey> key = createKeyPair(randomSigningAlgorithm());
+            final Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair(randomSigningAlgorithm());
             keys.add(key);
             credentials.addAll(buildOpenSamlCredential(key));
         }
-        this.authenticator = buildAuthenticator(() -> credentials);
+        this.authenticator = buildAuthenticator(() -> credentials, emptyList());
         final CryptoTransform signer = randomBoolean() ? this::signDoc : this::signAssertions;
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
@@ -1454,7 +1635,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         /*
         Permutation 7 - Mangle the contents of the response to be
            <Response>
-               <Extentions>
+               <Extensions>
                    <ForgedAssertion><?ForgedAssertion>
                <LegitimateAssertion>
                    <LegitimateAssertionSignature></LegitimateAssertionSignature>
@@ -1463,16 +1644,16 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         */
         final Element response = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element extentions = legitimateDocument.createElement("Extensions");
+        final Element extensions = legitimateDocument.createElement("Extensions");
         final Element assertion = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
-        response.insertBefore(extentions, assertion);
+        response.insertBefore(extensions, assertion);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
         final Element forgedSignature = (Element) forgedAssertion.
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         forgedAssertion.removeChild(forgedSignature);
-        extentions.appendChild(forgedAssertion);
+        extensions.appendChild(forgedAssertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(forgedToken));
         assertThat(exception.getMessage(), containsString("Failed to parse SAML"));
@@ -1585,7 +1766,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     public void testFailureWhenIdPCredentialsAreEmpty() throws Exception {
-        authenticator = buildAuthenticator(() -> emptyList());
+        authenticator = buildAuthenticator(() -> emptyList(), emptyList());
         final String xml = getSimpleResponse(clock.instant());
         final SamlToken token = token(signDoc(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
@@ -1593,11 +1774,11 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         //Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair));
+        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
     }
 
     public void testFailureWhenIdPCredentialsAreNull() throws Exception {
-        authenticator = buildAuthenticator(() -> singletonList(null));
+        authenticator = buildAuthenticator(() -> singletonList(null), emptyList());
         final String xml = getSimpleResponse(clock.instant());
         final SamlToken token = token(signDoc(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
@@ -1605,7 +1786,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         //Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair));
+        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
     }
 
     private interface CryptoTransform {

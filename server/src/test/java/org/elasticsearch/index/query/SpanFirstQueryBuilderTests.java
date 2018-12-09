@@ -59,7 +59,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
-            assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
+            assertTrue(e.getMessage().contains("span_first must have [end] set"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -70,7 +70,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
-            assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
+            assertTrue(e.getMessage().contains("span_first must have [match] span query clause"));
         }
     }
 
@@ -96,5 +96,27 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
 
         assertEquals(json, 3, parsed.end());
         assertEquals(json, "kimchy", ((SpanTermQueryBuilder) parsed.innerQuery()).value());
+    }
+
+
+    public void testFromJsonWithNonDefaultBoostInMatchQuery() throws IOException {
+        String json =
+                "{\n" +
+                "  \"span_first\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"kimchy\",\n" +
+                "          \"boost\" : 2.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"end\" : 3,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 }

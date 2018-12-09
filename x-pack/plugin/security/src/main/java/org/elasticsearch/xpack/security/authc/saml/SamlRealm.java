@@ -15,6 +15,7 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -44,11 +46,14 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -116,6 +121,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAME_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.REQUESTED_AUTHN_CONTEXT_CLASS_REF;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_KEY_ALIAS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_MESSAGE_TYPES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_SETTINGS;
@@ -129,6 +135,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
  * are still cool and no chance to opt out
  */
 public final class SamlRealm extends Realm implements Releasable {
+    private static final Logger logger = LogManager.getLogger(SamlRealm.class);
 
     public static final String USER_METADATA_NAMEID_VALUE = "saml_" + SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
     public static final String USER_METADATA_NAMEID_FORMAT = USER_METADATA_NAMEID_VALUE + "_format";
@@ -164,6 +171,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private final AttributeParser nameAttribute;
     private final AttributeParser mailAttribute;
 
+    private DelegatedAuthorizationSupport delegatedRealms;
 
     /**
      * Factory for SAML realm.
@@ -172,7 +180,6 @@ public final class SamlRealm extends Realm implements Releasable {
      */
     public static SamlRealm create(RealmConfig config, SSLService sslService, ResourceWatcherService watcherService,
                                    UserRoleMapper roleMapper) throws Exception {
-        final Logger logger = config.logger(SamlRealm.class);
         SamlUtils.initialize(logger);
 
         if (TokenService.isTokenServiceEnabled(config.globalSettings()) == false) {
@@ -190,9 +197,9 @@ public final class SamlRealm extends Realm implements Releasable {
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
         final TimeValue maxSkew = CLOCK_SKEW.get(config.settings());
-        final SamlAuthenticator authenticator = new SamlAuthenticator(config, clock, idpConfiguration, serviceProvider, maxSkew);
+        final SamlAuthenticator authenticator = new SamlAuthenticator(clock, idpConfiguration, serviceProvider, maxSkew);
         final SamlLogoutRequestHandler logoutHandler =
-                new SamlLogoutRequestHandler(config, clock, idpConfiguration, serviceProvider, maxSkew);
+                new SamlLogoutRequestHandler(clock, idpConfiguration, serviceProvider, maxSkew);
 
         final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, idpDescriptor, serviceProvider);
 
@@ -227,6 +234,14 @@ public final class SamlRealm extends Realm implements Releasable {
         this.mailAttribute = AttributeParser.forSetting(logger, MAIL_ATTRIBUTE, config, false);
 
         this.releasables = new ArrayList<>();
+    }
+
+    @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     static String require(RealmConfig config, Setting<String> setting) {
@@ -273,8 +288,9 @@ public final class SamlRealm extends Realm implements Releasable {
         final String serviceProviderId = require(config, SP_ENTITY_ID);
         final String assertionConsumerServiceURL = require(config, SP_ACS);
         final String logoutUrl = SP_LOGOUT.get(config.settings());
+        final List<String> reqAuthnCtxClassRef = REQUESTED_AUTHN_CONTEXT_CLASS_REF.get(config.settings());
         return new SpConfiguration(serviceProviderId, assertionConsumerServiceURL,
-                logoutUrl, buildSigningConfiguration(config), buildEncryptionCredential(config));
+            logoutUrl, buildSigningConfiguration(config), buildEncryptionCredential(config), reqAuthnCtxClassRef);
     }
 
 
@@ -301,7 +317,8 @@ public final class SamlRealm extends Realm implements Releasable {
 
     private static List<X509Credential> buildCredential(RealmConfig config, X509KeyPairSettings keyPairSettings,
             Setting<String> aliasSetting, final boolean allowMultiple) {
-        final X509KeyManager keyManager = CertUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
+        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
+
         if (keyManager == null) {
             return null;
         }
@@ -398,11 +415,27 @@ public final class SamlRealm extends Realm implements Releasable {
         }
     }
 
-    private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult> listener) {
+    private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult> baseListener) {
         final String principal = resolveSingleValueAttribute(attributes, principalAttribute, PRINCIPAL_ATTRIBUTE.name());
         if (Strings.isNullOrEmpty(principal)) {
-            listener.onResponse(AuthenticationResult.unsuccessful(
+            baseListener.onResponse(AuthenticationResult.unsuccessful(
                     principalAttribute + " not found in " + attributes.attributes(), null));
+            return;
+        }
+
+        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
+        ActionListener<AuthenticationResult> wrappedListener = ActionListener.wrap(auth -> {
+            if (auth.isAuthenticated()) {
+                // Add the SAML token details as metadata on the authentication
+                Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
+                metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
+                auth = AuthenticationResult.success(auth.getUser(), metadata);
+            }
+            baseListener.onResponse(auth);
+        }, baseListener::onFailure);
+
+        if (delegatedRealms.hasDelegation()) {
+            delegatedRealms.resolve(principal, wrappedListener);
             return;
         }
 
@@ -420,7 +453,6 @@ public final class SamlRealm extends Realm implements Releasable {
             userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
         }
 
-        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
 
         final List<String> groups = groupsAttribute.getAttribute(attributes);
         final String dn = resolveSingleValueAttribute(attributes, dnAttribute, DN_ATTRIBUTE.name());
@@ -429,9 +461,8 @@ public final class SamlRealm extends Realm implements Releasable {
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
-            config.threadContext().putTransient(CONTEXT_TOKEN_DATA, tokenMetadata);
-            listener.onResponse(AuthenticationResult.success(user));
-        }, listener::onFailure));
+            wrappedListener.onResponse(AuthenticationResult.success(user));
+        }, wrappedListener::onFailure));
     }
 
     public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {
@@ -495,10 +526,11 @@ public final class SamlRealm extends Realm implements Releasable {
 
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
-        Settings sslSettings = config.settings().getByPrefix(SamlRealmSettings.SSL_PREFIX);
-        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+        final String sslKey = RealmSettings.getFullSettingKey(config, SamlRealmSettings.SSL_PREFIX);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
+        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
         HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
@@ -740,10 +772,10 @@ public final class SamlRealm extends Realm implements Releasable {
                             attributes -> attributes.getAttributeValues(attributeName));
                 }
             } else if (required) {
-                throw new SettingsException("Setting" + RealmSettings.getFullSettingKey(realmConfig, setting.getAttribute())
+                throw new SettingsException("Setting " + RealmSettings.getFullSettingKey(realmConfig, setting.getAttribute())
                         + " is required");
             } else if (setting.getPattern().exists(settings)) {
-                throw new SettingsException("Setting" + RealmSettings.getFullSettingKey(realmConfig, setting.getPattern())
+                throw new SettingsException("Setting " + RealmSettings.getFullSettingKey(realmConfig, setting.getPattern())
                         + " cannot be set unless " + RealmSettings.getFullSettingKey(realmConfig, setting.getAttribute()) + " is also set");
             } else {
                 return new AttributeParser("No SAML attribute for [" + setting.name() + "]", attributes -> Collections.emptyList());

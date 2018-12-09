@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -36,10 +37,14 @@ public abstract class MockScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new MockScriptEngine(pluginScriptLang(), pluginScripts());
+        return new MockScriptEngine(pluginScriptLang(), pluginScripts(), pluginContextCompilers());
     }
 
     protected abstract Map<String, Function<Map<String, Object>, Object>> pluginScripts();
+
+    protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
+        return Collections.emptyMap();
+    }
 
     public String pluginScriptLang() {
         return NAME;

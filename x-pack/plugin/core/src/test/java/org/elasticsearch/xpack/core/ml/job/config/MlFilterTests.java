@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
@@ -27,12 +31,30 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
     @Override
     protected MlFilter createTestInstance() {
+        return createRandom();
+    }
+
+    public static MlFilter createRandom() {
+        return createRandom(randomValidFilterId());
+    }
+
+    public static String randomValidFilterId() {
+        CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
+        return generator.ofCodePointsLength(random(), 10, 10);
+    }
+
+    public static MlFilter createRandom(String filterId) {
+        String description = null;
+        if (randomBoolean()) {
+            description = randomAlphaOfLength(20);
+        }
+
         int size = randomInt(10);
-        List<String> items = new ArrayList<>(size);
+        TreeSet<String> items = new TreeSet<>();
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
-        return new MlFilter(randomAlphaOfLengthBetween(1, 20), items);
+        return MlFilter.builder(filterId).setDescription(description).setItems(items).build();
     }
 
     @Override
@@ -46,14 +68,14 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, Collections.emptyList()));
-        assertEquals(MlFilter.ID.getPreferredName() + " must not be null", ex.getMessage());
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> MlFilter.builder(null).build());
+        assertEquals("[filter_id] must not be null.", ex.getMessage());
     }
 
     public void testNullItems() {
-        NullPointerException ex =
-                expectThrows(NullPointerException.class, () -> new MlFilter(randomAlphaOfLengthBetween(1, 20), null));
-        assertEquals(MlFilter.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
+        Exception ex = expectThrows(IllegalArgumentException.class,
+                () -> MlFilter.builder(randomValidFilterId()).setItems((SortedSet<String>) null).build());
+        assertEquals("[items] must not be null.", ex.getMessage());
     }
 
     public void testDocumentId() {
@@ -75,5 +97,41 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             MlFilter.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testInvalidId() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> MlFilter.builder("Invalid id").build());
+        assertThat(e.getMessage(), startsWith("Invalid filter_id; 'Invalid id' can contain lowercase"));
+    }
+
+    public void testTooManyItems() {
+        List<String> items = new ArrayList<>(10001);
+        for (int i = 0; i < 10001; ++i) {
+            items.add("item_" + i);
+        }
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> MlFilter.builder("huge").setItems(items).build());
+        assertThat(e.getMessage(), startsWith("Filter [huge] contains too many items"));
+    }
+
+    public void testGivenItemsAreMaxAllowed() {
+        List<String> items = new ArrayList<>(10000);
+        for (int i = 0; i < 10000; ++i) {
+            items.add("item_" + i);
+        }
+
+        MlFilter hugeFilter = MlFilter.builder("huge").setItems(items).build();
+
+        assertThat(hugeFilter.getItems().size(), equalTo(items.size()));
+    }
+
+    public void testItemsAreSorted() {
+        MlFilter filter = MlFilter.builder("foo").setItems("c", "b", "a").build();
+        assertThat(filter.getItems(), contains("a", "b", "c"));
+    }
+
+    public void testGetItemsReturnsUnmodifiable() {
+        MlFilter filter = MlFilter.builder("foo").setItems("c", "b", "a").build();
+        expectThrows(UnsupportedOperationException.class, () -> filter.getItems().add("x"));
     }
 }

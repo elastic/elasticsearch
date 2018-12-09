@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -84,27 +84,8 @@ public class    IsolateDatafeedAction
         public Request() {
         }
 
-        public String getDatafeedId() {
-            return datafeedId;
-        }
-
-        @Override
-        public boolean match(Task task) {
-            String expectedDescription = MLMetadataField.datafeedTaskId(datafeedId);
-            if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())){
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             datafeedId = in.readString();
         }
 
@@ -112,6 +93,21 @@ public class    IsolateDatafeedAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+        }
+
+        public String getDatafeedId() {
+            return datafeedId;
+        }
+
+        @Override
+        public boolean match(Task task) {
+            String expectedDescription = MlTasks.datafeedTaskId(datafeedId);
+            return task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription());
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override

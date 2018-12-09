@@ -55,4 +55,6 @@ include::setup/sysconfig.asciidoc[]
 
 include::setup/bootstrap-checks.asciidoc[]
 
+include::setup/starting.asciidoc[]
+
 include::setup/stopping.asciidoc[]

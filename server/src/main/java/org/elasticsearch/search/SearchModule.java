@@ -23,7 +23,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -100,7 +99,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -111,8 +109,10 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBu
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
@@ -181,6 +181,10 @@ import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.InternalWeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.mad.InternalMedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
@@ -336,6 +340,8 @@ public class SearchModule {
     private void registerAggregations(List<SearchPlugin> plugins) {
         registerAggregation(new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder::parse)
                 .addResultReader(InternalAvg::new));
+        registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
+            WeightedAvgAggregationBuilder::parse).addResultReader(InternalWeightedAvg::new));
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder::parse)
                 .addResultReader(InternalSum::new));
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder::parse)
@@ -356,6 +362,9 @@ public class SearchModule {
                 PercentileRanksAggregationBuilder::parse)
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
                         .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
+        registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
+                MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
+                        .addResultReader(InternalMedianAbsoluteDeviation::new));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
                 CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new));
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
@@ -398,6 +407,8 @@ public class SearchModule {
                 HistogramAggregationBuilder::parse).addResultReader(InternalHistogram::new));
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
                 DateHistogramAggregationBuilder::parse).addResultReader(InternalDateHistogram::new));
+        registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
+                AutoDateHistogramAggregationBuilder::parse).addResultReader(InternalAutoDateHistogram::new));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoGridAggregationBuilder.NAME, GeoGridAggregationBuilder::new,
@@ -646,6 +657,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
+        registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
     }
 
     /**
@@ -695,7 +707,7 @@ public class SearchModule {
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
-        registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ParentFieldSubFetchPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);

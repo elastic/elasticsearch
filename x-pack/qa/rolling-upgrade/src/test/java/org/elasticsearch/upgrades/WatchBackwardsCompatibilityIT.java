@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 import org.junit.Before;
@@ -35,6 +34,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 @TestLogging("org.elasticsearch.client:TRACE")
-public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
+public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private final StringEntity entity = new StringEntity(watchBuilder()
             .trigger(schedule(interval("5m")))
@@ -177,6 +177,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33753")
     public void testWatcherRestart() throws Exception {
         executeUpgradeIfNeeded();
 
@@ -184,7 +185,8 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         ensureWatcherStopped();
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_start")));
-        ensureWatcherStarted();
+        // Watcher should be started on at least the nodes with the new version.
+        ensureWatcherStartedOnExpectedNodes();
     }
 
     public void testWatchCrudApis() throws Exception {
@@ -311,6 +313,36 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
+        }));
+    }
+
+    private void ensureWatcherStartedOnExpectedNodes() throws Exception {
+        if (nodes.getMaster().getVersion().before(Version.V_6_0_0)) {
+            /*
+             * Versions before 6.0 ran watcher on the master node and the
+             * logic in ensureWatcherStarted is fine.
+             */
+            ensureWatcherStarted();
+            return;
+        }
+        executeAgainstMasterNode(client -> assertBusy(() -> {
+            Map<?, ?> responseBody = entityAsMap(client.performRequest("GET", "_xpack/watcher/stats"));
+            logger.info("ensureWatcherStartedOnModernNodes(), stats response [{}]", responseBody);
+            Map<?, ?> stats = ((List<?>) responseBody.get("stats")).stream()
+                .map(o -> (Map<?, ?>) o)
+                .collect(Collectors.toMap(m -> m.get("node_id"), Function.identity()));
+            if (nodes.getBWCVersion().before(Version.V_6_0_0)) {
+                Map<?, ?> nodeStats = (Map<?, ?>) stats.get(nodes.getMaster().getId());
+                // If the old version is before 6.0 then only the master is allowed to start
+                assertEquals("master node [" + nodes.getMaster().getId() + "] is not started",
+                        "started", nodeStats.get("watcher_state"));
+                return;
+            }
+            for (Node node : nodes.getNewNodes()) {
+                Map<?, ?> nodeStats = (Map<?, ?>) stats.get(node.getId());
+                assertEquals("modern node [" + node.getId() + "] is not started",
+                        "started", nodeStats.get("watcher_state"));
+            }
         }));
     }
 

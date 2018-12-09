@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 
 public class XPackUsageAction extends Action<XPackUsageRequest, XPackUsageResponse, XPackUsageRequestBuilder> {
 

@@ -21,16 +21,18 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Cluster API.
@@ -45,70 +47,117 @@ public final class ClusterClient {
     }
 
     /**
-     * Updates cluster wide specific settings using the Cluster Update Settings API
+     * Updates cluster wide specific settings using the Cluster Update Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
+     * API on elastic.co</a>
+     * @param clusterUpdateSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
+                options, ClusterUpdateSettingsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Updates cluster wide specific settings using the Cluster Update Settings API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
+     * @deprecated Prefer {@link #putSettings(ClusterUpdateSettingsRequest, RequestOptions)}
      */
+    @Deprecated
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
             throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
     }
 
     /**
-     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API
+     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
+     * API on elastic.co</a>
+     * @param clusterUpdateSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options,
+                                 ActionListener<ClusterUpdateSettingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
+                options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
+    }
+    /**
+     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
+     * @deprecated Prefer {@link #putSettingsAsync(ClusterUpdateSettingsRequest, RequestOptions, ActionListener)}
      */
+    @Deprecated
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
-     * Get current tasks using the Task Management API
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * Get the cluster wide settings using the Cluster Get Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html"> Cluster Get Settings
+     * API on elastic.co</a>
+     * @param clusterGetSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ListTasksResponse listTasks(ListTasksRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                emptySet(), headers);
+    public ClusterGetSettingsResponse getSettings(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clusterGetSettingsRequest, ClusterRequestConverters::clusterGetSettings,
+            options, ClusterGetSettingsResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously get current tasks using the Task Management API
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * Asynchronously get the cluster wide settings using the Cluster Get Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html"> Cluster Get Settings
+     * API on elastic.co</a>
+     * @param clusterGetSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void listTasksAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                listener, emptySet(), headers);
+    public void getSettingsAsync(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options,
+                                 ActionListener<ClusterGetSettingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterGetSettingsRequest, ClusterRequestConverters::clusterGetSettings,
+            options, ClusterGetSettingsResponse::fromXContent, listener, emptySet());
     }
 
     /**
-     * Add a pipeline or update an existing pipeline in the cluster
-     * <p>
+     * Get cluster health using the Cluster Health API.
      * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     * <p>
+     * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
+     * @param healthRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PutPipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
-            PutPipelineResponse::fromXContent, emptySet(), headers);
+    public ClusterHealthResponse health(ClusterHealthRequest healthRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
+                ClusterHealthResponse::fromXContent, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 
     /**
-     * Asynchronously add a pipeline or update an existing pipeline in the cluster
-     * <p>
+     * Asynchronously get cluster health using the Cluster Health API.
      * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
+     * @param healthRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void putPipelineAsync(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
-            PutPipelineResponse::fromXContent, listener, emptySet(), headers);
+    public void healthAsync(ClusterHealthRequest healthRequest, RequestOptions options, ActionListener<ClusterHealthResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
+                ClusterHealthResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 }

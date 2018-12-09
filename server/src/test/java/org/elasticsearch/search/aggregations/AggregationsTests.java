@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
@@ -125,6 +127,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGeoCentroidTests());
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
+        aggsTests.add(new InternalAutoDateHistogramTests());
         aggsTests.add(new LongTermsTests());
         aggsTests.add(new DoubleTermsTests());
         aggsTests.add(new StringTermsTests());
@@ -146,6 +149,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalBinaryRangeTests());
         aggsTests.add(new InternalTopHitsTests());
         aggsTests.add(new InternalCompositeTests());
+        aggsTests.add(new InternalMedianAbsoluteDeviationTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

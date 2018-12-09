@@ -47,6 +47,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
@@ -165,11 +166,18 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        doAnswer(inv -> {
+            ((Runnable) inv.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, null, null,
+        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final Realms realms = mock(Realms.class);
         action = new TransportSamlInvalidateSessionAction(settings, threadPool, transportService,
@@ -319,7 +327,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, metadata);
+        tokenService.createUserToken(authentication, authentication, future, metadata, true);
         return future.actionGet();
     }
 

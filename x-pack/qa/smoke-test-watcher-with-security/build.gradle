@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
 // bring in watcher rest test suite
@@ -14,6 +14,7 @@ task copyWatcherRestTests(type: Copy) {
 
 integTestCluster {
   dependsOn copyWatcherRestTests
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
@@ -26,6 +27,8 @@ integTestCluster {
   extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
                'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+  setupCommand 'setupXpackUserForTests',
+               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupWatcherManagerUser',
                'bin/elasticsearch-users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupPowerlessUser',

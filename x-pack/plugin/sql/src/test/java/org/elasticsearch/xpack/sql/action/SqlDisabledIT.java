@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;

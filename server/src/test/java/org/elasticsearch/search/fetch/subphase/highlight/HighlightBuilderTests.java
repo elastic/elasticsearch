@@ -158,10 +158,10 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownArrayNameExpection() throws IOException {
         {
-            IllegalArgumentException e = expectParseThrows(IllegalArgumentException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
                     "}\n");
-            assertEquals("[highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         {
@@ -174,7 +174,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
         }
     }
 
@@ -188,10 +188,10 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownFieldnameExpection() throws IOException {
         {
-            IllegalArgumentException e = expectParseThrows(IllegalArgumentException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : \"value\"\n" +
                     "}\n");
-            assertEquals("[highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         {
@@ -204,7 +204,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
         }
     }
 
@@ -213,10 +213,10 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownObjectFieldnameExpection() throws IOException {
         {
-            IllegalArgumentException e = expectParseThrows(IllegalArgumentException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
                     "}\n");
-            assertEquals("[highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         {
@@ -229,7 +229,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
         }
     }
 
@@ -597,10 +597,10 @@ public class HighlightBuilderTests extends ESTestCase {
                     value = randomAlphaOfLengthBetween(1, 10);
                     break;
                 case 1:
-                    value = new Integer(randomInt(1000));
+                    value = Integer.valueOf(randomInt(1000));
                     break;
                 case 2:
-                    value = new Boolean(randomBoolean());
+                    value = Boolean.valueOf(randomBoolean());
                     break;
                 }
                 options.put(randomAlphaOfLengthBetween(1, 10), value);
@@ -706,9 +706,11 @@ public class HighlightBuilderTests extends ESTestCase {
             switch (randomIntBetween(0, 2)) {
                 // change settings that only exists on top level
                 case 0:
-                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder()); break;
+                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder());
+                    break;
                 case 1:
-                    mutation.encoder(original.encoder() + randomAlphaOfLength(2)); break;
+                    mutation.encoder(original.encoder() + randomAlphaOfLength(2));
+                    break;
                 case 2:
                     if (randomBoolean()) {
                         // add another field

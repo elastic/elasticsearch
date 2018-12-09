@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +34,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assume.assumeThat;
@@ -42,6 +45,11 @@ import static org.junit.Assume.assumeThat;
  * cluster is the on the "zip" distribution.
  */
 public class XPackIT extends AbstractRollingTestCase {
+    private static final Version UPGRADE_FROM_VERSION =
+            Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final boolean UPGRADE_FROM_VERSION_HAS_XPACK =
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_3_0);
+
     @Before
     public void skipIfNotZip() {
         assumeThat("test is only supported if the distribution contains xpack",
@@ -68,18 +76,15 @@ public class XPackIT extends AbstractRollingTestCase {
      * system.
      */
     public void testIndexTemplatesCreated() throws Exception {
-        Version upgradeFromVersion =
-                Version.fromString(System.getProperty("tests.upgrade_from_version"));
-        boolean upgradeFromVersionHasXPack = upgradeFromVersion.onOrAfter(Version.V_6_3_0);
         assumeFalse("this test doesn't really prove anything if the starting version has xpack and it is *much* more complex to maintain",
-                upgradeFromVersionHasXPack);
+                UPGRADE_FROM_VERSION_HAS_XPACK);
         assumeFalse("since we're upgrading from a version without x-pack it won't have any templates",
                 CLUSTER_TYPE == ClusterType.OLD);
 
         List<String> expectedTemplates = new ArrayList<>();
         // Watcher creates its templates as soon as the first watcher node connects
         expectedTemplates.add(".triggered_watches");
-        expectedTemplates.add(".watch-history-8");
+        expectedTemplates.add(".watch-history-9");
         expectedTemplates.add(".watches");
         if (masterIsNewVersion()) {
             // Everything else waits until the master is upgraded to create its templates
@@ -87,6 +92,11 @@ public class XPackIT extends AbstractRollingTestCase {
             expectedTemplates.add(".ml-meta");
             expectedTemplates.add(".ml-notifications");
             expectedTemplates.add(".ml-state");
+            expectedTemplates.add(".monitoring-alerts");
+            expectedTemplates.add(".monitoring-beats");
+            expectedTemplates.add(".monitoring-es");
+            expectedTemplates.add(".monitoring-kibana");
+            expectedTemplates.add(".monitoring-logstash");
             expectedTemplates.add("logstash-index-template");
             expectedTemplates.add("security-index-template");
             expectedTemplates.add("security_audit_log");
@@ -186,6 +196,69 @@ public class XPackIT extends AbstractRollingTestCase {
                 + "  }\n"
                 + "}\n");
         client().performRequest(createJob);
+    }
+
+    /**
+     * Attempts to create a rollup job and validates that the right
+     * thing happens. If all nodes don't have xpack then it should
+     * fail, either with a "I don't support this API" message or a
+     * "the following nodes aren't ready". If all the nodes has xpack
+     * then it should just work. This would catch issues where rollup
+     * would pollute the cluster state with its job that the non-xpack
+     * nodes couldn't understand.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34764")
+    public void testCreateRollup() throws IOException {
+        // Rollup validates its input on job creation so lets make an index for it
+        Request indexInputDoc = new Request("POST", "/rollup_test_input_1/doc/");
+        indexInputDoc.setJsonEntity(
+                "{\n"
+            + "  \"timestamp\":\"2018-01-01T00:00:00\",\n"
+            + "  \"node\": \"node1\",\n"
+            + "  \"voltage\": 12.6\n"
+            + "}");
+        client().performRequest(indexInputDoc);
+
+        // Actually attempt the rollup and catch the errors if there should be any
+        Request createJob = new Request("PUT", "/_xpack/rollup/job/" + System.nanoTime());
+        createJob.setJsonEntity(
+              "{\n"
+            + "  \"index_pattern\" : \"rollup_test_input_*\",\n"
+            + "  \"rollup_index\": \"rollup_test_output\",\n"
+            + "  \"cron\": \"*/30 * * * * ?\",\n"
+            + "  \"page_size\": 1000,\n"
+            + "  \"groups\": {\n"
+            + "    \"date_histogram\": {\n"
+            + "      \"field\": \"timestamp\",\n"
+            + "      \"interval\": \"1h\",\n"
+            + "      \"delay\": \"7d\"\n"
+            + "    },\n"
+            + "    \"terms\": {\n"
+            + "      \"fields\": [\"node.keyword\"]\n"
+            + "    }\n"
+            + "  },\n"
+            + "  \"metrics\": [\n"
+            + "    {\"field\": \"voltage\", \"metrics\": [\"avg\"]}\n"
+            + "  ]\n"
+            + "}\n");
+        if (UPGRADE_FROM_VERSION_HAS_XPACK || CLUSTER_TYPE == ClusterType.UPGRADED) {
+            client().performRequest(createJob);
+        } else {
+            ResponseException e = expectThrows(ResponseException.class, () ->
+                    client().performRequest(createJob));
+            assertThat(e.getMessage(), anyOf(
+                    // Request landed on a node without xpack
+                    containsString("No handler found for uri"),
+                    // Request landed on a node *with* xpack but the master doesn't have it
+                    containsString("No handler for action"),
+                    // Request landed on a node *with* xpack and the master has it but other nodes do not
+                    containsString("The following nodes are not ready yet for enabling x-pack custom metadata")));
+        }
+
+        // Whether or not there are errors we should be able to modify the cluster state
+        Request createIndex = new Request("PUT", "/test_index" + System.nanoTime());
+        client().performRequest(createIndex);
+        client().performRequest(new Request("DELETE", createIndex.getEndpoint()));
     }
 
     /**

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.watcher.transport.action.stats;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;

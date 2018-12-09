@@ -4,8 +4,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 archivesBaseName = 'x-pack-core'
 
@@ -18,7 +21,6 @@ esplugin {
 }
 
 dependencyLicenses {
-  mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
@@ -34,9 +36,7 @@ dependencies {
     compile "commons-codec:commons-codec:${versions.commonscodec}"
 
     // security deps
-    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.58'
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
+    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
 
     testCompile 'org.elasticsearch:securemock:1.2'
@@ -46,6 +46,7 @@ dependencies {
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+    testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
 }
 
 ext.expansions = [
@@ -88,6 +89,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
   additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+  excludes << 'org/elasticsearch/xpack/core/ssl/DerParser.java'
 }
 
 // make LicenseSigner available for testing signed licenses
@@ -130,5 +132,10 @@ thirdPartyAudit.excludes = [
 
 // xpack modules are installed in real clusters as the meta plugin, so
 // installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests and there are no integ tests in xpack core module
+// so we disable integ tests
 integTest.enabled = false
+
+// There are some integ tests that don't require a cluster, we still want to run those
+task internalClusterTest(type: RandomizedTestingTask) {
+    include "**/*IT.class"
+}

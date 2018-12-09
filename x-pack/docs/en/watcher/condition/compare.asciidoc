@@ -49,6 +49,7 @@ search result>> is greater than or equal to 5:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Use dot notation to reference a value in the execution context.
 <2> Specify a comparison operator and the value you want to compare against.
     
@@ -68,6 +69,7 @@ of the form `<{expression}>`. For example, the following expression returns
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 You can also compare two values in the execution context by specifying the 
 compared value as a path of the form of `{{path}}`. For example, the following 
@@ -85,6 +87,7 @@ to the `ctx.payload.aggregations.handled.buckets.true.doc_count`:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Accessing Values in the Execution Context
 

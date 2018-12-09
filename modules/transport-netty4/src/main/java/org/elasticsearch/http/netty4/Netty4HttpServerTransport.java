@@ -42,15 +42,20 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
@@ -87,6 +92,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -119,6 +125,8 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
 
 public class Netty4HttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     static {
         Netty4Utils.setup();
@@ -185,7 +193,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         byteSizeSetting("http.netty.receive_predictor_max", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
             Property.NodeScope, Property.Deprecated);
 
-
+    private final Settings settings;
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
 
@@ -246,6 +254,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings);
+        this.settings = settings;
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.networkService = networkService;
         this.bigArrays = bigArrays;
@@ -432,11 +441,15 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         } else if (origin.equals(ANY_ORIGIN)) {
             builder = Netty4CorsConfigBuilder.forAnyOrigin();
         } else {
-            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-            if (p == null) {
-                builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-            } else {
-                builder = Netty4CorsConfigBuilder.forPattern(p);
+            try {
+                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+                if (p == null) {
+                    builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+                } else {
+                    builder = Netty4CorsConfigBuilder.forPattern(p);
+                }
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
             }
         }
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
@@ -612,14 +625,14 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
                 ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.getCorsConfig()));
             }
             if (transport.pipelining) {
-                ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(transport.logger, transport.pipeliningMaxEvents));
+                ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             }
             ch.pipeline().addLast("handler", requestHandler);
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
 

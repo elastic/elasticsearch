@@ -161,7 +161,9 @@
 
 ---
 "Bulk indexing of monitoring data on closed indices should throw an export exception":
-
+  - skip:
+      version:     " - 6.99.99"
+      reason:      "AwaitsFix: https://github.com/elastic/elasticsearch/issues/30101"
   - do:
       xpack.monitoring.bulk:
         system_id:          "beats"

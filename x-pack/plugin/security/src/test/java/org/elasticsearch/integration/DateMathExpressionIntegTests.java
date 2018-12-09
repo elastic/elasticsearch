@@ -7,12 +7,12 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Collections;
 
@@ -34,12 +33,13 @@ import static org.hamcrest.Matchers.is;
 public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
 
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
+
         return super.configUsers() +
-                "user1:" + USERS_PASSWD_HASHED + "\n";
+            "user1:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -111,7 +111,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         assertEquals(expectedIndexName, multiGetResponse.getResponses()[0].getResponse().getIndex());
 
 
-        DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
+        AcknowledgedResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
         assertThat(deleteIndexResponse.isAcknowledged(), is(true));
     }
 

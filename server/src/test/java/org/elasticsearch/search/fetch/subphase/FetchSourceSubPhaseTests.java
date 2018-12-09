@@ -34,6 +34,7 @@ import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,6 +79,29 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         assertEquals(Collections.singletonMap("field","value"), hitContext.hit().getSourceAsMap());
     }
 
+    public void testNestedSource() throws IOException {
+        Map<String, Object> expectedNested = Collections.singletonMap("nested2", Collections.singletonMap("field", "value0"));
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .field("field2", "value2")
+            .field("nested1", expectedNested)
+            .endObject();
+        FetchSubPhase.HitContext hitContext = hitExecuteMultiple(source, true, null, null,
+            new SearchHit.NestedIdentity("nested1", 0,null));
+        assertEquals(expectedNested, hitContext.hit().getSourceAsMap());
+        hitContext = hitExecuteMultiple(source, true, new String[]{"invalid"}, null,
+            new SearchHit.NestedIdentity("nested1", 0,null));
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecuteMultiple(source, true, null, null,
+            new SearchHit.NestedIdentity("nested1", 0, new SearchHit.NestedIdentity("nested2", 0, null)));
+        assertEquals(Collections.singletonMap("field", "value0"), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecuteMultiple(source, true, new String[]{"invalid"}, null,
+            new SearchHit.NestedIdentity("nested1", 0, new SearchHit.NestedIdentity("nested2", 0, null)));
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+    }
+
     public void testSourceDisabled() throws IOException {
         FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null);
         assertNull(hitContext.hit().getSourceAsMap());
@@ -96,17 +120,29 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
     }
 
     private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {
+        return hitExecute(source, fetchSource, include, exclude, null);
+    }
+
+
+    private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude,
+                                                    SearchHit.NestedIdentity nestedIdentity) {
         return hitExecuteMultiple(source, fetchSource,
             include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-            exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+            exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude}, nestedIdentity);
     }
 
     private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes) {
+        return hitExecuteMultiple(source, fetchSource, includes, excludes, null);
+    }
+
+    private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
+                                                            SearchHit.NestedIdentity nestedIdentity) {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
         SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext,
                 source == null ? null : BytesReference.bytes(source));
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        hitContext.reset(new SearchHit(1, null, null, null), null, 1, null);
+        final SearchHit searchHit = new SearchHit(1, null, null, nestedIdentity, null);
+        hitContext.reset(searchHit, null, 1, null);
         FetchSourceSubPhase phase = new FetchSourceSubPhase();
         phase.hitExecute(searchContext, hitContext);
         return hitContext;

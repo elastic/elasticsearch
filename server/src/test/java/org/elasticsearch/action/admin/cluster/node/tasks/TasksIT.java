@@ -24,10 +24,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -86,7 +85,6 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -358,7 +356,7 @@ public class TasksIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         Map<String, String> headers = new HashMap<>();
-        headers.put("X-Opaque-Id", "my_id");
+        headers.put(Task.X_OPAQUE_ID, "my_id");
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(
@@ -405,7 +403,7 @@ public class TasksIT extends ESIntegTestCase {
         int maxSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.getDefault(Settings.EMPTY).getBytes() / 2 + 1);
 
         Map<String, String> headers = new HashMap<>();
-        headers.put("X-Opaque-Id", "my_id");
+        headers.put(Task.X_OPAQUE_ID, "my_id");
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -416,7 +414,7 @@ public class TasksIT extends ESIntegTestCase {
 
     private void assertTaskHeaders(TaskInfo taskInfo) {
         assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
-        assertEquals("my_id", taskInfo.getHeaders().get("X-Opaque-Id"));
+        assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID));
         assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
     }
 
@@ -723,12 +721,6 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTaskStoringSuccesfulResult() throws Exception {
-        // Randomly create an empty index to make sure the type is created automatically
-        if (randomBoolean()) {
-            logger.info("creating an empty results index with custom settings");
-            assertAcked(client().admin().indices().prepareCreate(TaskResultsService.TASK_INDEX));
-        }
-
         registerTaskManageListeners(TestTaskPlugin.TestTaskAction.NAME);  // we need this to get task id of the process
 
         // Start non-blocking test task
@@ -740,22 +732,19 @@ public class TasksIT extends ESIntegTestCase {
         TaskInfo taskInfo = events.get(0);
         TaskId taskId = taskInfo.getTaskId();
 
-        GetResponse resultDoc = client()
-                .prepareGet(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE, taskId.toString()).get();
-        assertTrue(resultDoc.isExists());
+        TaskResult taskResult = client().admin().cluster()
+                .getTask(new GetTaskRequest().setTaskId(taskId)).get().getTask();
+        assertTrue(taskResult.isCompleted());
+        assertNull(taskResult.getError());
 
-        Map<String, Object> source = resultDoc.getSource();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> task = (Map<String, Object>) source.get("task");
-        assertEquals(taskInfo.getTaskId().getNodeId(), task.get("node"));
-        assertEquals(taskInfo.getAction(), task.get("action"));
-        assertEquals(Long.toString(taskInfo.getId()), task.get("id").toString());
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) source.get("response");
+        assertEquals(taskInfo.getTaskId(), taskResult.getTask().getTaskId());
+        assertEquals(taskInfo.getType(), taskResult.getTask().getType());
+        assertEquals(taskInfo.getAction(), taskResult.getTask().getAction());
+        assertEquals(taskInfo.getDescription(), taskResult.getTask().getDescription());
+        assertEquals(taskInfo.getStartTime(), taskResult.getTask().getStartTime());
+        assertEquals(taskInfo.getHeaders(), taskResult.getTask().getHeaders());
+        Map<?, ?> result = taskResult.getResponseAsMap();
         assertEquals("0", result.get("failure_count").toString());
-
-        assertNull(source.get("failure"));
 
         assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
@@ -794,24 +783,20 @@ public class TasksIT extends ESIntegTestCase {
         TaskInfo failedTaskInfo = events.get(0);
         TaskId failedTaskId = failedTaskInfo.getTaskId();
 
-        GetResponse failedResultDoc = client()
-            .prepareGet(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE, failedTaskId.toString())
-            .get();
-        assertTrue(failedResultDoc.isExists());
+        TaskResult taskResult = client().admin().cluster()
+                .getTask(new GetTaskRequest().setTaskId(failedTaskId)).get().getTask();
+        assertTrue(taskResult.isCompleted());
+        assertNull(taskResult.getResponse());
 
-        Map<String, Object> source = failedResultDoc.getSource();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> task = (Map<String, Object>) source.get("task");
-        assertEquals(failedTaskInfo.getTaskId().getNodeId(), task.get("node"));
-        assertEquals(failedTaskInfo.getAction(), task.get("action"));
-        assertEquals(Long.toString(failedTaskInfo.getId()), task.get("id").toString());
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> error = (Map<String, Object>) source.get("error");
+        assertEquals(failedTaskInfo.getTaskId(), taskResult.getTask().getTaskId());
+        assertEquals(failedTaskInfo.getType(), taskResult.getTask().getType());
+        assertEquals(failedTaskInfo.getAction(), taskResult.getTask().getAction());
+        assertEquals(failedTaskInfo.getDescription(), taskResult.getTask().getDescription());
+        assertEquals(failedTaskInfo.getStartTime(), taskResult.getTask().getStartTime());
+        assertEquals(failedTaskInfo.getHeaders(), taskResult.getTask().getHeaders());
+        Map<?, ?> error = (Map<?, ?>) taskResult.getErrorAsMap();
         assertEquals("Simulating operation failure", error.get("reason"));
         assertEquals("illegal_state_exception", error.get("type"));
-
-        assertNull(source.get("result"));
 
         GetTaskResponse getResponse = expectFinishedTask(failedTaskId);
         assertNull(getResponse.getTask().getResponse());

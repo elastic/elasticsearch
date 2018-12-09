@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.action.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;

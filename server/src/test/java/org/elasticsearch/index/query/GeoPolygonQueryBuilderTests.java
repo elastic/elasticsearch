@@ -25,8 +25,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -46,8 +44,9 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
     @Override
     protected GeoPolygonQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
         List<GeoPoint> polygon = randomPolygon();
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, polygon);
         if (randomBoolean()) {
             builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
         }

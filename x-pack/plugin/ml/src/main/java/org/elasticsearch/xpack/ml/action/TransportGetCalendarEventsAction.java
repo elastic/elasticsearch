@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.Collections;
 import java.util.List;
@@ -31,17 +31,17 @@ import java.util.List;
 public class TransportGetCalendarEventsAction extends HandledTransportAction<GetCalendarEventsAction.Request,
         GetCalendarEventsAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
 
     @Inject
     public TransportGetCalendarEventsAction(Settings settings, ThreadPool threadPool,
                                             TransportService transportService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobProvider jobProvider) {
+                                            ClusterService clusterService, JobResultsProvider jobResultsProvider) {
         super(settings, GetCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, GetCalendarEventsAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.clusterService = clusterService;
     }
 
@@ -87,9 +87,9 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                             jobGroups = job.getGroups();
                         }
 
-                        jobProvider.scheduledEventsForJob(requestId, jobGroups, query, eventsListener);
+                        jobResultsProvider.scheduledEventsForJob(requestId, jobGroups, query, eventsListener);
                     } else {
-                        jobProvider.scheduledEvents(query, eventsListener);
+                        jobResultsProvider.scheduledEvents(query, eventsListener);
                     }
                 },
                 listener::onFailure);
@@ -103,7 +103,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
             return;
         }
 
-        jobProvider.calendar(calendarId, ActionListener.wrap(
+        jobResultsProvider.calendar(calendarId, ActionListener.wrap(
                 c -> listener.onResponse(true),
                 listener::onFailure
         ));

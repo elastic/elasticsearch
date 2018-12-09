@@ -198,6 +198,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
         assertNull(getResponse.getSource());
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
     public void testIndexedTemplate() throws Exception {
@@ -267,6 +268,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setScript("2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
     // Relates to #10397
@@ -311,6 +313,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
         }
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
@@ -339,6 +342,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setScript("4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 5);
+        assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
     }
 
 }

@@ -5,7 +5,7 @@
         indices.analyze:
           body:
             text:         studenci
-            tokenizer:    keyword
+            tokenizer:    standard
             filter:       [polish_stem]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: student  }

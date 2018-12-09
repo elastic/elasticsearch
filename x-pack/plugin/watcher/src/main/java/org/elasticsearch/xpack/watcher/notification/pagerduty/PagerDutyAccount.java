@@ -48,8 +48,8 @@ public class PagerDutyAccount {
         return eventDefaults;
     }
 
-    public SentEvent send(IncidentEvent event, Payload payload) throws IOException {
-        HttpRequest request = event.createRequest(serviceKey, payload);
+    public SentEvent send(IncidentEvent event, Payload payload, String watchId) throws IOException {
+        HttpRequest request = event.createRequest(serviceKey, payload, watchId);
         HttpResponse response = httpClient.execute(request);
         return SentEvent.responded(event, request, response);
     }

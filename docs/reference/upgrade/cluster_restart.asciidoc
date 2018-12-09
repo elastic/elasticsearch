@@ -38,6 +38,10 @@ include::shut-down-node.asciidoc[]
 . *Upgrade all nodes.*
 +
 --
+include::remove-xpack.asciidoc[]
+--
++
+--
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -91,7 +95,7 @@ already have local shard copies.
 +
 --
 When all nodes have joined the cluster and recovered their primary shards,
-reenable allocation by restoring `cluster.routing.allocation.enable` to its 
+reenable allocation by restoring `cluster.routing.allocation.enable` to its
 default:
 
 [source,js]

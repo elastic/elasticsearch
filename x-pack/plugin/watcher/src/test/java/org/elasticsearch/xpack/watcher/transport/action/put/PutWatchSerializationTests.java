@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 
 import java.io.IOException;
 import java.util.Base64;

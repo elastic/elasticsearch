@@ -39,6 +39,12 @@ public class TribeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return true;
     }
 
+    // tribe nodes can not handle delete rollup requests
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
     public TribeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

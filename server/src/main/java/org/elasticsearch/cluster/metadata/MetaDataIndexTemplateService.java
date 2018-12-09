@@ -19,7 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -62,7 +62,9 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting index templates updates
  */
-public class MetaDataIndexTemplateService extends AbstractComponent {
+public class MetaDataIndexTemplateService {
+
+    private static final Logger logger = LogManager.getLogger(MetaDataIndexTemplateService.class);
 
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -72,11 +74,10 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
+    public MetaDataIndexTemplateService(ClusterService clusterService,
                                         MetaDataCreateIndexService metaDataCreateIndexService,
                                         AliasValidator aliasValidator, IndicesService indicesService,
                                         IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry) {
-        super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
@@ -178,9 +179,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                         .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                     templateBuilder.putAlias(aliasMetaData);
-                }
-                for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
-                    templateBuilder.putCustom(entry.getKey(), entry.getValue());
                 }
                 IndexTemplateMetaData template = templateBuilder.build();
 
@@ -304,7 +302,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 validationErrors.add(t.getMessage());
             }
         }
-        List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);
+        List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings, true);
         validationErrors.addAll(indexSettingsValidation);
         if (!validationErrors.isEmpty()) {
             ValidationException validationException = new ValidationException();
@@ -339,7 +337,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
-        Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
@@ -375,11 +372,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
-            return this;
-        }
-
-        public PutRequest customs(Map<String, IndexMetaData.Custom> customs) {
-            this.customs.putAll(customs);
             return this;
         }
 

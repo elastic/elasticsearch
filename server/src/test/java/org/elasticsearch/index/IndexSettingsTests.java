@@ -366,6 +366,26 @@ public class IndexSettingsTests extends ESTestCase {
                 settings.getMaxAdjacencyMatrixFilters());
     }
 
+    public void testMaxRegexLengthSetting() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 99)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(99, settings.getMaxRegexLength());
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 101).build()));
+        assertEquals(101, settings.getMaxRegexLength());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxRegexLength());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxRegexLength());
+    }
+
     public void testGCDeletesSetting() {
         TimeValue gcDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()
@@ -586,5 +606,13 @@ public class IndexSettingsTests extends ESTestCase {
             newIndexMeta("index", Settings.builder().putList("index.query.default_field", "body", "title").build())
         );
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
+    }
+
+    public void testUpdateSoftDeletesFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
+            settings.updateSettings(Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
+                Settings.builder(), Settings.builder(), "index"));
+        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -66,7 +67,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     // indices options that require every specified index to exist, expand wildcards only to open
     // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
     // expressions only against indices
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
     public IndicesAliasesRequest() {
     }
@@ -84,6 +85,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField ROUTING = new ParseField("routing");
         private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
         private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
+        private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -179,6 +181,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::routing, XContentParser::text, ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, INDEX_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
         private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
@@ -215,6 +218,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private String routing;
         private String indexRouting;
         private String searchRouting;
+        private Boolean writeIndex;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -231,6 +235,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             routing = in.readOptionalString();
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+                writeIndex = in.readOptionalBoolean();
+            }
         }
 
         @Override
@@ -242,6 +249,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(routing);
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                out.writeOptionalBoolean(writeIndex);
+            }
         }
 
         /**
@@ -292,7 +302,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         /**
          * Aliases to use with this action.
          */
-        @Override
         public AliasActions aliases(String... aliases) {
             if (type == AliasActions.Type.REMOVE_INDEX) {
                 throw new IllegalArgumentException("[aliases] is unsupported for [" + type + "]");
@@ -401,9 +410,26 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             }
         }
 
+        public AliasActions writeIndex(Boolean writeIndex) {
+            if (type != AliasActions.Type.ADD) {
+                throw new IllegalArgumentException("[is_write_index] is unsupported for [" + type + "]");
+            }
+            this.writeIndex = writeIndex;
+            return this;
+        }
+
+        public Boolean writeIndex() {
+            return writeIndex;
+        }
+
         @Override
         public String[] aliases() {
             return aliases;
+        }
+
+        @Override
+        public void replaceAliases(String... aliases) {
+            this.aliases = aliases;
         }
 
         @Override
@@ -446,6 +472,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (false == Strings.isEmpty(searchRouting)) {
                 builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
             }
+            if (null != writeIndex) {
+                builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -465,6 +494,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",routing=" + routing
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
+                    + ",writeIndex=" + writeIndex
                     + "]";
         }
 
@@ -481,12 +511,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(filter, other.filter)
                     && Objects.equals(routing, other.routing)
                     && Objects.equals(indexRouting, other.indexRouting)
-                    && Objects.equals(searchRouting, other.searchRouting);
+                    && Objects.equals(searchRouting, other.searchRouting)
+                    && Objects.equals(writeIndex, other.writeIndex);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex);
         }
     }
 

@@ -24,5 +24,5 @@ exec \
   -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
   -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
   -cp "$ES_CLASSPATH" \
-  $1 \
-  "${@:2}"
+  "$ES_MAIN_CLASS" \
+  "$@"

@@ -19,8 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +34,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
@@ -57,8 +55,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 builder.field("test", "test");
             }
             builder.endObject();
-            client().performRequest("PUT", "/" + indexName + "/" + typeName + "/" + "1", emptyMap(),
-                new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", "/" + indexName + "/" + typeName + "/" + "1");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
         }
     }
 
@@ -109,8 +108,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("POST", "_aliases", emptyMap(), new StringEntity(Strings.toString(builder),
-                            ContentType.APPLICATION_JSON));
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
             headTestCase("/_alias/test_alias", emptyMap(), greaterThan(0));
             headTestCase("/test/_alias/test_alias", emptyMap(), greaterThan(0));
         }
@@ -135,8 +135,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("PUT", "/_template/template", emptyMap(),
-                new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", "/_template/template");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
             headTestCase("/_template/template", emptyMap(), greaterThan(0));
         }
     }
@@ -144,7 +145,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     public void testGetSourceAction() throws IOException {
         createTestDoc();
         headTestCase("/test/test/1/_source", emptyMap(), greaterThan(0));
-        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
+        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -164,10 +165,12 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            client().performRequest("PUT", "/test-no-source", emptyMap(), new StringEntity(Strings.toString(builder),
-                            ContentType.APPLICATION_JSON));
+
+            Request request = new Request("PUT", "/test-no-source");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
             createTestDoc("test-no-source", "test-no-source");
-            headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
+            headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
         }
     }
 
@@ -190,7 +193,11 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             final Map<String, String> params,
             final int expectedStatusCode,
             final Matcher<Integer> matcher) throws IOException {
-        Response response = client().performRequest("HEAD", url, params);
+        Request request = new Request("HEAD", url);
+        for (Map.Entry<String, String> param : params.entrySet()) {
+            request.addParameter(param.getKey(), param.getValue());
+        }
+        Response response = client().performRequest(request);
         assertEquals(expectedStatusCode, response.getStatusLine().getStatusCode());
         assertThat(Integer.valueOf(response.getHeader("Content-Length")), matcher);
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());

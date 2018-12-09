@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.monitoring.test;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -45,9 +44,7 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     @Override
     public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
         MockCompiledScript compiledScript = new MockCompiledScript(name, options, script, p -> script);
-        if (context.instanceClazz.equals(ExecutableScript.class)) {
-            return context.factoryClazz.cast((ExecutableScript.Factory) compiledScript::createExecutableScript);
-        } else if (context.instanceClazz.equals(SearchScript.class)) {
+        if (context.instanceClazz.equals(SearchScript.class)) {
             return context.factoryClazz.cast((SearchScript.Factory) compiledScript::createSearchScript);
         }
         throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");

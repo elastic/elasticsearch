@@ -10,6 +10,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -17,6 +19,8 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
@@ -71,6 +76,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import static java.util.Collections.emptyMap;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -85,6 +91,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -169,7 +176,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useSSL,
                 numNodes);
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useSSL, createTempDir(), Scope.SUITE) {
+                new SecuritySettingsSource(useSSL, createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -360,6 +367,21 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.start();
     }
 
+    public void testIndexTemplateUpgrader() throws Exception {
+        final MetaDataUpgrader metaDataUpgrader = internalCluster().getInstance(MetaDataUpgrader.class);
+        final Map<String, IndexTemplateMetaData> updatedTemplates = metaDataUpgrader.indexTemplateMetaDataUpgraders.apply(emptyMap());
+        final IndexTemplateMetaData indexAuditTrailTemplate = updatedTemplates.get(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        assertThat(indexAuditTrailTemplate, notNullValue());
+        // test custom index settings override template
+        assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexAuditTrailTemplate.settings()), is(numReplicas));
+        assertThat(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexAuditTrailTemplate.settings()), is(numShards));
+        // test upgrade template and installed template are equal
+        final GetIndexTemplatesRequest request = new GetIndexTemplatesRequest(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        final GetIndexTemplatesResponse response = client().admin().indices().getTemplates(request).get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
+        assertThat(indexAuditTrailTemplate, is(response.getIndexTemplates().get(0)));
+    }
+
     public void testProcessorsSetting() {
         final boolean explicitProcessors = randomBoolean();
         final int processors;
@@ -405,7 +427,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAnonymousAccessDeniedTransport() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.anonymousAccessDenied("_action", message);
+        auditor.anonymousAccessDenied(randomAlphaOfLengthBetween(6, 12), "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "anonymous_access_denied");
@@ -428,7 +450,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAnonymousAccessDeniedRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
-        auditor.anonymousAccessDenied(request);
+        auditor.anonymousAccessDenied(randomAlphaOfLengthBetween(6, 12), request);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "anonymous_access_denied");
@@ -442,7 +464,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAuthenticationFailedTransport() throws Exception {
         initialize();
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.authenticationFailed(new MockToken(), "_action", message);
+        auditor.authenticationFailed(randomAlphaOfLengthBetween(6, 12), new MockToken(), "_action", message);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertAuditMessage(hit, "transport", "authentication_failed");
@@ -462,7 +484,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAuthenticationFailedTransportNoToken() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.authenticationFailed("_action", message);
+        auditor.authenticationFailed(randomAlphaOfLengthBetween(6, 12), "_action", message);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "transport", "authentication_failed");
@@ -486,7 +508,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAuthenticationFailedRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
-        auditor.authenticationFailed(new MockToken(), request);
+        auditor.authenticationFailed(randomAlphaOfLengthBetween(6, 12), new MockToken(), request);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "authentication_failed");
@@ -501,7 +523,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAuthenticationFailedRestNoToken() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
-        auditor.authenticationFailed(request);
+        auditor.authenticationFailed(randomAlphaOfLengthBetween(6, 12), request);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "authentication_failed");
@@ -516,7 +538,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAuthenticationFailedTransportRealm() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.authenticationFailed("_realm", new MockToken(), "_action", message);
+        auditor.authenticationFailed(randomAlphaOfLengthBetween(6, 12), "_realm", new MockToken(), "_action", message);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "transport", "realm_authentication_failed");
@@ -542,7 +564,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testAuthenticationFailedRestRealm() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
-        auditor.authenticationFailed("_realm", new MockToken(), request);
+        auditor.authenticationFailed(randomAlphaOfLengthBetween(6, 12), "_realm", new MockToken(), request);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "realm_authentication_failed");
@@ -565,7 +587,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.accessGranted(createAuthentication(user), "_action", message, new String[] { role });
+        auditor.accessGranted(randomAlphaOfLengthBetween(6, 12), createAuthentication(user), "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -593,7 +615,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.accessGranted(createAuthentication(SystemUser.INSTANCE), "internal:_action", message, new String[] { role });
+        auditor.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE), "internal:_action", message,
+            new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -617,7 +640,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.accessDenied(createAuthentication(user), "_action", message, new String[] { role });
+        auditor.accessDenied(randomAlphaOfLengthBetween(6, 12), createAuthentication(user), "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();
@@ -644,7 +667,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testTamperedRequestRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
-        auditor.tamperedRequest(request);
+        auditor.tamperedRequest(randomAlphaOfLengthBetween(6, 12), request);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "rest", "tampered_request");
@@ -659,7 +682,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testTamperedRequest() throws Exception {
         initialize();
         TransportRequest message = new RemoteHostMockTransportRequest();
-        auditor.tamperedRequest("_action", message);
+        auditor.tamperedRequest(randomAlphaOfLengthBetween(6, 12), "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();
@@ -680,7 +703,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         } else {
             user = new User("_username", new String[]{"r1"});
         }
-        auditor.tamperedRequest(user, "_action", message);
+        auditor.tamperedRequest(randomAlphaOfLengthBetween(6, 12), user, "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
@@ -730,7 +753,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.runAsGranted(createAuthentication(user), "_action", message, new String[] { role });
+        auditor.runAsGranted(randomAlphaOfLengthBetween(6, 12), createAuthentication(user), "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_granted");
@@ -749,7 +772,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
-        auditor.runAsDenied(createAuthentication(user), "_action", message, new String[] { "r1" });
+        auditor.runAsDenied(randomAlphaOfLengthBetween(6, 12), createAuthentication(user), "_action", message, new String[] { "r1" });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_denied");
@@ -774,7 +797,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             user = new User("_username", new String[] { "r1" });
         }
         String realm = "_realm";
-        auditor.authenticationSuccess(realm, user, request);
+        auditor.authenticationSuccess(randomAlphaOfLengthBetween(6, 12), realm, user, request);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "authentication_success");
@@ -801,7 +824,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             user = new User("_username", new String[] { "r1" });
         }
         String realm = "_realm";
-        auditor.authenticationSuccess(realm, user, "_action", message);
+        auditor.authenticationSuccess(randomAlphaOfLengthBetween(6, 12), realm, user, "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();

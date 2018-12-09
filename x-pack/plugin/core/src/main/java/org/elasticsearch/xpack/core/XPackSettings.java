@@ -3,23 +3,28 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.Cipher;
+import javax.crypto.SecretKeyFactory;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 
@@ -27,6 +32,17 @@ import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+
+    private XPackSettings() {
+        throw new IllegalStateException("Utility class should not be instantiated");
+    }
+
+
+    /**
+     * Setting for controlling whether or not CCR is enabled.
+     */
+    public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
+
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
@@ -62,6 +78,16 @@ public class XPackSettings {
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling Beats extensions. Defaults to true. */
+    public static final Setting<Boolean> BEATS_ENABLED = Setting.boolSetting("xpack.beats.enabled", true,
+        Setting.Property.NodeScope);
+
+    /**
+     * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
+     */
+    public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
+        Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
@@ -82,6 +108,10 @@ public class XPackSettings {
             return Boolean.TRUE.toString();
         }
     }, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling FIPS mode. Defaults to false */
+    public static final Setting<Boolean> FIPS_MODE_ENABLED =
+        Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
@@ -112,6 +142,25 @@ public class XPackSettings {
 
         DEFAULT_CIPHERS = ciphers;
     }
+
+    /*
+     * Do not allow insecure hashing algorithms to be used for password hashing
+     */
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
+        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), (v, s) -> {
+        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+            throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
+                Hasher.getAvailableAlgoStoredHash().toString());
+        } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+            try {
+                SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalArgumentException(
+                    "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
+                        "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+            }
+        }
+    }, Setting.Property.NodeScope);
 
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
@@ -151,6 +200,8 @@ public class XPackSettings {
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);
+        settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(INDEX_LIFECYCLE_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

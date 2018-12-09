@@ -26,7 +26,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.action.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;

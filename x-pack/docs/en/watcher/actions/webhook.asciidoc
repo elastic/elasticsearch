@@ -30,6 +30,7 @@ The following snippet shows a simple webhook action definition:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The id of the action
 <2> An optional <<transform, transform>> to transform the payload before
     executing the `webhook` action
@@ -65,6 +66,7 @@ For example, the following `webhook` action creates a new issue in GitHub:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The username and password for the user creating the issue
 
 NOTE: By default, both the username and the password are stored in the `.watches`
@@ -101,6 +103,7 @@ the values serve as the parameter values:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The parameter values can contain templated strings.
 
 
@@ -128,6 +131,7 @@ the values serve as the header values:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The header values can contain templated strings.
 
 

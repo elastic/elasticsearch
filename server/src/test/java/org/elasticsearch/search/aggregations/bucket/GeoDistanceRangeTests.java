@@ -41,7 +41,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     protected GeoDistanceAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         GeoPoint origin = RandomShapeGenerator.randomPoint(random());
-        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder("foo", origin);
+        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(randomAlphaOfLengthBetween(3, 10), origin);
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

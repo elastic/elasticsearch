@@ -46,9 +46,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.lang.Math.log10;
+import static java.lang.Math.min;
 import static java.lang.Math.max;
 import static java.lang.Math.round;
+import static java.lang.Math.log10;
 
 public final class DirectCandidateGenerator extends CandidateGenerator {
 
@@ -187,12 +188,14 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return errorScore * (((double)frequency + 1) / ((double)dictionarySize +1));
     }
 
-    protected long thresholdFrequency(long termFrequency, long dictionarySize) {
+    // package protected for tests
+    long thresholdFrequency(long termFrequency, long dictionarySize) {
         if (termFrequency > 0) {
-            return max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(LOG_BASE))) + 1));
+            return min(
+                max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(LOG_BASE))) + 1)), Integer.MAX_VALUE
+            );
         }
         return 0;
-
     }
 
     public abstract static class TokenConsumer {

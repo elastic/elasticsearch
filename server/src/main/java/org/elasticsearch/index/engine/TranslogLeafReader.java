@@ -37,7 +37,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -58,16 +57,16 @@ final class TranslogLeafReader extends LeafReader {
     private final Translog.Index operation;
     private static final FieldInfo FAKE_SOURCE_FIELD
         = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0,0);
+        0, 0, 0, false);
     private static final FieldInfo FAKE_ROUTING_FIELD
         = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0,0);
+        0, 0, 0, false);
     private static final FieldInfo FAKE_ID_FIELD
         = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0,0);
+        0, 0, 0, false);
     private static final FieldInfo FAKE_UID_FIELD
         = new FieldInfo(UidFieldMapper.NAME, 4, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0,0);
+        0, 0, 0, false);
     private final Version indexVersionCreated;
 
     TranslogLeafReader(Translog.Index operation, Version indexVersionCreated) {

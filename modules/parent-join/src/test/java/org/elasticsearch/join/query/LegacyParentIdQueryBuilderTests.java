@@ -57,9 +57,9 @@ public class LegacyParentIdQueryBuilderTests extends AbstractQueryTestCase<Paren
     }
 
     @Override
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         return Settings.builder()
-            .put(super.indexSettings())
+            .put(super.createTestIndexSettings())
             .put("index.version.created", Version.V_5_6_0) // legacy needs multi type
             .build();
     }

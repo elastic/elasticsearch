@@ -27,15 +27,17 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.tasks.TaskInfo;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -122,7 +124,7 @@ public class RestTasksAction extends AbstractCatAction {
         return table;
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
+    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
         table.startRow();
@@ -139,7 +141,7 @@ public class RestTasksAction extends AbstractCatAction {
         }
         table.addCell(taskInfo.getType());
         table.addCell(taskInfo.getStartTime());
-        table.addCell(dateFormat.print(taskInfo.getStartTime()));
+        table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));
         table.addCell(taskInfo.getRunningTimeNanos());
         table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());
 

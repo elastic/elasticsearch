@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -32,7 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class AppendProcessorFactoryTests extends ESTestCase {
 

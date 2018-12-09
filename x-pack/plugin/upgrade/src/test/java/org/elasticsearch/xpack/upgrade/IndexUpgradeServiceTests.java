@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -25,7 +25,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexUpgradeServiceTests extends ESTestCase {
 
-    private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck("upgrade_bar", Settings.EMPTY,
+    private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck("upgrade_bar",
             (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 if ("bar".equals(indexMetaData.getSettings().get("test.setting"))) {
                     return UpgradeActionRequired.UPGRADE;
@@ -34,7 +34,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
                 }
             }, null, null, null, null);
 
-    private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck("reindex_foo", Settings.EMPTY,
+    private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck("reindex_foo",
             (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 if ("foo".equals(indexMetaData.getSettings().get("test.setting"))) {
                     return UpgradeActionRequired.REINDEX;
@@ -43,10 +43,10 @@ public class IndexUpgradeServiceTests extends ESTestCase {
                 }
             }, null, null, null, null);
 
-    private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck("everything_is_fine", Settings.EMPTY,
+    private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck("everything_is_fine",
             indexMetaData -> UpgradeActionRequired.UP_TO_DATE, null, null, null, null);
 
-    private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck("unreachable", Settings.EMPTY,
+    private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck("unreachable",
             (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 fail("Unreachable check is called");
                 return null;

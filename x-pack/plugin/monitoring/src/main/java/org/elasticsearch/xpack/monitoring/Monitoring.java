@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
+import org.elasticsearch.xpack.monitoring.collector.ccr.StatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
@@ -140,12 +141,13 @@ public class Monitoring extends Plugin implements ActionPlugin {
             threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
-        collectors.add(new IndexStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService()));
-        collectors.add(new ShardsCollector(settings, clusterService, getLicenseState()));
-        collectors.add(new NodeStatsCollector(settings, clusterService, getLicenseState(), client));
-        collectors.add(new IndexRecoveryCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new ShardsCollector(clusterService, getLicenseState()));
+        collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
+        collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
@@ -176,6 +178,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         settings.add(MonitoringField.HISTORY_DURATION);
         settings.add(CLEAN_WATCHER_HISTORY);
         settings.add(MonitoringService.ENABLED);
+        settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);
         settings.add(Collector.INDICES);
         settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
@@ -183,6 +186,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         settings.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
         settings.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
         settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
+        settings.add(StatsCollector.CCR_STATS_TIMEOUT);
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
         return Collections.unmodifiableList(settings);

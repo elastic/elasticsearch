@@ -446,7 +446,6 @@ PUT my_queries1
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "wildcard_edge_ngram"
           ]
@@ -462,7 +461,7 @@ PUT my_queries1
     }
   },
   "mappings": {
-    "query": {
+    "_doc": {
       "properties": {
         "query": {
           "type": "percolator"
@@ -509,7 +508,7 @@ this query below should be indexed:
 
 [source,js]
 --------------------------------------------------
-PUT /my_queries1/query/1?refresh
+PUT /my_queries1/_doc/1?refresh
 {
   "query": {
     "term": {
@@ -560,7 +559,7 @@ GET /my_queries1/_search
     "hits": [
       {
         "_index": "my_queries1",
-        "_type": "query",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.41501677,
         "_source": {
@@ -597,7 +596,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse",
             "wildcard_edge_ngram"
@@ -607,7 +605,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse"
           ]
@@ -623,7 +620,7 @@ PUT my_queries2
     }
   },
   "mappings": {
-    "query": {
+    "_doc": {
       "properties": {
         "query": {
           "type": "percolator"
@@ -668,7 +665,7 @@ the following query below should be indexed:
 
 [source,js]
 --------------------------------------------------
-PUT /my_queries2/query/2?refresh
+PUT /my_queries2/_doc/2?refresh
 {
   "query": {
     "match": { <1>

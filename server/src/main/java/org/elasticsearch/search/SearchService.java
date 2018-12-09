@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -31,9 +34,12 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -99,20 +105,27 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
+    private static final Logger logger = LogManager.getLogger(SearchService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
@@ -135,6 +148,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, Property.Dynamic, Property.NodeScope);
     public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS =
             Setting.boolSetting("search.default_allow_partial_results", true, Property.Dynamic, Property.NodeScope);
+
+    public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
+        Setting.intSetting("search.max_open_scroll_context", Integer.MAX_VALUE, 0, Property.Dynamic, Property.NodeScope);
 
 
     private final ThreadPool threadPool;
@@ -165,6 +181,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile boolean lowLevelCancellation;
 
+    private volatile int maxOpenScrollContext;
+
     private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -173,17 +191,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final MultiBucketConsumerService multiBucketConsumerService;
 
+    private final AtomicInteger openScrollContexts = new AtomicInteger();
+
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
                          ResponseCollectorService responseCollectorService) {
         super(clusterService.getSettings());
+        Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
-        this.queryPhase = new QueryPhase(settings);
+        this.queryPhase = new QueryPhase();
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings);
 
@@ -202,6 +223,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 this::setDefaultAllowPartialSearchResults);
 
+        maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
@@ -231,6 +254,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public boolean defaultAllowPartialSearchResults() {
         return defaultAllowPartialSearchResults;
+    }
+
+    private void setMaxOpenScrollContext(int maxOpenScrollContext) {
+        this.maxOpenScrollContext = maxOpenScrollContext;
     }
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
@@ -343,7 +370,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws IOException {
+    private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
+        getExecutor(id).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                listener.onResponse(executable.get());
+            }
+        });
+    }
+
+    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws IOException {
         final SearchContext context = createAndPutContext(request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
@@ -404,59 +445,63 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
-    public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id(), request);
-        SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
-        context.incRef();
-        try {
-            context.setTask(task);
-            operationListener.onPreQueryPhase(context);
-            long time = System.nanoTime();
-            contextProcessing(context);
-            processScroll(request, context);
-            queryPhase.execute(context);
-            contextProcessedSuccessfully(context);
-            operationListener.onQueryPhase(context, System.nanoTime() - time);
-            return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
-        } catch (Exception e) {
-            operationListener.onFailedQueryPhase(context);
-            logger.trace("Query phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
+    public void executeQueryPhase(InternalScrollSearchRequest request, SearchTask task, ActionListener<ScrollQuerySearchResult> listener) {
+        runAsync(request.id(), () -> {
+            final SearchContext context = findContext(request.id(), request);
+            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+            context.incRef();
+            try {
+                context.setTask(task);
+                operationListener.onPreQueryPhase(context);
+                long time = System.nanoTime();
+                contextProcessing(context);
+                processScroll(request, context);
+                queryPhase.execute(context);
+                contextProcessedSuccessfully(context);
+                operationListener.onQueryPhase(context, System.nanoTime() - time);
+                return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
+            } catch (Exception e) {
+                operationListener.onFailedQueryPhase(context);
+                logger.trace("Query phase failed", e);
+                processFailure(context, e);
+                throw ExceptionsHelper.convertToRuntime(e);
+            } finally {
+                cleanContext(context);
+            }
+        }, listener);
     }
 
-    public QuerySearchResult executeQueryPhase(QuerySearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id(), request);
-        context.setTask(task);
-        IndexShard indexShard = context.indexShard();
-        SearchOperationListener operationListener = indexShard.getSearchOperationListener();
-        context.incRef();
-        try {
-            contextProcessing(context);
-            context.searcher().setAggregatedDfs(request.dfs());
+    public void executeQueryPhase(QuerySearchRequest request, SearchTask task, ActionListener<QuerySearchResult> listener) {
+        runAsync(request.id(), () -> {
+            final SearchContext context = findContext(request.id(), request);
+            context.setTask(task);
+            IndexShard indexShard = context.indexShard();
+            SearchOperationListener operationListener = indexShard.getSearchOperationListener();
+            context.incRef();
+            try {
+                contextProcessing(context);
+                context.searcher().setAggregatedDfs(request.dfs());
 
-            operationListener.onPreQueryPhase(context);
-            long time = System.nanoTime();
-            queryPhase.execute(context);
-            if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
-                // no hits, we can release the context since there will be no fetch phase
-                freeContext(context.id());
-            } else {
-                contextProcessedSuccessfully(context);
+                operationListener.onPreQueryPhase(context);
+                long time = System.nanoTime();
+                queryPhase.execute(context);
+                if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
+                    // no hits, we can release the context since there will be no fetch phase
+                    freeContext(context.id());
+                } else {
+                    contextProcessedSuccessfully(context);
+                }
+                operationListener.onQueryPhase(context, System.nanoTime() - time);
+                return context.queryResult();
+            } catch (Exception e) {
+                operationListener.onFailedQueryPhase(context);
+                logger.trace("Query phase failed", e);
+                processFailure(context, e);
+                throw ExceptionsHelper.convertToRuntime(e);
+            } finally {
+                cleanContext(context);
             }
-            operationListener.onQueryPhase(context, System.nanoTime() - time);
-            return context.queryResult();
-        } catch (Exception e) {
-            operationListener.onFailedQueryPhase(context);
-            logger.trace("Query phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
+        }, listener);
     }
 
     private boolean fetchPhaseShouldFreeContext(SearchContext context) {
@@ -469,66 +514,82 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id(), request);
-        context.incRef();
-        try {
-            context.setTask(task);
-            contextProcessing(context);
-            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
-            processScroll(request, context);
-            operationListener.onPreQueryPhase(context);
-            final long time = System.nanoTime();
-            try {
-                queryPhase.execute(context);
-            } catch (Exception e) {
-                operationListener.onFailedQueryPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            long afterQueryTime = System.nanoTime();
-            operationListener.onQueryPhase(context, afterQueryTime - time);
-            QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, operationListener, afterQueryTime);
-
-            return new ScrollQueryFetchSearchResult(fetchSearchResult,
-                context.shardTarget());
-        } catch (Exception e) {
-            logger.trace("Fetch phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
+    final Executor getExecutor(long id) {
+        SearchContext context = activeContexts.get(id);
+        if (context == null) {
+            throw new SearchContextMissingException(id);
         }
+        return getExecutor(context.indexShard());
     }
 
-    public FetchSearchResult executeFetchPhase(ShardFetchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id(), request);
-        final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
-        context.incRef();
-        try {
-            context.setTask(task);
-            contextProcessing(context);
-            if (request.lastEmittedDoc() != null) {
-                context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
+    private Executor getExecutor(IndexShard indexShard) {
+        assert indexShard != null;
+        return threadPool.executor(indexShard.indexSettings().isSearchThrottled() ? Names.SEARCH_THROTTLED : Names.SEARCH);
+    }
+
+    public void executeFetchPhase(InternalScrollSearchRequest request, SearchTask task,
+                                  ActionListener<ScrollQueryFetchSearchResult> listener) {
+        runAsync(request.id(), () -> {
+            final SearchContext context = findContext(request.id(), request);
+            context.incRef();
+            try {
+                context.setTask(task);
+                contextProcessing(context);
+                SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+                processScroll(request, context);
+                operationListener.onPreQueryPhase(context);
+                final long time = System.nanoTime();
+                try {
+                    queryPhase.execute(context);
+                } catch (Exception e) {
+                    operationListener.onFailedQueryPhase(context);
+                    throw ExceptionsHelper.convertToRuntime(e);
+                }
+                long afterQueryTime = System.nanoTime();
+                operationListener.onQueryPhase(context, afterQueryTime - time);
+                QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, operationListener, afterQueryTime);
+                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
+            } catch (Exception e) {
+                logger.trace("Fetch phase failed", e);
+                processFailure(context, e);
+                throw ExceptionsHelper.convertToRuntime(e);
+            } finally {
+                cleanContext(context);
             }
-            context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
-            operationListener.onPreFetchPhase(context);
-            long time = System.nanoTime();
-            fetchPhase.execute(context);
-            if (fetchPhaseShouldFreeContext(context)) {
-                freeContext(request.id());
-            } else {
-                contextProcessedSuccessfully(context);
+        }, listener);
+    }
+
+    public void executeFetchPhase(ShardFetchRequest request, SearchTask task, ActionListener<FetchSearchResult> listener) {
+        runAsync(request.id(), () -> {
+            final SearchContext context = findContext(request.id(), request);
+            final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+            context.incRef();
+            try {
+                context.setTask(task);
+                contextProcessing(context);
+                if (request.lastEmittedDoc() != null) {
+                    context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
+                }
+                context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+                operationListener.onPreFetchPhase(context);
+                long time = System.nanoTime();
+                fetchPhase.execute(context);
+                if (fetchPhaseShouldFreeContext(context)) {
+                    freeContext(request.id());
+                } else {
+                    contextProcessedSuccessfully(context);
+                }
+                operationListener.onFetchPhase(context, System.nanoTime() - time);
+                return context.fetchResult();
+            } catch (Exception e) {
+                operationListener.onFailedFetchPhase(context);
+                logger.trace("Fetch phase failed", e);
+                processFailure(context, e);
+                throw ExceptionsHelper.convertToRuntime(e);
+            } finally {
+                cleanContext(context);
             }
-            operationListener.onFetchPhase(context, System.nanoTime() - time);
-            return context.fetchResult();
-        } catch (Exception e) {
-            operationListener.onFailedFetchPhase(context);
-            logger.trace("Fetch phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
+        }, listener);
     }
 
     private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
@@ -548,11 +609,31 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
+        if (request.scroll() != null) {
+            if (maxOpenScrollContext == Integer.MAX_VALUE && openScrollContexts.get() > 500) {
+                /**
+                 * Logs a deprecation warning if the number of open scrolls is greater than the
+                 * default limit in the next major version (500) and the cluster setting is set
+                 * to the default value in this version ({@link Integer#MAX_VALUE}.
+                 */
+                deprecationLogger.deprecatedAndMaybeLog("max_open_scroll", "Trying to create more than 500 scroll contexts will" +
+                    " not be allowed in the next major version by default. You can change the  [" +
+                    MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting to use a greater default value or lower the number of" +
+                    " scrolls that you need to run in parallel.");
+            } else if (openScrollContexts.get() >= maxOpenScrollContext) {
+                throw new ElasticsearchException(
+                    "Trying to create too many scroll contexts. Must be less than or equal to: [" +
+                        maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
+                        + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+            }
+        }
+
         SearchContext context = createContext(request);
         boolean success = false;
         try {
             putContext(context);
             if (request.scroll() != null) {
+                openScrollContexts.incrementAndGet();
                 context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
@@ -604,16 +685,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout)
         throws IOException {
-        return createSearchContext(request, timeout, true);
+        return createSearchContext(request, timeout, true, "search");
     }
     private DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout,
-                                                     boolean assertAsyncActions)
+                                                     boolean assertAsyncActions, String source)
             throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-        Engine.Searcher engineSearcher = indexShard.acquireSearcher("search");
+        Engine.Searcher engineSearcher = indexShard.acquireSearcher(source);
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
             engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout,
@@ -652,6 +733,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try {
                 context.indexShard().getSearchOperationListener().onFreeContext(context);
                 if (context.scrollContext() != null) {
+                    openScrollContexts.decrementAndGet();
                     context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
                 }
             } finally {
@@ -792,14 +874,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
-            if (source.docValueFields().size() > maxAllowedDocvalueFields) {
-                throw new IllegalArgumentException(
-                        "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                                + "] but was [" + source.docValueFields().size() + "]. This limit can be set by changing the ["
-                                + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+            List<DocValueFieldsContext.FieldAndFormat> docValueFields = new ArrayList<>();
+            for (DocValueFieldsContext.FieldAndFormat format : source.docValueFields()) {
+                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(format.field);
+                for (String fieldName: fieldNames) {
+                   docValueFields.add(new DocValueFieldsContext.FieldAndFormat(fieldName, format.format));
+                }
             }
-            context.docValueFieldsContext(new DocValueFieldsContext(source.docValueFields()));
+            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
+            if (docValueFields.size() > maxAllowedDocvalueFields) {
+                throw new IllegalArgumentException(
+                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
+                        + "] but was [" + docValueFields.size() + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+            }
+            context.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
@@ -809,7 +898,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }
         }
-        if (source.scriptFields() != null) {
+        if (source.scriptFields() != null && source.size() != 0) {
             int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {
                 throw new IllegalArgumentException(
@@ -938,6 +1027,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.responseCollectorService;
     }
 
+    public IndicesService getIndicesService() {
+        return indicesService;
+    }
+
     class Reaper implements Runnable {
         @Override
         public void run() {
@@ -969,7 +1062,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public boolean canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, false)) {
+        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, false, "can_match")) {
             SearchSourceBuilder source = context.request().source();
             if (canRewriteToMatchNone(source)) {
                 QueryBuilder queryBuilder = source.query();
@@ -979,23 +1072,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+
+    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
+        try {
+            listener.onResponse(new CanMatchResponse(canMatch(request)));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
     /**
      * Returns true iff the given search source builder can be early terminated by rewriting to a match none query. Or in other words
-     * if the execution of a the search request can be early terminated without executing it. This is for instance not possible if
+     * if the execution of the search request can be early terminated without executing it. This is for instance not possible if
      * a global aggregation is part of this request or if there is a suggest builder present.
      */
     public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
         if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder || source.suggest() != null) {
             return false;
-        } else {
-            AggregatorFactories.Builder aggregations = source.aggregations();
-            if (aggregations != null) {
-                if (aggregations.mustVisitAllDocs()) {
-                    return false;
-                }
-            }
         }
-        return true;
+        AggregatorFactories.Builder aggregations = source.aggregations();
+        return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
     /*
@@ -1003,19 +1099,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
+        IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+        Executor executor = getExecutor(shard);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead
         Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis),
             ActionListener.wrap(r ->
-                    threadPool.executor(Names.SEARCH).execute(new AbstractRunnable() {
+                    executor.execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
 
                         @Override
-                        protected void doRun() throws Exception {
+                        protected void doRun() {
                             listener.onResponse(request);
                         }
                     }), listener::onFailure));
@@ -1029,6 +1127,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public InternalAggregation.ReduceContext createReduceContext(boolean finalReduce) {
-        return new InternalAggregation.ReduceContext(bigArrays, scriptService, multiBucketConsumerService.create(), finalReduce);
+        return new InternalAggregation.ReduceContext(bigArrays, scriptService,
+            finalReduce ? multiBucketConsumerService.create() : bucketCount -> {}, finalReduce);
+    }
+
+    public static final class CanMatchResponse extends SearchPhaseResult {
+        private boolean canMatch;
+
+        public CanMatchResponse(StreamInput in) throws IOException {
+            this.canMatch = in.readBoolean();
+        }
+
+        public CanMatchResponse(boolean canMatch) {
+            this.canMatch = canMatch;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            canMatch = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(canMatch);
+        }
+
+        public boolean canMatch() {
+            return canMatch;
+        }
     }
 }

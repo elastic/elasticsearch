@@ -19,6 +19,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -57,16 +58,20 @@ public class CorsRegexIT extends HttpSmokeTestCase {
         {
             String corsValue = "http://localhost:9200";
             Request request = new Request("GET", "/");
-            request.addHeader("User-Agent", "Mozilla Bar");
-            request.addHeader("Origin", corsValue);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("User-Agent", "Mozilla Bar");
+            options.addHeader("Origin", corsValue);
+            request.setOptions(options);
             Response response = getRestClient().performRequest(request);
             assertResponseWithOriginHeader(response, corsValue);
         }
         {
             String corsValue = "https://localhost:9201";
             Request request = new Request("GET", "/");
-            request.addHeader("User-Agent", "Mozilla Bar");
-            request.addHeader("Origin", corsValue);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("User-Agent", "Mozilla Bar");
+            options.addHeader("Origin", corsValue);
+            request.setOptions(options);
             Response response = getRestClient().performRequest(request);
             assertResponseWithOriginHeader(response, corsValue);
             assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
@@ -75,8 +80,10 @@ public class CorsRegexIT extends HttpSmokeTestCase {
 
     public void testThatRegularExpressionReturnsForbiddenOnNonMatch() throws IOException {
         Request request = new Request("GET", "/");
-        request.addHeader("User-Agent", "Mozilla Bar");
-        request.addHeader("Origin", "http://evil-host:9200");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        options.addHeader("Origin", "http://evil-host:9200");
+        request.setOptions(options);
         try {
             getRestClient().performRequest(request);
             fail("request should have failed");
@@ -90,7 +97,9 @@ public class CorsRegexIT extends HttpSmokeTestCase {
 
     public void testThatSendingNoOriginHeaderReturnsNoAccessControlHeader() throws IOException {
         Request request = new Request("GET", "/");
-        request.addHeader("User-Agent", "Mozilla Bar");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        request.setOptions(options);
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
@@ -105,9 +114,11 @@ public class CorsRegexIT extends HttpSmokeTestCase {
     public void testThatPreFlightRequestWorksOnMatch() throws IOException {
         String corsValue = "http://localhost:9200";
         Request request = new Request("OPTIONS", "/");
-        request.addHeader("User-Agent", "Mozilla Bar");
-        request.addHeader("Origin", corsValue);
-        request.addHeader("Access-Control-Request-Method", "GET");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        options.addHeader("Origin", corsValue);
+        options.addHeader("Access-Control-Request-Method", "GET");
+        request.setOptions(options);
         Response response = getRestClient().performRequest(request);
         assertResponseWithOriginHeader(response, corsValue);
         assertNotNull(response.getHeader("Access-Control-Allow-Methods"));
@@ -116,9 +127,11 @@ public class CorsRegexIT extends HttpSmokeTestCase {
     public void testThatPreFlightRequestReturnsNullOnNonMatch() throws IOException {
         String corsValue = "http://evil-host:9200";
         Request request = new Request("OPTIONS", "/");
-        request.addHeader("User-Agent", "Mozilla Bar");
-        request.addHeader("Origin", corsValue);
-        request.addHeader("Access-Control-Request-Method", "GET");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        options.addHeader("Origin", corsValue);
+        options.addHeader("Access-Control-Request-Method", "GET");
+        request.setOptions(options);
         try {
             getRestClient().performRequest(request);
             fail("request should have failed");

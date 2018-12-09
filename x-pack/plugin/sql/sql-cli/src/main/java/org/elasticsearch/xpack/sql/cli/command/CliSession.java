@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.shared.ClientException;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ClientException;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 

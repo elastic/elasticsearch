@@ -1,11 +1,4 @@
----
-setup:
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-        wait_for_nodes: 2
 
----
 "Test get old cluster job":
 
   - do:
@@ -118,9 +111,9 @@ setup:
        wait_for_status: green
 
 ---
-"Test get job with rules":
+"Test job with pre 6.4 rules":
 
   - do:
       xpack.ml.get_jobs:
-        job_id: old-cluster-job-with-rules
+        job_id: job-with-old-rules
   - match: { count: 1 }

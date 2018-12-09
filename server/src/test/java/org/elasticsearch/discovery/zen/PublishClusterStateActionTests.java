@@ -42,6 +42,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.node.Node;
@@ -54,7 +55,6 @@ import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -266,7 +266,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockPublishAction(
-                settings,
                 transportService,
                 namedWriteableRegistry,
                 listener,
@@ -815,9 +814,16 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public static class AssertingAckListener implements Discovery.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
         private final CountDownLatch countDown;
+        private final CountDownLatch commitCountDown;
 
         public AssertingAckListener(int nodeCount) {
             countDown = new CountDownLatch(nodeCount);
+            commitCountDown = new CountDownLatch(1);
+        }
+
+        @Override
+        public void onCommit(TimeValue commitTime) {
+            commitCountDown.countDown();
         }
 
         @Override
@@ -830,6 +836,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         public void await(long timeout, TimeUnit unit) throws InterruptedException {
             assertThat(awaitErrors(timeout, unit), emptyIterable());
+            assertTrue(commitCountDown.await(timeout, unit));
         }
 
         public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {
@@ -864,9 +871,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
+        public MockPublishAction(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                  IncomingClusterStateListener listener, DiscoverySettings discoverySettings) {
-            super(settings, transportService, namedWriteableRegistry, listener, discoverySettings);
+            super(transportService, namedWriteableRegistry, listener, discoverySettings);
         }
 
         @Override
@@ -909,12 +916,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            this.response.set(response);
-            assertThat(error.get(), nullValue());
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
             this.response.set(response);
             assertThat(error.get(), nullValue());
         }

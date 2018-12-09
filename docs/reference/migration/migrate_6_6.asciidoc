@@ -78,3 +78,30 @@ GET /stackoverflow/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:stackoverflow]
+
+[float]
+=== Settings changes
+
+[float]
+==== Watcher notifications
+
+The following settings have been deprecated and the secure variant should
+be used instead. These replacement settings are <<secure-settings>> which have
+to be defined on each cluster node's keystore, i.e., they are not available
+to the cluster settings API.
+
+- `xpack.notification.email.account.<id>.smtp.password`, instead use
+`xpack.notification.email.account.<id>.smtp.secure_password`
+- `xpack.notification.hipchat.account.<id>.auth_token`, instead use
+`xpack.notification.hipchat.account.<id>.secure_auth_token`
+- `xpack.notification.jira.account.<id>.url`, instead use
+`xpack.notification.jira.account.<id>.secure_url`
+- `xpack.notification.jira.account.<id>.user`, instead use
+`xpack.notification.jira.account.<id>.secure_user`
+- `xpack.notification.jira.account.<id>.password`, instead use
+`xpack.notification.jira.account.<id>.secure_password`
+- `xpack.notification.pagerduty.account.<id>.service_api_key`, instead use
+`xpack.notification.pagerduty.account.<id>.secure_service_api_key`
+- `xpack.notification.slack.account.<id>.url`, instead use
+`xpack.notification.slack.account.<id>.secure_url`
+

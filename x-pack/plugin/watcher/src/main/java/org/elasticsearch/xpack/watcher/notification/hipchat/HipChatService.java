@@ -32,9 +32,9 @@ public class HipChatService extends NotificationService<HipChatAccount> {
     static final Setting<Integer> SETTING_DEFAULT_PORT =
             Setting.intSetting("xpack.notification.hipchat.port", 443, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private static final Setting.AffixSetting<String> SETTING_AUTH_TOKEN =
-            Setting.affixKeySetting("xpack.notification.hipchat.account.", "auth_token",
-                    (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered));
+    private static final Setting.AffixSetting<String> SETTING_AUTH_TOKEN = Setting.affixKeySetting("xpack.notification.hipchat.account.",
+            "auth_token", (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope,
+                    Setting.Property.Filtered, Setting.Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_AUTH_TOKEN_SECURE =
             Setting.affixKeySetting("xpack.notification.hipchat.account.", "secure_auth_token",

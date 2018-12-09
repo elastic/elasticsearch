@@ -28,7 +28,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_SERVICE_API_KEY =
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "service_api_key",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_SECURE_SERVICE_API_KEY =
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "secure_service_api_key",

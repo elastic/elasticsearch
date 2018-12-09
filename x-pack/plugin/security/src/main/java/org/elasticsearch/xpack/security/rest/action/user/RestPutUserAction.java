@@ -47,7 +47,9 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         super(settings, licenseState);
         passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(POST, "/_security/user/{username}", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(PUT, "/_security/user/{username}", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(POST, "/_shield/user/{username}", this,

@@ -38,7 +38,9 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
     public RestGetUsersAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(GET, "/_xpack/security/user/", this);
+        controller.registerHandler(GET, "/_security/user/", this);
         controller.registerHandler(GET, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(GET, "/_security/user/{username}", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(GET, "/_shield/user", this,

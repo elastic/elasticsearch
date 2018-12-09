@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 

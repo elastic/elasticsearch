@@ -2666,6 +2666,11 @@ public class InternalEngine extends Engine {
             assert softDeleteEnabled : "Call #softUpdateDocuments but soft-deletes is disabled";
             return super.softUpdateDocuments(term, docs, softDeletes);
         }
+        @Override
+        public long tryDeleteDocument(IndexReader readerIn, int docID) {
+            assert false : "#tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs";
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**

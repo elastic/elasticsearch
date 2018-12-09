@@ -338,7 +338,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
         final Request request = SecurityRequestConverters.putPrivileges(putPrivilegesRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege", request.getEndpoint());
+        assertEquals("/_security/privilege", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putPrivilegesRequest, request.getEntity());
     }

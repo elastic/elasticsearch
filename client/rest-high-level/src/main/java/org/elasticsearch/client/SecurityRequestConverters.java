@@ -215,7 +215,7 @@ final class SecurityRequestConverters {
     }
 
     static Request putPrivileges(final PutPrivilegesRequest putPrivilegesRequest) throws IOException {
-        Request request = new Request(HttpPut.METHOD_NAME, "/_xpack/security/privilege");
+        Request request = new Request(HttpPut.METHOD_NAME, "/_security/privilege");
         request.setEntity(createEntity(putPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(putPrivilegesRequest.getRefreshPolicy());

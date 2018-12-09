@@ -466,8 +466,8 @@ public class InternalComposite
         /**
          * @param a - first object to compare
          * @param b - second object to compare
-         * @return compares two Objects of unknown type. ignoring them (=0) if they are not of
-         * the same class and their class does not impl Comparable
+         * @return compares two Objects of unknown type
+         * @throws IllegalStateException if they a and b not of the same class or their class doe's not impl java.lang.Comparable
          */
         private static int objectCompare(Object a, Object b) {
             if (a.getClass() != b.getClass()) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,11 +33,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,7 +51,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class LocalAllocateDangledIndices extends AbstractComponent {
+public class LocalAllocateDangledIndices {
+
+    private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/allocate_dangled";
 
@@ -64,9 +66,8 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
 
     @Inject
-    public LocalAllocateDangledIndices(Settings settings, TransportService transportService, ClusterService clusterService,
+    public LocalAllocateDangledIndices(TransportService transportService, ClusterService clusterService,
                                        AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
-        super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;

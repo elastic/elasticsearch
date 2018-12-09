@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -25,7 +27,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -74,11 +75,14 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  * No caching is done by this class, it is handled at a higher level and no polling for changes is done by this class. Modification
  * operations make a best effort attempt to clear the cache on all nodes for the user that was modified.
  */
-public class NativeUsersStore extends AbstractComponent {
+public class NativeUsersStore {
 
     public static final String INDEX_TYPE = "doc";
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
+    private static final Logger logger = LogManager.getLogger(NativeUsersStore.class);
+
+    private final Settings settings;
     private final Client client;
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
@@ -86,7 +90,7 @@ public class NativeUsersStore extends AbstractComponent {
     private final SecurityIndexManager securityIndex;
 
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).
@@ -175,7 +179,7 @@ public class NativeUsersStore extends AbstractComponent {
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits());
+                            listener.onResponse(response.getHits().getTotalHits().value);
                         }
 
                         @Override
@@ -337,7 +341,9 @@ public class NativeUsersStore extends AbstractComponent {
                     new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP
+                                : "Expected 'UPDATED' or 'NOOP' result [" + updateResponse + "] for request [" + putUserRequest + "]";
                             clearRealmCache(putUserRequest.username(), listener, false);
                         }
 
@@ -578,7 +584,7 @@ public class NativeUsersStore extends AbstractComponent {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                            assert searchResponse.getHits().getTotalHits() <= 10 :
+                            assert searchResponse.getHits().getTotalHits().value <= 10 :
                                 "there are more than 10 reserved users we need to change this to retrieve them all!";
                             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                                 Map<String, Object> sourceMap = searchHit.getSourceAsMap();

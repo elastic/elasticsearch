@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -64,10 +64,40 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
     }
 
     static Predicate<String> indexMatcher(List<String> indices) {
+        Set<String> exactMatch = new HashSet<>();
+        List<String> nonExactMatch = new ArrayList<>();
+        for (String indexPattern : indices) {
+            if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
+                nonExactMatch.add(indexPattern);
+            } else {
+                exactMatch.add(indexPattern);
+            }
+        }
+
+        if (exactMatch.isEmpty() && nonExactMatch.isEmpty()) {
+            return s -> false;
+        } else if (exactMatch.isEmpty()) {
+            return buildAutomataPredicate(nonExactMatch);
+        } else if (nonExactMatch.isEmpty()) {
+            return buildExactMatchPredicate(exactMatch);
+        } else {
+            return buildExactMatchPredicate(exactMatch).or(buildAutomataPredicate(nonExactMatch));
+        }
+    }
+
+    private static Predicate<String> buildExactMatchPredicate(Set<String> indices) {
+        if (indices.size() == 1) {
+            final String singleValue = indices.iterator().next();
+            return singleValue::equals;
+        }
+        return indices::contains;
+    }
+
+    private static Predicate<String> buildAutomataPredicate(List<String> indices) {
         try {
             return Automatons.predicate(indices);
         } catch (TooComplexToDeterminizeException e) {
-            Loggers.getLogger(IndicesPermission.class).debug("Index pattern automaton [{}] is too complex", indices);
+            LogManager.getLogger(IndicesPermission.class).debug("Index pattern automaton [{}] is too complex", indices);
             String description = Strings.collectionToCommaDelimitedString(indices);
             if (description.length() > 80) {
                 description = Strings.cleanTruncate(description, 80) + "...";

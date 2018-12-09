@@ -22,17 +22,27 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
@@ -41,34 +51,50 @@ import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
@@ -203,6 +229,48 @@ public final class MachineLearningClient {
                 GetJobStatsResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Deletes expired data from Machine Learning Jobs
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * documentation</a>
+     *
+     * @param request The request to delete expired ML data
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The action response which contains the acknowledgement or the task id depending on whether the action was set to wait for
+     * completion
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public DeleteExpiredDataResponse deleteExpiredData(DeleteExpiredDataRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteExpiredData,
+            options,
+            DeleteExpiredDataResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes expired data from Machine Learning Jobs asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * documentation</a>
+     *
+     * @param request  The request to delete expired ML data
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteExpiredDataAsync(DeleteExpiredDataRequest request, RequestOptions options,
+                               ActionListener<DeleteExpiredDataResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteExpiredData,
+            options,
+            DeleteExpiredDataResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**
@@ -455,6 +523,88 @@ public final class MachineLearningClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Model Snapshots
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     *     ML Delete Model Snapshot documentation</a>
+     *
+     * @param request The request to delete the model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteModelSnapshot(DeleteModelSnapshotRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteModelSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Model Snapshots asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     *         ML Delete Model Snapshot documentation</a>
+     *
+     * @param request The request to delete the model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteModelSnapshotAsync(DeleteModelSnapshotRequest request, RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteModelSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Reverts to a particular Machine Learning Model Snapshot
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html">
+     *     ML Revert Model Snapshot documentation</a>
+     *
+     * @param request The request to revert to a previous model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public RevertModelSnapshotResponse revertModelSnapshot(RevertModelSnapshotRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::revertModelSnapshot,
+            options,
+            RevertModelSnapshotResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Reverts to a particular Machine Learning Model Snapshot asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html">
+     *         ML Revert Model Snapshot documentation</a>
+     *
+     * @param request The request to revert to a previous model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void revertModelSnapshotAsync(RevertModelSnapshotRequest request, RequestOptions options,
+                                         ActionListener<RevertModelSnapshotResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::revertModelSnapshot,
+            options,
+            RevertModelSnapshotResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**
@@ -894,6 +1044,87 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Gets the snapshots for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html">
+     * ML GET model snapshots documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetModelSnapshotsResponse getModelSnapshots(GetModelSnapshotsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getModelSnapshots,
+            options,
+            GetModelSnapshotsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the snapshots for a Machine Learning Job, notifies listener once the requested snapshots are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html">
+     * ML GET model snapshots documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getModelSnapshotsAsync(GetModelSnapshotsRequest request, RequestOptions options,
+                                       ActionListener<GetModelSnapshotsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getModelSnapshots,
+            options,
+            GetModelSnapshotsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a snapshot for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html">
+     * ML UPDATE model snapshots documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public UpdateModelSnapshotResponse updateModelSnapshot(UpdateModelSnapshotRequest request,
+                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateModelSnapshot,
+            options,
+            UpdateModelSnapshotResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a snapshot for a Machine Learning Job, notifies listener once the requested snapshots are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html">
+     * ML UPDATE model snapshots documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateModelSnapshotAsync(UpdateModelSnapshotRequest request, RequestOptions options,
+                                       ActionListener<UpdateModelSnapshotResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateModelSnapshot,
+            options,
+            UpdateModelSnapshotResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Gets overall buckets for a set of Machine Learning Jobs.
      * <p>
      * For additional info
@@ -1128,6 +1359,88 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Adds Machine Learning Job(s) to a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html">
+     * ML Put calendar job documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutCalendarResponse putCalendarJob(PutCalendarJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Adds Machine Learning Job(s) to a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html">
+     * ML Put calendar job documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putCalendarJobAsync(PutCalendarJobRequest request, RequestOptions options, ActionListener<PutCalendarResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes Machine Learning Job(s) from a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-job.html">
+     * ML Delete calendar job documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutCalendarResponse deleteCalendarJob(DeleteCalendarJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes Machine Learning Job(s) from a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-job.html">
+     * ML Delete calendar job documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteCalendarJobAsync(DeleteCalendarJobRequest request,
+                                       RequestOptions options,
+                                       ActionListener<PutCalendarResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Deletes the given Machine Learning Calendar
      * <p>
      * For additional info see
@@ -1165,5 +1478,364 @@ public final class MachineLearningClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Gets the events for a machine learning calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar-event.html">
+     *  GET Calendar Events API</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PostCalendarEventRequest} containing the scheduled events
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetCalendarEventsResponse getCalendarEvents(GetCalendarEventsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getCalendarEvents,
+            options,
+            GetCalendarEventsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the events for a a machine learning calendar asynchronously, notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar-event.html">
+     *  GET Calendar Events API</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getCalendarEventsAsync(GetCalendarEventsRequest request, RequestOptions options,
+                                       ActionListener<GetCalendarEventsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getCalendarEvents,
+            options,
+            GetCalendarEventsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates new events for a a machine learning calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-calendar-event.html">
+     *  Add Events to Calendar API</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PostCalendarEventRequest} containing the scheduled events
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PostCalendarEventResponse postCalendarEvent(PostCalendarEventRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::postCalendarEvents,
+            options,
+            PostCalendarEventResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates new events for a a machine learning calendar asynchronously, notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-calendar-event.html">
+     *  Add Events to Calendar API</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void postCalendarEventAsync(PostCalendarEventRequest request, RequestOptions options,
+                                       ActionListener<PostCalendarEventResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::postCalendarEvents,
+            options,
+            PostCalendarEventResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes a Scheduled Event from a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-event.html">
+     * ML Delete calendar event documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteCalendarEvent(DeleteCalendarEventRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteCalendarEvent,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes a Scheduled Event from a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-event.html">
+     * ML Delete calendar event documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteCalendarEventAsync(DeleteCalendarEventRequest request,
+                                         RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteCalendarEvent,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Filter
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html">ML PUT Filter documentation</a>
+     *
+     * @param request The PutFilterRequest containing the {@link org.elasticsearch.client.ml.job.config.MlFilter} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutFilterResponse with enclosed {@link org.elasticsearch.client.ml.job.config.MlFilter} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutFilterResponse putFilter(PutFilterRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Filter asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html">ML PUT Filter documentation</a>
+     *
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.job.config.MlFilter} settings
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putFilterAsync(PutFilterRequest request, RequestOptions options, ActionListener<PutFilterResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning Filters
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-filter.html">ML GET Filter documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return GetFilterResponse with enclosed {@link org.elasticsearch.client.ml.job.config.MlFilter} objects
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetFiltersResponse getFilter(GetFiltersRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getFilter,
+            options,
+            GetFiltersResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning Filters asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-filter.html">ML GET Filter documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getFilterAsync(GetFiltersRequest request, RequestOptions options, ActionListener<GetFiltersResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getFilter,
+            options,
+            GetFiltersResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Filter
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-filter.html">
+     *     ML Update Filter documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutFilterResponse with the updated {@link org.elasticsearch.client.ml.job.config.MlFilter} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutFilterResponse updateFilter(UpdateFilterRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Filter asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-filter.html">
+     *     ML Update Filter documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateFilterAsync(UpdateFilterRequest request, RequestOptions options, ActionListener<PutFilterResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning filter
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html">
+     *     ML Delete Filter documentation</a>
+     *
+     * @param request The request to delete the filter
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteFilter(DeleteFilterRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteFilter,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning filter asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html">
+     *         ML Delete Filter documentation</a>
+     *
+     * @param request The request to delete the filter
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteFilterAsync(DeleteFilterRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteFilter,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning information about default values and limits.
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     *
+     * @param request The request of Machine Learning info
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response info about default values and limits
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public MlInfoResponse getMlInfo(MlInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::mlInfo,
+            options,
+            MlInfoResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning information about default values and limits, asynchronously.
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     *
+     * @param request The request of Machine Learning info
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getMlInfoAsync(MlInfoRequest request, RequestOptions options, ActionListener<MlInfoResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::mlInfo,
+            options,
+            MlInfoResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Finds the structure of a file
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     *     ML Find File Structure documentation</a>
+     *
+     * @param request The find file structure request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response containing details of the file structure
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public FindFileStructureResponse findFileStructure(FindFileStructureRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::findFileStructure,
+            options,
+            FindFileStructureResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Finds the structure of a file asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     *         ML Find File Structure documentation</a>
+     *
+     * @param request The find file structure request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void findFileStructureAsync(FindFileStructureRequest request, RequestOptions options,
+                                       ActionListener<FindFileStructureResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::findFileStructure,
+            options,
+            FindFileStructureResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 }

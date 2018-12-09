@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -51,7 +52,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -99,21 +99,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
-        this(settings, threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
+        this(threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
             indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
     }
 
-    public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(settings, BulkAction.NAME, transportService, actionFilters, BulkRequest::new);
+        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -204,13 +204,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
         boolean hasIndexRequestsWithPipelines = false;
-        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = clusterService.state().getMetaData().indices();
+        final MetaData metaData = clusterService.state().getMetaData();
+        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 String pipeline = indexRequest.getPipeline();
                 if (pipeline == null) {
                     IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
+                    if (indexMetaData == null) {
+                        //check the alias
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                            indexMetaData = alias.getWriteIndex();
+                        }
+                    }
                     if (indexMetaData == null) {
                         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
                     } else {
@@ -335,8 +344,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case DELETE:
                             docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName(),
-                                docWriteRequest.type())) {
+                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName())) {
                                 throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
                             }
                             break;

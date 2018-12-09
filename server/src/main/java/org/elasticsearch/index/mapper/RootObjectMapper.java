@@ -55,7 +55,8 @@ public class RootObjectMapper extends ObjectMapper {
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
-        protected Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
+        protected Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters =
+            new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
 
@@ -302,7 +303,7 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicDateTimeFormatters.explicit() || includeDefaults) {
             builder.startArray("dynamic_date_formats");
             for (FormatDateTimeFormatter dateTimeFormatter : dynamicDateTimeFormatters.value()) {
-                builder.value(dateTimeFormatter.format());
+                builder.value(dateTimeFormatter.pattern());
             }
             builder.endArray();
         }

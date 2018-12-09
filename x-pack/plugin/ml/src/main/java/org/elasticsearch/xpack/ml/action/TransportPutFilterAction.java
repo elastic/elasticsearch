@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -40,9 +39,8 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     private final Client client;
 
     @Inject
-    public TransportPutFilterAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, PutFilterAction.NAME, transportService, actionFilters,
-                (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
+    public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(PutFilterAction.NAME, transportService, actionFilters, (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
         this.client = client;
     }
 

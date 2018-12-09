@@ -25,10 +25,12 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -49,7 +51,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
-    private String type;
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     @Nullable
     private String routing;
@@ -73,23 +75,37 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
+     *
+     * @deprecated Types are in the process of being removed. Use {@link #DeleteRequest(String, String)} instead.
      */
+    @Deprecated
     public DeleteRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
         this.id = id;
     }
 
+    /**
+     * Constructs a new delete request against the specified index and id.
+     *
+     * @param index The index to get the document from
+     * @param id    The id of the document
+     */
+    public DeleteRequest(String index, String id) {
+        this.index = index;
+        this.id = id;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForWrites(version)) {
+        if (versionType.validateVersionForWrites(version) == false) {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
         }
@@ -101,7 +117,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     /**
      * The type of the document to delete.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -109,7 +128,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     /**
      * Sets the type of the document to delete.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
+    @Override
     public DeleteRequest type(String type) {
         this.type = type;
         return this;
@@ -187,7 +210,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         version = in.readLong();
@@ -200,7 +223,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeLong(version);

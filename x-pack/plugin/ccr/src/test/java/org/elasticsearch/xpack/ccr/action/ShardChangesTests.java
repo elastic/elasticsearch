@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -29,7 +33,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     // this emulates what the CCR persistent task will do for pulling
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
         client().admin().indices().prepareCreate("index")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.soft_deletes.enabled", true))
             .get();
 
         client().prepareIndex("index", "doc", "1").setSource("{}", XContentType.JSON).get();
@@ -82,6 +86,36 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         operation = (Translog.Index) response.getOperations()[2];
         assertThat(operation.seqNo(), equalTo(5L));
         assertThat(operation.id(), equalTo("5"));
+    }
+
+    public void testMissingOperations() {
+        client().admin().indices().prepareCreate("index")
+            .setSettings(Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .put("index.soft_deletes.retention.operations", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0))
+            .get();
+
+        for (int i = 0; i < 32; i++) {
+            client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
+            client().prepareDelete("index", "_doc", "1").get();
+            client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
+        }
+        client().admin().indices().refresh(new RefreshRequest("index")).actionGet();
+        ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index");
+        forceMergeRequest.maxNumSegments(1);
+        client().admin().indices().forceMerge(forceMergeRequest).actionGet();
+
+        ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
+        String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+        ShardChangesAction.Request request =  new ShardChangesAction.Request(shardStats.getShardRouting().shardId(), historyUUID);
+        request.setFromSeqNo(0L);
+        request.setMaxOperationCount(1);
+
+        Exception e = expectThrows(ElasticsearchException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
+        assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
+            "[index.soft_deletes.retention.operations]?"));
     }
 
 }

@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -28,17 +26,15 @@ import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TransportDeleteRollupJobAction extends TransportTasksAction<RollupJobTask, DeleteRollupJobAction.Request,
     DeleteRollupJobAction.Response, DeleteRollupJobAction.Response> {
 
     @Inject
-    public TransportDeleteRollupJobAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, DeleteRollupJobAction.NAME, clusterService, transportService, actionFilters,
-            DeleteRollupJobAction.Request::new, DeleteRollupJobAction.Response::new, ThreadPool.Names.SAME);
+    public TransportDeleteRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(DeleteRollupJobAction.NAME, clusterService, transportService, actionFilters, DeleteRollupJobAction.Request::new,
+            DeleteRollupJobAction.Response::new, DeleteRollupJobAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -96,10 +92,4 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<RollupJ
         return new DeleteRollupJobAction.Response(cancelled, taskOperationFailures, failedNodeExceptions);
     }
 
-    @Override
-    protected DeleteRollupJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        DeleteRollupJobAction.Response response = new DeleteRollupJobAction.Response();
-        response.readFrom(in);
-        return response;
-    }
 }

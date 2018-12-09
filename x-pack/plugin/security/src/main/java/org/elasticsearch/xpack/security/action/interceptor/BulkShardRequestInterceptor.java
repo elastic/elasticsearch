@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.action.interceptor;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -24,13 +24,14 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 /**
  * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
  */
-public class BulkShardRequestInterceptor extends AbstractComponent implements RequestInterceptor<BulkShardRequest> {
+public class BulkShardRequestInterceptor implements RequestInterceptor<BulkShardRequest> {
+
+    private static final Logger logger = LogManager.getLogger(BulkShardRequestInterceptor.class);
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    public BulkShardRequestInterceptor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState) {
-        super(settings);
+    public BulkShardRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
     }

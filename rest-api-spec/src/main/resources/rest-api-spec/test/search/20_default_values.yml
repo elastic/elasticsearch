@@ -28,6 +28,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           query:
@@ -38,6 +39,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -51,6 +53,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_2
         body:
           query:
@@ -68,7 +71,21 @@ setup:
     - do:
         catch: bad_request
         search:
+          rest_total_hits_as_int: true
           body:
             match:
               foo: bar
 
+---
+"Search with new response format":
+  - skip:
+      version: " - 6.99.99"
+      reason: hits.total is returned as an object in 7.0.0
+  - do:
+      search:
+        body:
+          query:
+            match_all: {}
+
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: eq}

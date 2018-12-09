@@ -123,8 +123,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         // setting mapping format which is compatible with those dates
         final FormatDateTimeFormatter formatter = Joda.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
-        assertEquals(1465975790000L, formatter.parser().parseMillis(from));
-        assertEquals(1466062190000L, formatter.parser().parseMillis(to));
+        assertEquals(1465975790000L, formatter.parseMillis(from));
+        assertEquals(1466062190000L, formatter.parseMillis(to));
 
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);

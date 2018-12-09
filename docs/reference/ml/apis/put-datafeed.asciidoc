@@ -11,7 +11,7 @@ Instantiates a {dfeed}.
 
 ==== Request
 
-`PUT _xpack/ml/datafeeds/<feed_id>`
+`PUT _ml/datafeeds/<feed_id>`
 
 
 ==== Description
@@ -78,6 +78,10 @@ You must create a job before you create a {dfeed}.  You can associate only one
   For example: `[]`. This property is provided for backwards compatibility with
   releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
 
+`delayed_data_check_config`::
+  (object) Specifies if and with how large a window should the data feed check
+  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
+
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 
@@ -101,7 +105,7 @@ The following example creates the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/datafeeds/datafeed-total-requests
+PUT _ml/datafeeds/datafeed-total-requests
 {
   "job_id": "total-requests",
   "indices": ["server-metrics"]

@@ -121,7 +121,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         out.writeVInt(maxDoc);
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
+            CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
@@ -129,7 +130,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
                 out.writeVLong(statistics.docCount());
                 out.writeVLong(statistics.sumTotalTermFreq());
@@ -164,7 +165,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         return readFieldStats(in, null);
     }
 
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in,
+            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         final int numFieldStatistics = in.readVInt();
         if (fieldStatistics == null) {
             fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
@@ -176,7 +178,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             final long docCount;
             final long sumTotalTermFreq;
             final long sumDocFreq;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
                 docCount = in.readVLong();
                 sumTotalTermFreq = in.readVLong();

@@ -27,36 +27,32 @@ import java.util.Objects;
 final class PainlessClassBuilder {
 
     final Map<String, PainlessConstructor> constructors;
-
     final Map<String, PainlessMethod> staticMethods;
     final Map<String, PainlessMethod> methods;
-
     final Map<String, PainlessField> staticFields;
     final Map<String, PainlessField> fields;
+    PainlessMethod functionalInterfaceMethod;
 
+    final Map<String, PainlessMethod> runtimeMethods;
     final Map<String, MethodHandle> getterMethodHandles;
     final Map<String, MethodHandle> setterMethodHandles;
 
-    PainlessMethod functionalInterfaceMethod;
-
     PainlessClassBuilder() {
         constructors = new HashMap<>();
-
         staticMethods = new HashMap<>();
         methods = new HashMap<>();
-
         staticFields = new HashMap<>();
         fields = new HashMap<>();
+        functionalInterfaceMethod = null;
 
+        runtimeMethods = new HashMap<>();
         getterMethodHandles = new HashMap<>();
         setterMethodHandles = new HashMap<>();
-
-        functionalInterfaceMethod = null;
     }
 
     PainlessClass build() {
-        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields,
-                getterMethodHandles, setterMethodHandles, functionalInterfaceMethod);
+        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod,
+                runtimeMethods, getterMethodHandles, setterMethodHandles);
     }
 
     @Override

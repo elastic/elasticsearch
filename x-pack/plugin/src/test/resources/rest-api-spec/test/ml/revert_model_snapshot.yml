@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: revert-model-snapshot
         body:  >
           {
@@ -22,13 +24,13 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: revert-model-snapshot
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: revert-model-snapshot
 
   - do:
@@ -214,14 +216,14 @@ setup:
 "Test revert model with invalid snapshotId":
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.revert_model_snapshot:
+      ml.revert_model_snapshot:
         job_id: "revert-model-snapshot"
         snapshot_id: "not_exist"
 
 ---
 "Test revert model with valid snapshotId":
   - do:
-      xpack.ml.revert_model_snapshot:
+      ml.revert_model_snapshot:
         job_id: "revert-model-snapshot"
         snapshot_id: "first"
 
@@ -231,7 +233,7 @@ setup:
   - match: { model.snapshot_doc_count: 0 }
 
   - do:
-      xpack.ml.revert_model_snapshot:
+      ml.revert_model_snapshot:
         job_id: "revert-model-snapshot"
         snapshot_id: "second"
 
@@ -243,7 +245,7 @@ setup:
 ---
 "Test revert model with delete_intervening_results":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -251,7 +253,7 @@ setup:
   - match: { count: 3 }
 
   - do:
-      xpack.ml.revert_model_snapshot:
+      ml.revert_model_snapshot:
         job_id: "revert-model-snapshot"
         snapshot_id: "second"
         delete_intervening_results: true
@@ -263,7 +265,7 @@ setup:
         index: .ml-anomalies-revert-model-snapshot
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -273,7 +275,7 @@ setup:
   - match: { buckets.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -283,7 +285,7 @@ setup:
   - match: { records.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T01:00:00Z"
@@ -293,7 +295,7 @@ setup:
   - match: { influencers.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: revert-model-snapshot
 
   - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }
@@ -302,6 +304,6 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.revert_model_snapshot:
+      ml.revert_model_snapshot:
         job_id: "non-existent-job"
         snapshot_id: "second"

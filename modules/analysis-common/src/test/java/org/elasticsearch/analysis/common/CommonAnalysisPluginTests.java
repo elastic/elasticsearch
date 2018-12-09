@@ -35,8 +35,6 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
 
-import static org.apache.lucene.util.LuceneTestCase.expectThrows;
-
 public class CommonAnalysisPluginTests extends ESTestCase {
 
     /**
@@ -146,7 +144,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void testWordDelimiterRemoval() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT))
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

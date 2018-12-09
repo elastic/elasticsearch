@@ -19,16 +19,19 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.Collection;
 import java.util.List;
@@ -50,6 +53,9 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE;
 
 public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(LogManager.getLogger(WordDelimiterTokenFilterFactory.class));
 
     private final byte[] charTypeTable;
     private final int flags;
@@ -94,7 +100,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException(
                 "The [word_delimiter] token filter has been removed. Please change the filter name to [word_delimiter_graph] instead.");
         } else {
@@ -110,6 +116,18 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
                      charTypeTable,
                      flags,
                      protoWords);
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+        }
+        else {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                + "] will not be usable to parse synonyms after v7.0");
+            return this;
+        }
     }
 
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {

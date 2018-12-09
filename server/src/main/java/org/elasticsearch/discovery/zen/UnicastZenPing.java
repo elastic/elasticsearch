@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -91,7 +91,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public class UnicastZenPing extends AbstractComponent implements ZenPing {
+public class UnicastZenPing implements ZenPing {
+
+    private static final Logger logger = LogManager.getLogger(UnicastZenPing.class);
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
@@ -124,7 +126,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                           UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -586,19 +587,19 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     }
 
-    static class UnicastPingRequest extends TransportRequest {
+    public static class UnicastPingRequest extends TransportRequest {
 
-        final int id;
-        final TimeValue timeout;
-        final PingResponse pingResponse;
+        public final int id;
+        public final TimeValue timeout;
+        public final PingResponse pingResponse;
 
-        UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {
+        public UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {
             this.id = id;
             this.timeout = timeout;
             this.pingResponse = pingResponse;
         }
 
-        UnicastPingRequest(StreamInput in) throws IOException {
+        public UnicastPingRequest(StreamInput in) throws IOException {
             super(in);
             id = in.readInt();
             timeout = in.readTimeValue();
@@ -624,18 +625,18 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterState);
     }
 
-    static class UnicastPingResponse extends TransportResponse {
+    public static class UnicastPingResponse extends TransportResponse {
 
         final int id;
 
-        final PingResponse[] pingResponses;
+        public final PingResponse[] pingResponses;
 
-        UnicastPingResponse(int id, PingResponse[] pingResponses) {
+        public UnicastPingResponse(int id, PingResponse[] pingResponses) {
             this.id = id;
             this.pingResponses = pingResponses;
         }
 
-        UnicastPingResponse(StreamInput in) throws IOException {
+        public UnicastPingResponse(StreamInput in) throws IOException {
             id = in.readInt();
             pingResponses = new PingResponse[in.readVInt()];
             for (int i = 0; i < pingResponses.length; i++) {

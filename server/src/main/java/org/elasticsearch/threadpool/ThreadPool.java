@@ -19,11 +19,12 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -61,7 +63,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ThreadPool extends AbstractComponent implements Scheduler, Closeable {
+public class ThreadPool implements Scheduler, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     public static class Names {
         public static final String SAME = "same";
@@ -162,8 +166,6 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         Setting.timeSetting("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200), Setting.Property.NodeScope);
 
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
-        super(settings);
-
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -350,6 +352,19 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         return scheduler.schedule(new ThreadPool.LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
     }
 
+    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+        try {
+            schedule(delay, executor, command);
+        } catch (EsRejectedExecutionException e) {
+            if (e.isExecutorShutdown()) {
+                logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
+                    command, delay, executor), e);
+            } else {
+                throw e;
+            }
+        }
+    }
+
     @Override
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         return new ReschedulingRunnable(command, interval, executor, this,
@@ -368,9 +383,13 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         return getThreadContext().preserveContext(command);
     }
 
-    public void shutdown() {
+    protected final void stopCachedTimeThread() {
         cachedTimeThread.running = false;
         cachedTimeThread.interrupt();
+    }
+
+    public void shutdown() {
+        stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
@@ -380,8 +399,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
     }
 
     public void shutdownNow() {
-        cachedTimeThread.running = false;
-        cachedTimeThread.interrupt();
+        stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {

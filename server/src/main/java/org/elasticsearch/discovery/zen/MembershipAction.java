@@ -19,16 +19,12 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +41,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-public class MembershipAction extends AbstractComponent {
+public class MembershipAction {
+
+    private static final Logger logger = LogManager.getLogger(MembershipAction.class);
 
     public static final String DISCOVERY_JOIN_ACTION_NAME = "internal:discovery/zen/join";
     public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
@@ -67,9 +65,8 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener,
+    public MembershipAction(TransportService transportService, MembershipListener listener,
                             Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators) {
-        super(settings);
         this.transportService = transportService;
         this.listener = listener;
 
@@ -108,12 +105,12 @@ public class MembershipAction extends AbstractComponent {
 
     public static class JoinRequest extends TransportRequest {
 
-        DiscoveryNode node;
+        public DiscoveryNode node;
 
         public JoinRequest() {
         }
 
-        private JoinRequest(DiscoveryNode node) {
+        public JoinRequest(DiscoveryNode node) {
             this.node = node;
         }
 
@@ -158,10 +155,10 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class ValidateJoinRequest extends TransportRequest {
+    public static class ValidateJoinRequest extends TransportRequest {
         private ClusterState state;
 
-        ValidateJoinRequest() {}
+        public ValidateJoinRequest() {}
 
         ValidateJoinRequest(ClusterState state) {
             this.state = state;
@@ -196,62 +193,6 @@ public class MembershipAction extends AbstractComponent {
             assert node != null : "local node is null";
             joinValidators.stream().forEach(action -> action.accept(node, request.state));
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-    }
-
-    /**
-     * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
-     * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
-     * compatibility version.
-     * @see Version#minimumIndexCompatibilityVersion()
-     * @throws IllegalStateException if any index is incompatible with the given version
-     */
-    static void ensureIndexCompatibility(final Version nodeVersion, MetaData metaData) {
-        Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();
-        // we ensure that all indices in the cluster we join are compatible with us no matter if they are
-        // closed or not we can't read mappings of these indices so we need to reject the join...
-        for (IndexMetaData idxMetaData : metaData) {
-            if (idxMetaData.getCreationVersion().after(nodeVersion)) {
-                throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
-                    + idxMetaData.getCreationVersion() + " the node version is: " + nodeVersion);
-            }
-            if (idxMetaData.getCreationVersion().before(supportedIndexVersion)) {
-                throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
-                    + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);
-            }
-        }
-    }
-
-    /** ensures that the joining node has a version that's compatible with all current nodes*/
-    static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
-        final Version minNodeVersion = currentNodes.getMinNodeVersion();
-        final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
-        ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
-    }
-
-    /** ensures that the joining node has a version that's compatible with a given version range */
-    static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
-        assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
-        if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
-            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
-                "The cluster contains nodes with version [" + maxClusterNodeVersion + "], which is incompatible.");
-        }
-        if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {
-            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported." +
-                "The cluster contains nodes with version [" + minClusterNodeVersion + "], which is incompatible.");
-        }
-    }
-
-    /**
-     * ensures that the joining node's major version is equal or higher to the minClusterNodeVersion. This is needed
-     * to ensure that if the master is already fully operating under the new major version, it doesn't go back to mixed
-     * version mode
-     **/
-    static void ensureMajorVersionBarrier(Version joiningNodeVersion, Version minClusterNodeVersion) {
-        final byte clusterMajor = minClusterNodeVersion.major;
-        if (joiningNodeVersion.major < clusterMajor) {
-            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
-                "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
         }
     }
 

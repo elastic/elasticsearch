@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class AutoDetectResultProcessor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AutoDetectResultProcessor.class);
 
     /**
      * This is how far behind real-time we'll update the job with the latest established model memory.
@@ -135,25 +135,7 @@ public class AutoDetectResultProcessor {
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            bucketCount = 0;
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            while (iterator.hasNext()) {
-                try {
-                    AutodetectResult result = iterator.next();
-                    processResult(context, result);
-                    if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
-                    }
-                } catch (Exception e) {
-                    if (processKilled) {
-                        throw e;
-                    }
-                    if (process.isProcessAliveAfterWaiting() == false) {
-                        throw e;
-                    }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
-                }
-            }
+            readResults(process, context);
 
             try {
                 if (processKilled == false) {
@@ -185,6 +167,32 @@ public class AutoDetectResultProcessor {
         } finally {
             flushListener.clear();
             completionLatch.countDown();
+        }
+    }
+
+    private void readResults(AutodetectProcess process, Context context) {
+        bucketCount = 0;
+        try {
+            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+            while (iterator.hasNext()) {
+                try {
+                    AutodetectResult result = iterator.next();
+                    processResult(context, result);
+                    if (result.getBucket() != null) {
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                    }
+                } catch (Exception e) {
+                    if (processKilled) {
+                        throw e;
+                    }
+                    if (process.isProcessAliveAfterWaiting() == false) {
+                        throw e;
+                    }
+                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                }
+            }
+        } finally {
+            process.consumeAndCloseOutputStream();
         }
     }
 

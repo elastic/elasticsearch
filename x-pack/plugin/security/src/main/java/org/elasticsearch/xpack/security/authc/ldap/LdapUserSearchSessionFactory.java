@@ -15,7 +15,6 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,6 +28,8 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
+
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.attributesToSearchFor;
@@ -44,30 +45,30 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     private final String searchFilter;
 
     LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
-        super(config, sslService, groupResolver(config.settings()), LdapUserSearchSessionFactorySettings.POOL_ENABLED,
-                BIND_DN.exists(config.settings()) ? BIND_DN.get(config.settings()) : null,
+        super(config, sslService, groupResolver(config), LdapUserSearchSessionFactorySettings.POOL_ENABLED,
+                config.getSetting(BIND_DN, () -> null),
+                () -> config.getSetting(BIND_DN, () -> config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN)),
+                threadPool);
+        userSearchBaseDn = config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN,
                 () -> {
-                    if (BIND_DN.exists(config.settings())) {
-                        return BIND_DN.get(config.settings());
-                    } else {
-                        return LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN.get(config.settings());
-                    }
-                }, threadPool);
-        Settings settings = config.settings();
-        if (LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN.exists(settings)) {
-            userSearchBaseDn = LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN.get(settings);
-        } else {
-            throw new IllegalArgumentException("[" + RealmSettings.getFullSettingKey(config,
-                    LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN) + "] must be specified");
-        }
-        scope = LdapUserSearchSessionFactorySettings.SEARCH_SCOPE.get(settings);
+                    throw new IllegalArgumentException("[" + RealmSettings.getFullSettingKey(config,
+                            LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN) + "] must be specified");
+                }
+        );
+        scope = config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_SCOPE);
         searchFilter = getSearchFilter(config);
         logger.info("Realm [{}] is in user-search mode - base_dn=[{}], search filter=[{}]",
                 config.name(), userSearchBaseDn, searchFilter);
     }
 
     static boolean hasUserSearchSettings(RealmConfig config) {
-        return config.settings().getByPrefix("user_search.").isEmpty() == false;
+        return Stream.of(
+                LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN,
+                LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE,
+                LdapUserSearchSessionFactorySettings.SEARCH_SCOPE,
+                LdapUserSearchSessionFactorySettings.SEARCH_FILTER,
+                LdapUserSearchSessionFactorySettings.POOL_ENABLED
+        ).anyMatch(config::hasSetting);
     }
 
     /**
@@ -96,13 +97,13 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     /**
      * Sets up a LDAPSession using the following process:
      * <ol>
-     *     <li>Opening a new connection to the LDAP server</li>
-     *     <li>Executes a bind request using the bind user</li>
-     *     <li>Executes a search to find the DN of the user</li>
-     *     <li>Closes the opened connection</li>
-     *     <li>Opens a new connection to the LDAP server</li>
-     *     <li>Executes a bind request using the found DN and provided password</li>
-     *     <li>Creates a new LDAPSession with the bound connection</li>
+     * <li>Opening a new connection to the LDAP server</li>
+     * <li>Executes a bind request using the bind user</li>
+     * <li>Executes a search to find the DN of the user</li>
+     * <li>Closes the opened connection</li>
+     * <li>Opens a new connection to the LDAP server</li>
+     * <li>Executes a bind request using the found DN and provided password</li>
+     * <li>Creates a new LDAPSession with the bound connection</li>
      * </ol>
      */
     @Override
@@ -151,6 +152,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                         listener.onFailure(e);
                     }));
                 }
+
                 @Override
                 public void onFailure(Exception e) {
                     IOUtils.closeWhileHandlingException(connection);
@@ -227,17 +229,16 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                 attributesToSearchFor(groupResolver.attributes(), metaDataResolver.attributeNames()));
     }
 
-    private static GroupsResolver groupResolver(Settings settings) {
-        if (SearchGroupsResolverSettings.BASE_DN.exists(settings)) {
-            return new SearchGroupsResolver(settings);
+    private static GroupsResolver groupResolver(RealmConfig realmConfig) {
+        if (realmConfig.hasSetting(SearchGroupsResolverSettings.BASE_DN)) {
+            return new SearchGroupsResolver(realmConfig);
         }
-        return new UserAttributeGroupsResolver(settings);
+        return new UserAttributeGroupsResolver(realmConfig);
     }
 
     static String getSearchFilter(RealmConfig config) {
-        final Settings settings = config.settings();
-        final boolean hasAttribute = LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE.exists(settings);
-        final boolean hasFilter = LdapUserSearchSessionFactorySettings.SEARCH_FILTER.exists(settings);
+        final boolean hasAttribute = config.hasSetting(LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE);
+        final boolean hasFilter = config.hasSetting(LdapUserSearchSessionFactorySettings.SEARCH_FILTER);
         if (hasAttribute && hasFilter) {
             throw new IllegalArgumentException("search attribute setting [" +
                     RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE)
@@ -245,9 +246,9 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                     RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactorySettings.SEARCH_FILTER)
                     + "] cannot be combined!");
         } else if (hasFilter) {
-            return LdapUserSearchSessionFactorySettings.SEARCH_FILTER.get(settings);
+            return config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_FILTER);
         } else if (hasAttribute) {
-            return "(" + LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE.get(settings) + "={0})";
+            return "(" + config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE) + "={0})";
         } else {
             return "(uid={0})";
         }

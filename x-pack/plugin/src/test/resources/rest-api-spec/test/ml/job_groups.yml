@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-foo-1
         body:  >
           {
@@ -19,7 +21,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-foo-2
         body:  >
           {
@@ -36,7 +38,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-bar-1
         body:  >
           {
@@ -53,7 +55,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-bar-2
         body:  >
           {
@@ -70,7 +72,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-nogroup
         body:  >
           {
@@ -88,7 +90,7 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: foo-group
         body:  >
           {
@@ -103,7 +105,7 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-job-with-group-matching-existing-job-id
         body:  >
           {
@@ -119,7 +121,7 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-job-with-group-matching-its-id
         body:  >
           {
@@ -135,7 +137,7 @@ setup:
 
   - do:
       catch: /Invalid group id ''; must be non-empty string and may contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-job-with-empty-group
         body:  >
           {
@@ -151,7 +153,7 @@ setup:
 
   - do:
       catch: /Invalid group id '___'; must be non-empty string and may contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: test-job-groups-job-with-invalid-group
         body:  >
           {
@@ -166,7 +168,7 @@ setup:
 "Test get job API":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "_all"
   - match: { count: 5 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
@@ -176,41 +178,41 @@ setup:
   - match: { jobs.4.job_id: "test-job-groups-nogroup"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "test-job-groups-bar-1"
   - match: { count: 1 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "foo-group"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-foo-1"}
   - match: { jobs.1.job_id: "test-job-groups-foo-2"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "bar-group"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
   - match: { jobs.1.job_id: "test-job-groups-bar-2"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "ones"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
   - match: { jobs.1.job_id: "test-job-groups-foo-1"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "twos"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-bar-2"}
   - match: { jobs.1.job_id: "test-job-groups-foo-2"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "*-group"
   - match: { count: 4 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
@@ -219,7 +221,7 @@ setup:
   - match: { jobs.3.job_id: "test-job-groups-foo-2"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "bar-group,test-job-groups-nogroup"
   - match: { count: 3 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
@@ -230,7 +232,7 @@ setup:
 "Test get job stats API":
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "foo-group"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-foo-1"}
@@ -240,15 +242,15 @@ setup:
 "Test close job API":
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "test-job-groups-foo-1"
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "test-job-groups-bar-1"
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "ones"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}
@@ -257,11 +259,11 @@ setup:
   - match: { jobs.1.state: opened}
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: "ones"
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "ones"
   - match: { count: 2 }
   - match: { jobs.0.job_id: "test-job-groups-bar-1"}

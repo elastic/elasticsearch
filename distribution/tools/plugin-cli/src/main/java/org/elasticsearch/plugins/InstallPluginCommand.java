@@ -310,11 +310,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
         }
         final String platformUrl =
-                String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, Version.displayVersion(version, isSnapshot));
+                String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, Build.CURRENT.getQualifiedVersion());
         if (urlExists(terminal, platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Version.displayVersion(version, isSnapshot));
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.getQualifiedVersion());
     }
 
     private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {

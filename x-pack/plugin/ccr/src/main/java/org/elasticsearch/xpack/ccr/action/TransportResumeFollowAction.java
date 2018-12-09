@@ -8,12 +8,17 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -25,15 +30,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -50,9 +57,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
+public class TransportResumeFollowAction extends TransportMasterNodeAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
-    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
@@ -65,41 +72,54 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
     public TransportResumeFollowAction(
-            final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ActionFilters actionFilters,
             final Client client,
             final ClusterService clusterService,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
             final PersistentTasksService persistentTasksService,
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, ResumeFollowAction.NAME, transportService, actionFilters, ResumeFollowAction.Request::new);
+        super(ResumeFollowAction.NAME, true, transportService, clusterService, threadPool, actionFilters,
+            ResumeFollowAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 
     @Override
-    protected void doExecute(final Task task,
-                             final ResumeFollowAction.Request request,
-                             final ActionListener<AcknowledgedResponse> listener) {
+    protected String executor() {
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(ResumeFollowAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected void masterOperation(final ResumeFollowAction.Request request,
+                                   ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
 
-        final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
@@ -320,21 +340,37 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         return historyUUIDs.split(",");
     }
 
-    private static final Set<Setting<?>> WHITE_LISTED_SETTINGS;
+    /**
+     * These are settings that are not replicated to the follower index and
+     * therefor these settings are not validated whether they have the same
+     * value between leader and follower index.
+     *
+     * These dynamic settings don't affect how documents are indexed (affect index time text analysis) and / or
+     * are inconvenient if they were replicated (e.g. changing number of replicas).
+     */
+    static final Set<Setting<?>> WHITE_LISTED_SETTINGS;
 
     static {
         final Set<Setting<?>> whiteListedSettings = new HashSet<>();
         whiteListedSettings.add(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING);
         whiteListedSettings.add(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING);
-
         whiteListedSettings.add(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
         whiteListedSettings.add(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING);
         whiteListedSettings.add(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING);
+        whiteListedSettings.add(IndexMetaData.INDEX_READ_ONLY_SETTING);
+        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_SETTING);
+        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING);
+        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_METADATA_SETTING);
+        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING);
+        whiteListedSettings.add(IndexMetaData.INDEX_PRIORITY_SETTING);
+        whiteListedSettings.add(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS);
+
         whiteListedSettings.add(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING);
         whiteListedSettings.add(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
         whiteListedSettings.add(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING);
+        whiteListedSettings.add(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY);
+        whiteListedSettings.add(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING);
 
-        whiteListedSettings.add(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         whiteListedSettings.add(IndexSettings.MAX_RESULT_WINDOW_SETTING);
         whiteListedSettings.add(IndexSettings.INDEX_WARMER_ENABLED_SETTING);
         whiteListedSettings.add(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING);
@@ -346,6 +382,26 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         whiteListedSettings.add(IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD);
         whiteListedSettings.add(IndexSettings.ALLOW_UNMAPPED);
         whiteListedSettings.add(IndexSettings.INDEX_SEARCH_IDLE_AFTER);
+        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_SCRIPT_FIELDS_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_REGEX_LENGTH_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_TERMS_COUNT_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_ANALYZED_OFFSET_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_TOKEN_COUNT_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_SLICES_PER_SCROLL);
+        whiteListedSettings.add(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
+        whiteListedSettings.add(IndexSettings.DEFAULT_PIPELINE);
+        whiteListedSettings.add(IndexSettings.INDEX_SEARCH_THROTTLED);
+        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING);
+        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
+        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
+        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
+        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING);
+        whiteListedSettings.add(IndexSettings.INDEX_GC_DELETES_SETTING);
+        whiteListedSettings.add(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD);
+
+        whiteListedSettings.add(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         whiteListedSettings.add(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
 
         whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING);
@@ -365,15 +421,29 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
-        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
+        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
+
+        whiteListedSettings.add(MergeSchedulerConfig.AUTO_THROTTLE_SETTING);
+        whiteListedSettings.add(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING);
+        whiteListedSettings.add(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING);
+        whiteListedSettings.add(EngineConfig.INDEX_CODEC_SETTING);
 
         WHITE_LISTED_SETTINGS = Collections.unmodifiableSet(whiteListedSettings);
     }
 
-    private static Settings filter(Settings originalSettings) {
+    static Settings filter(Settings originalSettings) {
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
+        settings.remove(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_UUID);
         settings.remove(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);
         settings.remove(IndexMetaData.SETTING_CREATION_DATE);

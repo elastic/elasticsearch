@@ -22,9 +22,7 @@ package org.elasticsearch.cloud.gce.network;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -39,7 +37,7 @@ import java.net.InetAddress;
  * <li>_gce:hostname_</li>
  * </ul>
  */
-public class GceNameResolver extends AbstractComponent implements CustomNameResolver {
+public class GceNameResolver implements CustomNameResolver {
 
     private final GceMetadataService gceMetadataService;
 
@@ -73,8 +71,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
     /**
      * Construct a {@link CustomNameResolver}.
      */
-    public GceNameResolver(Settings settings, GceMetadataService gceMetadataService) {
-        super(settings);
+    public GceNameResolver(GceMetadataService gceMetadataService) {
         this.gceMetadataService = gceMetadataService;
     }
 

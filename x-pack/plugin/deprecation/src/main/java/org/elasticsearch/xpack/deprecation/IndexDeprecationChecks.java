@@ -79,23 +79,6 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
-    static DeprecationIssue coercionCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            List<String> issues = new ArrayList<>();
-            fieldLevelMappingIssue(indexMetaData, (mappingMetaData, sourceAsMap) -> {
-                issues.addAll(findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
-                    property -> "boolean".equals(property.get("type"))));
-            });
-            if (issues.size() > 0) {
-                return new DeprecationIssue(DeprecationIssue.Level.INFO, "Coercion of boolean fields",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
-                    issues.toString());
-            }
-        }
-        return null;
-    }
-
     static DeprecationIssue dynamicTemplateWithMatchMappingTypeCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             List<String> issues = new ArrayList<>();
@@ -145,7 +128,7 @@ public class IndexDeprecationChecks {
     }
 
     static DeprecationIssue delimitedPayloadFilterCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_7_0_0_alpha1)) {
+        if (indexMetaData.getCreationVersion().before(Version.V_7_0_0)) {
             List<String> issues = new ArrayList<>();
                 Map<String, Settings> filters = indexMetaData.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
                 for (Map.Entry<String, Settings> entry : filters.entrySet()) {

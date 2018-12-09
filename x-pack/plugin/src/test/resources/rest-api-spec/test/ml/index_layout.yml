@@ -1,8 +1,11 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Test CRUD on two jobs in shared index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-job
         body:  >
           {
@@ -25,7 +28,7 @@
 
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-job2
         body:  >
           {
@@ -47,22 +50,22 @@
   - match: { job_id: "index-layout-job2" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-job
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-job2
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-job2
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -70,23 +73,23 @@
 
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: index-layout-job
   - match: { flushed: true }
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: index-layout-job2
   - match: { flushed: true }
 
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-job2
   - match: { closed: true }
 
@@ -199,7 +202,7 @@
           key: value
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-job"
   - match: { acknowledged: true }
 
@@ -267,7 +270,7 @@
   - match: {count: 3}
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-job2"
   - match: { acknowledged: true }
 
@@ -335,7 +338,7 @@
 "Test unrelated index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-job
         body:  >
           {
@@ -357,11 +360,11 @@
   - match: { job_id: "index-layout-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -408,17 +411,17 @@
           job_id: foo
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: index-layout-job
   - match: { flushed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-job"
   - match: { acknowledged: true }
 
@@ -487,7 +490,7 @@
 "Test delete removes quantiles":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-quantiles-job
         body:  >
           {
@@ -520,7 +523,7 @@
       indices.refresh: {}
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-quantiles-job"
   - match: { acknowledged: true }
 
@@ -535,7 +538,7 @@
 "Test delete removes state":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-state-job
         body:  >
           {
@@ -617,7 +620,7 @@
       indices.refresh: {}
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-state-job"
   - match: { acknowledged: true }
 
@@ -645,7 +648,7 @@
         index: .ml-state
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-force-close-job
         body:  >
           {
@@ -665,18 +668,18 @@
   - match: { job_id: "index-layout-force-close-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-force-close-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-force-close-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-force-close-job
         force: true
   - match: { closed: true }

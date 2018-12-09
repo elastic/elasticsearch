@@ -39,6 +39,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
@@ -67,8 +68,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests relating to the loss of the master.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
@@ -153,8 +154,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
-        final List<String> nodes = startCluster(3, 2);
+        // 3 node cluster with unicast discovery and minimum_master_nodes set to the default of 2:
+        final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
         final String oldMasterNode = internalCluster().getMasterName();
@@ -267,7 +268,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
-        List<String> nodes = startCluster(3, -1);
+        List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
@@ -379,7 +380,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Verify that the proper block is applied when nodes loose their master
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        startCluster(3);
+        // TODO: NO_MASTER_BLOCKS not dynamic in Zen2 yet
+        internalCluster().startNodes(3, Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -511,7 +513,13 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             assertTrue(
                     "node [" + node + "] is still joining master",
                     awaitBusy(
-                            () -> !((ZenDiscovery) internalCluster().getInstance(Discovery.class, node)).joiningCluster(),
+                            () -> {
+                                final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
+                                if (discovery instanceof ZenDiscovery) {
+                                    return !((ZenDiscovery) discovery).joiningCluster();
+                                }
+                                return true;
+                            },
                             30,
                             TimeUnit.SECONDS
                     )

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -12,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -35,7 +35,7 @@ import java.util.function.Function;
  */
 public class UnusedStateRemover implements MlDataRemover {
 
-    private static final Logger LOGGER = Loggers.getLogger(UnusedStateRemover.class);
+    private static final Logger LOGGER = LogManager.getLogger(UnusedStateRemover.class);
 
     private final Client client;
     private final ClusterService clusterService;

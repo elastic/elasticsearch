@@ -1,3 +1,5 @@
+
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +20,11 @@
  */
 
 package org.elasticsearch.painless;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.singletonMap;
 
 /**
  * These tests run the Painless scripts used in the context docs against
@@ -308,4 +315,116 @@ public class ContextExampleTests extends ScriptTestCase {
     curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/home/jdconrad/test/seats.json"
 
     */
+
+
+    // Use script_fields API to add two extra fields to the hits
+
+    /*
+    curl -X GET localhost:9200/seats/_search
+    {
+        "query" : {
+            "match_all": {}
+        },
+        "script_fields" : {
+            "day-of-week" : {
+                "script" : {
+                    "source": "doc['datetime'].value.getDayOfWeek()"
+                }
+            },
+            "number-of-actors" : {
+                "script" : {
+                    "source": "params['_source']['actors'].length"
+                }
+            }
+        }
+    }
+    */
+
+
+    // Testing only params, as I am not sure how to test Script Doc Values in painless
+    public void testScriptFieldsScript() {
+        Map<String, Object> hit = new HashMap<>();
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("number-of-actors", 4);
+        hit.put("fields", fields);
+
+        Map<String, Object> source = new HashMap<>();
+        String[] actors =  {"James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"};
+        source.put("actors", actors);
+
+        assertEquals(hit, exec(
+            "Map fields = new HashMap();" +
+                "fields[\"number-of-actors\"] = params['_source']['actors'].length;" +
+                "Map rtn = new HashMap();" +
+                "rtn[\"fields\"] = fields;" +
+                "return rtn;",
+            singletonMap("_source", source), true)
+        );
+    }
+
+    // Use script query request to filter documents
+    /*
+    GET localhost:9200/evening/_search
+    {
+        "query": {
+            "bool" : {
+                "filter" : {
+                    "script" : {
+                        "script" : {
+                            "source" : "doc['sold'].value == false && doc['cost'].value < params.cost",
+                            "params" : {
+                                "cost" : 18
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    */
+
+    public void testFilterScript() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("sold", false);
+        source.put("cost", 15);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("_source", source);
+        params.put("cost", 18);
+
+        boolean result = (boolean) exec(
+            " params['_source']['sold'] == false && params['_source']['cost'] < params.cost;",
+            params, true);
+        assertTrue(result);
+    }
+
+
+    // Use script_fields API to add two extra fields to the hits
+    /*
+    curl -X GET localhost:9200/seats/_search
+    {
+        "query" : {
+            "terms_set": {
+                "actors" : {
+                    "terms" : ["smith", "earns", "black"],
+                    "minimum_should_match_script": {
+                    "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
+                         "params" : {
+                                "min_actors_to_see" : 2
+                            }
+                    }
+                }
+            }
+        }
+    }
+    */
+    public void testMinShouldMatchScript() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("num_terms", 3);
+        params.put("min_actors_to_see", 2);
+
+        double result = (double) exec("Math.min(params['num_terms'], params['min_actors_to_see']);", params, true);
+        assertEquals(2, result, 0);
+    }
 }
+

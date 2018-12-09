@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -42,14 +43,12 @@ import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -75,7 +74,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
-public class ShardStateAction extends AbstractComponent {
+public class ShardStateAction {
+
+    private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
 
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
@@ -89,9 +90,8 @@ public class ShardStateAction extends AbstractComponent {
     private final ConcurrentMap<FailedShardEntry, CompositeListener> remoteFailedShardsCache = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public ShardStateAction(ClusterService clusterService, TransportService transportService,
                             AllocationService allocationService, RoutingService routingService, ThreadPool threadPool) {
-        super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -140,7 +140,7 @@ public class ShardStateAction extends AbstractComponent {
     private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
         NotMasterException.class,
         ConnectTransportException.class,
-        Discovery.FailedToCommitClusterStateException.class
+        FailedToCommitClusterStateException.class
     };
 
     private static boolean isMasterChannelException(TransportException exp) {
@@ -652,7 +652,7 @@ public class ShardStateAction extends AbstractComponent {
          * are:
          *  - {@link NotMasterException}
          *  - {@link NodeDisconnectedException}
-         *  - {@link Discovery.FailedToCommitClusterStateException}
+         *  - {@link FailedToCommitClusterStateException}
          *
          * Any other exception is communicated to the requester via
          * this notification.

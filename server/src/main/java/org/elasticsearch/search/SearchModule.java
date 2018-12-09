@@ -81,6 +81,7 @@ import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
@@ -183,6 +184,8 @@ import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
@@ -364,6 +367,9 @@ public class SearchModule {
                 PercentileRanksAggregationBuilder::parse)
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
                         .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
+        registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
+                MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
+                        .addResultReader(InternalMedianAbsoluteDeviation::new));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
                 CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new));
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
@@ -629,8 +635,12 @@ public class SearchModule {
     }
 
     private void registerScoreFunctions(List<SearchPlugin> plugins) {
+        // ScriptScoreFunctionBuilder has it own named writable because of a new script_score query
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+            ScriptScoreFunctionBuilder.class, ScriptScoreFunctionBuilder.NAME,  ScriptScoreFunctionBuilder::new));
         registerScoreFunction(new ScoreFunctionSpec<>(ScriptScoreFunctionBuilder.NAME, ScriptScoreFunctionBuilder::new,
                 ScriptScoreFunctionBuilder::fromXContent));
+
         registerScoreFunction(
                 new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new, GaussDecayFunctionBuilder.PARSER));
         registerScoreFunction(new ScoreFunctionSpec<>(LinearDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder::new,
@@ -715,7 +725,7 @@ public class SearchModule {
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
-        registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ScoreFetchSubPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
@@ -781,6 +791,7 @@ public class SearchModule {
                 new QuerySpec<>(SpanMultiTermQueryBuilder.NAME, SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(FunctionScoreQueryBuilder.NAME, FunctionScoreQueryBuilder::new,
                 FunctionScoreQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(ScriptScoreQueryBuilder.NAME, ScriptScoreQueryBuilder::new, ScriptScoreQueryBuilder::fromXContent));
         registerQuery(
                 new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TypeQueryBuilder.NAME, TypeQueryBuilder::new, TypeQueryBuilder::fromXContent));

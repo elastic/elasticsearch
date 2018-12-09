@@ -14,17 +14,17 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
-public abstract class ArithmeticOperation extends BinaryOperator<Number, Number, Number, BinaryArithmeticOperation> {
+public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
+
+    private DataType dataType;
 
     protected ArithmeticOperation(Location location, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(location, left, right, operation);
     }
     
     @Override
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ?
-                TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires a numeric type, received %s", symbol(), inputType.esType);
+    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+        return Expressions.typeMustBeNumeric(e, symbol(), paramOrdinal);
     }
 
     @Override
@@ -34,7 +34,10 @@ public abstract class ArithmeticOperation extends BinaryOperator<Number, Number,
 
     @Override
     public DataType dataType() {
-        return DataTypeConversion.commonType(left().dataType(), right().dataType());
+        if (dataType == null) {
+            dataType = DataTypeConversion.commonType(left().dataType(), right().dataType());
+        }
+        return dataType;
     }
 
     @Override

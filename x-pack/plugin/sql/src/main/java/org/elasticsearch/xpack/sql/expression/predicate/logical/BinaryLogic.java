@@ -25,13 +25,18 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return DataType.BOOLEAN == inputType ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires type %s not %s", symbol(), DataType.BOOLEAN.sqlName(), inputType.sqlName());
+    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+        return Expressions.typeMustBeBoolean(e, functionName(), paramOrdinal);
     }
 
     @Override
     protected Pipe makePipe() {
         return new BinaryLogicPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
+    }
+
+    @Override
+    public boolean nullable() {
+        // Cannot fold null due to 3vl, constant folding will do any possible folding.
+        return false;
     }
 }

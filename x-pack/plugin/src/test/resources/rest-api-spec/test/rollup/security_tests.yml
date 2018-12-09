@@ -6,8 +6,6 @@ setup:
       cluster.health:
           wait_for_status: yellow
 
-
-
 ---
 teardown:
   - do:
@@ -149,6 +147,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: foo
         body:
           query:
@@ -160,6 +159,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: rollup
         body:
           query:
@@ -310,6 +310,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: foo
         body:
           query:
@@ -321,6 +322,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: rollup
         body:
           query:

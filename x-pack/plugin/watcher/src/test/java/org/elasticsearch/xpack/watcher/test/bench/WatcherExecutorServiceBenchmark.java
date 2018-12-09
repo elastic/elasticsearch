@@ -84,7 +84,7 @@ public class WatcherExecutorServiceBenchmark {
                         .condition(new ScriptCondition(new Script(
                                 ScriptType.INLINE,
                                 Script.DEFAULT_SCRIPT_LANG,
-                                "ctx.payload.hits.total > 0",
+                                "ctx.payload.hits.total.value > 0",
                                 emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
@@ -126,7 +126,7 @@ public class WatcherExecutorServiceBenchmark {
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
-                                .extractKeys("hits.total"))
+                                .extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
                         .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
@@ -212,7 +212,7 @@ public class WatcherExecutorServiceBenchmark {
 
         @Override
         protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
-            return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
+            return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
         }
     }
 }

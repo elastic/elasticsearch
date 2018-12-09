@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.GraphExploreRequest;
 
 import java.io.IOException;
 
@@ -29,7 +29,7 @@ final class GraphRequestConverters {
     private GraphRequestConverters() {}
 
     static Request explore(GraphExploreRequest exploreRequest) throws IOException {
-        String endpoint = RequestConverters.endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
+        String endpoint = RequestConverters.endpoint(exploreRequest.indices(), exploreRequest.types(), "_graph/explore");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(RequestConverters.createEntity(exploreRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

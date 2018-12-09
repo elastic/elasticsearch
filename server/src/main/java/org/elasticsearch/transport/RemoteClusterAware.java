@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
@@ -54,7 +53,7 @@ import java.util.stream.Stream;
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
  */
-public abstract class RemoteClusterAware extends AbstractComponent {
+public abstract class RemoteClusterAware {
 
     static {
         // remove search.remote.* settings in 8.0.0
@@ -167,16 +166,16 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                     Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
-
-    protected final ClusterNameExpressionResolver clusterNameResolver;
+    protected final Settings settings;
+    private final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
      * @param settings the nodes level settings
      */
     protected RemoteClusterAware(Settings settings) {
-        super(settings);
-        this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
+        this.settings = settings;
+        this.clusterNameResolver = new ClusterNameExpressionResolver();
     }
 
     /**
@@ -243,14 +242,15 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
+     * @param remoteClusterNames the remote cluster names
      * @param requestIndices the indices in the search request to filter
      * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
      *
      * @return a map of grouped remote and local indices
      */
-    public Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
+    protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices,
+                                                            Predicate<String> indexExists) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
-        Set<String> remoteClusterNames = getRemoteClusterNames();
         for (String index : requestIndices) {
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
@@ -281,9 +281,6 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         }
         return perClusterIndices;
     }
-
-    protected abstract Set<String> getRemoteClusterNames();
-
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is

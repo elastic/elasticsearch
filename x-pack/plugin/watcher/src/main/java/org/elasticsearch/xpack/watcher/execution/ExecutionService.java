@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import com.google.common.collect.Iterables;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
@@ -22,7 +24,6 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -73,11 +74,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class ExecutionService extends AbstractComponent {
+public class ExecutionService {
 
     public static final Setting<TimeValue> DEFAULT_THROTTLE_PERIOD_SETTING =
         Setting.positiveTimeSetting("xpack.watcher.execution.default_throttle_period",
             TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(ExecutionService.class);
 
     private final MeanMetric totalExecutionsTime = new MeanMetric();
     private final Map<String, MeanMetric> actionByTypeExecutionTime = new HashMap<>();
@@ -101,7 +104,6 @@ public class ExecutionService extends AbstractComponent {
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
                             Clock clock, WatchParser parser, ClusterService clusterService, Client client,
                             ExecutorService genericExecutor) {
-        super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executor = executor;

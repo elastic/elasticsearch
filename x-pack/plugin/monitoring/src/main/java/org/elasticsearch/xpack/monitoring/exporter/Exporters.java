@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -16,7 +17,10 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -26,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,8 +38,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 
-public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
+public class Exporters extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(Exporters.class);
 
+    private final Settings settings;
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
     private final ClusterService clusterService;
@@ -47,7 +52,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                      ClusterService clusterService, XPackLicenseState licenseState,
                      ThreadContext threadContext) {
         super(settings);
-
+        this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
         this.threadContext = Objects.requireNonNull(threadContext);
@@ -87,9 +92,13 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         return exporters.get().get(name);
     }
 
-    @Override
-    public Iterator<Exporter> iterator() {
-        return exporters.get().values().iterator();
+    /**
+     * Get all enabled {@linkplain Exporter}s.
+     *
+     * @return Never {@code null}. Can be empty if none are enabled.
+     */
+    public Collection<Exporter> getEnabledExporters() {
+        return exporters.get().values();
     }
 
     static void closeExporters(Logger logger, Map<String, Exporter> exporters) {
@@ -100,31 +109,6 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
             }
         }
-    }
-
-    ExportBulk openBulk() {
-        final ClusterState state = clusterService.state();
-
-        if (ClusterState.UNKNOWN_UUID.equals(state.metaData().clusterUUID()) || state.version() == ClusterState.UNKNOWN_VERSION) {
-            logger.trace("skipping exporters because the cluster state is not loaded");
-            return null;
-        }
-
-        List<ExportBulk> bulks = new ArrayList<>();
-        for (Exporter exporter : this) {
-            try {
-                ExportBulk bulk = exporter.openBulk();
-                if (bulk == null) {
-                    logger.debug("skipping exporter [{}] as it is not ready yet", exporter.name());
-                } else {
-                    bulks.add(bulk);
-                }
-            } catch (Exception e) {
-                logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", exporter.name()), e);
-            }
-        }
-        return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks, threadContext);
     }
 
     Map<String, Exporter> initExporters(Settings settings) {
@@ -178,34 +162,77 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
     }
 
     /**
+     * Wrap every {@linkplain Exporter}'s {@linkplain ExportBulk} in a {@linkplain ExportBulk.Compound}.
+     *
+     * @param listener {@code null} if no exporters are ready or available.
+     */
+    void wrapExportBulk(final ActionListener<ExportBulk> listener) {
+        final ClusterState state = clusterService.state();
+
+        // wait until we have a usable cluster state
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) ||
+            ClusterState.UNKNOWN_UUID.equals(state.metaData().clusterUUID()) ||
+            state.version() == ClusterState.UNKNOWN_VERSION) {
+            logger.trace("skipping exporters because the cluster state is not loaded");
+
+            listener.onResponse(null);
+            return;
+        }
+
+        final Map<String, Exporter> exporterMap = exporters.get();
+        final AtomicArray<ExportBulk> accumulatedBulks = new AtomicArray<>(exporterMap.size());
+        final CountDown countDown = new CountDown(exporterMap.size());
+
+        int i = 0;
+
+        // get every exporter's ExportBulk and, when they've all responded, respond with a wrapped version
+        for (final Exporter exporter : exporterMap.values()) {
+            exporter.openBulk(
+                new AccumulatingExportBulkActionListener(exporter.name(), i++, accumulatedBulks, countDown, threadContext, listener));
+        }
+    }
+
+    /**
      * Exports a collection of monitoring documents using the configured exporters
      */
-    public void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) throws ExportException {
+    public void export(final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) throws ExportException {
         if (this.lifecycleState() != Lifecycle.State.STARTED) {
             listener.onFailure(new ExportException("Export service is not started"));
         } else if (docs != null && docs.size() > 0) {
-            final ExportBulk bulk = openBulk();
-
-            if (bulk != null) {
-                final AtomicReference<ExportException> exceptionRef = new AtomicReference<>();
-                try {
-                    bulk.add(docs);
-                } catch (ExportException e) {
-                    exceptionRef.set(e);
-                } finally {
-                    bulk.close(lifecycleState() == Lifecycle.State.STARTED, ActionListener.wrap(r -> {
-                        if (exceptionRef.get() == null) {
-                            listener.onResponse(null);
-                        } else {
-                            listener.onFailure(exceptionRef.get());
-                        }
-                    }, listener::onFailure));
+            wrapExportBulk(ActionListener.wrap(bulk -> {
+                if (bulk != null) {
+                    doExport(bulk, docs, listener);
+                } else {
+                    listener.onResponse(null);
                 }
-            } else {
-                listener.onResponse(null);
-            }
+            }, listener::onFailure));
         } else {
             listener.onResponse(null);
+        }
+    }
+
+    /**
+     * Add {@code docs} and send the {@code bulk}, then respond to the {@code listener}.
+     *
+     * @param bulk The bulk object to send {@code docs} through.
+     * @param docs The monitoring documents to send.
+     * @param listener Returns {@code null} when complete, or failure where relevant.
+     */
+    private void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
+        final AtomicReference<ExportException> exceptionRef = new AtomicReference<>();
+
+        try {
+            bulk.add(docs);
+        } catch (ExportException e) {
+            exceptionRef.set(e);
+        } finally {
+            bulk.close(lifecycleState() == Lifecycle.State.STARTED, ActionListener.wrap(r -> {
+                if (exceptionRef.get() == null) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(exceptionRef.get());
+                }
+            }, listener::onFailure));
         }
     }
 
@@ -218,4 +245,66 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         settings.addAll(HttpExporter.getSettings());
         return settings;
     }
+
+    /**
+     * {@code AccumulatingExportBulkActionListener} allows us to asynchronously gather all of the {@linkplain ExportBulk}s that are
+     * ready, as associated with the enabled {@linkplain Exporter}s.
+     */
+    static class AccumulatingExportBulkActionListener implements ActionListener<ExportBulk> {
+
+        private final String name;
+        private final int indexPosition;
+        private final AtomicArray<ExportBulk> accumulatedBulks;
+        private final CountDown countDown;
+        private final ActionListener<ExportBulk> delegate;
+        private final ThreadContext threadContext;
+
+        AccumulatingExportBulkActionListener(final String name,
+                                             final int indexPosition, final AtomicArray<ExportBulk> accumulatedBulks,
+                                             final CountDown countDown,
+                                             final ThreadContext threadContext, final ActionListener<ExportBulk> delegate) {
+            this.name = name;
+            this.indexPosition = indexPosition;
+            this.accumulatedBulks = accumulatedBulks;
+            this.countDown = countDown;
+            this.threadContext = threadContext;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onResponse(final ExportBulk exportBulk) {
+            if (exportBulk == null) {
+                logger.debug("skipping exporter [{}] as it is not ready yet", name);
+            } else {
+                accumulatedBulks.set(indexPosition, exportBulk);
+            }
+
+            delegateIfComplete();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
+
+            delegateIfComplete();
+        }
+
+        /**
+         * Once all {@linkplain Exporter}'s have responded, whether it was success or failure, then this responds with all successful
+         * {@linkplain ExportBulk}s wrapped using an {@linkplain ExportBulk.Compound} wrapper.
+         */
+        void delegateIfComplete() {
+            if (countDown.countDown()) {
+                final List<ExportBulk> bulkList = accumulatedBulks.asList();
+
+                if (bulkList.isEmpty()) {
+                    delegate.onResponse(null);
+                } else {
+                    delegate.onResponse(new ExportBulk.Compound(bulkList, threadContext));
+                }
+            }
+        }
+
+    }
+
 }

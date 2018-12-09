@@ -133,7 +133,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         out.writeOptionalTimeZone(timeZone);
         String formatString = null;
         if (this.format != null) {
-            formatString = this.format.format();
+            formatString = this.format.pattern();
         }
         out.writeOptionalString(formatString);
         String relationString = null;
@@ -298,7 +298,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * Gets the format field to parse the from/to fields
      */
     public String format() {
-        return this.format == null ? null : this.format.format();
+        return this.format == null ? null : this.format.pattern();
     }
 
     DateMathParser getForceDateParser() { // pkg private for testing
@@ -338,7 +338,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getID());
         }
         if (format != null) {
-            builder.field(FORMAT_FIELD.getPreferredName(), format.format());
+            builder.field(FORMAT_FIELD.getPreferredName(), format.pattern());
         }
         if (relation != null) {
             builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
@@ -459,6 +459,16 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // Percolator queries get rewritten and pre-processed at index time.
+        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
+        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
+        if (queryRewriteContext.convertNowRangeToMatchAll()) {
+            if ((from() != null && from().toString().contains("now")) ||
+                (to() != null && to().toString().contains("now"))) {
+                return new MatchAllQueryBuilder();
+            }
+        }
+
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:
@@ -523,14 +533,14 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected int doHashCode() {
         String timeZoneId = timeZone == null ? null : timeZone.getID();
-        String formatString = format == null ? null : format.format();
+        String formatString = format == null ? null : format.pattern();
         return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, formatString);
     }
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
         String timeZoneId = timeZone == null ? null : timeZone.getID();
-        String formatString = format == null ? null : format.format();
+        String formatString = format == null ? null : format.pattern();
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&

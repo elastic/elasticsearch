@@ -58,7 +58,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                      ClusterSettings clusterSettings, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
-        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             CloseIndexRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
@@ -109,7 +109,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(concreteIndices);
 
-        indexStateService.closeIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        indexStateService.closeIndices(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

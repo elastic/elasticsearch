@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -39,10 +39,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -60,7 +58,7 @@ import java.util.Set;
 /**
  * Service responsible for submitting open/close index requests
  */
-public class MetaDataIndexStateService extends AbstractComponent {
+public class MetaDataIndexStateService {
     private static final Logger logger = LogManager.getLogger(MetaDataIndexStateService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
@@ -76,18 +74,17 @@ public class MetaDataIndexStateService extends AbstractComponent {
     private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
-    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+    public MetaDataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                                      IndicesService indicesService, ThreadPool threadPool) {
-        super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
-    public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void closeIndices(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
@@ -102,46 +99,50 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                Set<IndexMetaData> indicesToClose = new HashSet<>();
-                for (Index index : request.indices()) {
-                    final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
-                    if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
-                        indicesToClose.add(indexMetaData);
-                    }
-                }
-
-                if (indicesToClose.isEmpty()) {
-                    return currentState;
-                }
-
-                // Check if index closing conflicts with any running restores
-                RestoreService.checkIndexClosing(currentState, indicesToClose);
-                // Check if index closing conflicts with any running snapshots
-                SnapshotsService.checkIndexClosing(currentState, indicesToClose);
-                logger.info("closing indices [{}]", indicesAsString);
-
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
-                        .blocks(currentState.blocks());
-                for (IndexMetaData openIndexMetadata : indicesToClose) {
-                    final String indexName = openIndexMetadata.getIndex().getName();
-                    mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.CLOSE));
-                    blocksBuilder.addIndexBlock(indexName, INDEX_CLOSED_BLOCK);
-                }
-
-                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
-
-                RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
-                for (IndexMetaData index : indicesToClose) {
-                    rtBuilder.remove(index.getIndex().getName());
-                }
-
-                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return  allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
-                        "indices closed [" + indicesAsString + "]");
+                return closeIndices(currentState, request.indices(), indicesAsString);
             }
         });
+    }
+
+    public ClusterState closeIndices(ClusterState currentState, final Index[] indices, String indicesAsString) {
+        Set<IndexMetaData> indicesToClose = new HashSet<>();
+        for (Index index : indices) {
+            final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+            if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
+                indicesToClose.add(indexMetaData);
+            }
+        }
+
+        if (indicesToClose.isEmpty()) {
+            return currentState;
+        }
+
+        // Check if index closing conflicts with any running restores
+        RestoreService.checkIndexClosing(currentState, indicesToClose);
+        // Check if index closing conflicts with any running snapshots
+        SnapshotsService.checkIndexClosing(currentState, indicesToClose);
+        logger.info("closing indices [{}]", indicesAsString);
+
+        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
+            .blocks(currentState.blocks());
+        for (IndexMetaData openIndexMetadata : indicesToClose) {
+            final String indexName = openIndexMetadata.getIndex().getName();
+            mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.CLOSE));
+            blocksBuilder.addIndexBlock(indexName, INDEX_CLOSED_BLOCK);
+        }
+
+        ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
+
+        RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
+        for (IndexMetaData index : indicesToClose) {
+            rtBuilder.remove(index.getIndex().getName());
+        }
+
+        //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+        return  allocationService.reroute(
+            ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
+            "indices closed [" + indicesAsString + "]");
     }
 
     public void openIndex(final OpenIndexClusterStateUpdateRequest request,
@@ -187,7 +188,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     }
                 }
 
-                validateShardLimit(currentState, request.indices(), deprecationLogger);
+                validateShardLimit(currentState, request.indices());
 
                 if (indicesToOpen.isEmpty()) {
                     return currentState;
@@ -237,16 +238,15 @@ public class MetaDataIndexStateService extends AbstractComponent {
      *
      * @param currentState The current cluster state.
      * @param indices The indices which are to be opened.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
      */
-    static void validateShardLimit(ClusterState currentState, Index[] indices, DeprecationLogger deprecationLogger) {
+    static void validateShardLimit(ClusterState currentState, Index[] indices) {
         int shardsToOpen = Arrays.stream(indices)
             .filter(index -> currentState.metaData().index(index).getState().equals(IndexMetaData.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
 
-        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState, deprecationLogger);
+        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState);
         if (error.isPresent()) {
             ValidationException ex = new ValidationException();
             ex.addValidationError(error.get());

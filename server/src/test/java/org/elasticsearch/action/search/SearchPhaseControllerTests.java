@@ -25,7 +25,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -70,7 +69,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(Settings.EMPTY,
+        searchPhaseController = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
     }
 
@@ -127,7 +126,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
         }
         assertEquals(topDocsStats.maxScore, topDocsStats2.maxScore, 0.0f);
-        assertEquals(topDocsStats.totalHits, topDocsStats2.totalHits);
+        assertEquals(topDocsStats.getTotalHits().value, topDocsStats2.getTotalHits().value);
+        assertEquals(topDocsStats.getTotalHits().relation, topDocsStats2.getTotalHits().relation);
         assertEquals(topDocsStats.fetchHits, topDocsStats2.fetchHits);
     }
 
@@ -158,7 +158,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase,
                 searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
             if (trackTotalHits == false) {
-                assertThat(mergedResponse.hits.totalHits, equalTo(-1L));
+                assertNull(mergedResponse.hits.getTotalHits());
             }
             int suggestSize = 0;
             for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
@@ -284,7 +284,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             }
             SearchHit[] hits = searchHits.toArray(new SearchHit[searchHits.size()]);
-            fetchSearchResult.hits(new SearchHits(hits, hits.length, maxScore));
+            fetchSearchResult.hits(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore));
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;
@@ -376,7 +376,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertEquals(max.get(), internalMax.getValue(), 0.0D);
         assertEquals(1, reduce.scoreDocs.length);
         assertEquals(max.get(), reduce.maxScore, 0.0f);
-        assertEquals(expectedNumResults, reduce.totalHits);
+        assertEquals(expectedNumResults, reduce.totalHits.value);
         assertEquals(max.get(), reduce.scoreDocs[0].score, 0.0f);
     }
 
@@ -408,7 +408,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertEquals(max.get(), internalMax.getValue(), 0.0D);
         assertEquals(0, reduce.scoreDocs.length);
         assertEquals(max.get(), reduce.maxScore, 0.0f);
-        assertEquals(expectedNumResults, reduce.totalHits);
+        assertEquals(expectedNumResults, reduce.totalHits.value);
     }
 
 
@@ -437,7 +437,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         assertEquals(1, reduce.scoreDocs.length);
         assertEquals(max.get(), reduce.maxScore, 0.0f);
-        assertEquals(expectedNumResults, reduce.totalHits);
+        assertEquals(expectedNumResults, reduce.totalHits.value);
         assertEquals(max.get(), reduce.scoreDocs[0].score, 0.0f);
     }
 
@@ -501,7 +501,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         assertEquals(5, reduce.scoreDocs.length);
         assertEquals(100.f, reduce.maxScore, 0.0f);
-        assertEquals(12, reduce.totalHits);
+        assertEquals(12, reduce.totalHits.value);
         assertEquals(95.0f, reduce.scoreDocs[0].score, 0.0f);
         assertEquals(94.0f, reduce.scoreDocs[1].score, 0.0f);
         assertEquals(93.0f, reduce.scoreDocs[2].score, 0.0f);

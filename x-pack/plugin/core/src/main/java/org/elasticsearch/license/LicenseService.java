@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * the license changes are detected in the cluster state.
  */
 public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+    private static final Logger logger = LogManager.getLogger(LicenseService.class);
 
     public static final Setting<String> SELF_GENERATED_LICENSE_TYPE = new Setting<>("xpack.license.self_generated.type",
             (s) -> "basic", (s) -> {
@@ -78,6 +81,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
             XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+
+    private final Settings settings;
 
     private final ClusterService clusterService;
 
@@ -118,6 +123,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
         super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
@@ -134,7 +140,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         String general = LoggerMessageFormat.format(null, "License [{}] on [{}].\n" +
                 "# If you have a new license, please update it. Otherwise, please reach out to\n" +
                 "# your support contact.\n" +
-                "# ", expiredMsg, DATE_FORMATTER.printer().print(expirationMillis));
+                "# ", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }

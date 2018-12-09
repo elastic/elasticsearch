@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -33,11 +32,11 @@ public class TransportDeleteAutoFollowPatternAction extends
     TransportMasterNodeAction<DeleteAutoFollowPatternAction.Request, AcknowledgedResponse> {
 
     @Inject
-    public TransportDeleteAutoFollowPatternAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
                                                   ThreadPool threadPool, ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, DeleteAutoFollowPatternAction.Request::new);
+        super(DeleteAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            DeleteAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override

@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ForecastJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class ForecastJobActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
@@ -37,8 +38,8 @@ public class ForecastJobActionRequestTests extends AbstractStreamableXContentTes
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     public void testSetDuration_GivenZero() {

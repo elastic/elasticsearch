@@ -32,7 +32,6 @@ import java.util.function.Function;
  * Provides pre-configured, shared {@link TokenFilter}s.
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
-
     /**
      * Create a pre-configured token filter that may not vary at all.
      */

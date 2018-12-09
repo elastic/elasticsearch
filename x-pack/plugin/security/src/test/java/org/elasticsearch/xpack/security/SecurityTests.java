@@ -293,7 +293,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+        /*DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
         MetaData.Builder builder = MetaData.builder();
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
@@ -309,7 +309,7 @@ public class SecurityTests extends ESTestCase {
             IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
             assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
-        }
+        }*/
     }
 
     public void testIndexJoinValidator_Old_And_Rolling() throws Exception {

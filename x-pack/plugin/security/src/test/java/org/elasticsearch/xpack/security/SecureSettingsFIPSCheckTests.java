@@ -9,7 +9,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -34,7 +34,7 @@ public class SecureSettingsFIPSCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true");
         Environment env = TestEnvironment.newEnvironment(builder.build());
         generateV2Keystore(env);
-        assertTrue(new FIPSChecks().secureSettingsCheck(new BootstrapContext(builder.build(), null), env).isFailure());
+        assertTrue(new FIPSChecks().secureSettingsCheck(new FIPSContext(builder.build()), env).isFailure());
     }
 
     public void testCorrectSecureSettingsVersionIsAllowed() throws Exception {
@@ -52,7 +52,7 @@ public class SecureSettingsFIPSCheckTests extends ESTestCase {
                 throw e;
             }
         }
-        assertFalse(new FIPSChecks().secureSettingsCheck(new BootstrapContext(builder.build(), null), env).isFailure());
+        assertFalse(new FIPSChecks().secureSettingsCheck(new FIPSContext(builder.build()), env).isFailure());
     }
 
     private void generateV2Keystore(Environment env) throws Exception {

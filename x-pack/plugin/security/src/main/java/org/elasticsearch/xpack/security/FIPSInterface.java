@@ -21,7 +21,7 @@ package org.elasticsearch.xpack.security;
 
 import java.util.Objects;
 
-import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.env.Environment;
 
 /**
@@ -69,10 +69,10 @@ public interface FIPSInterface {
 
     /**
      * Test if the node fails the check
-     * @param context the bootstrap context
+     * @param context the FIPS context
      * @return the result of the bootstrap check
      */
-    FIPSCheckResult check(BootstrapContext context, Environment env);
+    FIPSCheckResult check(FIPSContext context, Environment env);
 
     default boolean alwaysEnforce() {
         return true;

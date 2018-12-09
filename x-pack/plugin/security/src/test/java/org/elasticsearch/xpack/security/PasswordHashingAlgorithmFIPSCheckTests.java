@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -26,7 +25,7 @@ public class PasswordHashingAlgorithmFIPSCheckTests extends ESTestCase {
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000")
                     .build();
             final FIPSCheckResult result =
-                    new FIPSChecks().passwordHashingAlgorithmCheck(new BootstrapContext(settings, null));
+                    new FIPSChecks().passwordHashingAlgorithmCheck(new FIPSContext(settings));
             assertFalse(result.isFailure());
         }
 
@@ -36,7 +35,7 @@ public class PasswordHashingAlgorithmFIPSCheckTests extends ESTestCase {
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2")
                     .build();
             final FIPSCheckResult result =
-            		new FIPSChecks().passwordHashingAlgorithmCheck(new BootstrapContext(settings, null));
+            		new FIPSChecks().passwordHashingAlgorithmCheck(new FIPSContext(settings));
             assertFalse(result.isFailure());
         }
     }
@@ -56,7 +55,7 @@ public class PasswordHashingAlgorithmFIPSCheckTests extends ESTestCase {
         }
         final Settings settings = builder.build();
         final FIPSCheckResult result =
-        		new FIPSChecks().passwordHashingAlgorithmCheck(new BootstrapContext(settings, null));
+        		new FIPSChecks().passwordHashingAlgorithmCheck(new FIPSContext(settings));
         assertThat(result.isFailure(), equalTo(fipsModeEnabled));
     }
 

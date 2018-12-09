@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -221,6 +222,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServe
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
+
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -494,6 +496,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
+
+        FIPSContext context = new FIPSContext(settings);
+        FIPSChecks checks = new FIPSChecks();
+        checks.check(context, env);
 
         return components;
     }
@@ -1000,8 +1006,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized())
-                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
+                .andThen(new ValidateLicenseCanBeDeserialized());
+                //.andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1049,7 +1055,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
     }
 
-    static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
+    /*static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean inFipsMode;
 
         ValidateLicenseForFIPS(boolean inFipsMode) {
@@ -1068,7 +1074,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 }
             }
         }
-    }
+    }*/
 
     @Override
     public void reloadSPI(ClassLoader loader) {

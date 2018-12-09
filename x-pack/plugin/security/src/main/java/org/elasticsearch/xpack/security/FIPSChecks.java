@@ -5,12 +5,11 @@ import java.io.UncheckedIOException;
 import java.util.EnumSet;
 import java.util.Locale;
 
-import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 public class FIPSChecks implements FIPSInterface {
@@ -19,7 +18,7 @@ public class FIPSChecks implements FIPSInterface {
             EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
 
 	@Override
-	public FIPSCheckResult check(BootstrapContext context, Environment env) {
+	public FIPSCheckResult check(FIPSContext context, Environment env) {
 		FIPSCheckResult check1 = keystoreCheck(context);
 		FIPSCheckResult check2 = licenseCheck(context);
 		FIPSCheckResult check3 = passwordHashingAlgorithmCheck(context);
@@ -50,7 +49,7 @@ public class FIPSChecks implements FIPSInterface {
 		return null;
 	}
 	
-    public FIPSCheckResult keystoreCheck(BootstrapContext context) {
+    public FIPSCheckResult keystoreCheck(FIPSContext context) {
 
         if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
             final Settings settings = context.settings;
@@ -73,18 +72,18 @@ public class FIPSChecks implements FIPSInterface {
         return FIPSCheckResult.success();
     }
     
-    public FIPSCheckResult licenseCheck(BootstrapContext context) {
+    public FIPSCheckResult licenseCheck(FIPSContext context) {
         if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
-            License license = LicenseService.getLicense(context.metaData);
+            /*License license = LicenseService.getLicense(context.metaData);
             if (license != null && ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
                 return FIPSCheckResult.failure("FIPS mode is only allowed with a Platinum or Trial license");
-            }
+            } */
         }
         
         return FIPSCheckResult.success();
     }
     
-    public FIPSCheckResult passwordHashingAlgorithmCheck(BootstrapContext context) {
+    public FIPSCheckResult passwordHashingAlgorithmCheck(FIPSContext context) {
         if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
             final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings);
             if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
@@ -96,7 +95,7 @@ public class FIPSChecks implements FIPSInterface {
         return FIPSCheckResult.success();
     }
 
-    public FIPSCheckResult secureSettingsCheck(BootstrapContext context, Environment environment) {
+    public FIPSCheckResult secureSettingsCheck(FIPSContext context, Environment environment) {
         if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
             try (KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile())) {
                 if (secureSettings != null && secureSettings.getFormatVersion() < 3) {

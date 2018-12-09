@@ -59,7 +59,8 @@ public abstract class BaseRestHandler implements RestHandler {
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
     private final LongAdder usageCount = new LongAdder();
-    private static final Logger logger = LogManager.getLogger(BaseRestHandler.class);
+    @Deprecated
+    protected static Logger logger = LogManager.getLogger(BaseRestHandler.class);
 
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor

@@ -36,7 +36,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
-    private static final Logger logger = LogManager.getLogger(TransportAction.class);
+    @Deprecated
+    protected static Logger logger = LogManager.getLogger(TransportAction.class);
 
     protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;

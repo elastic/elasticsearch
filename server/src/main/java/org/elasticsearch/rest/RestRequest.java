@@ -58,7 +58,8 @@ public class RestRequest implements ToXContent.Params {
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private final NamedXContentRegistry xContentRegistry;
-    private final Map<String, String> params;
+
+    private Map<String, String> params;
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
@@ -268,6 +269,14 @@ public class RestRequest implements ToXContent.Params {
 
     public Map<String, String> params() {
         return params;
+    }
+
+    public void params(Map<String, String> params) {
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if(this.params.get(entry.getKey()) == null) {
+                this.params.put(entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     /**

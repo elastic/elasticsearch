@@ -105,6 +105,13 @@ public class RestSearchAction extends BaseRestHandler {
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
+                                          XContentParser requestContentParser,
+                                          IntConsumer setSize) throws IOException {
+
+        parseSearchRequest(searchRequest, request, requestContentParser, setSize, true);
+    }
+
     /**
      * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
@@ -114,14 +121,14 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
                                           XContentParser requestContentParser,
-                                          IntConsumer setSize) throws IOException {
+                                          IntConsumer setSize, boolean checkTrailingTokens) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            searchRequest.source().parseXContent(requestContentParser, true);
+            searchRequest.source().parseXContent(requestContentParser, checkTrailingTokens);
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());

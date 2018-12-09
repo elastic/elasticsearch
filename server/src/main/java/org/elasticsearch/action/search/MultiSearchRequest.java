@@ -33,20 +33,20 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.IntConsumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
 
 /**
  * A multi search API request.
@@ -75,6 +75,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
      */
     public MultiSearchRequest add(SearchRequest request) {
         requests.add(request);
+        return this;
+    }
+
+    public MultiSearchRequest add(SearchRequest searchRequest, RestRequest request, XContentParser parser) throws IOException {
+        IntConsumer setSize = size -> searchRequest.source().size(size);
+        RestSearchAction.parseSearchRequest(searchRequest, request, parser, setSize, false);
+        requests.add(searchRequest);
         return this;
     }
 
@@ -156,8 +163,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (o == null || getClass() != o.getClass()) return false;
         MultiSearchRequest that = (MultiSearchRequest) o;
         return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &&
-                Objects.equals(requests, that.requests) &&
-                Objects.equals(indicesOptions, that.indicesOptions);
+            Objects.equals(requests, that.requests) &&
+            Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
@@ -165,7 +172,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
     }
 
-    public static void readMultiLineFormat(BytesReference data,
+    public static void readMultiLineFormat(RestRequest request,
+                                           BytesReference data,
                                            XContent xContent,
                                            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
                                            String[] indices,
@@ -178,6 +186,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         int from = 0;
         int length = data.length();
         byte marker = xContent.streamSeparator();
+        Map<String, String> origParams = request.params();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data, length);
             if (nextMarker == -1) {
@@ -210,11 +219,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker - from > 0) {
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
                      XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                    request.params(origParams);
                     Map<String, Object> source = parser.map();
-                    Object expandWildcards = null;
-                    Object ignoreUnavailable = null;
-                    Object ignoreThrottled = null;
-                    Object allowNoIndices = null;
+                    Map<String, String> strSource = new HashMap<String, String>();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
@@ -222,32 +229,19 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));
-                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
-                            searchRequest.types(nodeStringArrayValue(value));
-                        } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
-                            searchRequest.searchType(nodeStringValue(value, null));
-                        } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
-                            searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
-                        } else if ("preference".equals(entry.getKey())) {
-                            searchRequest.preference(nodeStringValue(value, null));
-                        } else if ("routing".equals(entry.getKey())) {
-                            searchRequest.routing(nodeStringValue(value, null));
-                        } else if ("allow_partial_search_results".equals(entry.getKey())) {
-                            searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
-                        } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
-                            expandWildcards = value;
-                        } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
-                            ignoreUnavailable = value;
-                        } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
-                            allowNoIndices = value;
-                        } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
-                            ignoreThrottled = value;
                         } else {
-                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                            //to be parsed by RestSearchAction.parseSearchSource()
+                            //only adding non parsed entries
+                            if (entry.getValue() instanceof String) {
+                                strSource.put(entry.getKey(), (String) entry.getValue());
+                            } else {
+                                strSource.put(entry.getKey(), entry.getValue().toString());
+                            }
                         }
                     }
-                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,
-                        defaultOptions);
+
+                    //done only on this case, in order to set parameters
+                    request.params(strSource);
                 }
             }
             searchRequest.indicesOptions(defaultOptions);
@@ -341,5 +335,4 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         xContentBuilder.endObject();
     }
-
 }

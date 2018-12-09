@@ -113,11 +113,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
-            }
-            searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
-            multiRequest.add(searchRequest);
+            multiRequest.add(searchRequest, restRequest, parser);
         });
         List<SearchRequest> requests = multiRequest.requests();
         preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
@@ -145,7 +141,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
-        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
+        MultiSearchRequest.readMultiLineFormat(request, data, xContent, consumer, indices, indicesOptions, types, routing,
                 searchType, request.getXContentRegistry(), allowExplicitIndex);
     }
 

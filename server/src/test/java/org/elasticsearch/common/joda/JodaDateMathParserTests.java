@@ -50,7 +50,7 @@ public class JodaDateMathParserTests extends ESTestCase {
         if (gotMillis != expectedMillis) {
             fail("Date math not equal\n" +
                 "Original              : " + original + "\n" +
-                "Parsed                : " + formatter.printer().print(gotMillis) + "\n" +
+                "Parsed                : " + formatter.formatMillis(gotMillis) + "\n" +
                 "Expected              : " + expected + "\n" +
                 "Expected milliseconds : " + expectedMillis + "\n" +
                 "Actual milliseconds   : " + gotMillis + "\n");
@@ -161,10 +161,10 @@ public class JodaDateMathParserTests extends ESTestCase {
         FormatDateTimeFormatter formatter = Joda.forPattern("HH:mm:ss");
         JodaDateMathParser parser = new JodaDateMathParser(formatter);
         assertEquals(
-                this.formatter.parser().parseMillis("1970-01-01T04:52:20.000Z"),
+                this.formatter.parseMillis("1970-01-01T04:52:20.000Z"),
                 parser.parse("04:52:20", () -> 0, false, (ZoneId) null));
         assertEquals(
-                this.formatter.parser().parseMillis("1970-01-01T04:52:20.999Z"),
+                this.formatter.parseMillis("1970-01-01T04:52:20.999Z"),
                 parser.parse("04:52:20", () -> 0, true, (ZoneId) null));
     }
 

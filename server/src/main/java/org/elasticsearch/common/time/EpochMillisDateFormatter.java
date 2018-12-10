@@ -103,12 +103,12 @@ class EpochMillisDateFormatter implements DateFormatter {
     }
 
     @Override
-    public Locale getLocale() {
+    public Locale locale() {
         return Locale.ROOT;
     }
 
     @Override
-    public ZoneId getZone() {
+    public ZoneId zone() {
         return ZoneOffset.UTC;
     }
 

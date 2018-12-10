@@ -73,11 +73,6 @@ public class GceDiscoverTests extends ESIntegTestCase {
             .build();
     }
 
-    @Override
-    protected boolean addTestZenDiscovery() {
-        return false;
-    }
-
     public void testJoin() {
         // start master node
         final String masterNode = internalCluster().startMasterOnlyNode();

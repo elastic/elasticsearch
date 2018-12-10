@@ -397,6 +397,28 @@
             "description":"Can't update all description"
           }
 
+  - do:
+      xpack.ml.put_job:
+        job_id: job-crud-update-group-name-clash
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      catch: "/job and group names must be unique/"
+      xpack.ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "groups": ["job-crud-update-group-name-clash"]
+          }
+
 ---
 "Test cannot decrease model_memory_limit below current usage":
   - skip:

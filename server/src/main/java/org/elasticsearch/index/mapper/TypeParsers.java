@@ -265,7 +265,7 @@ public class TypeParsers {
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
-            return Joda.forPattern((String) node);
+            return DateFormatter.forPattern((String) node);
         }
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }

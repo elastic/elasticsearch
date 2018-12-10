@@ -115,7 +115,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final String LICENSE_JOB = "licenseJob";
 
-    private static final DateFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";

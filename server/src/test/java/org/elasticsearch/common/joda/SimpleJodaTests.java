@@ -111,7 +111,7 @@ public class SimpleJodaTests extends ESTestCase {
         millis = formatter.parseMillis("1970/01/01 00:00:00");
         assertThat(millis, equalTo(0L));
 
-        DateFormatter formatter2 = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
+        DateFormatter formatter2 = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss");
         millis = formatter2.parseMillis("1970/01/01 00:00:00");
         assertThat(millis, equalTo(0L));
     }
@@ -124,10 +124,10 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testSlashInFormat() {
-        DateFormatter formatter = Joda.forPattern("MM/yyyy");
+        DateFormatter formatter = DateFormatter.forPattern("MM/yyyy");
         formatter.parseMillis("01/2001");
 
-        formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
+        formatter = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss");
         long millis = formatter.parseMillis("1970/01/01 00:00:00");
         formatter.formatMillis(millis);
 
@@ -140,22 +140,22 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testMultipleFormats() {
-        DateFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        DateFormatter formatter = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
         long millis = formatter.parseMillis("1970/01/01 00:00:00");
         assertThat("1970/01/01 00:00:00", is(formatter.formatMillis(millis)));
     }
 
     public void testMultipleDifferentFormats() {
-        DateFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        DateFormatter formatter = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
         String input = "1970/01/01 00:00:00";
         long millis = formatter.parseMillis(input);
         assertThat(input, is(formatter.formatMillis(millis)));
 
-        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||dateOptionalTime");
-        Joda.forPattern("dateOptionalTime||yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
-        Joda.forPattern("yyyy/MM/dd HH:mm:ss||dateOptionalTime||yyyy/MM/dd");
-        Joda.forPattern("date_time||date_time_no_millis");
-        Joda.forPattern(" date_time || date_time_no_millis");
+        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||dateOptionalTime");
+        DateFormatter.forPattern("dateOptionalTime||yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||dateOptionalTime||yyyy/MM/dd");
+        DateFormatter.forPattern("date_time||date_time_no_millis");
+        DateFormatter.forPattern(" date_time || date_time_no_millis");
     }
 
     public void testInvalidPatterns() {
@@ -170,7 +170,7 @@ public class SimpleJodaTests extends ESTestCase {
 
     private void expectInvalidPattern(String pattern, String errorMessage) {
         try {
-            Joda.forPattern(pattern);
+            DateFormatter.forPattern(pattern);
             fail("Pattern " + pattern + " should have thrown an exception but did not");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString(errorMessage));
@@ -244,7 +244,7 @@ public class SimpleJodaTests extends ESTestCase {
         boolean parseMilliSeconds = randomBoolean();
 
         // epoch: 1433144433655 => date: Mon Jun  1 09:40:33.655 CEST 2015
-        DateFormatter formatter = Joda.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
+        DateFormatter formatter = DateFormatter.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
         DateTime dateTime = formatter.parseJoda(parseMilliSeconds ? "1433144433655" : "1433144433");
 
         assertThat(dateTime.getYear(), is(2015));
@@ -269,7 +269,7 @@ public class SimpleJodaTests extends ESTestCase {
     public void testThatNegativeEpochsCanBeParsed() {
         // problem: negative epochs can be arbitrary in size...
         boolean parseMilliSeconds = randomBoolean();
-        DateFormatter formatter = Joda.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
+        DateFormatter formatter = DateFormatter.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
         DateTime dateTime = formatter.parseJoda("-10000");
 
         assertThat(dateTime.getYear(), is(1969));
@@ -310,7 +310,7 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testForInvalidDatesInEpochSecond() {
-        DateFormatter formatter = Joda.forPattern("epoch_second");
+        DateFormatter formatter = DateFormatter.forPattern("epoch_second");
         try {
             formatter.parseJoda(randomFrom("invalid date", "12345678901234567", "12345678901234567890"));
             fail("Expected IllegalArgumentException");
@@ -320,7 +320,7 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testForInvalidDatesInEpochMillis() {
-        DateFormatter formatter = Joda.forPattern("epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("epoch_millis");
         try {
             formatter.parseJoda(randomFrom("invalid date", "12345678901234567890"));
             fail("Expected IllegalArgumentException");
@@ -362,11 +362,11 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testThatEpochParserIsPrinter() {
-        JodaDateFormatter formatter = Joda.forPattern("epoch_millis");
+        JodaDateFormatter formatter = Joda.forPattern("epoch_millis", Locale.ROOT);
         assertThat(formatter.parser.isPrinter(), is(true));
         assertThat(formatter.printer.isPrinter(), is(true));
 
-        JodaDateFormatter epochSecondFormatter = Joda.forPattern("epoch_second");
+        JodaDateFormatter epochSecondFormatter = Joda.forPattern("epoch_second", Locale.ROOT);
         assertThat(epochSecondFormatter.parser.isPrinter(), is(true));
         assertThat(epochSecondFormatter.printer.isPrinter(), is(true));
     }
@@ -389,7 +389,7 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testThatEpochParserIsIdempotent() {
-        DateFormatter formatter = Joda.forPattern("epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("epoch_millis");
         DateTime dateTime = formatter.parseJoda("1234567890123");
         assertThat(dateTime.getMillis(), is(1234567890123L));
         dateTime = formatter.parseJoda("1234567890456");
@@ -399,7 +399,7 @@ public class SimpleJodaTests extends ESTestCase {
         dateTime = formatter.parseJoda("1234567890123456789");
         assertThat(dateTime.getMillis(), is(1234567890123456789L));
 
-        DateFormatter secondsFormatter = Joda.forPattern("epoch_second");
+        DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
         DateTime secondsDateTime = secondsFormatter.parseJoda("1234567890");
         assertThat(secondsDateTime.getMillis(), is(1234567890000L));
         secondsDateTime = secondsFormatter.parseJoda("1234567890");
@@ -757,13 +757,13 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     private void assertValidDateFormatParsing(String pattern, String dateToParse, String expectedDate) {
-        DateFormatter formatter = Joda.forPattern(pattern);
+        DateFormatter formatter = DateFormatter.forPattern(pattern);
         assertThat(formatter.formatMillis(formatter.parseMillis(dateToParse)), is(expectedDate));
     }
 
     private void assertDateFormatParsingThrowingException(String pattern, String invalidDate) {
         try {
-            DateFormatter formatter = Joda.forPattern(pattern);
+            DateFormatter formatter = DateFormatter.forPattern(pattern);
             formatter.parseMillis(invalidDate);
             fail(String.format(Locale.ROOT, "Expected parsing exception for pattern [%s] with date [%s], but did not happen",
                 pattern, invalidDate));

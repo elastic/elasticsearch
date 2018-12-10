@@ -186,7 +186,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this(Joda.forPattern(in.readString()), DateTimeZone.forID(in.readString()));
+            this(DateFormatter.forPattern(in.readString()), DateTimeZone.forID(in.readString()));
         }
 
         @Override

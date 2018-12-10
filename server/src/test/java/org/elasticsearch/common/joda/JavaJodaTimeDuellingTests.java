@@ -479,14 +479,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
-        String jodaTimeOut = Joda.forPattern(format).formatJoda(jodaDate);
+        String jodaTimeOut = DateFormatter.forPattern(format).formatJoda(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
     }
 
     private void assertSameDate(String input, String format) {
-        DateFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = DateFormatter.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
@@ -505,7 +505,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
-        DateFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = DateFormatter.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }

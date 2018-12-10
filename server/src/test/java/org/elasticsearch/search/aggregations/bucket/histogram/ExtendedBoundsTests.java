@@ -104,7 +104,7 @@ public class ExtendedBoundsTests extends ESTestCase {
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
                 null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
         when(context.getQueryShardContext()).thenReturn(qsc);
-        DateFormatter formatter = Joda.forPattern("dateOptionalTime");
+        DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
 
         ExtendedBounds expected = randomParsedExtendedBounds();

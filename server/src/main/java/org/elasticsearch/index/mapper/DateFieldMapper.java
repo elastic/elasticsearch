@@ -65,7 +65,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
             "strict_date_optional_time||epoch_millis", Locale.ROOT);
 
     public static class Defaults {
@@ -381,7 +381,7 @@ public class DateFieldMapper extends FieldMapper {
         public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
             DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
-                dateTimeFormatter = Joda.forPattern(format);
+                dateTimeFormatter = DateFormatter.forPattern(format);
             }
             if (timeZone == null) {
                 timeZone = DateTimeZone.UTC;

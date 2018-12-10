@@ -36,7 +36,7 @@ public class TestUtils {
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
     private static final DateFormatter formatDateTimeFormatter =
-            Joda.forPattern("yyyy-MM-dd");
+            DateFormatter.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dumpLicense(License license) throws Exception {

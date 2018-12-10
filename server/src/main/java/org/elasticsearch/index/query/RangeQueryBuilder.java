@@ -105,7 +105,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         timeZone = in.readOptionalTimeZone();
         String formatString = in.readOptionalString();
         if (formatString != null) {
-            format = Joda.forPattern(formatString);
+            format = DateFormatter.forPattern(formatString);
         }
         String relationString = in.readOptionalString();
         if (relationString != null) {
@@ -290,7 +290,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (format == null) {
             throw new IllegalArgumentException("format cannot be null");
         }
-        this.format = Joda.forPattern(format);
+        this.format = DateFormatter.forPattern(format);
         return this;
     }
 

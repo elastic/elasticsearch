@@ -1529,6 +1529,11 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 // end::mathTruncateWithPositiveParameter
 ;
 
+///////////////////////////////
+//
+// Null handling
+//
+///////////////////////////////
 
 coalesceReturnNonNull
 // tag::coalesceReturnNonNull
@@ -1697,6 +1702,12 @@ true
 // end::nullEqualsCompareTwoNulls
 ;
 
+///////////////////////////////
+//
+// System functions
+//
+///////////////////////////////
+
 // ignored because tests run with a docs-not-worthy cluster name
 // at the time of this test being ignored, the cluster name was x-pack_plugin_sql_qa_single-node_integTestCluster
 database-Ignore
@@ -1719,4 +1730,173 @@ SELECT USER();
 ---------------
 elastic
 // end::user
+;
+
+///////////////////////////////
+//
+// Date-Time functions
+//
+///////////////////////////////
+
+constantYear
+// tag::year
+SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
+
+     year
+---------------
+2018
+// end::year
+;
+
+constantMonthOfYear
+// tag::monthOfYear
+SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+2
+// end::monthOfYear
+;
+
+constantIsoWeekOfYear
+// tag::isoWeekOfYear
+SELECT ISO_WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
+
+     week
+---------------
+8
+// end::isoWeekOfYear
+;
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantDayName-Ignore
+// tag::dayName
+SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+Monday
+// end::dayName
+;
+
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantMonthName-Ignore
+// tag::monthName
+SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+February
+// end::monthName
+;
+
+constantDayOfYear
+// tag::dayOfYear
+SELECT DAY_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::dayOfYear
+;
+
+extractDayOfYear
+// tag::extractDayOfYear
+SELECT EXTRACT(DAY_OF_YEAR FROM CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::extractDayOfYear
+;
+
+constantDayOfMonth
+// tag::dayOfMonth
+SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+19
+// end::dayOfMonth
+;
+
+constantDayOfWeek
+// tag::dayOfWeek
+SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+2
+// end::dayOfWeek
+;
+
+constantIsoDayOfWeek
+// tag::isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+1
+// end::isoDayOfWeek
+;
+
+constantHourOfDay
+// tag::hourOfDay
+SELECT HOUR_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS hour;
+
+     hour
+---------------
+10
+// end::hourOfDay
+;
+
+constantMinuteOfDay
+// tag::minuteOfDay
+SELECT MINUTE_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+623
+// end::minuteOfDay
+;
+
+constantMinuteOfHour
+// tag::minuteOfHour
+SELECT MINUTE_OF_HOUR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+23
+// end::minuteOfHour
+;
+
+constantSecondOfMinute
+// tag::secondOfMinute
+SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
+
+    second
+---------------
+27
+// end::secondOfMinute
+;
+
+constantQuarter
+// tag::quarter
+SELECT QUARTER(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS quarter;
+
+    quarter
+---------------
+1
+// end::quarter
+;
+
+constantWeekOfYear
+// tag::weekOfYear
+SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS isoweek;
+
+      week     |   isoweek
+---------------+---------------
+2              |1
+// end::weekOfYear
 ;

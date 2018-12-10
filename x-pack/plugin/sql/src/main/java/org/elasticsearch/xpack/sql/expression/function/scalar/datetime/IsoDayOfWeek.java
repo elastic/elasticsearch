@@ -17,7 +17,7 @@ import java.util.TimeZone;
  */
 public class IsoDayOfWeek extends DateTimeFunction {
     public IsoDayOfWeek(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.DAY_OF_WEEK);
+        super(location, field, timeZone, DateTimeExtractor.ISO_DAY_OF_WEEK);
     }
 
     @Override

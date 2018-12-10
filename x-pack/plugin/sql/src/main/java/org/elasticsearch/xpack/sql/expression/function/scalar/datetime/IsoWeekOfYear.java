@@ -17,7 +17,7 @@ import java.util.TimeZone;
  */
 public class IsoWeekOfYear extends DateTimeFunction {
     public IsoWeekOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.WEEK_OF_YEAR);
+        super(location, field, timeZone, DateTimeExtractor.ISO_WEEK_OF_YEAR);
     }
 
     @Override

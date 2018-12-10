@@ -124,7 +124,7 @@ include-tagged::{sql-specs}/datetime.csv-spec[hourOfDay]
 --------------------------------------------------
 
 [[sql-functions-datetime-isodow]]
-==== `ISO_DAY_OF_WEEK`/`ISODAYOFWEEK`/`ISODOW`
+==== `ISO_DAY_OF_WEEK`/`ISODAYOFWEEK`/`ISODOW`/`IDOW`
 
 .Synopsis:
 [source, sql]
@@ -149,7 +149,7 @@ include-tagged::{sql-specs}/datetime.csv-spec[isoDayOfWeek]
 --------------------------------------------------
 
 [[sql-functions-datetime-isoweek]]
-==== `ISO_WEEK_OF_YEAR`/`ISOWEEKOFYEAR`/`ISOWEEK`
+==== `ISO_WEEK_OF_YEAR`/`ISOWEEKOFYEAR`/`ISOWEEK`/`IWOY/`IW`
 
 .Synopsis:
 [source, sql]
@@ -166,7 +166,7 @@ ISO_WEEK_OF_YEAR(date_exp<1>)
 .Description:
 
 Extract the week of the year from a date, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
-of an year is the first week with a majority (4 or more) of its days in January.
+of a year is the first week with a majority (4 or more) of its days in January.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -383,7 +383,7 @@ EXTRACT(datetime_function<1> FROM date_exp<2>)
 
 .Description:
 
-Extract fields from datetimes by specifying the name of a <<sql-functions-datetime,datetime function>>.
+Extract fields from a datetime by specifying the name of a <<sql-functions-datetime,datetime function>>.
 The following
 
 ["source","sql",subs="attributes,callouts,macros"]

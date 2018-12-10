@@ -30,6 +30,8 @@ public class NonISODateTimeProcessor extends BaseDateTimeProcessor {
             return dayOfWeek == 8 ? 1 : dayOfWeek;
         }),
         WEEK_OF_YEAR(zdt -> {
+            // by ISO 8601 standard, the first week of a year is the first week with a majority (4 or more) of its days in January.
+            // Other Locales may have their own standards (see Arabic or Japanese calendars).
             LocalDateTime ld = zdt.toLocalDateTime();
             Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(zdt.getZone()), Locale.ROOT);
             cal.clear();

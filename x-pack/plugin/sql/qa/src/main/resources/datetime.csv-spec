@@ -125,6 +125,57 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 
 // Aggregate
 //
 
+dateTimeAggByIsoDayOfWeekWithFilter
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, name ORDER BY day desc;
+
+    day:i      |   name:s      |     c:l       
+---------------+---------------+---------------
+5              |Friday         |12             
+4              |Thursday       |15             
+3              |Wednesday      |14             
+2              |Tuesday        |18             
+1              |Monday         |8              
+;
+
+dateTimeAggByIsoDayOfWeek
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp GROUP BY day, name ORDER BY day desc;
+
+    day:i      |   name:s      |     c:l       
+---------------+---------------+---------------
+7              |Sunday         |10
+6              |Saturday       |13
+5              |Friday         |12
+4              |Thursday       |15
+3              |Wednesday      |14
+2              |Tuesday        |18
+1              |Monday         |8
+null           |null           |10
+;
+
+dateTimeAggByIsoWeekOfYear
+SELECT IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 20 GROUP BY iso_week, week ORDER BY iso_week;
+
+ iso_week:i    |    week:i      
+---------------+---------------
+1              |2              
+3              |4              
+4              |4              
+4              |5              
+6              |7              
+7              |7              
+8              |8              
+8              |9              
+9              |9              
+10             |11             
+12             |12             
+14             |14             
+14             |15             
+15             |16             
+16             |16             
+16             |17             
+18             |18             
+;
+
 dateTimeAggByYear
 SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 13;
 
@@ -219,167 +270,4 @@ SELECT WEEK(birth_date) week, COUNT(*) c FROM test_emp WHERE MOD(WEEK(birth_date
 44             |2              
 48             |2              
 52             |3              
-;
-
-constantYear
-// tag::year
-SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
-
-     year
----------------
-2018
-// end::year
-;
-
-constantMonthOfYear
-// tag::monthOfYear
-SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
-
-     month
----------------
-2
-// end::monthOfYear
-;
-
-constantIsoWeekOfYear
-// tag::isoWeekOfYear
-SELECT ISO_WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
-
-     week
----------------
-8
-// end::isoWeekOfYear
-;
-
-// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
-constantDayName-Ignore
-// tag::dayName
-SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-Monday
-// end::dayName
-;
-
-
-// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
-constantMonthName-Ignore
-// tag::monthName
-SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
-
-     month
----------------
-February
-// end::monthName
-;
-
-constantDayOfYear
-// tag::dayOfYear
-SELECT DAY_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-50
-// end::dayOfYear
-;
-
-extractDayOfYear
-// tag::extractDayOfYear
-SELECT EXTRACT(DAY_OF_YEAR FROM CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-50
-// end::extractDayOfYear
-;
-
-constantDayOfMonth
-// tag::dayOfMonth
-SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-19
-// end::dayOfMonth
-;
-
-constantDayOfWeek
-// tag::dayOfWeek
-SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-2
-// end::dayOfWeek
-;
-
-constantIsoDayOfWeek
-// tag::isoDayOfWeek
-SELECT ISO_DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-1
-// end::isoDayOfWeek
-;
-
-constantHourOfDay
-// tag::hourOfDay
-SELECT HOUR_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS hour;
-
-     hour
----------------
-10
-// end::hourOfDay
-;
-
-constantMinuteOfDay
-// tag::minuteOfDay
-SELECT MINUTE_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
-
-    minute
----------------
-623
-// end::minuteOfDay
-;
-
-constantMinuteOfHour
-// tag::minuteOfHour
-SELECT MINUTE_OF_HOUR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
-
-    minute
----------------
-23
-// end::minuteOfHour
-;
-
-constantSecondOfMinute
-// tag::secondOfMinute
-SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
-
-    second
----------------
-27
-// end::secondOfMinute
-;
-
-constantQuarter
-// tag::quarter
-SELECT QUARTER(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS quarter;
-
-    quarter
----------------
-1
-// end::quarter
-;
-
-constantWeekOfYear
-// tag::weekOfYear
-SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS isoweek;
-
-      week     |   isoweek
----------------+---------------
-2              |1
-// end::weekOfYear
 ;

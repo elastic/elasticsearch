@@ -85,7 +85,8 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
 
     /**
      * Set the document types for the update
-     * @deprecated Types are in the process of being removed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
      */
     @Deprecated
     public UpdateByQueryRequest setDocTypes(String... types) {
@@ -138,7 +139,8 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     /**
      * Gets the document types on which this request would be executed. Returns an empty array if all
      * types are to be processed.
-     * @deprecated Types are in the process of being removed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
      */
     @Deprecated
     public String[] getDocTypes() {
@@ -218,10 +220,5 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         getSearchRequest().source().innerToXContent(builder, params);
         builder.endObject();
         return builder;
-    }
-
-    // Remove in 8.0 when all requests are typeless
-    public boolean isNoTypeRequest() {
-        return getSearchRequest().isNoTypeRequest();
     }
 }

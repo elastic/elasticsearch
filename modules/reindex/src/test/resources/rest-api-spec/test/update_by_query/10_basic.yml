@@ -110,7 +110,7 @@
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
   # Use a regex so we don't mind if the current version isn't always 1. Sometimes it comes out 2.
-  - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
+  - match: {failures.0.cause.reason: "/\\[_doc\\]\\[1\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  test}
   - gte: { took: 0 }

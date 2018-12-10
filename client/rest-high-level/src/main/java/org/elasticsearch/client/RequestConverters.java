@@ -464,7 +464,7 @@ final class RequestConverters {
     static Request explain(ExplainRequest explainRequest) throws IOException {
         String endpoint = explainRequest.isTypeless()
             ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
-            : endpoint(explainRequest.index(), explainRequest.id(), "_explain");
+            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params(request);

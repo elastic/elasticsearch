@@ -92,7 +92,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     }
 
     public boolean isTypeless() {
-        return type.equals(MapperService.SINGLE_MAPPING_NAME);
+        return type == null || type.equals(MapperService.SINGLE_MAPPING_NAME);
     }
 
     public String id() {

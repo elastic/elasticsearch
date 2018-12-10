@@ -7,7 +7,7 @@ This can give useful feedback whether a document matches or didn’t match a spe
 [[java-rest-high-explain-request]]
 ==== Explain Request
 
-An `ExplainRequest` expects an `index`, and an `id` to specify a certain document,
+An `ExplainRequest` expects an `index` and an `id` to specify a certain document,
 and a query represented by `QueryBuilder` to run against it (the way of <<java-rest-high-query-builders, building queries>>).
 
 ["source","java",subs="attributes,callouts,macros"]

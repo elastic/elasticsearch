@@ -38,7 +38,7 @@ public class TypesRemovalWarningsHandler implements WarningsHandler {
     @Override
     public boolean warningsShouldFailRequest(List<String> warnings) {
         for (String warning : warnings) {
-            if (!warning.startsWith("[types removal]")) {
+            if (warning.startsWith("[types removal]") == false) {
                 return true;
             }
         }

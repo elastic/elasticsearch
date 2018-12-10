@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Request
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Response;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TransportDeleteDataFrameJobAction extends TransportTasksAction<DataFrameJobTask, Request, Response, Response> {
@@ -38,7 +36,7 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
     public TransportDeleteDataFrameJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
             ClusterService clusterService) {
-        super(DeleteDataFrameJobAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+        super(DeleteDataFrameJobAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new,
                 ThreadPool.Names.SAME);
     }
 
@@ -49,13 +47,6 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
         boolean cancelled = tasks.size() > 0 && tasks.stream().allMatch(Response::isDeleted);
 
         return new Response(cancelled, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected Response readTaskResponse(StreamInput in) throws IOException {
-        Response response = new Response();
-        response.readFrom(in);
-        return response;
     }
 
     @Override

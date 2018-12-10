@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction.Resp
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +40,7 @@ public class TransportGetDataFrameJobsStatsAction extends
     @Inject
     public TransportGetDataFrameJobsStatsAction(TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService) {
-        super(GetDataFrameJobsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+        super(GetDataFrameJobsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new,
                 ThreadPool.Names.SAME);
     }
 
@@ -52,11 +50,6 @@ public class TransportGetDataFrameJobsStatsAction extends
         List<DataFrameJobStateAndStats> responses = tasks.stream().map(GetDataFrameJobsStatsAction.Response::getJobsStateAndStats)
                 .flatMap(Collection::stream).collect(Collectors.toList());
         return new Response(responses, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected Response readTaskResponse(StreamInput in) throws IOException {
-        return new Response(in);
     }
 
     @Override

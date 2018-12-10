@@ -28,10 +28,9 @@ public class TransportStopDataFrameJobAction extends
         StopDataFrameJobAction.Response, StopDataFrameJobAction.Response> {
 
     @Inject
-    public TransportStopDataFrameJobAction(TransportService transportService, ActionFilters actionFilters,
-            ClusterService clusterService) {
-        super(StopDataFrameJobAction.NAME, clusterService, transportService, actionFilters,
-                StopDataFrameJobAction.Request::new, StopDataFrameJobAction.Response::new, ThreadPool.Names.SAME);
+    public TransportStopDataFrameJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(StopDataFrameJobAction.NAME, clusterService, transportService, actionFilters, StopDataFrameJobAction.Request::new,
+                StopDataFrameJobAction.Response::new, StopDataFrameJobAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -73,10 +72,5 @@ public class TransportStopDataFrameJobAction extends
 
         boolean allStopped = tasks.stream().allMatch(StopDataFrameJobAction.Response::isStopped);
         return new StopDataFrameJobAction.Response(allStopped);
-    }
-
-    @Override
-    protected StopDataFrameJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StopDataFrameJobAction.Response(in);
     }
 }

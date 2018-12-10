@@ -43,7 +43,7 @@ public class TransportGetDataFrameJobsAction extends
     @Inject
     public TransportGetDataFrameJobsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
         super(GetDataFrameJobsAction.NAME, clusterService, transportService, actionFilters, GetDataFrameJobsAction.Request::new,
-                GetDataFrameJobsAction.Response::new, ThreadPool.Names.SAME);
+                GetDataFrameJobsAction.Response::new, GetDataFrameJobsAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -52,11 +52,6 @@ public class TransportGetDataFrameJobsAction extends
         List<DataFrameJobConfig> configs = tasks.stream().map(GetDataFrameJobsAction.Response::getJobConfigurations)
                 .flatMap(Collection::stream).collect(Collectors.toList());
         return new Response(configs, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected Response readTaskResponse(StreamInput in) throws IOException {
-        return new Response(in);
     }
 
     @Override

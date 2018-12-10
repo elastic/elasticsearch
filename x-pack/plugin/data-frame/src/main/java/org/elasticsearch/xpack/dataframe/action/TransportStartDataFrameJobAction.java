@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -23,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -34,10 +32,10 @@ public class TransportStartDataFrameJobAction extends
     private final XPackLicenseState licenseState;
 
     @Inject
-    public TransportStartDataFrameJobAction(TransportService transportService, ActionFilters actionFilters,
-            ClusterService clusterService, XPackLicenseState licenseState) {
-        super(StartDataFrameJobAction.NAME, clusterService, transportService, actionFilters,
-                StartDataFrameJobAction.Request::new, StartDataFrameJobAction.Response::new, ThreadPool.Names.SAME);
+    public TransportStartDataFrameJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
+            XPackLicenseState licenseState) {
+        super(StartDataFrameJobAction.NAME, clusterService, transportService, actionFilters, StartDataFrameJobAction.Request::new,
+                StartDataFrameJobAction.Response::new, StartDataFrameJobAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
     }
 
@@ -108,10 +106,4 @@ public class TransportStartDataFrameJobAction extends
         boolean allStarted = tasks.stream().allMatch(StartDataFrameJobAction.Response::isStarted);
         return new StartDataFrameJobAction.Response(allStarted);
     }
-
-    @Override
-    protected StartDataFrameJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StartDataFrameJobAction.Response(in);
-    }
-
 }

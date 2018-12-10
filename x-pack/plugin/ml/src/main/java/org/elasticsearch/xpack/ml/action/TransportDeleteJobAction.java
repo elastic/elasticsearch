@@ -343,6 +343,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                     } else {
                         SearchSourceBuilder source = new SearchSourceBuilder()
                                 .size(1)
+                                .trackTotalHits(true)
                                 .query(QueryBuilders.boolQuery().filter(
                                         QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
 

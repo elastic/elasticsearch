@@ -16,26 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.bootstrap;
+package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-public class BootstrapClusterAction extends Action<BootstrapClusterResponse> {
-    public static final BootstrapClusterAction INSTANCE = new BootstrapClusterAction();
-    public static final String NAME = "cluster:admin/bootstrap/set_voting_config";
+import java.io.IOException;
 
-    private BootstrapClusterAction() {
-        super(NAME);
+/**
+ * Exception thrown if trying to discovery nodes in order to perform cluster bootstrapping, but a cluster is formed before all the required
+ * nodes are discovered.
+ */
+public class ClusterAlreadyBootstrappedException extends ElasticsearchException {
+    public ClusterAlreadyBootstrappedException() {
+        super("node has already joined a bootstrapped cluster, bootstrapping is not required");
     }
 
-    @Override
-    public BootstrapClusterResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Reader<BootstrapClusterResponse> getResponseReader() {
-        return BootstrapClusterResponse::new;
+    public ClusterAlreadyBootstrappedException(StreamInput in) throws IOException {
+        super(in);
     }
 }

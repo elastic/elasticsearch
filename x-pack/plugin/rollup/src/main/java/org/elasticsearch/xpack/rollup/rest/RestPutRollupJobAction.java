@@ -3,8 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.rollup.rest;
 
+package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 
@@ -21,7 +20,8 @@ public class RestPutRollupJobAction extends BaseRestHandler {
 
     public RestPutRollupJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, Rollup.BASE_PATH +  "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/rollup/job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_rollup/job/{id}/", this);
     }
 
     @Override
@@ -35,4 +35,5 @@ public class RestPutRollupJobAction extends BaseRestHandler {
     public String getName() {
         return "rollup_put_job_action";
     }
+
 }

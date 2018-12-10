@@ -53,6 +53,6 @@ public final class WatchStatusDateParser {
     }
 
     public static DateTime parseDate(String text) {
-        return FORMATTER.parser().parseDateTime(text);
+        return FORMATTER.parseJoda(text);
     }
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;

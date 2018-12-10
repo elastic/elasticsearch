@@ -60,7 +60,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(DocValueFormat.Decimal.class, vf.getClass());
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
 
-        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
+        DocValueFormat.DateTime dateFormat =
+            new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
         out = new BytesStreamOutput();
         out.writeNamedWriteable(dateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);

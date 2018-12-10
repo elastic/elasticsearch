@@ -112,7 +112,8 @@ public class AuthorizationService {
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool, AnonymousUser anonymousUser, ApiKeyService apiKeyService) {
+                                ThreadPool threadPool, AnonymousUser anonymousUser, ApiKeyService apiKeyService,
+                                FieldPermissionsCache fieldPermissionsCache) {
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
@@ -122,7 +123,7 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.fieldPermissionsCache = fieldPermissionsCache;
         this.apiKeyService = apiKeyService;
     }
 
@@ -480,7 +481,7 @@ public class AuthorizationService {
 
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
-            apiKeyService.getRoleForApiKey(authentication, threadContext, rolesStore, fieldPermissionsCache, roleActionListener);
+            apiKeyService.getRoleForApiKey(authentication, rolesStore, roleActionListener);
         } else {
             Set<String> roleNames = new HashSet<>();
             Collections.addAll(roleNames, user.roles());
@@ -496,7 +497,7 @@ public class AuthorizationService {
             } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
                 roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
             } else {
-                rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
+                rolesStore.roles(roleNames, roleActionListener);
             }
         }
     }

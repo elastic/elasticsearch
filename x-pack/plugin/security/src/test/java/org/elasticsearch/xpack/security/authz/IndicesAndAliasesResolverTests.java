@@ -169,7 +169,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
                 ActionListener callback =
-                        (ActionListener) i.getArguments()[2];
+                        (ActionListener) i.getArguments()[1];
                 Set<String> names = (Set<String>) i.getArguments()[0];
                 assertNotNull(names);
                 Set<RoleDescriptor> roleDescriptors = new HashSet<>();
@@ -188,13 +188,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     );
                 }
                 return Void.TYPE;
-            }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+            }).when(rolesStore).roles(any(Set.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
-                new AnonymousUser(settings), mock(ApiKeyService.class));
+                new AnonymousUser(settings), mock(ApiKeyService.class), new FieldPermissionsCache(settings));
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }
 

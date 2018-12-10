@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -110,13 +108,11 @@ class DatafeedJob {
         }
 
         String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STARTED_FROM_TO,
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(lookbackStartTimeMs).atZone(ZoneOffset.UTC)),
-                endTime == null ? "real-time" :
-                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(lookbackEnd).atZone(ZoneOffset.UTC)),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lookbackStartTimeMs),
+                endTime == null ? "real-time" : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lookbackEnd),
                 TimeValue.timeValueMillis(frequencyMs).getStringRep());
         auditor.info(jobId, msg);
         LOGGER.info("[{}] {}", jobId, msg);
-
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);

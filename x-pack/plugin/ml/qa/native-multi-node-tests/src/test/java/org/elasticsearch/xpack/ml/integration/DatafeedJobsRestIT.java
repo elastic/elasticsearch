@@ -955,7 +955,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"stopped\":true}"));
 
-        client().performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close"));
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
 
         response = client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -992,7 +992,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
 
         expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request("GET", "/_xpack/ml/datafeeds/" + datafeedId)));
+                () -> client().performRequest(new Request("GET", "/_ml/datafeeds/" + datafeedId)));
     }
 
     private class LookbackOnlyTestHelper {

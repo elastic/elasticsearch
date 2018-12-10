@@ -514,13 +514,13 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
         DateFormatter formatter = DateFormatters.forPattern(pattern).withLocale(locale);
         assertThat(formatter.pattern(), is(pattern));
-        assertThat(formatter.getLocale(), is(locale));
+        assertThat(formatter.locale(), is(locale));
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
-        String jodaTimeOut = Joda.forPattern(format).printer().print(jodaDate);
+        String jodaTimeOut = Joda.forPattern(format).formatJoda(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
@@ -528,7 +528,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertSameDate(String input, String format) {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
-        DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
+        DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
@@ -547,7 +547,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parser().parseDateTime(input));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }
 

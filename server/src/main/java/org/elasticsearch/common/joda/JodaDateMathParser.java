@@ -212,7 +212,8 @@ public class JodaDateMathParser implements DateMathParser {
             }
             return date.getMillis();
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.format());
+            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value,
+                dateTimeFormatter.pattern());
         }
     }
 

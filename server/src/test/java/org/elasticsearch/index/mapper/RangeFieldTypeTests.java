@@ -124,8 +124,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         // setting mapping format which is compatible with those dates
         final DateFormatter formatter = DateFormatters.forPattern("yyyy-dd-MM'T'HH:mm:ssZZZZZ");
-        assertEquals(1465975790000L, DateFormatters.toZonedDateTime(formatter.parse(from)).toInstant().toEpochMilli());
-        assertEquals(1466062190000L, DateFormatters.toZonedDateTime(formatter.parse(to)).toInstant().toEpochMilli());
+        assertEquals(1465975790000L, formatter.parseMillis(from));
+        assertEquals(1466062190000L, formatter.parseMillis(to));
 
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);

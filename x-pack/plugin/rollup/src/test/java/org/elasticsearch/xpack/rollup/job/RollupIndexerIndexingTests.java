@@ -451,7 +451,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
     }
 
     /**

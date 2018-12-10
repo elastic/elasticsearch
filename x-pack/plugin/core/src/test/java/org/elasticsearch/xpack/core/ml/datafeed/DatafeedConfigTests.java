@@ -699,6 +699,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         }
     }
 
+    public void testCopyingDatafeedDoesNotCauseStackOverflow() {
+        DatafeedConfig datafeed = createTestInstance();
+        for (int i = 0; i < 100000; i++) {
+            datafeed = new DatafeedConfig.Builder(datafeed).build();
+        }
+    }
+
     public static String randomValidDatafeedId() {
         CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);

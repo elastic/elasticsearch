@@ -149,7 +149,7 @@ public class RangeFieldMapper extends FieldMapper {
             if (fieldType().rangeType == RangeType.DATE) {
                 if (Strings.hasLength(builder.pattern) &&
                     Objects.equals(builder.pattern, formatter.pattern()) == false ||
-                    Objects.equals(builder.locale, formatter.getLocale()) == false) {
+                    Objects.equals(builder.locale, formatter.locale()) == false) {
                     fieldType().setDateTimeFormatter(DateFormatters.forPattern(pattern).withLocale(locale));
                 }
             } else if (pattern != null) {
@@ -405,14 +405,13 @@ public class RangeFieldMapper extends FieldMapper {
 
         if (fieldType().rangeType == RangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().pattern()
-                        .equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()) == false))) {
-            builder.field("format", fieldType().dateTimeFormatter.pattern());
+                && fieldType().dateTimeFormatter().pattern().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()) == false))) {
+            builder.field("format", fieldType().dateTimeFormatter().pattern());
         }
         if (fieldType().rangeType == RangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().getLocale() != Locale.ROOT))) {
-            builder.field("locale", fieldType().dateTimeFormatter().getLocale());
+                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
+            builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());

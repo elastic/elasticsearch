@@ -42,10 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
-import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
 import java.io.IOException;
 import java.util.Arrays;

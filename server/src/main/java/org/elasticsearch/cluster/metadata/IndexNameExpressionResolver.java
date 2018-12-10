@@ -31,7 +31,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.time.JavaDateMathParser;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -923,7 +922,7 @@ public class IndexNameExpressionResolver {
                                 }
 
                                 DateFormatter formatter = dateFormatter.withZone(timeZone);
-                                DateMathParser dateMathParser = new JavaDateMathParser(formatter);
+                                DateMathParser dateMathParser = formatter.toDateMathParser();
                                 Instant instant = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
 
                                 String time = formatter.format(instant);

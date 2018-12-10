@@ -129,9 +129,9 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testLocales() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").getLocale(), is(Locale.ROOT));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).getLocale(), is(locale));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
         if (locale.equals(Locale.ROOT)) {
             DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
             assertThat(millisFormatter.withLocale(locale), is(millisFormatter));
@@ -148,9 +148,9 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testTimeZones() {
         // zone is null by default due to different behaviours between java8 and above
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").getZone(), is(nullValue()));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").zone(), is(nullValue()));
         ZoneId zoneId = randomZone();
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).getZone(), is(zoneId));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
         if (zoneId.equals(ZoneOffset.UTC)) {
             DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
             assertThat(millisFormatter.withZone(zoneId), is(millisFormatter));

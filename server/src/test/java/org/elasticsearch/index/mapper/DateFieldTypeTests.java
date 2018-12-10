@@ -111,7 +111,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-
         long instant1 =
             DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2015-10-12")).toInstant().toEpochMilli();
         long instant2 =
@@ -162,7 +161,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
-        long instant = DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
+//        long instant = DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         assertEquals(date, ft.valueForDisplay(instant));
     }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -66,14 +65,6 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
     private ZonedDateTime date(int month, int day) {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);
-    }
-
-    private ZonedDateTime date(String date) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
-    }
-
-    private static String format(ZonedDateTime date, String pattern) {
-        return DateFormatters.forPattern(pattern).format(date);
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {

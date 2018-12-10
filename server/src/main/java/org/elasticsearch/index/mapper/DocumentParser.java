@@ -674,7 +674,7 @@ final class DocumentParser {
     private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
         if (dateTimeFormatter != null) {
-            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.getLocale());
+            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
         }
         return builder;
     }
@@ -720,7 +720,7 @@ final class DocumentParser {
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
                         dateTimeFormatter.parse(text);
-                    } catch (ElasticsearchParseException | DateTimeParseException e) {
+                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }
@@ -731,7 +731,7 @@ final class DocumentParser {
                     if (builder instanceof DateFieldMapper.Builder) {
                         DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
                         if (dateBuilder.isFormatterSet() == false) {
-                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.getLocale());
+                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
                         }
                     }
                     return builder;

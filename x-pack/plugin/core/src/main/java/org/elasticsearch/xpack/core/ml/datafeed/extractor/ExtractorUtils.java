@@ -22,9 +22,9 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -128,7 +128,7 @@ public final class ExtractorUtils {
      * an {@link ElasticsearchException} with the validation error
      */
     private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
-        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(DateTimeZone.UTC) == false) {
+        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(ZoneOffset.UTC) == false) {
             throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
         }
 

@@ -45,6 +45,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         this.securityContext = securityContext;
         controller.registerHandler(GET, "/_xpack/security/user/_privileges", this);
+        controller.registerHandler(GET, "/_security/user/_privileges", this);
     }
 
     @Override

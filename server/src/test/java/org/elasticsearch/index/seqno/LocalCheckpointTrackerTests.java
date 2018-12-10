@@ -19,13 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -264,35 +261,6 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertTrue(complete.get());
 
         thread.join();
-    }
-
-    public void testResetCheckpoint() {
-        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        int maxSeqNo = Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED);
-        for (int i = 0; i < operations; i++) {
-            if (!rarely()) {
-                tracker.markSeqNoAsCompleted(i);
-                maxSeqNo = i;
-            }
-        }
-
-        final int localCheckpoint =
-                randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(tracker.getCheckpoint()));
-        tracker.resetCheckpoint(localCheckpoint);
-        assertThat(tracker.getCheckpoint(), equalTo((long) localCheckpoint));
-        assertThat(tracker.getMaxSeqNo(), equalTo((long) maxSeqNo));
-        assertThat(tracker.processedSeqNo, new BaseMatcher<LongObjectHashMap<CountedBitSet>>() {
-            @Override
-            public boolean matches(Object item) {
-                return (item instanceof LongObjectHashMap && ((LongObjectHashMap) item).isEmpty());
-            }
-
-            @Override
-            public void describeTo(Description description) {
-                description.appendText("empty");
-            }
-        });
-        assertThat(tracker.generateSeqNo(), equalTo((long) (maxSeqNo + 1)));
     }
 
     public void testContains() {

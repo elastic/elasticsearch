@@ -19,30 +19,40 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
-import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
+import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -77,6 +87,18 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/" + putUserRequest.getUser().getUsername(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putUserRequest, request.getEntity());
+    }
+
+    public void testDeleteUser() {
+        final String name = randomAlphaOfLengthBetween(4, 12);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        DeleteUserRequest deleteUserRequest = new DeleteUserRequest(name, refreshPolicy);
+        Request request = SecurityRequestConverters.deleteUser(deleteUserRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/" + name, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
     }
 
     public void testPutRoleMapping() throws IOException {
@@ -202,6 +224,22 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testGetRoles() {
+        final String[] roles = randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5));
+        final GetRolesRequest getRolesRequest = new GetRolesRequest(roles);
+        final Request request = SecurityRequestConverters.getRoles(getRolesRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        if (roles.length == 0) {
+            assertEquals("/_xpack/security/role", request.getEndpoint());
+        } else {
+            assertEquals("/_xpack/security/role/" + Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()),
+                request.getEndpoint());
+        }
+        assertNull(request.getEntity());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+    }
+
     public void testDeleteRole() {
         final String name = randomAlphaOfLengthBetween(1, 12);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
@@ -288,6 +326,27 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testPutPrivileges() throws Exception {
+        int noOfApplicationPrivileges = randomIntBetween(2, 4);
+        final List<ApplicationPrivilege> privileges = new ArrayList<>();
+        for (int count = 0; count < noOfApplicationPrivileges; count++) {
+            privileges.add(ApplicationPrivilege.builder()
+                    .application(randomAlphaOfLength(4))
+                    .privilege(randomAlphaOfLengthBetween(3, 5))
+                    .actions(Sets.newHashSet(generateRandomStringArray(3, 5, false, false)))
+                    .metadata(Collections.singletonMap("k1", "v1"))
+                    .build());
+        }
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
+        final Request request = SecurityRequestConverters.putPrivileges(putPrivilegesRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putPrivilegesRequest, request.getEntity());
+    }
+
     public void testDeletePrivileges() {
         final String application = randomAlphaOfLengthBetween(1, 12);
         final List<String> privileges = randomSubsetOf(randomIntBetween(1, 3), "read", "write", "all");
@@ -301,5 +360,38 @@ public class SecurityRequestConvertersTests extends ESTestCase {
             request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testPutRole() throws IOException {
+        final String roleName = randomAlphaOfLengthBetween(4, 7);
+        final List<String> clusterPrivileges = randomSubsetOf(3, Role.ClusterPrivilegeName.ALL_ARRAY);
+        final Map<String, Object> metadata = Collections.singletonMap(randomAlphaOfLengthBetween(4, 7), randomAlphaOfLengthBetween(4, 7));
+        final String[] runAsPrivilege = randomArray(3, String[]::new, () -> randomAlphaOfLength(5));
+        final List<String> applicationPrivilegeNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> applicationResouceNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final ApplicationResourcePrivileges applicationResourcePrivilege = new ApplicationResourcePrivileges(
+                randomAlphaOfLengthBetween(4, 7), applicationPrivilegeNames, applicationResouceNames);
+        final List<String> indicesName = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> indicesPrivilegeName = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> indicesPrivilegeGrantedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> indicesPrivilegeDeniedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));
+        final String indicesPrivilegeQuery = randomAlphaOfLengthBetween(0, 7);
+        final IndicesPrivileges indicesPrivilege = IndicesPrivileges.builder().indices(indicesName).privileges(indicesPrivilegeName)
+                .grantedFields(indicesPrivilegeGrantedName).deniedFields(indicesPrivilegeDeniedName).query(indicesPrivilegeQuery).build();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+        final Role role = Role.builder().name(roleName).clusterPrivileges(clusterPrivileges).indicesPrivileges(indicesPrivilege)
+                .applicationResourcePrivileges(applicationResourcePrivilege).runAsPrivilege(runAsPrivilege).metadata(metadata).build();
+        final PutRoleRequest putRoleRequest = new PutRoleRequest(role, refreshPolicy);
+        final Request request = SecurityRequestConverters.putRole(putRoleRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role/" + roleName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putRoleRequest, request.getEntity());
     }
 }

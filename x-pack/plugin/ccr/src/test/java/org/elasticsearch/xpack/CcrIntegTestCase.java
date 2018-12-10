@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -138,6 +140,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
+    /**
+     * Follower indices don't get all the settings from leader, for example 'index.unassigned.node_left.delayed_timeout'
+     * is not replicated and if tests kill nodes, we have to wait 60s by default...
+     */
+    protected void disableDelayedAllocation(String index) {
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index);
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
+        updateSettingsRequest.settings(settingsBuilder);
+        assertAcked(followerClient().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+    }
+
     @After
     public void afterTest() throws Exception {
         ensureEmptyWriteBuffers();
@@ -174,6 +188,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
+        builder.put(TestZenDiscovery.USE_ZEN2.getKey(), false); // some tests do full cluster restarts
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
@@ -350,6 +365,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             {
                 builder.startObject("settings");
                 {
+                    builder.field(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
                     builder.field("index.number_of_shards", numberOfShards);
                     builder.field("index.number_of_replicas", numberOfReplicas);
                     for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
@@ -452,7 +468,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             SearchRequest request = new SearchRequest(index);
             request.source(new SearchSourceBuilder().size(0));
             SearchResponse response = client.search(request).actionGet();
-            return response.getHits().getTotalHits() >= numDocsReplicated;
+            return response.getHits().getTotalHits().value >= numDocsReplicated;
         }, 60, TimeUnit.SECONDS);
     }
 

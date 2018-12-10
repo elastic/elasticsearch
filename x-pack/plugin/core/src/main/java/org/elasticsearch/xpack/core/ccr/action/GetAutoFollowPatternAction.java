@@ -111,10 +111,21 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (Map.Entry<String, AutoFollowPattern> entry : autoFollowPatterns.entrySet()) {
-                builder.startObject(entry.getKey());
-                entry.getValue().toXContent(builder, params);
-                builder.endObject();
+            {
+                builder.startArray("patterns");
+                for (Map.Entry<String, AutoFollowPattern> entry : autoFollowPatterns.entrySet()) {
+                    builder.startObject();
+                    {
+                        builder.field("name", entry.getKey());
+                        builder.startObject("pattern");
+                        {
+                            entry.getValue().toXContent(builder, params);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
             }
             builder.endObject();
             return builder;

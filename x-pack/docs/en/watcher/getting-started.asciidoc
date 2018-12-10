@@ -28,7 +28,7 @@ the `logs` index for errors every 10 seconds:
 
 [source,js]
 ------------------------------------------------------------
-PUT _xpack/watcher/watch/log_error_watch
+PUT _watcher/watch/log_error_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "10s" } <1>
@@ -86,7 +86,7 @@ search input returned any hits.
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_error_watch
+PUT _watcher/watch/log_error_watch
 {
   "trigger" : { "schedule" : { "interval" : "10s" }},
   "input" : {
@@ -102,7 +102,7 @@ PUT _xpack/watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }} <1>
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }} <1>
   }
 }
 --------------------------------------------------
@@ -165,7 +165,7 @@ log when an error is detected.
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_error_watch
+PUT _watcher/watch/log_error_watch
 {
   "trigger" : { "schedule" : { "interval" : "10s" }},
   "input" : {
@@ -181,12 +181,12 @@ PUT _xpack/watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
   },
   "actions" : {
     "log_error" : {
       "logging" : {
-        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
+        "text" : "Found {{ctx.payload.hits.total.value}} errors in the logs"
       }
     }
   }
@@ -207,7 +207,7 @@ To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch AP
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/watcher/watch/log_error_watch
+DELETE _watcher/watch/log_error_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

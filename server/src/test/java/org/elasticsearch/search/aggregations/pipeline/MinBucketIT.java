@@ -95,7 +95,7 @@ public class MinBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(minBucket("min_bucket", "histo>_count")).execute().actionGet();
+                .addAggregation(minBucket("min_bucket", "histo>_count")).get();
 
         assertSearchResponse(response);
 
@@ -138,7 +138,7 @@ public class MinBucketIT extends ESIntegTestCase {
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(minBucket("min_bucket", "histo>_count"))).execute().actionGet();
+                                .subAggregation(minBucket("min_bucket", "histo>_count"))).get();
 
         assertSearchResponse(response);
 
@@ -185,7 +185,7 @@ public class MinBucketIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(minBucket("min_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(minBucket("min_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -231,7 +231,7 @@ public class MinBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(minBucket("min_bucket", "histo>sum"))).execute().actionGet();
+                                .subAggregation(minBucket("min_bucket", "histo>sum"))).get();
 
         assertSearchResponse(response);
 
@@ -290,7 +290,7 @@ public class MinBucketIT extends ESIntegTestCase {
                                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(minBucket("min_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -339,7 +339,7 @@ public class MinBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(minBucket("min_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(minBucket("min_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -367,7 +367,7 @@ public class MinBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(minBucket("min_histo_bucket", "histo>_count")))
-                .addAggregation(minBucket("min_terms_bucket", "terms>min_histo_bucket")).execute().actionGet();
+                .addAggregation(minBucket("min_terms_bucket", "terms>min_histo_bucket")).get();
 
         assertSearchResponse(response);
 

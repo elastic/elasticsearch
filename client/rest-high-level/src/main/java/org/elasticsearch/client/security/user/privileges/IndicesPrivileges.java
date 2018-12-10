@@ -217,12 +217,12 @@ public final class IndicesPrivileges implements ToXContentObject {
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
-        if (isUsingFieldLevelSecurity()) {
+        if (grantedFields != null || deniedFields != null) {
             builder.startObject(FIELD_PERMISSIONS.getPreferredName());
             if (grantedFields != null) {
                 builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
             }
-            if (hasDeniedFields()) {
+            if (deniedFields != null) {
                 builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
             }
             builder.endObject();
@@ -249,7 +249,7 @@ public final class IndicesPrivileges implements ToXContentObject {
         private @Nullable Collection<String> deniedFields = null;
         private @Nullable String query = null;
 
-        private Builder() {
+        public Builder() {
         }
 
         public Builder indices(String... indices) {

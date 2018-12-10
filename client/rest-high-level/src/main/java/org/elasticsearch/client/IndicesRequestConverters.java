@@ -45,9 +45,12 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -402,5 +405,36 @@ final class IndicesRequestConverters {
         Request req = new Request(HttpGet.METHOD_NAME, builder.build());
         req.setEntity(RequestConverters.createEntity(request, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return req;
+    }
+
+    static Request freezeIndex(FreezeIndexRequest freezeIndexRequest) {
+        String endpoint = RequestConverters.endpoint(freezeIndexRequest.getIndices(), "_freeze");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(freezeIndexRequest.timeout());
+        parameters.withMasterTimeout(freezeIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(freezeIndexRequest.indicesOptions());
+        parameters.withWaitForActiveShards(freezeIndexRequest.getWaitForActiveShards());
+        return request;
+    }
+
+    static Request unfreezeIndex(UnfreezeIndexRequest unfreezeIndexRequest) {
+        String endpoint = RequestConverters.endpoint(unfreezeIndexRequest.getIndices(), "_unfreeze");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(unfreezeIndexRequest.timeout());
+        parameters.withMasterTimeout(unfreezeIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(unfreezeIndexRequest.indicesOptions());
+        parameters.withWaitForActiveShards(unfreezeIndexRequest.getWaitForActiveShards());
+        return request;
+    }
+
+    static Request deleteTemplate(DeleteIndexTemplateRequest deleteIndexTemplateRequest) {
+        String name = deleteIndexTemplateRequest.name();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template").addPathPart(name).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withMasterTimeout(deleteIndexTemplateRequest.masterNodeTimeout());
+        return request;
     }
 }

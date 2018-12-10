@@ -453,13 +453,37 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return this.aliases;
     }
 
+    /**
+     * Return an object that maps each type to the associated mappings.
+     * The return value is never {@code null} but may be empty if the index
+     * has no mappings.
+     * @deprecated Use {@link #mapping()} instead now that indices have a single type
+     */
+    @Deprecated
     public ImmutableOpenMap<String, MappingMetaData> getMappings() {
         return mappings;
     }
 
+    /**
+     * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
+     */
     @Nullable
-    public MappingMetaData mapping(String mappingType) {
-        return mappings.get(mappingType);
+    public MappingMetaData mapping() {
+        for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
+            if (cursor.key.equals(MapperService.DEFAULT_MAPPING) == false) {
+                return cursor.value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the default mapping.
+     * NOTE: this is always {@code null} for 7.x indices which are disallowed to have a default mapping.
+     */
+    @Nullable
+    public MappingMetaData defaultMapping() {
+        return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";

@@ -166,7 +166,7 @@ public abstract class RemoteClusterAware {
             REMOTE_CLUSTERS_SEEDS);
 
     protected final Settings settings;
-    protected final ClusterNameExpressionResolver clusterNameResolver;
+    private final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
@@ -241,14 +241,15 @@ public abstract class RemoteClusterAware {
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
+     * @param remoteClusterNames the remote cluster names
      * @param requestIndices the indices in the search request to filter
      * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
      *
      * @return a map of grouped remote and local indices
      */
-    public Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
+    protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices,
+                                                            Predicate<String> indexExists) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
-        Set<String> remoteClusterNames = getRemoteClusterNames();
         for (String index : requestIndices) {
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
@@ -279,9 +280,6 @@ public abstract class RemoteClusterAware {
         }
         return perClusterIndices;
     }
-
-    protected abstract Set<String> getRemoteClusterNames();
-
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is

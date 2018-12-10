@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -31,6 +32,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
+import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.LagDetector;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -54,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
@@ -387,6 +399,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.MAX_KEEPALIVE_SETTING,
                     MultiBucketConsumerService.MAX_BUCKET_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
+                    SearchService.MAX_OPEN_SCROLL_CONTEXT,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
@@ -443,7 +456,30 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.BREAKER_TYPE_KEY,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
-                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
+                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
+                    PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
+                    PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING,
+                    ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
+                    ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
+                    Coordinator.PUBLISH_TIMEOUT_SETTING,
+                    JoinHelper.JOIN_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
+                    LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING,
+                    LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
+                    LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
+                    Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
+                    TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
+                    ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
+                    ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+                    DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
+                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

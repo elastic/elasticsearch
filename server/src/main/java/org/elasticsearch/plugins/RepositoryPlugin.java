@@ -42,4 +42,17 @@ public interface RepositoryPlugin {
     default Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.emptyMap();
     }
+
+    /**
+     * Returns internal repository types added by this plugin. Internal repositories cannot be registered
+     * through the external API.
+     *
+     * @param env The environment for the local node, which may be used for the local settings and path.repo
+     *
+     * The key of the returned {@link Map} is the type name of the repository and
+     * the value is a factory to construct the {@link Repository} interface.
+     */
+    default Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        return Collections.emptyMap();
+    }
 }

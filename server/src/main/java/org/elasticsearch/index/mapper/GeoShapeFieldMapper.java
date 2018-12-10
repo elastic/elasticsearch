@@ -159,7 +159,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                 indexShape(context, o);
             }
         } else {
-            throw new IllegalArgumentException("invalid shape type found [" + luceneShape.getClass().getName() + "] while indexing shape");
+            throw new IllegalArgumentException("invalid shape type found [" + luceneShape.toString() + "] while indexing shape");
         }
     }
 

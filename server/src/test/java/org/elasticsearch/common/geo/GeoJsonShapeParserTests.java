@@ -1077,7 +1077,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                         .endObject()
                     .endArray()
                 .endObject();
-        boolean useJTS = randomBoolean();
 
         ArrayList<Coordinate> shellCoordinates1 = new ArrayList<>();
         shellCoordinates1.add(new Coordinate(180.0, -12.142857142857142));

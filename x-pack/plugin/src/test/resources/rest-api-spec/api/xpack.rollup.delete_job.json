@@ -3,8 +3,8 @@
     "documentation": "",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/rollup/job/{id}",
-      "paths": [ "/_xpack/rollup/job/{id}" ],
+      "path": "/_rollup/job/{id}",
+      "paths": [ "/_rollup/job/{id}" ],
       "parts": {
         "id": {
           "type": "string",

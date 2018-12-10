@@ -94,8 +94,10 @@ The previous behavior can be restored by setting `indices.breaker.total.use_real
 
 [float]
 ==== Field data circuit breaker changes
-Lower the default field data circuit breaker limit from 60% to 40% as `doc_values` was introduced for
-most of the cases.
+As doc values have been enabled by default in earlier versions of Elasticsearch,
+there is less need for fielddata. Therefore, the default value of the setting
+`indices.breaker.fielddata.limit` has been lowered from 60% to 40% of the JVM
+heap size.
 
 [float]
 ==== `fix` value for `index.shard.check_on_startup` is removed

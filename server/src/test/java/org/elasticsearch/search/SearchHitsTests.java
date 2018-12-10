@@ -112,23 +112,19 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
 
     @Override
     protected SearchHits createTestInstance() {
-        /**
-         * This instance is used to test the transport serialization so it's fine
-         * to produce shard targets (withShardTarget is true) since they are serialized
-         * in this layer.
-         */
+        // This instance is used to test the transport serialization so it's fine
+        // to produce shard targets (withShardTarget is true) since they are serialized
+        // in this layer.
         return createTestItem(randomFrom(XContentType.values()), true, true);
     }
 
     @Override
     protected SearchHits createXContextTestInstance(XContentType xContentType) {
-        /**
-         * We don't set {@link SearchHit#shard} (withShardTarget is false) in this test
-         * because the rest serialization does not render this information so the deserialized
-         * hit cannot be equal to the original instance.
-         * There is another test ({@link #testFromXContentWithShards}) that checks the
-         * rest serialization with shard targets.
-         */
+        // We don't set SearchHit#shard (withShardTarget is false) in this test
+        // because the rest serialization does not render this information so the
+        // deserialized hit cannot be equal to the original instance.
+        // There is another test (#testFromXContentWithShards) that checks the
+        // rest serialization with shard targets.
         return createTestItem(xContentType,true, false);
     }
 
@@ -184,11 +180,7 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
             float maxScore = 1.5f;
             SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
             for (XContentType xContentType : XContentType.values()) {
-                XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
-                builder.startObject();
-                searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-                final BytesReference bytes = BytesReference.bytes(builder);
+                BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
                 try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
                     bytes.streamInput())) {
                     SearchHits newSearchHits = doParseInstance(parser);
@@ -202,7 +194,7 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
                             assertEquals(hits[i].getShard().getShardId().getIndexName(),
                                 newSearchHits.getAt(i).getShard().getShardId().getIndexName());
                             assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
-                            // The index uuids is not serialized in the rest layer
+                            // The index uuid is not serialized in the rest layer
                             assertNotEquals(hits[i].getShard().getShardId().getIndex().getUUID(),
                                 newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID());
                         } else {

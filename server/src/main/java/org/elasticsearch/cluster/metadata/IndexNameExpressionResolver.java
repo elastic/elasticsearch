@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateMathParser;
@@ -936,11 +936,11 @@ public class IndexNameExpressionResolver {
                                     dateFormatter = DateTimeFormat.forPattern(dateFormatterPattern);
                                 }
                                 DateTimeFormatter parser = dateFormatter.withLocale(Locale.ROOT).withZone(timeZone);
-                                FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, parser);
+                                JodaDateFormatter formatter = new JodaDateFormatter(dateFormatterPattern, parser, parser);
                                 DateMathParser dateMathParser = formatter.toDateMathParser();
                                 long millis = dateMathParser.parse(mathExpression, context::getStartTime, false,
                                     DateUtils.dateTimeZoneToZoneId(timeZone));
-                                String time = formatter.printer().print(millis);
+                                String time = formatter.formatMillis(millis);
                                 beforePlaceHolderSb.append(time);
                                 inPlaceHolderSb = new StringBuilder();
                                 inPlaceHolder = false;

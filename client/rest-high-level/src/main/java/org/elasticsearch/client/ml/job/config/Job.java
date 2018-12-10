@@ -94,7 +94,7 @@ public class Job implements ToXContentObject {
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
-        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         PARSER.declareBoolean(Builder::setDeleting, DELETING);

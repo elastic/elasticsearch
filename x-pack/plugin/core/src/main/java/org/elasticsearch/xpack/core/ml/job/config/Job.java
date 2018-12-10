@@ -116,7 +116,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
-        parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
+        parser.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
         parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);

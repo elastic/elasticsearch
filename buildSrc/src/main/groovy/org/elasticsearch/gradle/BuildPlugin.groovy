@@ -51,6 +51,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
+import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -230,6 +231,95 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
         project.ext.java9Home = project.rootProject.ext.java9Home
+    }
+
+    static void requireDocker(final Task task) {
+        final Project rootProject = task.project.rootProject
+        if (rootProject.hasProperty('requiresDocker') == false) {
+            /*
+             * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
+             * that register as requiring Docker. We will add a delayed execution that when the task graph is ready if any such tasks are
+             * in the task graph, then we check two things:
+             *  - the Docker binary is available
+             *  - we can execute a Docker command that requires privileges
+             *
+             *  If either of these fail, we fail the build.
+             */
+            final boolean buildDocker
+            final String buildDockerProperty = System.getProperty("build.docker")
+            if (buildDockerProperty == null || buildDockerProperty == "true") {
+                buildDocker = true
+            } else if (buildDockerProperty == "false") {
+                buildDocker = false
+            } else {
+                throw new IllegalArgumentException(
+                        "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
+            }
+            rootProject.rootProject.ext.buildDocker = buildDocker
+            rootProject.rootProject.ext.requiresDocker = []
+            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                // check if the Docker binary exists and record its path
+                final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
+                final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
+
+                int exitCode
+                String dockerErrorOutput
+                if (dockerBinary == null) {
+                    exitCode = -1
+                    dockerErrorOutput = null
+                } else {
+                    // the Docker binary executes, check that we can execute a privileged command
+                    final ByteArrayOutputStream output = new ByteArrayOutputStream()
+                    final ExecResult result = LoggedExec.exec(rootProject, { ExecSpec it ->
+                        it.commandLine dockerBinary, "images"
+                        it.errorOutput = output
+                        it.ignoreExitValue = true
+                    })
+                    if (result.exitValue == 0) {
+                        return
+                    }
+                    exitCode = result.exitValue
+                    dockerErrorOutput = output.toString()
+                }
+                final List<String> tasks =
+                        ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
+                if (tasks.isEmpty() == false) {
+                    /*
+                     * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
+                     * exist or because execution of a privileged Docker command failed.
+                     */
+                    String message
+                    if (dockerBinary == null) {
+                        message = String.format(
+                                Locale.ROOT,
+                                "Docker (checked [%s]) is required to run the following task%s: \n%s",
+                                maybeDockerBinaries.join(","),
+                                tasks.size() > 1 ? "s" : "",
+                                tasks.join('\n'))
+                    } else {
+                        assert exitCode > 0 && dockerErrorOutput != null
+                        message = String.format(
+                                Locale.ROOT,
+                                "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
+                                        "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+                                dockerBinary,
+                                tasks.size() > 1 ? "s" : "",
+                                tasks.join('\n'),
+                                exitCode,
+                                dockerErrorOutput.trim())
+                    }
+                    throw new GradleException(
+                            message + "\nyou can address this by attending to the reported issue, "
+                                    + "removing the offending tasks from being executed, "
+                                    + "or by passing -Dbuild.docker=false")
+                }
+            }
+        }
+        if (rootProject.buildDocker) {
+            rootProject.requiresDocker.add(task)
+        } else {
+            task.enabled = false
+        }
     }
 
     private static String findCompilerJavaHome() {
@@ -773,7 +863,6 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
-            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
@@ -784,10 +873,6 @@ class BuildPlugin implements Plugin<Project> {
                     task.classpath = testTask.classpath
                     task.shouldRunAfter testTask
                 }
-            }
-            // no loose ends: check has to depend on all test tasks
-            project.tasks.matching {it.name == "check"}.all {
-                dependsOn(task)
             }
 
             // TODO: why are we not passing maxmemory to junit4?

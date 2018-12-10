@@ -3850,7 +3850,6 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35823")
     public void testLookupSeqNoByIdInLucene() throws Exception {
         int numOps = between(10, 100);
         long seqNo = 0;
@@ -3918,7 +3917,7 @@ public class InternalEngineTests extends EngineTestCase {
                     lookupAndCheck.run();
                 }
                 if (rarely()) {
-                    engine.flush();
+                    engine.flush(false, true);
                     lookupAndCheck.run();
                 }
             }
@@ -5502,7 +5501,7 @@ public class InternalEngineTests extends EngineTestCase {
             final List<DocIdSeqNoAndTerm> docs;
             try (InternalEngine engine = createEngine(
                 config(softDeletesEnabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get))) {
-                List<Engine.Operation> ops = generateReplicaHistory(between(1, 100), randomBoolean());
+                List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
                 applyOperations(engine, ops);
                 globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
                 engine.syncTranslog();

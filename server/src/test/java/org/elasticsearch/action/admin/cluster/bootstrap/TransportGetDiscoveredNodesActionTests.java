@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.PeersRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
@@ -124,7 +125,10 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final Discovery discovery = mock(Discovery.class);
         verifyZeroInteractions(discovery);
 
-        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, discovery); // registers action
+        final String nonstandardDiscoveryType = randomFrom(DiscoveryModule.ZEN_DISCOVERY_TYPE, "single-node", "unknown");
+        new TransportGetDiscoveredNodesAction(
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), nonstandardDiscoveryType).build(),
+            EMPTY_FILTERS, transportService, discovery); // registers action
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -139,7 +143,8 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             public void handleException(TransportException exp) {
                 final Throwable rootCause = exp.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-                assertThat(rootCause.getMessage(), equalTo("discovered nodes are not exposed by discovery type [zen]"));
+                assertThat(rootCause.getMessage(), equalTo("discovered nodes are not exposed by discovery type [" +
+                    nonstandardDiscoveryType + "]"));
                 countDownLatch.countDown();
             }
         });

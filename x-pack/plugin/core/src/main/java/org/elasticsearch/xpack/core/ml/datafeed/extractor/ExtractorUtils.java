@@ -128,7 +128,7 @@ public final class ExtractorUtils {
      * an {@link ElasticsearchException} with the validation error
      */
     private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
-        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(ZoneOffset.UTC) == false) {
+        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().normalized().equals(ZoneOffset.UTC) == false) {
             throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
         }
 

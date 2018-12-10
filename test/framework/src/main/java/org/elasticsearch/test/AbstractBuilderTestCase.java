@@ -218,14 +218,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                         AbstractBuilderTestCase.this, false);
                 return null;
             });
-            assertDeprecatedGeoWarnings();
+            if (enableWarningsCheck() == true) {
+                assertDeprecatedGeoWarnings();
+            }
         }
 
         serviceHolder.clientInvocationHandler.delegate = this;
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
     }
 
-    private void assertDeprecatedGeoWarnings() {
+    protected void assertDeprecatedGeoWarnings() {
         String prefix = "Field parameter [";
         String postfix = "] is deprecated and will be removed in a future version.";
         String[] deprecationWarnings = new String[] {

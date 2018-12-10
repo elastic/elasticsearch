@@ -36,7 +36,7 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("tree", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setTree("quadtree");
+                ((GeoShapeFieldType)ft).setTree("geohash");
             }
         });
         addModifier(new Modifier("strategy", false) {

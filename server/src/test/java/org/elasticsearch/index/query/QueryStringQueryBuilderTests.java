@@ -1048,6 +1048,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                         "_field_names", "enabled=true"))),
                 MapperService.MergeReason.MAPPING_UPDATE);
         }
+        assertWarnings(new String[] {
+            "Field parameter [tree_levels] is deprecated and will be removed in a future version.",
+            "Field parameter [precision] is deprecated and will be removed in a future version.",
+            "Field parameter [distance_error_pct] is deprecated and will be removed in a future version."
+        });
     }
 
 

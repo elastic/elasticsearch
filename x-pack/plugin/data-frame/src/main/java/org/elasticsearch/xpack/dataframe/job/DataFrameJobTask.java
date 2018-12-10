@@ -41,6 +41,11 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     private final ThreadPool threadPool;
     private final DataFrameIndexer indexer;
 
+    // the generation of this data frame, for v1 there will be only
+    // 0: data frame not created or still indexing
+    // 1: data frame complete, all data has been indexed
+    private final AtomicReference<Long> generation;
+
     static final String SCHEDULE_NAME = DataFrame.TASK_NAME + "/schedule";
 
     public DataFrameJobTask(long id, String type, String action, TaskId parentTask, DataFrameJob job,
@@ -69,6 +74,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
         }
 
         this.indexer = new ClientDataFrameIndexer(job, new AtomicReference<>(initialState), initialPosition, client);
+        this.generation = new AtomicReference<>(0l);
     }
 
     public DataFrameJobConfig getConfig() {
@@ -84,11 +90,15 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     }
 
     public DataFrameJobState getState() {
-        return new DataFrameJobState(indexer.getState(), indexer.getPosition());
+        return new DataFrameJobState(indexer.getState(), indexer.getPosition(), generation.get());
     }
 
     public DataFrameIndexerJobStats getStats() {
         return indexer.getStats();
+    }
+
+    public long getGeneration() {
+        return generation.get();
     }
 
     public synchronized void start(ActionListener<Response> listener) {
@@ -107,7 +117,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
             return;
         }
 
-        final DataFrameJobState state = new DataFrameJobState(IndexerState.STOPPED, indexer.getPosition());
+        final DataFrameJobState state = new DataFrameJobState(IndexerState.STOPPED, indexer.getPosition(), generation.get());
 
         logger.debug("Updating state for data frame job [{}] to [{}][{}]", job.getConfig().getId(), state.getIndexerState(),
                 state.getPosition());
@@ -139,7 +149,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
             // position.
             // 2. we persist STOPPED now, indexer continues a bit but then dies. When/if we resume we'll pick up at last checkpoint,
             // overwrite some docs and eventually checkpoint.
-            DataFrameJobState state = new DataFrameJobState(IndexerState.STOPPED, indexer.getPosition());
+            DataFrameJobState state = new DataFrameJobState(IndexerState.STOPPED, indexer.getPosition(), generation.get());
             updatePersistentTaskState(state, ActionListener.wrap((task) -> {
                 logger.debug("Successfully updated state for data frame job [{}] to [{}]", job.getConfig().getId(),
                         state.getIndexerState());
@@ -159,9 +169,8 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
 
     @Override
     public synchronized void triggered(Event event) {
-        if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
-            logger.debug(
-                    "Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+        if (generation.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
+            logger.debug("Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }
@@ -224,17 +233,21 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
             if (indexerState.equals(IndexerState.ABORTING)) {
                 // If we're aborting, just invoke `next` (which is likely an onFailure handler)
                 next.run();
-            } else {
-                final DataFrameJobState state = new DataFrameJobState(indexerState, getPosition());
-                logger.info("Updating persistent state of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
-
-                // TODO: we can not persist the state right now, need to be called from the task
-                updatePersistentTaskState(state, ActionListener.wrap(task -> next.run(), exc -> {
-                    // We failed to update the persistent task for some reason,
-                    // set our flag back to what it was before
-                    next.run();
-                }));
+                return;
             }
+
+            if(indexerState.equals(IndexerState.STARTED)) {
+                // if the indexer resets the state to started, it means it is done, so increment the generation
+                generation.compareAndSet(0l, 1l);
+            }
+
+            final DataFrameJobState state = new DataFrameJobState(indexerState, getPosition(), generation.get());
+            logger.info("Updating persistent state of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
+
+            updatePersistentTaskState(state, ActionListener.wrap(task -> next.run(), exc -> {
+                logger.error("Updating persistent state of job [" + job.getConfig().getId() + "] failed", exc);
+                next.run();
+            }));
         }
 
         @Override

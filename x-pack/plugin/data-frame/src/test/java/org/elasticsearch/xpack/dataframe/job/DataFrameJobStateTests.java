@@ -18,7 +18,7 @@ import java.util.Map;
 public class DataFrameJobStateTests extends AbstractSerializingTestCase<DataFrameJobState> {
 
     public static DataFrameJobState randomDataFrameJobState() {
-        return new DataFrameJobState(randomFrom(IndexerState.values()), randomPosition());
+        return new DataFrameJobState(randomFrom(IndexerState.values()), randomPosition(), randomLongBetween(0,10));
     }
 
     @Override

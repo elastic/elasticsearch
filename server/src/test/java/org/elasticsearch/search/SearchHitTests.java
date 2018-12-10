@@ -31,7 +31,6 @@ import java.util.function.Predicate;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

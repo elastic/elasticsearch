@@ -8,7 +8,7 @@ existing one.
 [float]
 ==== Request
 
-`PUT _xpack/watcher/watch/<watch_id>`
+`PUT _watcher/watch/<watch_id>`
 
 [float]
 ==== Description
@@ -96,7 +96,7 @@ characteristics:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my-watch
+PUT _watcher/watch/my-watch
 {
   "trigger" : {
     "schedule" : { "cron" : "0 0/1 * * * ?" }
@@ -151,7 +151,7 @@ it to be inactive by default:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my-watch?active=false
+PUT _watcher/watch/my-watch?active=false
 --------------------------------------------------
 
 NOTE: If you omit the `active` parameter, the watch is active by default.

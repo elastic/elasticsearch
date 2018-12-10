@@ -21,22 +21,23 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHits> {
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
@@ -161,21 +162,55 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
     }
 
     public void testFromXContentWithShards() throws IOException {
-        SearchHits searchHits = createTestItem(true, true);
-        XContentType xcontentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(searchHits, xcontentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        SearchHits parsed;
-        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            assertEquals(SearchHits.Fields.HITS, parser.currentName());
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = SearchHits.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertNull(parser.nextToken());
+        for (boolean withExplanation : new boolean[] {true, false}) {
+            final SearchHit[] hits = new SearchHit[]{
+                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
+                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()),
+                new SearchHit(10, "id10", new Text("type"), Collections.emptyMap())
+            };
+
+            for (SearchHit hit : hits) {
+                String index = randomAlphaOfLengthBetween(5, 10);
+                String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+                final SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
+                    new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE);
+                if (withExplanation) {
+                    hit.explanation(SearchHitTests.createExplanation(randomIntBetween(0, 5)));
+                }
+                hit.shard(shardTarget);
+            }
+
+            long totalHits = 1000;
+            float maxScore = 1.5f;
+            SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
+            for (XContentType xContentType : XContentType.values()) {
+                XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+                builder.startObject();
+                searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                final BytesReference bytes = BytesReference.bytes(builder);
+                try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
+                    bytes.streamInput())) {
+                    SearchHits newSearchHits = doParseInstance(parser);
+                    assertEquals(3, newSearchHits.getHits().length);
+                    assertEquals("id1", newSearchHits.getAt(0).getId());
+                    for (int i = 0; i < hits.length; i++) {
+                        assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
+                        if (withExplanation) {
+                            assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
+                            assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
+                            assertEquals(hits[i].getShard().getShardId().getIndexName(),
+                                newSearchHits.getAt(i).getShard().getShardId().getIndexName());
+                            assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
+                            // The index uuids is not serialized in the rest layer
+                            assertNotEquals(hits[i].getShard().getShardId().getIndex().getUUID(),
+                                newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID());
+                        } else {
+                            assertNull(newSearchHits.getAt(i).getShard());
+                        }
+                    }
+                }
+            }
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, humanReadable), xcontentType);
     }
 }

@@ -351,7 +351,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         }
     }
 
-    private static Explanation createExplanation(int depth) {
+    static Explanation createExplanation(int depth) {
         String description = randomAlphaOfLengthBetween(5, 20);
         float value = randomFloat();
         List<Explanation> details = new ArrayList<>();

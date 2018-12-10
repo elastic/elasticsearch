@@ -26,7 +26,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -98,9 +100,9 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         assertEquals(2, count.get());
     }
 
-    public void testManualRepeat() throws InterruptedException {
+    public void testManualRepeat() throws Exception {
 
-        final AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
+        final CyclicBarrier barrier = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final AtomicInteger count = new AtomicInteger();
         AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), false) {
 
@@ -113,7 +115,11 @@ public class AbstractAsyncTaskTests extends ESTestCase {
             protected void runInternal() {
                 assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
                 count.incrementAndGet();
-                latch.get().countDown();
+                try {
+                    barrier.await(10, TimeUnit.SECONDS); // should happen very quickly
+                } catch (Exception e) {
+                    fail("barrier not passed in reasonable time");
+                }
                 if (randomBoolean()) {
                     throw new RuntimeException("foo");
                 }
@@ -127,14 +133,15 @@ public class AbstractAsyncTaskTests extends ESTestCase {
 
         assertFalse(task.isScheduled());
         task.rescheduleIfNecessary();
-        latch.get().await();
+        barrier.await(10, TimeUnit.SECONDS); // should happen very quickly
         assertEquals(1, count.get());
         assertFalse(task.isScheduled());
-        latch.set(new CountDownLatch(1));
-        assertFalse(latch.get().await(100, TimeUnit.MILLISECONDS));
+        barrier.reset();
+        expectThrows(TimeoutException.class, () -> barrier.await(100, TimeUnit.MILLISECONDS));
         assertEquals(1, count.get());
+        barrier.reset();
         task.rescheduleIfNecessary();
-        latch.get().await();
+        barrier.await(10, TimeUnit.SECONDS); // should happen very quickly
         assertEquals(2, count.get());
         assertFalse(task.isScheduled());
         assertFalse(task.isClosed());

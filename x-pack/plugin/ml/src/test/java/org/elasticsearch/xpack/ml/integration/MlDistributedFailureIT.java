@@ -42,7 +42,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.isAssignedToValidNode;
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
@@ -212,7 +212,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertNotNull(tasks);
             assertEquals("Expected 2 tasks, but got [" + tasks.taskMap() + "]", 2, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.tasks()) {
-                assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
+                assertFalse(isAssignedToValidNode(task.getAssignment(), clusterState.nodes()));
             }
 
             GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);

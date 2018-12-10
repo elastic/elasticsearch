@@ -60,23 +60,20 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final EnableAssignmentDecider decider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
-    private volatile TimeValue recheckInterval;
 
     public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService,
                                          ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.registry = registry;
         this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
-        this.recheckInterval = CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings);
         this.threadPool = threadPool;
-        this.periodicRechecker = new PeriodicRechecker();
+        this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
             this::setRecheckInterval);
     }
 
     void setRecheckInterval(TimeValue recheckInterval) {
-        this.recheckInterval = recheckInterval;
         periodicRechecker.setInterval(recheckInterval);
     }
 
@@ -269,17 +266,14 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        periodicRechecker.cancel();
         if (event.localNodeMaster()) {
-            assignIfNecessaryAndScheduleRecheck(event.state(), shouldReassignPersistentTasks(event));
-        }
-    }
-
-    private void assignIfNecessaryAndScheduleRecheck(final ClusterState state, final boolean assignmentNecessary) {
-        if (assignmentNecessary) {
-            reassignPersistentTasks(state.getVersion());
-        } else {
-            scheduleRecheckIfUnassignedTasks(state);
+            if (shouldReassignPersistentTasks(event)) {
+                // We want to avoid a periodic check duplicating this work
+                periodicRechecker.cancel();
+                reassignPersistentTasks(event.state().getVersion());
+            } else {
+                scheduleRecheckIfUnassignedTasks(event.state());
+            }
         }
     }
 
@@ -332,7 +326,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             || event.metaDataChanged()
             || masterChanged) {
 
-            return anyTaskNeedsReassignment(tasks, event.state());
+            return anyTaskReassignmentRequired(tasks, event.state());
         }
         return false;
     }
@@ -341,9 +335,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * Returns true if any persistent task provided is unassigned
      * and would be assigned if reassignment were run now.
      */
-    private boolean anyTaskNeedsReassignment(final PersistentTasksCustomMetaData tasks, final ClusterState state) {
+    private boolean anyTaskReassignmentRequired(final PersistentTasksCustomMetaData tasks, final ClusterState state) {
         for (PersistentTask<?> task : tasks.tasks()) {
-            if (needsReassignment(task.getAssignment(), state.nodes())) {
+            if (isAssignedToValidNode(task.getAssignment(), state.nodes())) {
                 Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), state);
                 if (Objects.equals(assignment, task.getAssignment()) == false) {
                     return true;
@@ -359,7 +353,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      */
     private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetaData tasks, final ClusterState state) {
         for (PersistentTask<?> task : tasks.tasks()) {
-            if (needsReassignment(task.getAssignment(), state.nodes())) {
+            if (isAssignedToValidNode(task.getAssignment(), state.nodes())) {
                 return true;
             }
         }
@@ -382,7 +376,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             // We need to check if removed nodes were running any of the tasks and reassign them
             for (PersistentTask<?> task : tasks.tasks()) {
-                if (needsReassignment(task.getAssignment(), nodes)) {
+                if (isAssignedToValidNode(task.getAssignment(), nodes)) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState);
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace("reassigning task {} from node {} to node {}", task.getId(),
@@ -406,7 +400,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
-    public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
+    public static boolean isAssignedToValidNode(final Assignment assignment, final DiscoveryNodes nodes) {
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
     }
 
@@ -429,7 +423,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      */
     private class PeriodicRechecker extends AbstractAsyncTask {
 
-        PeriodicRechecker() {
+        PeriodicRechecker(TimeValue recheckInterval) {
             super(logger, threadPool, recheckInterval, false);
         }
 
@@ -444,7 +438,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 logger.trace("periodic persistent task assignment check running");
                 final ClusterState state = clusterService.state();
                 final PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                assignIfNecessaryAndScheduleRecheck(state, tasks != null && anyTaskNeedsReassignment(tasks, state));
+                if (tasks != null && anyTaskReassignmentRequired(tasks, state)) {
+                    reassignPersistentTasks(state.getVersion());
+                } else {
+                    scheduleRecheckIfUnassignedTasks(state);
+                }
             }
         }
 

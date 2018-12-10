@@ -250,8 +250,7 @@ public class AuthorizationService {
                 // remote indices are allowed
                 final MetaData metaData = clusterService.state().metaData();
                 final AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-                    () -> authzEngine.loadAuthorizedIndices(authentication, unwrappedRequest, action, authzInfo,
-                        metaData.getAliasAndIndexLookup()));
+                    () -> authzEngine.loadAuthorizedIndices(authentication, action, authzInfo, metaData.getAliasAndIndexLookup()));
                 resolveIndexNames(unwrappedRequest, metaData, authorizedIndices, ActionListener.wrap(resolvedIndices -> {
                     assert !resolvedIndices.isEmpty()
                         : "every indices request needs to have its indices set thus the resolved indices must not be empty";
@@ -273,9 +272,8 @@ public class AuthorizationService {
                         if (result.isGranted()) {
                             // the action name is authorized, move on
                             final MetaData metaData = clusterService.state().metaData();
-                            final AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-                                () -> authzEngine.loadAuthorizedIndices(authentication, unwrappedRequest, action, authzInfo,
-                                    metaData.getAliasAndIndexLookup()));
+                            final AuthorizedIndices authorizedIndices = new AuthorizedIndices(() ->
+                                authzEngine.loadAuthorizedIndices(authentication, action, authzInfo, metaData.getAliasAndIndexLookup()));
                             resolveIndexNames(unwrappedRequest, metaData, authorizedIndices, ActionListener.wrap(resolvedIndices -> {
                                     assert !resolvedIndices.isEmpty()
                                         : "every indices request needs to have its indices set thus the resolved indices must not be empty";

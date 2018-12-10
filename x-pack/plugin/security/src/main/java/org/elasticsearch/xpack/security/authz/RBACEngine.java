@@ -231,8 +231,8 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public List<String> loadAuthorizedIndices(Authentication authentication, TransportRequest request, String action,
-                                              AuthorizationInfo authorizationInfo, Map<String, AliasOrIndex> aliasAndIndexLookup) {
+    public List<String> loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo authorizationInfo,
+                                              Map<String, AliasOrIndex> aliasAndIndexLookup) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             return resolveAuthorizedIndicesFromRole(role, action, aliasAndIndexLookup);

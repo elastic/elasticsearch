@@ -36,7 +36,7 @@ public interface AuthorizationEngine {
     void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
                                   AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
 
-    List<String> loadAuthorizedIndices(Authentication authentication, TransportRequest request, String action, AuthorizationInfo info,
+    List<String> loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo info,
                                        Map<String, AliasOrIndex> aliasAndIndexLookup);
 
     void buildIndicesAccessControl(Authentication authentication, TransportRequest request, String action,

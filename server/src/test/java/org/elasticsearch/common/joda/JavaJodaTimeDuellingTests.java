@@ -486,7 +486,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSameDate(String input, String format) {
-        FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
@@ -505,7 +505,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
-        FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }

@@ -74,7 +74,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
         }
 
         this.indexer = new ClientDataFrameIndexer(job, new AtomicReference<>(initialState), initialPosition, client);
-        this.generation = new AtomicReference<>(0l);
+        this.generation = new AtomicReference<>(0L);
     }
 
     public DataFrameJobConfig getConfig() {
@@ -238,7 +238,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
 
             if(indexerState.equals(IndexerState.STARTED)) {
                 // if the indexer resets the state to started, it means it is done, so increment the generation
-                generation.compareAndSet(0l, 1l);
+                generation.compareAndSet(0L, 1L);
             }
 
             final DataFrameJobState state = new DataFrameJobState(indexerState, getPosition(), generation.get());

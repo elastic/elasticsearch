@@ -52,7 +52,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetSourceAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetSourceAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source requests is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source"
+            + "requests is deprecated.";
 
     public RestGetSourceAction(final Settings settings, final RestController controller) {
         super(settings);

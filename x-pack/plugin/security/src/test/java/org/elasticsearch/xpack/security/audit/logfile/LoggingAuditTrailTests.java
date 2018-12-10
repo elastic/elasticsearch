@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -189,6 +190,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
         }
+        if (randomBoolean()) {
+            threadContext.putHeader(AuditTrail.X_FORWARDED_FOR_HEADER,
+                    randomFrom("2001:db8:85a3:8d3:1319:8a2e:370:7348", "203.0.113.195", "203.0.113.195, 70.41.3.18, 150.172.238.178"));
+        }
         logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
     }
@@ -212,6 +217,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         restOrTransportOrigin(message, threadContext, checkedFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -245,7 +251,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri")
                 .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, null);
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -275,6 +283,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -303,6 +312,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -343,7 +353,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri")
                      .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "foo=bar");
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -382,7 +394,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri")
                      .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "bar=baz");
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -422,6 +436,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
@@ -462,7 +477,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri")
                      .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "_param=baz");
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
     public void testAccessGranted() throws Exception {
@@ -483,6 +500,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         subject(authentication, checkedFields);
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
+        forwardedFor(threadContext, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
@@ -525,6 +543,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
@@ -547,6 +566,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -579,6 +599,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
+        
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -615,7 +637,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri")
                 .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "_param=baz");
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -643,6 +667,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -684,6 +709,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -711,7 +737,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .put(LoggingAuditTrail.RULE_FIELD_NAME, "deny _all");
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -747,7 +775,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .put(LoggingAuditTrail.RULE_FIELD_NAME, "allow default:accept_all");
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
     public void testRunAsGranted() throws Exception {
@@ -775,6 +805,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -813,6 +844,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -874,7 +906,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username");
         }
         opaqueId(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.immutableMap());
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        forwardedFor(threadContext, checkedArrayFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {
@@ -915,6 +949,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedArrayFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
@@ -968,10 +1003,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
         }
-    }
-
-    private void assertMsg(Logger logger, Map<String, String> checkFields) {
-        assertMsg(logger, checkFields, Collections.emptyMap());
     }
 
     private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
@@ -1170,6 +1201,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId);
         } else {
             checkedFields.put(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, null);
+        }
+    }
+
+    private static void forwardedFor(ThreadContext threadContext, MapBuilder<String, String[]> checkedArrayFields) {
+        final String forwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
+        if (forwardedFor != null) {
+            checkedArrayFields.put(LoggingAuditTrail.FORWARDED_FOR_FIELD_NAME, forwardedFor.split("\\s+|,\\s*"));
+        } else {
+            checkedArrayFields.put(LoggingAuditTrail.FORWARDED_FOR_FIELD_NAME, null);
         }
     }
 

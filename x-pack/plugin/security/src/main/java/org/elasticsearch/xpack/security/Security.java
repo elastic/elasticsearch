@@ -634,6 +634,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
+            headers.add(AuditTrail.X_FORWARDED_FOR_HEADER);
+        }
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(AuthenticationServiceField.RUN_AS_USER_HEADER);
         }

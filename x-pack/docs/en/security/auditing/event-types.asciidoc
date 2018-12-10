@@ -94,6 +94,14 @@ descriptions for the format that you are using.
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has
                         no semantics in Elasticsearch.
+`forwarded_for`   ::    The value of the `X-Forwarded-For` HTTP header (if present)
+                        of the request associated with this event. This header is
+                        commonly added by proxies when they forward requests and
+                        the value is the address of the proxied client. When
+                        a request crosses multiple proxies the header is a comma
+                        delimited list with the last value being the address of
+                        the second to last proxy server.
+
 
 ==== Audit event attributes of the REST event type
 

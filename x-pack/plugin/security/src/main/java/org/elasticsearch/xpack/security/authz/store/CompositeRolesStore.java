@@ -204,6 +204,7 @@ public class CompositeRolesStore {
             listener.onResponse(role);
         }, listener::onFailure));
     }
+
     public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
         roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
             if (rolesRetrievalResult.isSuccess()) {

@@ -473,7 +473,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
         filters.add(PreConfiguredTokenFilter.singletonWithVersion("word_delimiter", false, (reader, version) -> {
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(
                     "The [word_delimiter] token filter has been removed. Please change the filter name to [word_delimiter_graph] instead.");
             } else {

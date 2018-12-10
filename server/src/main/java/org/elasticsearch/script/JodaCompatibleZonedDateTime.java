@@ -22,8 +22,8 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -391,14 +391,14 @@ public class JodaCompatibleZonedDateTime {
     public String toString(String format) {
         logDeprecatedMethod("toString(String)", "a DateTimeFormatter");
         // TODO: replace with bwc formatter
-        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.forID(dt.getZone().getId())).toString(format);
+        return new DateTime(dt.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dt.getZone())).toString(format);
     }
 
     @Deprecated
     public String toString(String format, Locale locale) {
         logDeprecatedMethod("toString(String,Locale)", "a DateTimeFormatter");
         // TODO: replace with bwc formatter
-        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.forID(dt.getZone().getId())).toString(format, locale);
+        return new DateTime(dt.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dt.getZone())).toString(format, locale);
     }
 
     public DayOfWeek getDayOfWeekEnum() {

@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -224,7 +224,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
-        assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))
+        Item[] items = new Item[] { new Item(null, null, "1")};
+        assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, items)
                         .include(true).minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, new String[] {"the huge pidgin"}, null)

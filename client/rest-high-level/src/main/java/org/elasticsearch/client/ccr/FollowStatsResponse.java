@@ -17,18 +17,23 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+package org.elasticsearch.client.ccr;
 
-integTestCluster {
-  setting 'node.name', null
-  // Run with no discovery configuration at all, demonstrating that a node in its
-  // "out-of-the-box" configuration can automatically bootstrap a cluster
-  autoSetInitialMasterNodes = false
-  autoSetHostsProvider = false
-}
+import org.elasticsearch.common.xcontent.XContentParser;
 
-integTestRunner {
-  systemProperty 'tests.logfile',
-    "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"
+public final class FollowStatsResponse {
+
+    public static FollowStatsResponse fromXContent(XContentParser parser) {
+        return new FollowStatsResponse(IndicesFollowStats.PARSER.apply(parser, null));
+    }
+
+    private final IndicesFollowStats indicesFollowStats;
+
+    public FollowStatsResponse(IndicesFollowStats indicesFollowStats) {
+        this.indicesFollowStats = indicesFollowStats;
+    }
+
+    public IndicesFollowStats getIndicesFollowStats() {
+        return indicesFollowStats;
+    }
 }

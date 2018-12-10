@@ -17,18 +17,21 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+package org.elasticsearch.client.ccr;
 
-integTestCluster {
-  setting 'node.name', null
-  // Run with no discovery configuration at all, demonstrating that a node in its
-  // "out-of-the-box" configuration can automatically bootstrap a cluster
-  autoSetInitialMasterNodes = false
-  autoSetHostsProvider = false
-}
+import org.elasticsearch.client.Validatable;
 
-integTestRunner {
-  systemProperty 'tests.logfile',
-    "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"
+import java.util.Objects;
+
+public final class FollowStatsRequest implements Validatable {
+
+    private final String followerIndex;
+
+    public FollowStatsRequest(String followerIndex) {
+        this.followerIndex = Objects.requireNonNull(followerIndex);
+    }
+
+    public String getFollowerIndex() {
+        return followerIndex;
+    }
 }

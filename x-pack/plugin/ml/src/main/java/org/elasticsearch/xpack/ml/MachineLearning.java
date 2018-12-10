@@ -244,7 +244,8 @@ import static java.util.Collections.emptyList;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
-    public static final String BASE_PATH = "/_xpack/ml/";
+    public static final String BASE_PATH = "/_ml/";
+    public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String AUTODETECT_THREAD_POOL_NAME = NAME + "_autodetect";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";

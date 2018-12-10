@@ -43,7 +43,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         builder.startObject()
             .field("invalidated_tokens", invalidatedTokens)
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens)
-            .field("error_size", 0)
+            .field("error_count", 0)
             .endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
@@ -64,7 +64,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         builder.startObject()
             .field("invalidated_tokens", invalidatedTokens)
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens)
-            .field("error_size", 0)
+            .field("error_count", 0)
             .startArray("error_details")
             .startObject();
         ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, new ElasticsearchException("foo",

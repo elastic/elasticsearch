@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Response when invalidating one or multuple OAuth2 access tokens and refresh tokens. Returns a
+ * Response when invalidating one or multiple OAuth2 access tokens and refresh tokens. Returns
  * information concerning how many tokens were invalidated, how many of the tokens that
  * were attempted to be invalidated were already invalid, and if there were any errors
  * encountered.

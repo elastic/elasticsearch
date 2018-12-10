@@ -81,7 +81,7 @@ teardown:
 
   - match: { invalidated_tokens: 1 }
   - match: { previously_invalidated_tokens: 0 }
-  - match: { error_size: 0 }
+  - match: { error_count: 0 }
 
   - do:
       catch: unauthorized
@@ -121,7 +121,7 @@ teardown:
 
 - match: { invalidated_tokens: 2 }
 - match: { previously_invalidated_tokens: 0 }
-- match: { error_size: 0 }
+- match: { error_count: 0 }
 
 - do:
     catch: unauthorized
@@ -162,7 +162,7 @@ teardown:
 
 - match: { invalidated_tokens: 2 }
 - match: { previously_invalidated_tokens: 0 }
-- match: { error_size: 0 }
+- match: { error_count: 0 }
 
 - do:
     catch: unauthorized

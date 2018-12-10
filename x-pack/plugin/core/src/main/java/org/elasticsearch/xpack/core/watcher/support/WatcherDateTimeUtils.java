@@ -49,12 +49,12 @@ public class WatcherDateTimeUtils {
     }
 
     public static DateTime parseDate(String format, DateTimeZone timeZone) {
-        DateTime dateTime = dateTimeFormatter.parser().parseDateTime(format);
+        DateTime dateTime = dateTimeFormatter.parseJoda(format);
         return timeZone != null ? dateTime.toDateTime(timeZone) : dateTime;
     }
 
     public static String formatDate(DateTime date) {
-        return dateTimeFormatter.printer().print(date);
+        return dateTimeFormatter.formatJoda(date);
     }
 
     public static DateTime parseDateMath(String fieldName, XContentParser parser, DateTimeZone timeZone, Clock clock) throws IOException {

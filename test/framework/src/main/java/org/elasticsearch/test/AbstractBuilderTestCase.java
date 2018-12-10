@@ -218,10 +218,23 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                         AbstractBuilderTestCase.this, false);
                 return null;
             });
+            assertDeprecatedGeoWarnings();
         }
 
         serviceHolder.clientInvocationHandler.delegate = this;
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
+    }
+
+    private void assertDeprecatedGeoWarnings() {
+        String prefix = "Field parameter [";
+        String postfix = "] is deprecated and will be removed in a future version.";
+        String[] deprecationWarnings = new String[] {
+            prefix + "tree" + postfix,
+            prefix + "tree_levels" + postfix,
+            prefix + "precision" + postfix,
+            prefix + "distance_error_pct" + postfix
+        };
+        assertWarnings(deprecationWarnings);
     }
 
     protected static SearchContext getSearchContext(QueryShardContext context) {

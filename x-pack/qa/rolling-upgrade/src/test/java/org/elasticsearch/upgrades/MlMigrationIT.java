@@ -242,7 +242,10 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
 
         checkJobsMarkedAsMigrated(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID));
 
-        // TODO delete
+        Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID);
+        client().performRequest(deleteJob);
+        Request deleteDatafeed = new Request("DELETE", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
+        client().performRequest(deleteDatafeed);
     }
 
     @SuppressWarnings("unchecked")
@@ -433,7 +436,8 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     private boolean openMigratedJob(String jobId) throws IOException {
         // opening a job should be rejected prior to migration
         Request openJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + jobId + "/_open");
-        return updateJobExpectingSuccessOr503(jobId, openJob, "cannot open job as the configuration [" + jobId + "] is temporarily pending migration", false);
+        return updateJobExpectingSuccessOr503(jobId, openJob, "cannot open job as the configuration [" +
+                jobId + "] is temporarily pending migration", false);
     }
 
     private boolean startMigratedDatafeed(String datafeedId) throws IOException {

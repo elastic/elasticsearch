@@ -17,7 +17,9 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
@@ -31,7 +33,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -55,8 +56,9 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 
 public class RBACEngine implements AuthorizationEngine {
 
-    private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+    private static final Set<String> SAME_USER_ACTIONS = Collections.unmodifiableSet(
+        Sets.newHashSet(ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME));
+    private static final Predicate<String> SAME_USER_PRIVILEGE = SAME_USER_ACTIONS::contains;
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
@@ -146,8 +148,6 @@ public class RBACEngine implements AuthorizationEngine {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.cluster().check(action, request)) {
                 listener.onResponse(AuthorizationResult.granted());
-            } else if (checkSameUserPermissions(action, request, authentication)) {
-                listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
             }
@@ -158,31 +158,38 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
+    public void checkSameUserPermissions(Authentication authentication, TransportRequest request, String action,
+                                            AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
             if (request instanceof UserRequest == false) {
                 assert false : "right now only a user request should be allowed";
-                return false;
+                listener.onResponse(AuthorizationResult.deny());
+            } else {
+                UserRequest userRequest = (UserRequest) request;
+                String[] usernames = userRequest.usernames();
+                if (usernames == null || usernames.length != 1 || usernames[0] == null) {
+                    assert false : "should only be used for actions to apply to a single user, but this applies to [" +
+                        Strings.arrayToCommaDelimitedString(usernames) + "]";
+                    listener.onResponse(AuthorizationResult.deny());
+                } else {
+                    final String username = usernames[0];
+                    final boolean sameUsername = authentication.getUser().principal().equals(username);
+                    if (sameUsername) {
+                        if (ChangePasswordAction.NAME.equals(action)) {
+                            final boolean allowed = checkChangePasswordAction(authentication);
+                            listener.onResponse(allowed ? AuthorizationResult.granted() : AuthorizationResult.deny());
+                        } else {
+                            listener.onResponse(AuthorizationResult.granted());
+                        }
+                    } else {
+                        listener.onResponse(AuthorizationResult.deny());
+                    }
+                }
             }
-            UserRequest userRequest = (UserRequest) request;
-            String[] usernames = userRequest.usernames();
-            if (usernames == null || usernames.length != 1 || usernames[0] == null) {
-                assert false : "this role should only be used for actions to apply to a single user";
-                return false;
-            }
-            final String username = usernames[0];
-            final boolean sameUsername = authentication.getUser().principal().equals(username);
-            if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
-                return checkChangePasswordAction(authentication);
-            }
-
-            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
-                || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
-            return sameUsername;
+        } else {
+            listener.onResponse(AuthorizationResult.deny());
         }
-        return false;
     }
 
     @Override

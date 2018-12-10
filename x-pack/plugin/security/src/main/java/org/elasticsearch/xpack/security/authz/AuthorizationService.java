@@ -202,7 +202,20 @@ public class AuthorizationService {
                     putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                     listener.onResponse(null);
                 } else {
-                    listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
+                    authzEngine.checkSameUserPermissions(authentication, unwrappedRequest, action, authzInfo,
+                        wrapPreservingContext(ActionListener.wrap(sameUserResult -> {
+                                if (sameUserResult.isGranted()) {
+                                    if (sameUserResult.isAuditable()) {
+                                        auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                                    }
+                                    putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                                        IndicesAccessControl.ALLOW_ALL);
+                                    listener.onResponse(null);
+                                } else {
+                                    listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
+                                }
+                            }, e -> listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo))),
+                            threadContext));
                 }
             }, e -> {
                 // TODO need a failure handler better than this!

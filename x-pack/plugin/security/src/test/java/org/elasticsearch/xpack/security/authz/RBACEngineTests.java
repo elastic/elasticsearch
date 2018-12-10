@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.GetLicenseAction;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.junit.Before;
 
@@ -67,7 +70,10 @@ public class RBACEngineTests extends ESTestCase {
                 randomAlphaOfLengthBetween(4, 12));
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        PlainActionFuture<AuthorizationResult> future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertTrue(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
     }
 
     public void testSameUserPermissionDoesNotAllowNonMatchingUsername() {
@@ -88,7 +94,10 @@ public class RBACEngineTests extends ESTestCase {
                 randomAlphaOfLengthBetween(4, 12));
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        PlainActionFuture<AuthorizationResult> future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertFalse(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
 
         when(authentication.getUser()).thenReturn(user);
         final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
@@ -97,14 +106,20 @@ public class RBACEngineTests extends ESTestCase {
             .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) :
                 randomAlphaOfLengthBetween(4, 12));
         // this should still fail since the username is still different
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertFalse(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
 
         if (request instanceof ChangePasswordRequest) {
             ((ChangePasswordRequest) request).username("joe");
         } else {
             ((AuthenticateRequest) request).username("joe");
         }
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertTrue(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
     }
 
     public void testSameUserPermissionDoesNotAllowOtherActions() {
@@ -122,7 +137,10 @@ public class RBACEngineTests extends ESTestCase {
         when(authenticatedBy.getType())
             .thenReturn(randomAlphaOfLengthBetween(4, 12));
 
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        PlainActionFuture<AuthorizationResult> future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertFalse(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
         verifyZeroInteractions(user, request, authentication);
     }
 
@@ -144,10 +162,16 @@ public class RBACEngineTests extends ESTestCase {
         when(lookedUpBy.getType())
             .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) :
                 randomAlphaOfLengthBetween(4, 12));
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        PlainActionFuture<AuthorizationResult> future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertTrue(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
 
         when(authentication.getUser()).thenReturn(authUser);
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertFalse(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
     }
 
     public void testSameUserPermissionDoesNotAllowChangePasswordForOtherRealms() {
@@ -163,7 +187,10 @@ public class RBACEngineTests extends ESTestCase {
             randomAlphaOfLengthBetween(4, 12)));
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        PlainActionFuture<AuthorizationResult> future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertFalse(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
         verify(authenticatedBy).getType();
         verify(authentication).getAuthenticatedBy();
         verify(authentication, times(2)).getUser();
@@ -186,7 +213,10 @@ public class RBACEngineTests extends ESTestCase {
             randomAlphaOfLengthBetween(4, 12)));
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        PlainActionFuture<AuthorizationResult> future = new PlainActionFuture<>();
+        engine.checkSameUserPermissions(authentication, request, action, mock(AuthorizationInfo.class), future);
+        assertFalse(future.actionGet().isGranted());
+        assertTrue(future.actionGet().isAuditable());
         verify(authentication).getLookedUpBy();
         verify(authentication, times(2)).getUser();
         verify(lookedUpBy).getType();

@@ -163,7 +163,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         remoteCluster,
                         request,
                         e -> handler.accept(null, e),
-                        leaderClusterState -> handler.accept(leaderClusterState, null));
+                        remoteClusterState -> handler.accept(remoteClusterState, null));
                 }
 
                 @Override
@@ -321,7 +321,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         private void checkAutoFollowPattern(String autoFollowPattenName,
-                                            String leaderCluster,
+                                            String remoteCluster,
                                             AutoFollowPattern autoFollowPattern,
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
@@ -345,7 +345,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                     }
                 } else {
-                    followLeaderIndex(autoFollowPattenName, leaderCluster, indexToFollow, autoFollowPattern, headers, error -> {
+                    followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
                         results.set(slot, new Tuple<>(indexToFollow, error));
                         if (leaderIndicesCountDown.countDown()) {
                             resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
@@ -406,13 +406,13 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
-                                                    ClusterState leaderClusterState,
+                                                    ClusterState remoteClusterState,
                                                     ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
-            for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
+            for (IndexMetaData leaderIndexMetaData : remoteClusterState.getMetaData()) {
                 if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
-                    IndexRoutingTable indexRoutingTable = leaderClusterState.routingTable().index(leaderIndexMetaData.getIndex());
+                    IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetaData.getIndex());
                     if (indexRoutingTable != null &&
                         // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
                         // This checks ensures all primary shards have started, so that index following does not fail.

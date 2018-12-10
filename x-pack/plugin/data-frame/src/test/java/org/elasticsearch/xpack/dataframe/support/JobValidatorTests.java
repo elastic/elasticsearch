@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.support;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -157,8 +158,9 @@ public class JobValidatorTests extends ESTestCase {
                     }
                 }
 
-                final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0), null, null,
-                        false, null, null, 1);
+                final SearchResponseSections sections = new SearchResponseSections(
+                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0), null, null, false, null, null,
+                        1);
                 final SearchResponse response = new SearchResponse(sections, null, 10, searchFailures.size() > 0 ? 0 : 5, 0, 0,
                         searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]), null);
 

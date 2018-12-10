@@ -452,7 +452,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
             XContentType.JSON)));
 
-        assertThat(ex.getMessage(), equalTo("failed to parse"));
+        assertThat(ex.getMessage(), equalTo("failed to parse field [location] of type [geo_point]"));
         assertThat(ex.getRootCause().getMessage(), equalTo("unsupported symbol [.] in geohash [1234.333]"));
     }
 

@@ -1023,12 +1023,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            // tag::put-role-execute
+            // tag::put-role-request
             final Role role = Role.builder()
                     .name("testPutRole")
                     .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
                     .build();
             final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
+            // end::put-role-request
+            // tag::put-role-execute
             final PutRoleResponse response = client.security().putRole(request, RequestOptions.DEFAULT);
             // end::put-role-execute
             // tag::put-role-response

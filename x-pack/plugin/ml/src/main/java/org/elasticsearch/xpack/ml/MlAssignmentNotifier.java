@@ -81,9 +81,6 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
         }
         PersistentTasksCustomMetaData previous = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData current = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (Objects.equals(previous, current)) {
-            return;
-        }
 
         mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
                 response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
@@ -96,6 +93,10 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
 
     private void auditChangesToMlTasks(PersistentTasksCustomMetaData current, PersistentTasksCustomMetaData previous,
                                        ClusterState state) {
+
+        if (Objects.equals(previous, current)) {
+            return;
+        }
 
         for (PersistentTask<?> currentTask : current.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();

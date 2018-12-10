@@ -131,7 +131,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Should we use the deprecated {@code _xpack} prefix for xpack APIs?
      */
-    private static Boolean usedDeprecatedXPackEndpoints;
+    private static Boolean useDeprecatedXPackEndpoints;
 
     @Before
     public void initClient() throws IOException {
@@ -140,7 +140,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert hasXPack == null;
             assert nodeVersions == null;
-            assert usedDeprecatedXPackEndpoints == null;
+            assert useDeprecatedXPackEndpoints == null;
             String cluster = System.getProperty("tests.rest.cluster");
             if (cluster == null) {
                 throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
@@ -176,14 +176,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                 }
             }
-            usedDeprecatedXPackEndpoints = nodeVersions.first().before(Version.V_7_0_0);
+            useDeprecatedXPackEndpoints = nodeVersions.first().before(Version.V_7_0_0);
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
         assert hasXPack != null;
         assert nodeVersions != null;
-        assert usedDeprecatedXPackEndpoints != null;
+        assert useDeprecatedXPackEndpoints != null;
     }
 
     /**
@@ -215,7 +215,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = null;
             hasXPack = null;
             nodeVersions = null;
-            usedDeprecatedXPackEndpoints = null;
+            useDeprecatedXPackEndpoints = null;
         }
     }
 
@@ -483,24 +483,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    public static Request ignoringXPackDeprecations(Request request, String... optionalWarnings) {
-        // TODO use https://github.com/elastic/elasticsearch/pull/36443 instead
-        if (false == usedDeprecatedXPackEndpoints) {
-            return request;
-        }
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.setWarningsHandler(warnings -> {
-            for (String optionalWarning : optionalWarnings) {
-                warnings.remove(optionalWarning);
-            }
-            return false == warnings.isEmpty();
-        });
-        request.setOptions(options);
-        return request;
-    }
-
     private void wipeRollupJobs() throws IOException, InterruptedException {
-        final String rollupPrefix = usedDeprecatedXPackEndpoints ? "/_xpack/rollup" : "/_rollup";
+        final String rollupPrefix = useDeprecatedXPackEndpoints ? "/_xpack/rollup" : "/_rollup";
         Response response = adminClient().performRequest(ignoringXPackDeprecations(
                 new Request("GET", rollupPrefix + "/job/_all"),
                 "[GET /_xpack/rollup/job/{id}/] is deprecated! Use [GET /_rollup/job/{id}] instead."));
@@ -864,4 +848,24 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Add options to the request to ignore the provided warnings if the cluster
+     * contains nodes that do not support the xpack APIs without the
+     * {@code _xpack} prefix.
+     */
+    public static Request ignoringXPackDeprecations(Request request, String... optionalWarnings) {
+        // TODO use https://github.com/elastic/elasticsearch/pull/36443 instead
+        if (false == useDeprecatedXPackEndpoints) {
+            return request;
+        }
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(warnings -> {
+            for (String optionalWarning : optionalWarnings) {
+                warnings.remove(optionalWarning);
+            }
+            return false == warnings.isEmpty();
+        });
+        request.setOptions(options);
+        return request;
+    }
 }

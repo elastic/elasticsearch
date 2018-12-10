@@ -137,7 +137,7 @@ grid layers, each with an increasing level of precision to represent the Earth.
 This can be thought of as increasing the level of detail of a map or image at higher
 zoom levels. Since this approach causes precision issues with indexed shape, it has
 been deprecated in favor of a vector indexing approach that indexes the shapes as a
-triangular mesh (see <<indexing-approach>>).
+triangular mesh (see <<geoshape-indexing-approach>>).
 
 Multiple PrefixTree implementations are provided:
 

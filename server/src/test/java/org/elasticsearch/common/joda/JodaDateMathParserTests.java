@@ -261,7 +261,7 @@ public class JodaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
 
         // also check other time units
-        JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_second||dateOptionalTime", Locale.ROOT));
+        JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_second", Locale.ROOT));
         long datetime = parser.parse("1418248078", () -> 0);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 

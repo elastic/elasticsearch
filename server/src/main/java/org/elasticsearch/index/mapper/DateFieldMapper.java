@@ -52,6 +52,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.format.DateTimeParseException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -443,7 +444,7 @@ public class DateFieldMapper extends FieldMapper {
         long timestamp;
         try {
             timestamp = fieldType().parse(dateAsString);
-        } catch (IllegalArgumentException e) {
+        } catch (DateTimeParseException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(fieldType.name());
                 return;

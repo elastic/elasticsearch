@@ -29,6 +29,7 @@ import org.joda.time.format.DateTimeFormatter;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
@@ -47,16 +48,29 @@ public class JodaDateFormatter implements DateFormatter {
 
     @Override
     public TemporalAccessor parse(String input) {
-        DateTime dt = parser.parseDateTime(input);
+        final DateTime dt;
+        try {
+             dt = parser.parseDateTime(input);
+        } catch (IllegalArgumentException e) {
+            throw new DateTimeParseException("failed to parse [" + input + "] with format [" + pattern() + "]", input, 0, e);
+        }
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(dt.getMillis()), DateUtils.dateTimeZoneToZoneId(dt.getZone()));
     }
 
     public long parseMillis(String input) {
-        return parser.parseMillis(input);
+        try {
+            return parser.parseMillis(input);
+        } catch (IllegalArgumentException e) {
+            throw new DateTimeParseException("failed to parse [" + input + "] with format [" + pattern() + "]", input, 0, e);
+        }
     }
 
     public DateTime parseJoda(String input) {
-        return parser.parseDateTime(input);
+        try {
+            return parser.parseDateTime(input);
+        } catch (IllegalArgumentException e) {
+            throw new DateTimeParseException("failed to parse [" + input + "] with format [" + pattern() + "]", input, 0, e);
+        }
     }
 
     @Override

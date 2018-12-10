@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
@@ -1487,9 +1486,10 @@ public class DateFormatters {
             for (DateFormatter formatter : formatters) {
                 try {
                     return formatter.parse(input);
-                } catch (DateTimeParseException e) {
+                } catch (IllegalArgumentException | DateTimeParseException e) {
                     if (failure == null) {
-                        failure = e;
+                        failure = new DateTimeParseException("failed to parse date field [" + input + "] with format [" + pattern + "]",
+                            input, 0, e);
                     } else {
                         failure.addSuppressed(e);
                     }
@@ -1531,13 +1531,14 @@ public class DateFormatters {
         @Override
         public DateMathParser toDateMathParser() {
             return (text, now, roundUp, tz) -> {
-                ElasticsearchParseException failure = null;
+                DateTimeParseException failure = null;
                 for (DateMathParser parser : dateMathParsers) {
                     try {
                         return parser.parse(text, now, roundUp, tz);
-                    } catch (ElasticsearchParseException e) {
+                    } catch (DateTimeParseException e) {
                         if (failure == null) {
-                            failure = e;
+                            failure = new DateTimeParseException("failed to parse date field [" + text + "] with format [" + pattern + "]",
+                                text, 0, e);
                         } else {
                             failure.addSuppressed(e);
                         }

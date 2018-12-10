@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,9 +165,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareString((builder, val) ->
             builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
         if (ignoreUnknownFields) {
-            parser.declareObject(Builder::setQuery, (p, c) -> p.map(), QUERY);
-            parser.declareObject(Builder::setAggregations, (p, c) -> p.map(), AGGREGATIONS);
-            parser.declareObject(Builder::setAggregations, (p, c) -> p.map(), AGGS);
+            parser.declareObject(Builder::setQuery, (p, c) -> p.mapOrdered(), QUERY);
+            parser.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), AGGREGATIONS);
+            parser.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), AGGS);
         } else {
             parser.declareObject(Builder::setParsedQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
             parser.declareObject(Builder::setParsedAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGREGATIONS);
@@ -612,7 +613,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
-            this.headers = new LinkedHashMap<>(config.headers);
+            this.headers = new HashMap<>(config.headers);
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
         }
 

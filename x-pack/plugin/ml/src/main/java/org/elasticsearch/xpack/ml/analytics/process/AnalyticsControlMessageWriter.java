@@ -18,7 +18,7 @@ public class AnalyticsControlMessageWriter extends AbstractControlMsgWriter {
      * but in the context of the java side it is more descriptive to call this the
      * end of data message.
      */
-    private static final String END_OF_DATA_MESSAGE_CODE = "r";
+    private static final String END_OF_DATA_MESSAGE_CODE = "$";
 
     /**
      * Construct the control message writer with a LengthEncodedWriter

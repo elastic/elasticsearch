@@ -143,7 +143,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             this.distanceErrorPct = distanceErrorPct;
         }
 
-        public void setup() {
+        protected void setup() {
             if (strategy == null) {
                 strategy = Defaults.STRATEGY;
             }
@@ -226,12 +226,15 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         public Builder(String name) {
             super(name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            this.deprecatedParameters = new DeprecatedParameters();
+            this.deprecatedParameters.setup();
         }
 
         public Builder(String name, boolean coerce, boolean ignoreMalformed, Orientation orientation,
                        boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
             super(name, new GeoShapeFieldType(), new GeoShapeFieldType(), coerce, ignoreMalformed, orientation, ignoreZ);
             this.deprecatedParameters = deprecatedParameters;
+            this.deprecatedParameters.setup();
         }
 
         @Override

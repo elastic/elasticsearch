@@ -202,7 +202,6 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
 
         private Builder getLegacyBuilder(String name, boolean coerce, boolean ignoreMalformed, Orientation orientation,
                                          boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
-            deprecatedParameters.setup();
             return new LegacyGeoShapeFieldMapper.Builder(name, coerce, ignoreMalformed, orientation, ignoreZ, deprecatedParameters);
         }
     }

@@ -73,7 +73,7 @@ public class DiscoveryModule {
     public static final String ZEN2_DISCOVERY_TYPE = "zen2";
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", ZEN_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
+        new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
         Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(), Property.NodeScope);
 

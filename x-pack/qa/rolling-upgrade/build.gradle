@@ -188,6 +188,7 @@ subprojects {
         clusterName = 'rolling-upgrade'
         otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
         minimumMasterNodes = { 2 }
+        autoSetInitialMasterNodes = false
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -215,8 +216,6 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
-        // TODO: Move to Zen2 once we support rolling upgrade with Zen2
-        setting 'discovery.type', 'zen'
       }
     }
 

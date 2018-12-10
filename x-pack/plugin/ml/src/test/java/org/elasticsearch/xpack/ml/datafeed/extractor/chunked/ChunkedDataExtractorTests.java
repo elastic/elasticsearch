@@ -139,6 +139,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
                 "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
         assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
                 "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
 
@@ -178,6 +179,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
         assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
             "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
 

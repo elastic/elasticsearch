@@ -105,6 +105,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
@@ -1455,6 +1456,10 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, new DataNodePredicate());
     }
 
+    public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new NodeNamePredicate(getMasterName()));
+    }
+
     /**
      * Returns an Iterable to all instances for the given class &gt;T&lt; across all data and master nodes
      * in the cluster.
@@ -1939,7 +1944,8 @@ public final class InternalTestCluster extends TestCluster {
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0
+        int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0 && Arrays.stream(settings)
+            .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || TestZenDiscovery.USE_ZEN2.get(s) == true)
             ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
 
         for (Settings nodeSettings : settings) {

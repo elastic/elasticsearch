@@ -25,6 +25,7 @@ import org.joda.time.DateTime;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
@@ -86,7 +87,7 @@ public interface DateFormatter {
      * Return the given millis-since-epoch formatted with this format.
      */
     default String formatMillis(long millis) {
-        return format(Instant.ofEpochMilli(millis));
+        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
     }
 
     /**

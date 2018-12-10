@@ -103,6 +103,8 @@ public class ClusterBootstrapService {
                 transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.SAME, new Runnable() {
                     @Override
                     public void run() {
+                        // TODO: remove the following line once schedule method properly preserves thread context
+                        threadContext.markAsSystemContext();
                         final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
                         logger.trace("sending {}", request);
                         transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
@@ -212,6 +214,8 @@ public class ClusterBootstrapService {
                     transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.SAME, new Runnable() {
                         @Override
                         public void run() {
+                            // TODO: remove the following line once schedule method properly preserves thread context
+                            transportService.getThreadPool().getThreadContext().markAsSystemContext();
                             awaitBootstrap(bootstrapConfiguration);
                         }
 

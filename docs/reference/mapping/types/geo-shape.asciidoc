@@ -643,6 +643,7 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:not supported in default]
 
 Note: The inner `radius` field is required. If not specified, then
 the units of the `radius` will default to `METERS`.

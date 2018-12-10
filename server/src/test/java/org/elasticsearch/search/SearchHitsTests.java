@@ -179,30 +179,30 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
             long totalHits = 1000;
             float maxScore = 1.5f;
             SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
-            for (XContentType xContentType : XContentType.values()) {
-                BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
-                try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
-                    bytes.streamInput())) {
-                    SearchHits newSearchHits = doParseInstance(parser);
-                    assertEquals(3, newSearchHits.getHits().length);
-                    assertEquals("id1", newSearchHits.getAt(0).getId());
-                    for (int i = 0; i < hits.length; i++) {
-                        assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
-                        if (withExplanation) {
-                            assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
-                            assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
-                            assertEquals(hits[i].getShard().getShardId().getIndexName(),
-                                newSearchHits.getAt(i).getShard().getShardId().getIndexName());
-                            assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
-                            // The index uuid is not serialized in the rest layer
-                            assertNotEquals(hits[i].getShard().getShardId().getIndex().getUUID(),
-                                newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID());
-                        } else {
-                            assertNull(newSearchHits.getAt(i).getShard());
-                        }
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
+            try (XContentParser parser = xContentType.xContent()
+                    .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
+                SearchHits newSearchHits = doParseInstance(parser);
+                assertEquals(3, newSearchHits.getHits().length);
+                assertEquals("id1", newSearchHits.getAt(0).getId());
+                for (int i = 0; i < hits.length; i++) {
+                    assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
+                    if (withExplanation) {
+                        assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
+                        assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
+                        assertEquals(hits[i].getShard().getShardId().getIndexName(),
+                            newSearchHits.getAt(i).getShard().getShardId().getIndexName());
+                        assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
+                        // The index uuid is not serialized in the rest layer
+                        assertNotEquals(hits[i].getShard().getShardId().getIndex().getUUID(),
+                            newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID());
+                    } else {
+                        assertNull(newSearchHits.getAt(i).getShard());
                     }
                 }
             }
+
         }
     }
 }

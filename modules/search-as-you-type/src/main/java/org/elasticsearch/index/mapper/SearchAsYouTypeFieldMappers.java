@@ -51,9 +51,15 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.TypeParsers.nodeIndexOptionValue;
 
-public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+/**
+ * This class is a container for two field mappers, {@link SearchAsYouTypeFieldMapper} which maps the root field of a search-as-you-type
+ * field type, and {@link SuggesterizedFieldMapper} which maps the synthetic fields created by this type
+ */
+public final class SearchAsYouTypeFieldMappers {
 
-    private static final Logger LOG = LogManager.getLogger(SearchAsYouTypeFieldMapper.class);
+    private static final Logger LOG = LogManager.getLogger(SearchAsYouTypeFieldMappers.class);
+
+    public static final String CONTENT_TYPE = "search_as_you_type";
 
     public static class Defaults {
 
@@ -61,7 +67,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         public static final int MAX_GRAM = 20;
         public static final int MAX_SHINGLE_SIZE = 3;
 
-        public static final MappedFieldType FIELD_TYPE = new SearchAsYouTypeFieldType();
+        public static final MappedFieldType FIELD_TYPE = new SuggesterizedFieldType();
 
         static {
             FIELD_TYPE.setOmitNorms(true);
@@ -77,7 +83,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                                           Map<String, Object> node,
                                           ParserContext parserContext) throws MapperParsingException {
 
-            final SearchAsYouTypeFieldMapper.Builder builder = new SearchAsYouTypeFieldMapper.Builder(name);
+            final SearchAsYouTypeFieldMappers.Builder builder = new SearchAsYouTypeFieldMappers.Builder(name);
 
             NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer();
             int maxShingleSize = Defaults.MAX_SHINGLE_SIZE;
@@ -137,26 +143,26 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
 
         @Override
-        public SearchAsYouTypeFieldType fieldType() {
-            return (SearchAsYouTypeFieldType) this.fieldType;
+        public SuggesterizedFieldType fieldType() {
+            return (SuggesterizedFieldType) this.fieldType;
         }
 
         @Override
-        public SearchAsYouTypeFieldMapper build(BuilderContext context) {
+        public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
             setupFieldType(context);
 
-            final NamedAnalyzer indexAnalyzer = fieldType().indexAnalyzer();
-            final NamedAnalyzer searchAnalyzer = fieldType().searchAnalyzer();
-            if (indexAnalyzer.equals(searchAnalyzer) == false) {
+            final NamedAnalyzer originalAnalyzer = fieldType().indexAnalyzer();
+            if (originalAnalyzer.equals(fieldType().searchAnalyzer()) == false) {
                 throw new MapperParsingException("Index and search analyzers must be the same");
             }
 
             final Set<SuggesterizedFieldType> suggesterizedFieldTypes = new HashSet<>();
 
             final SuggesterizedFieldType withEdgeNgrams = new SuggesterizedFieldType(name() + "._with_edge_ngrams");
-            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(indexAnalyzer);
-            withEdgeNgrams.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, wrappedWithEdgeNGrams));
-            withEdgeNgrams.setSearchAnalyzer(indexAnalyzer);
+            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(originalAnalyzer);
+            final SearchAsYouTypeAnalyzer unmodified = SearchAsYouTypeAnalyzer.withNeither(originalAnalyzer);
+            withEdgeNgrams.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, wrappedWithEdgeNGrams));
+            withEdgeNgrams.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, unmodified));
             suggesterizedFieldTypes.add(withEdgeNgrams);
 
             for (int i = 2; i <= maxShingleSize; i++) {
@@ -165,23 +171,22 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                 final SuggesterizedFieldType withShinglesAndEdgeNGrams = new SuggesterizedFieldType(name() + "._with_" + numberOfShingles +
                     "_shingles_and_edge_ngrams");
 
-                final SearchAsYouTypeAnalyzer withShinglesAnalyzer = SearchAsYouTypeAnalyzer.withShingles(indexAnalyzer, numberOfShingles);
+                final SearchAsYouTypeAnalyzer withShinglesAnalyzer = SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer, numberOfShingles);
                 final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
-                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(indexAnalyzer, numberOfShingles);
+                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(originalAnalyzer, numberOfShingles);
 
-                withShingles.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
-                withShingles.setSearchAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+                withShingles.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+                withShingles.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
 
                 withShinglesAndEdgeNGrams.setIndexAnalyzer(
-                    new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAndEdgeNGramsAnalyzer));
+                    new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAndEdgeNGramsAnalyzer));
                 withShinglesAndEdgeNGrams.setSearchAnalyzer(
-                    new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+                    new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
 
                 suggesterizedFieldTypes.add(withShingles);
                 suggesterizedFieldTypes.add(withShinglesAndEdgeNGrams);
             }
 
-            fieldType().setSuggesterizedFieldTypes(suggesterizedFieldTypes);
             final Set<SuggesterizedFieldMapper> suggesterizedFieldMappers = suggesterizedFieldTypes.stream()
                 .map(suggesterizedFieldType -> new SuggesterizedFieldMapper(suggesterizedFieldType, context.indexSettings()))
                 .collect(Collectors.toSet());
@@ -212,6 +217,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             this.withShingles = withShingles;
             this.shingleSize = shingleSize;
             this.withEdgeNGrams = withEdgeNGrams;
+        }
+
+        public static SearchAsYouTypeAnalyzer withNeither(Analyzer delegate) {
+            return new SearchAsYouTypeAnalyzer(delegate, false, -1, false);
         }
 
         public static SearchAsYouTypeAnalyzer withShingles(Analyzer delegate, int shingleSize) {
@@ -257,7 +266,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
     }
 
-    public static class SuggesterizedFieldType extends TermBasedFieldType {
+    public static class SuggesterizedFieldType extends StringFieldType {
+
+        SuggesterizedFieldType() {
+            setOmitNorms(true);
+            setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            setTokenized(true);
+        }
 
         SuggesterizedFieldType(String name) {
             setName(name);
@@ -277,7 +292,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
         @Override
         public String typeName() {
-            return SuggesterizedFieldMapper.CONTENT_TYPE;
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -288,7 +303,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
     public static class SuggesterizedFieldMapper extends FieldMapper implements ArrayValueMapperParser { // todo better name
 
-        static final String CONTENT_TYPE = "suggesterized";
+        protected SuggesterizedFieldMapper(String simpleName,
+                                           MappedFieldType fieldType,
+                                           Settings indexSettings,
+                                           CopyTo copyTo) {
+            super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), copyTo);
+        }
 
         protected SuggesterizedFieldMapper(SuggesterizedFieldType fieldType, Settings indexSettings) {
             super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
@@ -304,7 +324,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -314,113 +334,64 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
     }
 
-    public static class SearchAsYouTypeFieldType extends TermBasedFieldType {
+    public static class SearchAsYouTypeFieldMapper extends SuggesterizedFieldMapper {
 
-        private Set<SuggesterizedFieldType> suggesterizedFieldTypes; // todo we might need a more structured way to know which
-        // field type is which
-        // eg we could make a SuggesterizedFieldTypeGroup class that can look up the only edge ngreams field and then also do
-        // number of shingles, true/false edge ngrams
-        // the alternative is do a bunch of string math
+        private Set<SuggesterizedFieldMapper> suggesterizedFieldMappers;
 
-        public SearchAsYouTypeFieldType() {
-            setTokenized(true);
-            // todo we should take in the subfield type here
+        public SearchAsYouTypeFieldMapper(String simpleName,
+                                          MappedFieldType fieldType,
+                                          Set<SuggesterizedFieldMapper> suggesterizedFieldMappers,
+                                          Settings indexSettings,
+                                          CopyTo copyTo) {
+
+            super(simpleName, fieldType, indexSettings, copyTo);
+            this.suggesterizedFieldMappers = suggesterizedFieldMappers;
         }
 
-        public SearchAsYouTypeFieldType(SearchAsYouTypeFieldType reference) {
-            super(reference);
-            if (reference.suggesterizedFieldTypes != null) {
-                this.suggesterizedFieldTypes = reference.suggesterizedFieldTypes.stream().map(SuggesterizedFieldType::clone).collect(Collectors.toSet());
+        @Override
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+            final String value = context.externalValueSet()
+                ? context.externalValue().toString()
+                : context.parser().textOrNull();
+
+            if (value == null) {
+                return;
+            }
+
+            Field field = new Field(fieldType().name(), value, fieldType());
+            fields.add(field);
+
+            if (fieldType().omitNorms()) {
+                createFieldNamesField(context, fields);
+            }
+
+            for (SuggesterizedFieldMapper fieldMapper : suggesterizedFieldMappers) {
+                fieldMapper.addField(value, fields);
             }
         }
 
-        public Set<SuggesterizedFieldType> getSuggesterizedFieldTypes() {
-            return this.suggesterizedFieldTypes;
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(simpleName());
+            builder.field("type", CONTENT_TYPE);
+            if (fieldType().indexAnalyzer().name().equals("default") == false) {
+                builder.field("analyzer", fieldType().indexAnalyzer().name());
+            }
+            builder.endObject();
+            return builder;
+            // todo we should provide more info about the under the hood fields, or at least how they're analyzed
         }
 
-        public void setSuggesterizedFieldTypes(Set<SuggesterizedFieldType> suggesterizedFieldTypes) {
-            checkIfFrozen();
-            this.suggesterizedFieldTypes = suggesterizedFieldTypes;
+        @SuppressWarnings("unchecked") // todo fix
+        @Override
+        public Iterator<Mapper> iterator() {
+            final List<Mapper> mappers = new ArrayList<>(suggesterizedFieldMappers);
+            return Iterators.concat(super.iterator(), mappers.iterator());
         }
 
         @Override
-        public MappedFieldType clone() {
-            return new SearchAsYouTypeFieldType(this);
-        }
-
-        @Override
-        public String typeName() {
+        protected String contentType() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-        }
-    }
-
-    public static final String CONTENT_TYPE = "search_as_you_type";
-
-    private Set<SuggesterizedFieldMapper> suggesterizedFieldMappers;
-
-    public SearchAsYouTypeFieldMapper(String simpleName,
-                                      MappedFieldType fieldType,
-                                      Set<SuggesterizedFieldMapper> suggesterizedFieldMappers,
-                                      Settings indexSettings,
-                                      CopyTo copyTo) {
-
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), copyTo);
-        this.suggesterizedFieldMappers = suggesterizedFieldMappers;
-    }
-
-    @Override
-    public SearchAsYouTypeFieldType fieldType() {
-        return (SearchAsYouTypeFieldType) super.fieldType();
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final String value = context.externalValueSet()
-            ? context.externalValue().toString()
-            : context.parser().textOrNull();
-
-        if (value == null) {
-            return;
-        }
-
-        Field field = new Field(fieldType().name(), value, fieldType());
-        fields.add(field);
-
-        if (fieldType().omitNorms()) {
-            createFieldNamesField(context, fields);
-        }
-
-        for (SuggesterizedFieldMapper fieldMapper : suggesterizedFieldMappers) {
-            fieldMapper.addField(value, fields);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
-        builder.field("type", CONTENT_TYPE);
-        if (fieldType().indexAnalyzer().name().equals("default") == false) {
-            builder.field("analyzer", fieldType().indexAnalyzer().name());
-        }
-        builder.endObject();
-        return builder;
-        // todo we should provide more info about the under the hood fields, or at least how they're analyzed
-    }
-
-    @SuppressWarnings("unchecked") // todo fix
-    @Override
-    public Iterator<Mapper> iterator() {
-        final List<Mapper> mappers = new ArrayList<>(suggesterizedFieldMappers);
-        return Iterators.concat(super.iterator(), mappers.iterator());
-    }
-
-    @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
     }
 }

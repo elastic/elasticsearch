@@ -23,10 +23,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SuggesterizedFieldMapper;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SuggesterizedFieldType;
+import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMappers.SearchAsYouTypeAnalyzer;
+import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMappers.SearchAsYouTypeFieldMapper;
+import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMappers.SuggesterizedFieldMapper;
+import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMappers.SuggesterizedFieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -36,9 +36,8 @@ import java.util.Collection;
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
-public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
+public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -131,7 +130,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mapper, instanceOf(SearchAsYouTypeFieldMapper.class));
         final SearchAsYouTypeFieldMapper searchAsYouTypeFieldMapper = (SearchAsYouTypeFieldMapper) mapper;
 
-        final SearchAsYouTypeFieldType fieldType = searchAsYouTypeFieldMapper.fieldType();
+        final SuggesterizedFieldType fieldType = searchAsYouTypeFieldMapper.fieldType();
         for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
@@ -145,15 +144,21 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         final NamedAnalyzer namedIndexAnalyzer = fieldType.indexAnalyzer();
         final NamedAnalyzer namedSearchAnalyzer = fieldType.searchAnalyzer();
         assertThat(namedIndexAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-        assertThat(namedSearchAnalyzer.analyzer(), not(instanceOf(SearchAsYouTypeAnalyzer.class)));
+        assertThat(namedSearchAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
         final SearchAsYouTypeAnalyzer indexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
+        final SearchAsYouTypeAnalyzer searchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.searchAnalyzer().analyzer();
 
         for (NamedAnalyzer analyzer : asList(namedIndexAnalyzer, namedSearchAnalyzer)) {
             assertThat(analyzer.name(), equalTo(analyzerName));
+
         }
 
-        assertFalse(indexAnalyzer.isWithShingles());
+        for (SearchAsYouTypeAnalyzer analyzer : asList(indexAnalyzer, searchAnalyzer)) {
+            assertFalse(analyzer.isWithShingles());
+        }
+
         assertTrue(indexAnalyzer.isWithEdgeNGrams());
+        assertFalse(searchAnalyzer.isWithEdgeNGrams());
 
         assertThat(namedSearchAnalyzer.name(), equalTo(analyzerName));
     }

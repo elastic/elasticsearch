@@ -31,7 +31,7 @@ public class SearchAsYouTypePlugin extends Plugin implements MapperPlugin, Searc
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(SearchAsYouTypeFieldMapper.CONTENT_TYPE, new SearchAsYouTypeFieldMapper.TypeParser());
+        return singletonMap(SearchAsYouTypeFieldMappers.CONTENT_TYPE, new SearchAsYouTypeFieldMappers.TypeParser());
     }
 
 }

@@ -38,7 +38,6 @@ import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -249,22 +248,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Returns the analyzer to use for the query. */
     public String analyzer() {
         return this.analyzer;
-    }
-
-    @Deprecated
-    public Boolean useAllFields() {
-        return fieldsAndWeights.size() == 1 && fieldsAndWeights.keySet().stream().anyMatch(Regex::isMatchAllPattern);
-    }
-
-    /**
-     * This setting is deprecated, set {@link #field(String)} to "*" instead.
-     */
-    @Deprecated
-    public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields != null && useAllFields) {
-            this.fieldsAndWeights = Collections.singletonMap("*", 1.0f);
-        }
-        return this;
     }
 
     /**

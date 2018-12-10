@@ -92,7 +92,7 @@ public class ConfigTests extends ESTestCase {
 
     public void testObsoleteTimeZone() {
         DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "Canada/Mountain");
-        assertThat(config.getTimeZone(), equalTo("America/Edmonton"));
+        assertThat(config.getTimeZone(), equalTo("Canada/Mountain"));
     }
 
     public void testEmptyHistoField() {

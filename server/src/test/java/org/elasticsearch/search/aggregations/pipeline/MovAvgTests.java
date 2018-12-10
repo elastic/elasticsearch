@@ -22,16 +22,14 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.HoltWintersModel;
 import org.elasticsearch.search.aggregations.pipeline.HoltWintersModel.SeasonalityType;
-import org.elasticsearch.search.aggregations.pipeline.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregationBuilder> {
 
@@ -116,5 +114,33 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         assertNotSame(newAgg, expected);
         assertEquals(expected, newAgg);
         assertEquals(expected.hashCode(), newAgg.hashCode());
+    }
+    
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(createTestAggregatorFactory());
+
+        final MovAvgPipelineAggregationBuilder builder = new MovAvgPipelineAggregationBuilder("name", "valid");
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
+
+    /**
+     * The validation should throw an IllegalArgumentException, since parent
+     * aggregation is not a type of HistogramAggregatorFactory,
+     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
+     */
+    public void testValidateException() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(createTestAggregatorFactory());
+        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+
+        final MovAvgPipelineAggregationBuilder builder = new MovAvgPipelineAggregationBuilder("name", "invalid_agg>metric");
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
+        assertEquals("moving_avg aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
     }
 }

@@ -1418,5 +1418,4 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static boolean inFipsJvm() {
         return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
     }
-
 }

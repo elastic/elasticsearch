@@ -54,7 +54,7 @@ is only relevant for `term` and `recursive` strategies.
 parameter defines the approach for how to represent shapes at indexing
 and search time. It also influences the capabilities available so it
 is recommended to let Elasticsearch set this parameter automatically.
-There are three strategies available: `recursive`, and `term`.
+There are two strategies available: `recursive`, and `term`.
 Recursive and Term strategies are deprecated and will be removed in a
 future version. While they are still available, the Term strategy
 supports point types only (the `points_only` parameter will be

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
+import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
@@ -507,7 +508,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "connection_granted")
-                    .with(ORIGIN_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
+                    .with(ORIGIN_TYPE_FIELD_NAME,
+                            IPFilter.HTTP_PROFILE_NAME.equals(profile) ? REST_ORIGIN_FIELD_VALUE : TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                     .with(RULE_FIELD_NAME, rule.toString())
@@ -523,7 +525,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "connection_denied")
-                    .with(ORIGIN_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
+                    .with(ORIGIN_TYPE_FIELD_NAME,
+                            IPFilter.HTTP_PROFILE_NAME.equals(profile) ? REST_ORIGIN_FIELD_VALUE : TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                     .with(RULE_FIELD_NAME, rule.toString())

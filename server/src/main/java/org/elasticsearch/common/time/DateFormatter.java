@@ -131,7 +131,7 @@ public interface DateFormatter {
 
     static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input) == false) {
-            throw new IllegalArgumentException("date formatter pattern must not be empty");
+            throw new IllegalArgumentException("No date pattern provided");
         }
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {

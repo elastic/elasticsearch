@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -53,7 +52,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     private Map<String, Aggregator> subAggregatorbyName;
     private final List<PipelineAggregator> pipelineAggregators;
-    private final CircuitBreakerService breakerService;
+    private final CircuitBreaker circuitBreaker;
     private long requestBytesUsed;
 
     /**
@@ -72,7 +71,8 @@ public abstract class AggregatorBase extends Aggregator {
         this.metaData = metaData;
         this.parent = parent;
         this.context = context;
-        this.breakerService = context.bigArrays().breakerService();
+        this.circuitBreaker = context.bigArrays().breakerService();
+        assert CircuitBreaker.REQUEST.equals(circuitBreaker.getName()) : "Must be the " + CircuitBreaker.REQUEST + " circuit breaker";
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this);
         context.addReleasable(this, Lifetime.PHASE);
@@ -122,13 +122,9 @@ public abstract class AggregatorBase extends Aggregator {
     protected long addRequestCircuitBreakerBytes(long bytes) {
         // Only use the potential to circuit break if bytes are being incremented
         if (bytes > 0) {
-            this.breakerService
-                    .getBreaker(CircuitBreaker.REQUEST)
-                    .addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
+            this.circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
-            this.breakerService
-                    .getBreaker(CircuitBreaker.REQUEST)
-                    .addWithoutBreaking(bytes);
+            this.circuitBreaker.addWithoutBreaking(bytes);
         }
         this.requestBytesUsed += bytes;
         return requestBytesUsed;
@@ -247,7 +243,7 @@ public abstract class AggregatorBase extends Aggregator {
         try {
             doClose();
         } finally {
-            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-this.requestBytesUsed);
+            this.circuitBreaker.addWithoutBreaking(-this.requestBytesUsed);
         }
     }
 

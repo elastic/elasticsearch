@@ -28,6 +28,7 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -182,7 +183,7 @@ public abstract class TransportClient extends AbstractClient {
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
-            BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService);
+            BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
             resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,

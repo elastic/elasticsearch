@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -191,7 +192,7 @@ public class TcpTransportTests extends ESTestCase {
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
-                new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null) {
 
                 @Override
                 protected FakeServerChannel bind(String name, InetSocketAddress address) throws IOException {

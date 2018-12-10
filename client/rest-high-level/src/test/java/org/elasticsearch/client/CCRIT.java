@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -32,8 +33,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowStatsRequest;
+import org.elasticsearch.client.ccr.FollowStatsResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
+import org.elasticsearch.client.ccr.IndicesFollowStats;
 import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
@@ -106,20 +110,33 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         SearchResponse leaderSearchResponse = highLevelClient().search(leaderSearchRequest, RequestOptions.DEFAULT);
         assertThat(leaderSearchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        assertBusy(() -> {
-            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
-            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
-            List<ShardFollowStats> shardFollowStats = ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
-            long followerGlobalCheckpoint = shardFollowStats.stream()
-                .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
-                .max()
-                .getAsLong();
-            assertThat(followerGlobalCheckpoint, equalTo(0L));
+        try {
+            assertBusy(() -> {
+                FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
+                FollowStatsResponse followStatsResponse =
+                    execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
+                List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+                long followerGlobalCheckpoint = shardFollowStats.stream()
+                    .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
+                    .max()
+                    .getAsLong();
+                assertThat(followerGlobalCheckpoint, equalTo(0L));
 
-            SearchRequest followerSearchRequest = new SearchRequest("follower");
-            SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
-            assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        });
+                SearchRequest followerSearchRequest = new SearchRequest("follower");
+                SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
+                assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+            });
+        } catch (Exception e) {
+            IndicesFollowStats followStats = ccrClient.getCcrStats(new CcrStatsRequest(), RequestOptions.DEFAULT).getIndicesFollowStats();
+            for (Map.Entry<String, List<ShardFollowStats>> entry : followStats.getShardFollowStats().entrySet()) {
+                for (ShardFollowStats shardFollowStats : entry.getValue()) {
+                    if (shardFollowStats.getFatalException() != null) {
+                        logger.warn(new ParameterizedMessage("fatal shard follow exception {}", shardFollowStats.getShardId()),
+                            shardFollowStats.getFatalException());
+                    }
+                }
+            }
+        }
 
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
         AcknowledgedResponse pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
@@ -132,9 +149,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(resumeFollowResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {
-            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
-            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
-            List<ShardFollowStats> shardFollowStats = ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+            FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
+            FollowStatsResponse followStatsResponse =
+                execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
+            List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
             long followerGlobalCheckpoint = shardFollowStats.stream()
                 .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
                 .max()

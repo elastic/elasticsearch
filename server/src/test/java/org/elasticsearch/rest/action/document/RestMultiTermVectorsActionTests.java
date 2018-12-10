@@ -19,40 +19,26 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
+public class RestMultiTermVectorsActionTests extends RestActionTestCase {
 
-public class RestMultiTermVectorsActionTests extends ESTestCase {
-    private RestController controller;
-
-    public void setUp() throws Exception {
-        super.setUp();
-        controller = new RestController(Collections.emptySet(), null,
-            mock(NodeClient.class),
-            new NoneCircuitBreakerService(),
-            new UsageService());
-        new RestMultiTermVectorsAction(Settings.EMPTY, controller);
+    @Before
+    public void setUpAction() {
+        new RestMultiTermVectorsAction(Settings.EMPTY, controller());
     }
 
     public void testTypeInPath() {
@@ -61,7 +47,7 @@ public class RestMultiTermVectorsActionTests extends ESTestCase {
             .withPath("/some_index/some_type/_mtermvectors")
             .build();
 
-        performRequest(request);
+        dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
@@ -75,7 +61,7 @@ public class RestMultiTermVectorsActionTests extends ESTestCase {
             .withParams(params)
             .build();
 
-        performRequest(request);
+        dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
@@ -95,13 +81,7 @@ public class RestMultiTermVectorsActionTests extends ESTestCase {
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
 
-        performRequest(request);
+        dispatchRequest(request);
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
     }
 }

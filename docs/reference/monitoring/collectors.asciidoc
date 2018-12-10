@@ -67,7 +67,7 @@ routing table without any network timeout issues unlike most other collectors.
 Each shard is represented by a separate monitoring document.
 | Jobs            | `job_stats`
 | Gathers details about all machine learning job statistics (for example,
-`GET /_xpack/ml/anomaly_detectors/_stats`).
+`GET /_ml/anomaly_detectors/_stats`).
 +
 This information only needs to be collected once, so it is collected on the
 _elected_ master node. However, for the master node to be able to perform the

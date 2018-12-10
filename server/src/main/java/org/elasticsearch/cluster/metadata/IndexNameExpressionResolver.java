@@ -935,8 +935,8 @@ public class IndexNameExpressionResolver {
                                     }
                                     dateFormatter = DateTimeFormat.forPattern(dateFormatterPattern);
                                 }
-                                DateTimeFormatter parser = dateFormatter.withZone(timeZone);
-                                FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
+                                DateTimeFormatter parser = dateFormatter.withLocale(Locale.ROOT).withZone(timeZone);
+                                FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, parser);
                                 DateMathParser dateMathParser = formatter.toDateMathParser();
                                 long millis = dateMathParser.parse(mathExpression, context::getStartTime, false,
                                     DateUtils.dateTimeZoneToZoneId(timeZone));

@@ -268,7 +268,7 @@ public class RangeFieldMapper extends FieldMapper {
                         + "] to incompatible type [" + other.rangeType.name + "].");
                 }
                 if (this.rangeType == RangeType.DATE) {
-                    if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
+                    if (Objects.equals(dateTimeFormatter().pattern(), other.dateTimeFormatter().pattern()) == false) {
                         conflicts.add("mapper [" + name()
                             + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
                     }

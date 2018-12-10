@@ -24,6 +24,8 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.security.Security;
+
 public class JvmInfoTests extends ESTestCase {
 
     public void testUseG1GC() {
@@ -38,7 +40,7 @@ public class JvmInfoTests extends ESTestCase {
     }
 
     public void testDnsTtl() {
-        String propertyValue = System.getProperty("networkaddress.cache.ttl");
+        String propertyValue = Security.getProperty("networkaddress.cache.ttl");
         if (Strings.isNullOrEmpty(propertyValue)) {
             assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), "unlimited");
         } else {

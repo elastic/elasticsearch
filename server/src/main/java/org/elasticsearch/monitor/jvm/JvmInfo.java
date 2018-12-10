@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -508,7 +509,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         static final String MEMORY_POOLS = "memory_pools";
         static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
         static final String INPUT_ARGUMENTS = "input_arguments";
-        static final String DNS_CACHE_EXPIRATION = "dns_cache_expiration";
+        static final String DNS_CACHE_EXPIRATION = "dns_cache_expiration_in_seconds";
     }
 
     public static class Mem implements Writeable {

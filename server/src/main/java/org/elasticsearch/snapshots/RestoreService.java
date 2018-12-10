@@ -332,7 +332,7 @@ public class RestoreService implements ClusterStateApplier {
 
                         shards = shardsBuilder.build();
                         RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshot, overallState(RestoreInProgress.State.INIT, shards), Collections.unmodifiableList(new ArrayList<>(indices.keySet())), shards);
-                        List<RestoreInProgress.Entry> newEntries;
+                        final List<RestoreInProgress.Entry> newEntries;
                         if (restoreInProgress != null) {
                             newEntries = new ArrayList<>(restoreInProgress.entries());
                         } else {

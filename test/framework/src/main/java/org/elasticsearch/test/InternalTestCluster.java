@@ -1729,7 +1729,7 @@ public final class InternalTestCluster extends TestCluster {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
 
-        if (callback.validateClusterForming() && excludedNodeIds.isEmpty() == false) {
+        if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size if updateMinMaster == true, because we need the
             // second node to join in order to increment min_master_nodes back to 2.
             // we also have to do via the node that was just restarted as it may be that the master didn't yet process

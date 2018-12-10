@@ -164,7 +164,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
             searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         searchRequest.routing(request.param("routing"));

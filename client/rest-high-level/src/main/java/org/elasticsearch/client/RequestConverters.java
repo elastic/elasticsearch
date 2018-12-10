@@ -354,8 +354,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request search(SearchRequest searchRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
+    /**
+     * Convert a {@linkplain SearchRequest} into a {@linkplain Request}.
+     * @param searchRequest the request to convert
+     * @param searchEndpoint the name of the search endpoint. {@literal _search}
+     *    for standard searches and {@literal _rollup_search} for rollup
+     *    searches.
+     */
+    static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
 
         Params params = new Params(request);
         addSearchRequestParams(params, searchRequest);

@@ -48,6 +48,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
@@ -887,6 +888,23 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
         Assert.assertThat(request.getEndpoint(),
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
+        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+        Assert.assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteTemplateRequest() {
+        Map<String, String> encodes = new HashMap<>();
+        encodes.put("log", "log");
+        encodes.put("1", "1");
+        encodes.put("template#1", "template%231");
+        encodes.put("template-*", "template-*");
+        encodes.put("foo^bar", "foo%5Ebar");
+        DeleteIndexTemplateRequest deleteTemplateRequest = new DeleteIndexTemplateRequest().name(randomFrom(encodes.keySet()));
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomMasterTimeout(deleteTemplateRequest, expectedParams);
+        Request request = IndicesRequestConverters.deleteTemplate(deleteTemplateRequest);
+        Assert.assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + encodes.get(deleteTemplateRequest.name())));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
     }

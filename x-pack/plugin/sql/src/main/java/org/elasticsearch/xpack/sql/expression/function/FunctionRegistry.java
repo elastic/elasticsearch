@@ -96,7 +96,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -442,15 +442,17 @@ public class FunctionRegistry {
         T build(Location location, Expression lhs, Expression rhs);
     }
 
+    /**
+     * Main method to register a function/
+     * @param names Must always have at least one entry which is the method's primary name
+     *
+     */
     @SuppressWarnings("overloads")
     private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
-            boolean datetime, String... names) {
+                                          boolean datetime, String... names) {
         Check.isTrue(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
-        List<String> aliases = new ArrayList<>(names.length - 1);
-        for (int i = 1; i < names.length; i++) {
-            aliases.add(names[i]);
-        }
+        List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
                 return builder.build(uf.location(), uf.children(), distinct, cfg);

@@ -86,8 +86,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
      * A query limiting the visible documents in the indices. Can be null, in which
      * case all documents are visible.
      */
-    public @Nullable
-    String getQuery() {
+    public @Nullable String getQuery() {
         return this.query;
     }
 

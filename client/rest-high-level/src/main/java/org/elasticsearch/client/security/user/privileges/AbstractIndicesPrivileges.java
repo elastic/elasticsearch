@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -158,7 +159,7 @@ public abstract class AbstractIndicesPrivileges {
             if (grantedFields != null) {
                 builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
             }
-            if (hasDeniedFields()) {
+            if (deniedFields != null) {
                 builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
             }
             return builder.endObject();
@@ -169,7 +170,7 @@ public abstract class AbstractIndicesPrivileges {
             try {
                 return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
             } catch (IOException e) {
-                throw new RuntimeException("Unexpected", e);
+                throw new UncheckedIOException("Unexpected", e);
             }
         }
 

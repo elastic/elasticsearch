@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -31,7 +30,7 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, "/_rollup/job/{id}", this,
-                GET, Rollup.BASE_PATH +  "job/{id}/", deprecationLogger);
+                GET, "/_xpack/rollup/job/{id}/", deprecationLogger);
     }
 
     @Override

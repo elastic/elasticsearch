@@ -110,6 +110,7 @@ public class MlConfigMigrator {
         Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
         if (minNodeVersion.before(MIN_NODE_VERSION)) {
             listener.onResponse(Boolean.FALSE);
+            return;
         }
 
         if (migrationInProgress.compareAndSet(false, true) == false) {

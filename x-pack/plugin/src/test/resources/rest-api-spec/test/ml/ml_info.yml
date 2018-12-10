@@ -1,7 +1,7 @@
 ---
 "Test ml info":
   - do:
-      xpack.ml.info: {}
+      ml.info: {}
   - match: { defaults.anomaly_detectors.model_memory_limit: "1gb" }
   - match: { defaults.anomaly_detectors.categorization_examples_limit: 4 }
   - match: { defaults.anomaly_detectors.model_snapshot_retention_days: 1 }
@@ -15,7 +15,7 @@
             xpack.ml.max_model_memory_limit: "512mb"
 
   - do:
-      xpack.ml.info: {}
+      ml.info: {}
   - match: { defaults.anomaly_detectors.model_memory_limit: "512mb" }
   - match: { defaults.anomaly_detectors.categorization_examples_limit: 4 }
   - match: { defaults.anomaly_detectors.model_snapshot_retention_days: 1 }
@@ -29,7 +29,7 @@
             xpack.ml.max_model_memory_limit: "6gb"
 
   - do:
-      xpack.ml.info: {}
+      ml.info: {}
   - match: { defaults.anomaly_detectors.model_memory_limit: "1gb" }
   - match: { defaults.anomaly_detectors.categorization_examples_limit: 4 }
   - match: { defaults.anomaly_detectors.model_snapshot_retention_days: 1 }

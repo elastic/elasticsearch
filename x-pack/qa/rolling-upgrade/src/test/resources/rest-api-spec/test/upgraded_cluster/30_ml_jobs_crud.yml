@@ -9,11 +9,11 @@ setup:
 ---
 "Test open old jobs":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: old-cluster-job
   - match: { jobs.0.state: "opened" }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
@@ -22,11 +22,11 @@ setup:
   - is_true: jobs.0.open_time
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: mixed-cluster-job
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: mixed-cluster-job
   - match: { jobs.0.state: "opened" }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
@@ -35,61 +35,61 @@ setup:
   - is_true: jobs.0.open_time
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: mixed-cluster-job
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: old-cluster-job
   - match: { count: 1 }
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: mixed-cluster-job
   - match: { count: 1 }
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: old-cluster-job
   - match: { acknowledged: true }
 
   - do:
       catch: missing
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: mixed-cluster-job
   - match: { acknowledged: true }
 
   - do:
       catch: missing
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: mixed-cluster-job
 
 ---
 "Test job with no model memory limit has established model memory after reopening":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: no-model-memory-limit-job
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: no-model-memory-limit-job
   - is_true: jobs.0.established_model_memory
   - lt: { jobs.0.established_model_memory: 100000 }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: no-model-memory-limit-job
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: no-model-memory-limit-job
   - match: { acknowledged: true }
 
@@ -97,7 +97,7 @@ setup:
 "Test job with pre 6.4 rules":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: job-with-old-rules
   - match: { count: 1 }
   - is_false: jobs.0.analysis_config.detectors.0.rules
@@ -107,7 +107,7 @@ setup:
 "Test get job with function shortcut should expand":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: old-cluster-function-shortcut-expansion
   - match: { count: 1 }
   - match: { jobs.0.analysis_config.detectors.0.function: "non_zero_count" }

@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -135,25 +135,7 @@ public class AutoDetectResultProcessor {
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            bucketCount = 0;
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            while (iterator.hasNext()) {
-                try {
-                    AutodetectResult result = iterator.next();
-                    processResult(context, result);
-                    if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
-                    }
-                } catch (Exception e) {
-                    if (processKilled) {
-                        throw e;
-                    }
-                    if (process.isProcessAliveAfterWaiting() == false) {
-                        throw e;
-                    }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
-                }
-            }
+            readResults(process, context);
 
             try {
                 if (processKilled == false) {
@@ -185,6 +167,32 @@ public class AutoDetectResultProcessor {
         } finally {
             flushListener.clear();
             completionLatch.countDown();
+        }
+    }
+
+    private void readResults(AutodetectProcess process, Context context) {
+        bucketCount = 0;
+        try {
+            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+            while (iterator.hasNext()) {
+                try {
+                    AutodetectResult result = iterator.next();
+                    processResult(context, result);
+                    if (result.getBucket() != null) {
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                    }
+                } catch (Exception e) {
+                    if (processKilled) {
+                        throw e;
+                    }
+                    if (process.isProcessAliveAfterWaiting() == false) {
+                        throw e;
+                    }
+                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                }
+            }
+        } finally {
+            process.consumeAndCloseOutputStream();
         }
     }
 

@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.Strings;
-
 import java.util.Locale;
 
 /**
@@ -19,7 +17,7 @@ public enum Mode {
     ODBC;
 
     public static Mode fromString(String mode) {
-        if (Strings.isEmpty(mode)) {
+        if (mode == null || mode.isEmpty()) {
             return PLAIN;
         }
         return Mode.valueOf(mode.toUpperCase(Locale.ROOT));

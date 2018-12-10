@@ -401,7 +401,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // create _state of IndexMetaData
         try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
             final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
-            IndexMetaData.FORMAT.write(indexMetaData, paths);
+            IndexMetaData.FORMAT.writeAndCleanup(indexMetaData, paths);
             logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));
         }
     }

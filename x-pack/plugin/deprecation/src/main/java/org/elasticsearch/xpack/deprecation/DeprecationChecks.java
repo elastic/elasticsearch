@@ -38,7 +38,6 @@ public class DeprecationChecks {
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::baseSimilarityDefinedCheck,
-            IndexDeprecationChecks::coercionCheck,
             IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
             IndexDeprecationChecks::indexSharedFileSystemCheck,
             IndexDeprecationChecks::indexStoreTypeCheck,

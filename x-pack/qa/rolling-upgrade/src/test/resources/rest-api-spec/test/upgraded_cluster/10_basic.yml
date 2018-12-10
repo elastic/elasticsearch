@@ -10,6 +10,7 @@
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 
@@ -19,6 +20,7 @@
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 

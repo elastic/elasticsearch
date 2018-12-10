@@ -215,6 +215,8 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
+        // TODO: Move to Zen2 once we support rolling upgrade with Zen2
+        setting 'discovery.type', 'zen'
       }
     }
 

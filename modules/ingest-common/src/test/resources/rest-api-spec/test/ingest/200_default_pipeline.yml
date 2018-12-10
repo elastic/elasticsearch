@@ -31,6 +31,8 @@ teardown:
           settings:
             index:
               default_pipeline: "my_pipeline"
+          aliases:
+            test_alias: {}
 
   - do:
       index:
@@ -49,9 +51,24 @@ teardown:
 
   - do:
       index:
+        index: test_alias
+        type: test
+        id: 2
+        body: {bytes_source_field: "1kb"}
+
+  - do:
+      get:
         index: test
         type: test
         id: 2
+  - match: { _source.bytes_source_field: "1kb" }
+  - match: { _source.bytes_target_field: 1024 }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 3
         pipeline: "_none"
         body: {bytes_source_field: "1kb"}
         
@@ -59,15 +76,15 @@ teardown:
       get:
         index: test
         type: test
-        id: 2
+        id: 3
   - match: { _source.bytes_source_field: "1kb" }
   - is_false: _source.bytes_target_field
-  
+
   - do:
       catch:  bad_request
       index:
         index: test
         type: test
-        id: 3
+        id: 4
         pipeline: ""
         body: {bytes_source_field: "1kb"}

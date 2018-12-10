@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -56,13 +57,13 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                Response statsResponse = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+                Response statsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
                 ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
                 String state = objectPath.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                     case "stopped":
-                        Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
+                        Response startResponse = adminClient().performRequest(new Request("POST", "/_watcher/_start"));
                         Map<String, Object> responseMap = entityAsMap(startResponse);
                         assertThat(responseMap, hasEntry("acknowledged", true));
                         throw new AssertionError("waiting until stopped state reached started state");
@@ -94,7 +95,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                Response statsResponse = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+                Response statsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
                 ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
                 String state = objectPath.evaluate("stats.0.watcher_state");
 
@@ -107,7 +108,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state to stop");
                 case "started":
-                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
+                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_watcher/_stop"));
                     String body = EntityUtils.toString(stopResponse.getEntity());
                     assertThat(body, containsString("\"acknowledged\":true"));
                     throw new AssertionError("waiting until started state reached stopped state");
@@ -290,7 +291,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        Request request = new Request("PUT", "/_xpack/watcher/watch/" + watchId);
+        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
         request.setJsonEntity(Strings.toString(builder));
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
@@ -323,6 +324,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 builder.endObject();
 
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);

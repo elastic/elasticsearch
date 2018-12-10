@@ -48,7 +48,8 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::delimitedPayloadFilterCheck,
-            IndexDeprecationChecks::indexNameCheck
+            IndexDeprecationChecks::indexNameCheck,
+            IndexDeprecationChecks::nodeLeftDelayedTimeCheck
             ));
 
     /**

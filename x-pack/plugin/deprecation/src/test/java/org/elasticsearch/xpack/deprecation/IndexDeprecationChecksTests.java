@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -72,6 +73,33 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1,100))
             .numberOfReplicas(randomIntBetween(1,15))
+            .build();
+        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
+        assertTrue(noIssues.isEmpty());
+    }
+
+    public void testNodeLeftDelayedTimeCheck() {
+        String negativeTimeValue = "-" + randomPositiveTimeValue();
+        String indexName = randomAlphaOfLengthBetween(0, 10);
+
+        final IndexMetaData badIndex = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), negativeTimeValue))
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 15))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Negative values for index.unassigned.node_left.delayed_timeout are deprecated and should be set to 0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_index_unassigned_node_left_delayed_timeout_literal_may_no_longer_be_negative",
+            "The index " + indexName + " is set to " + negativeTimeValue);
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(badIndex));
+        assertEquals(singletonList(expected), issues);
+
+        final IndexMetaData goodIndex = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 15))
             .build();
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
         assertTrue(noIssues.isEmpty());

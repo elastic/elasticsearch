@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
@@ -76,4 +77,29 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
         assertTrue(noIssues.isEmpty());
     }
+
+    public void testShardOnStartupCheck() {
+        String indexName = randomAlphaOfLengthBetween(0, 10);
+        final IndexMetaData badIndex = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "fix"))
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 15))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "The value 'fix' for setting index.shard.check_on_startup is no longer valid",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_fix_literal_value_for_literal_index_shard_check_on_startup_literal_is_removed",
+            "The index [" + indexName + "] has the setting index.shard.check_on_startup = 'fix'. " +
+                "Valid values are 'true', 'false', and 'checksum'");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(badIndex));
+        assertEquals(singletonList(expected), issues);
+        final IndexMetaData goodIndex = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 15))
+            .build();
+        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
+        assertTrue(noIssues.isEmpty());
+    }
+
 }

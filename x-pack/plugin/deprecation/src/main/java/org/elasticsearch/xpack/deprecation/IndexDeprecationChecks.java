@@ -11,7 +11,9 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -116,4 +118,21 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue shardOnStartupCheck(IndexMetaData indexMetaData) {
+        String setting = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();
+        String value = indexMetaData.getSettings().get(setting);
+        if (Strings.isNullOrEmpty(value) == false) {
+            if ("fix".equalsIgnoreCase(value)) {
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "The value 'fix' for setting index.shard.check_on_startup is no longer valid",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                        "#_literal_fix_literal_value_for_literal_index_shard_check_on_startup_literal_is_removed",
+                    "The index [" + indexMetaData.getIndex().getName() + "] has the setting index.shard.check_on_startup = 'fix'. " +
+                        "Valid values are 'true', 'false', and 'checksum'");
+            }
+        }
+        return null;
+    }
 }
+

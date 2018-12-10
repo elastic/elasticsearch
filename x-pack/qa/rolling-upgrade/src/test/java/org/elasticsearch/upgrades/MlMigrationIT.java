@@ -37,12 +37,12 @@ import static org.hamcrest.Matchers.not;
 
 public class MlMigrationIT extends AbstractUpgradeTestCase {
 
-    private static final String OLD_CLUSTER_OPEN_JOB_ID = "migration-old-cluster-open-job";
-    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-old-cluster-started-datafeed";
-    private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-old-cluster-closed-job";
-    private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-old-cluster-stopped-datafeed";
-    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = "migration-old-cluster-closed-job-extra";
-    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = "migration-old-cluster-stopped-datafeed-extra";
+    private static final String OLD_CLUSTER_OPEN_JOB_ID = "migration-it-old-cluster-open-job";
+    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-it-old-cluster-started-datafeed";
+    private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-it-old-cluster-closed-job";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-it-old-cluster-stopped-datafeed";
+    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = "migration-it-old-cluster-closed-job-extra";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = "migration-it-old-cluster-stopped-datafeed-extra";
 
     @Override
     protected Collection<String> templatesToWaitFor() {

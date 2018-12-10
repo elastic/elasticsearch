@@ -375,7 +375,7 @@ public class Node implements Closeable {
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(bigArrays);
+            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -516,6 +516,7 @@ public class Node implements Closeable {
                     b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                     b.bind(BigArrays.class).toInstance(bigArrays);
+                    b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
@@ -845,7 +846,7 @@ public class Node implements Closeable {
 
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(injector.getInstance(BigArrays.class));
+        toClose.add(injector.getInstance(PageCacheRecycler.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());

@@ -33,7 +33,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
-public class BigArrays implements Releasable {
+public class BigArrays {
 
     public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, false);
 
@@ -81,11 +81,6 @@ public class BigArrays implements Releasable {
 
     static boolean indexIsInt(long index) {
         return index == (int) index;
-    }
-
-    @Override
-    public void close() {
-        recycler.close();
     }
 
     private abstract static class AbstractArrayWrapper extends AbstractArray implements BigArray {

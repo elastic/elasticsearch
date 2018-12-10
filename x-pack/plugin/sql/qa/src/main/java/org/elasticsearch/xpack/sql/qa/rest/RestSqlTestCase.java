@@ -10,18 +10,19 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
 
@@ -101,7 +102,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "");
             } else {
                 response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
-                        ContentType.APPLICATION_JSON), "");
+                        ContentType.APPLICATION_JSON), StringUtils.EMPTY);
             }
 
             Map<String, Object> expected = new HashMap<>();
@@ -122,7 +123,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
         assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
-                ContentType.APPLICATION_JSON), ""));
+                ContentType.APPLICATION_JSON), StringUtils.EMPTY));
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -302,7 +303,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
-        return runSql(mode, sql, "");
+        return runSql(mode, sql, StringUtils.EMPTY);
     }
 
     private Map<String, Object> runSql(String mode, String sql, String suffix) throws IOException {
@@ -353,7 +354,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expected.put("rows", singletonList(singletonList("foo")));
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", " +
                 "\"filter\":{\"match\": {\"test\": \"foo\"}}" + mode(mode) + "}",
-                ContentType.APPLICATION_JSON), ""));
+                ContentType.APPLICATION_JSON), StringUtils.EMPTY));
     }
 
     public void testBasicQueryWithParameters() throws IOException {
@@ -369,7 +370,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expected.put("rows", singletonList(Arrays.asList("foo", 10)));
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
                 "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]"
-                + mode(mode) + "}", ContentType.APPLICATION_JSON), ""));
+                + mode(mode) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY));
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {
@@ -545,10 +546,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         for (int i = 0; i < 20; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
-                response = runSqlAsText("", new StringEntity(request, ContentType.APPLICATION_JSON), "text/plain");
+                response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), "text/plain");
             } else {
-                response = runSqlAsText("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
-                        "text/plain");
+                response = runSqlAsText(StringUtils.EMPTY, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
+                        ContentType.APPLICATION_JSON), "text/plain");
             }
 
             StringBuilder expected = new StringBuilder();
@@ -564,7 +565,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON), ""));
+        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                StringUtils.EMPTY));
 
         Map<String, Object> response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
                 "/close");
@@ -632,7 +634,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
-        return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON), accept);
+        return runSqlAsText(StringUtils.EMPTY, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON), accept);
     }
 
     /**
@@ -710,11 +712,11 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public static String randomMode() {
-        return randomFrom("", "jdbc", "plain");
+        return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
     }
     
     public static String mode(String mode) {
-        return Strings.isEmpty(mode) ? "" : ",\"mode\":\"" + mode + "\"";
+        return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
     }
 
     private void index(String... docs) throws IOException {

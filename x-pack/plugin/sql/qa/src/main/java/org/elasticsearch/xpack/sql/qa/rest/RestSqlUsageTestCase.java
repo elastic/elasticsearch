@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.FeatureMetric;
 import org.junit.Before;
 
@@ -283,7 +284,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             request.setOptions(options);
         }
         request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
-                (ignoreClientType ? "" : ",\"client_id\":\"" + restClient + "\"") + "}",
+                (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}",
                 ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }

@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -206,7 +207,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             datafeedStarted = startMigratedDatafeed(OLD_CLUSTER_STOPPED_DATAFEED_ID);
         }
 
-        waitFroMigration(Collections.singletonList(OLD_CLUSTER_CLOSED_JOB_ID),
+        waitForMigration(Collections.singletonList(OLD_CLUSTER_CLOSED_JOB_ID),
                 Collections.singletonList(OLD_CLUSTER_STOPPED_DATAFEED_ID),
                 Collections.singletonList(OLD_CLUSTER_OPEN_JOB_ID),
                 Collections.singletonList(OLD_CLUSTER_STARTED_DATAFEED_ID));
@@ -235,17 +236,17 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         client().performRequest(closeJob);
 
         // now all jobs should be migrated
-        waitFroMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
+        waitForMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
                 Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID),
                 Collections.emptyList(),
                 Collections.emptyList());
 
         checkJobsMarkedAsMigrated(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID));
 
-        Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID);
-        client().performRequest(deleteJob);
         Request deleteDatafeed = new Request("DELETE", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
         client().performRequest(deleteDatafeed);
+        Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID);
+        client().performRequest(deleteJob);
     }
 
     @SuppressWarnings("unchecked")
@@ -361,7 +362,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void waitFroMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds,
+    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds,
                                   List<String> unMigratedJobs, List<String> unMigratedDatafeeds) throws Exception {
         assertBusy(() -> {
             // wait for the eligible configs to be moved from the clusterstate
@@ -491,7 +492,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             return true;
         } catch (ResponseException e) {
             // a fail request is ok if the error was that the config has not been migrated
-            assertEquals(expectedErrorMessage, e.getMessage());
+            assertThat(e.getMessage(), containsString(expectedErrorMessage));
             assertEquals(503, e.getResponse().getStatusLine().getStatusCode());
             return false;
         }
@@ -520,7 +521,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             return true;
         } catch (ResponseException e) {
             // a fail request is ok if the error was that the config has not been migrated
-            assertEquals(expectedErrorMessage, e.getMessage());
+            assertThat(e.getMessage(), containsString(expectedErrorMessage));
             assertEquals(503, e.getResponse().getStatusLine().getStatusCode());
             return false;
         }

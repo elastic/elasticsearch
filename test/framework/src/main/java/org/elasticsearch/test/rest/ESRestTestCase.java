@@ -129,7 +129,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static Boolean hasXPack;
     private static SortedSet<Version> nodeVersions;
     /**
-     * Should we use the deprecated {@code _xpack} prefix for xpack acounts?
+     * Should we use the deprecated {@code _xpack} prefix for xpack APIs?
      */
     private static Boolean usedDeprecatedXPackEndpoints;
 

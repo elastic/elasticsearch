@@ -120,10 +120,12 @@ indexing each triangle as a 7 dimension point in a BKD tree. This provides
 near perfect spatial resolution (down to 1e-7 decimal degree precision) since all
 spatial relations are computed using an encoded vector representation of the
 original shape instead of a raster-grid representation as used by the
-<<prefix-trees>> indexing approach. While this is the default indexing technique
-prefix trees can still be used by setting the `tree` or `strategy` parameters
-according to the appropriate <<geo-shape-mapping-options>>. Note that these parameters
-are now deprecated and will be removed in a future version.
+<<prefix-trees>> indexing approach. Performance of the tessellator primarily
+depends on the number of vertices that define the polygon/multi-polyogn. While
+this is the default indexing technique prefix trees can still be used by setting
+the `tree` or `strategy` parameters according to the appropriate
+<<geo-shape-mapping-options>>. Note that these parameters are now deprecated
+and will be removed in a future version.
 
 [[prefix-trees]]
 [float]

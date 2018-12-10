@@ -483,8 +483,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    public static Request withOptionalDeprecations(Request request, String... optionalWarnings) {
+    public static Request ignoringXPackDeprecations(Request request, String... optionalWarnings) {
         // TODO use https://github.com/elastic/elasticsearch/pull/36443 instead
+        if (false == usedDeprecatedXPackEndpoints) {
+            return request;
+        }
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
             for (String optionalWarning : optionalWarnings) {
@@ -498,7 +501,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void wipeRollupJobs() throws IOException, InterruptedException {
         final String rollupPrefix = usedDeprecatedXPackEndpoints ? "/_xpack/rollup" : "/_rollup";
-        Response response = adminClient().performRequest(withOptionalDeprecations(
+        Response response = adminClient().performRequest(ignoringXPackDeprecations(
                 new Request("GET", rollupPrefix + "/job/_all"),
                 "[GET /_xpack/rollup/job/{id}/] is deprecated! Use [GET /_rollup/job/{id}] instead."));
         Map<String, Object> jobs = entityAsMap(response);
@@ -518,7 +521,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
-            adminClient().performRequest(withOptionalDeprecations(request,
+            adminClient().performRequest(ignoringXPackDeprecations(request,
                     "[POST /_xpack/rollup/job/{id}/_stop] is deprecated! Use [POST /_rollup/job/{id}/_stop] instead."));
         }
 
@@ -528,7 +531,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             Request request = new Request("DELETE", rollupPrefix + "/job/" + jobId);
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
-            adminClient().performRequest(withOptionalDeprecations(request,
+            adminClient().performRequest(ignoringXPackDeprecations(request,
                     "[DELETE /_xpack/rollup/job/{id}] is deprecated! Use [DELETE /_rollup/job/{id}] instead."));
         }
     }

@@ -117,7 +117,12 @@ public class ClusterBootstrapService {
 
                                 @Override
                                 public void handleException(TransportException exp) {
-                                    logger.warn("discovery attempt failed", exp);
+                                    final Throwable rootCause = exp.getRootCause();
+                                    if (rootCause instanceof ClusterAlreadyBootstrappedException) {
+                                        logger.debug(rootCause.getMessage(), rootCause);
+                                    } else {
+                                        logger.warn("discovery attempt failed", exp);
+                                    }
                                 }
 
                                 @Override

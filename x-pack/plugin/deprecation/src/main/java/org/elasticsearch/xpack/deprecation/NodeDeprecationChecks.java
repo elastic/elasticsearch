@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
@@ -17,6 +18,21 @@ import java.util.stream.Collectors;
  * Node-specific deprecation checks
  */
 public class NodeDeprecationChecks {
+
+    static DeprecationIssue httpEnabledSettingRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(NetworkModule.HTTP_ENABLED.getKey()))
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "HTTP Enabled setting removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "#remove-http-enabled",
+                "nodes with http.enabled set: " + nodesFound);
+        }
+        return null;
+    }
 
     static DeprecationIssue tribeNodeCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()

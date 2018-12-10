@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.dataframe.job.DataFrameJobConfig;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;

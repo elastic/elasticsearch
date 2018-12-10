@@ -84,11 +84,6 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         return Collections.singletonList(TestPlugin.class);
     }
 
-    @Override
-    protected boolean addTestZenDiscovery() {
-        return false;
-    }
-
     /**
      * Register an existing node as a Azure node, exposing its address and details htrough
      *

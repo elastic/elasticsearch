@@ -90,9 +90,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class TypeFieldType extends StringFieldType {
+    public static final class TypeFieldType extends StringFieldType {
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
+        public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using [_type] as a field name in a query is deprecated.";
 
         TypeFieldType() {
         }
@@ -124,6 +125,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
+            deprecationLogger.deprecatedAndMaybeLog("exists_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             return new MatchAllDocsQuery();
         }
 
@@ -134,6 +136,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
+            deprecationLogger.deprecatedAndMaybeLog("term_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             DocumentMapper mapper = context.getMapperService().documentMapper();
             if (mapper == null) {
                 return new MatchNoDocsQuery("No types");
@@ -155,9 +158,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            deprecationLogger.deprecatedAndMaybeLog("range_single_type",
-                    "Running [range] query on [_type] field for an index with a single type."
-                        + " As types are deprecated, this functionality will be removed in future releases.");
+            deprecationLogger.deprecatedAndMaybeLog("range_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             Query result = new MatchAllDocsQuery();
             String type = context.getMapperService().documentMapper().type();
             if (type != null) {

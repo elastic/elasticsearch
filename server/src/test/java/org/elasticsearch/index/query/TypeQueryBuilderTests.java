@@ -75,12 +75,18 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     @Override
     public void testToQuery() throws IOException {
         super.testToQuery();
-        assertWarnings("The [type] query is deprecated, filter on a field instead.");
+        assertWarnings(
+            "The [type] query is deprecated, filter on a field instead.",
+            TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE
+        );
     }
 
     @Override
     public void testMustRewrite() throws IOException {
         super.testMustRewrite();
-        assertWarnings("The [type] query is deprecated, filter on a field instead.");
+        assertWarnings(
+            "The [type] query is deprecated, filter on a field instead.",
+            TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE
+        );
     }
 }

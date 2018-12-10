@@ -81,8 +81,31 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
+        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
     }
 
+    public void testExistsQuery() {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        ft.existsQuery(context);
+        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testRangeQuery() {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Mockito.when(mapperService.documentMapper()).thenReturn(null);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(mapper.type()).thenReturn("my_type");
+        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
+
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        ft.rangeQuery("type1", "type2", true, true, context);
+        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
+    }
 
     static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {
         Document doc = new Document();

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -41,10 +42,16 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         this.username = username;
         this.completeMatch = completeMatch;
         this.cluster = Collections.unmodifiableMap(cluster);
-        this.index = Collections.unmodifiableSet(new TreeSet<>(index));
+        this.index = Collections.unmodifiableSet(sorted(index));
         final Map<String, Set<ResourcePrivileges>> applicationPrivileges = new HashMap<>();
-        application.forEach((key, val) -> applicationPrivileges.put(key, Collections.unmodifiableSet(new TreeSet<>(val))));
+        application.forEach((key, val) -> applicationPrivileges.put(key, Collections.unmodifiableSet(sorted(val))));
         this.application = Collections.unmodifiableMap(applicationPrivileges);
+    }
+
+    private static Set<ResourcePrivileges> sorted(Collection<ResourcePrivileges> resources) {
+        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.resource));
+        set.addAll(resources);
+        return set;
     }
 
     public String getUsername() {

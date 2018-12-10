@@ -452,24 +452,27 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         // to migration. Either the config is migrated or the update
         // is rejected with the expected error
 
-        if (randomBoolean()) {
+        // delete datafeed
+        Request deleteDatafeed = new Request("DELETE", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID);
+        boolean datafeedDeleted = updateDatafeedExpectingSuccessOr503(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID, deleteDatafeed,
+                "cannot delete datafeed as the configuration [" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID
+                        + "] is temporarily pending migration", true);
+
+        if (datafeedDeleted && randomBoolean()) {
+            // delete job if the datafeed that refers to it was deleted  
+            // otherwise the request is invalid
+            Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
+            updateJobExpectingSuccessOr503(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, deleteJob, "cannot update job as the configuration ["
+                    + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "] is temporarily pending migration", true);
+        } else {
             // update job
             Request updateJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "/_update");
             updateJob.setJsonEntity("{\"description\" : \"updated description\"}");
             updateJobExpectingSuccessOr503(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, updateJob, "cannot update job as the configuration ["
                     + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "] is temporarily pending migration", false);
-        } else {
-            // delete job
-            Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
-            updateJobExpectingSuccessOr503(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, deleteJob, "cannot update job as the configuration ["
-                    + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID + "] is temporarily pending migration", true);
         }
 
-        // delete datafeed
-        Request deleteDatafeed = new Request("DELETE", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID);
-        updateDatafeedExpectingSuccessOr503(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID, deleteDatafeed,
-                "cannot delete datafeed as the configuration [" + OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID
-                        + "] is temporarily pending migration", true);
+
     }
 
     @SuppressWarnings("unchecked")

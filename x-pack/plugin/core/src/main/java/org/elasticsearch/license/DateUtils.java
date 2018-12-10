@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;

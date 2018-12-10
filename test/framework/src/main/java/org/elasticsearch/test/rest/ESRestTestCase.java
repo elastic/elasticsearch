@@ -72,6 +72,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -126,7 +127,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient adminClient;
     private static Boolean hasXPack;
-    private static TreeSet<Version> nodeVersions;
+    private static SortedSet<Version> nodeVersions;
+    /**
+     * Should we use the deprecated {@code _xpack} prefix for xpack acounts?
+     */
+    private static Boolean usedDeprecatedXPackEndpoints;
 
     @Before
     public void initClient() throws IOException {
@@ -135,6 +140,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert hasXPack == null;
             assert nodeVersions == null;
+            assert usedDeprecatedXPackEndpoints == null;
             String cluster = System.getProperty("tests.rest.cluster");
             if (cluster == null) {
                 throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
@@ -170,12 +176,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                 }
             }
+            usedDeprecatedXPackEndpoints = nodeVersions.first().before(Version.V_7_0_0);
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
         assert hasXPack != null;
         assert nodeVersions != null;
+        assert usedDeprecatedXPackEndpoints != null;
     }
 
     /**
@@ -207,6 +215,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = null;
             hasXPack = null;
             nodeVersions = null;
+            usedDeprecatedXPackEndpoints = null;
         }
     }
 
@@ -474,10 +483,24 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private void wipeRollupJobs() throws IOException, InterruptedException {
-        String rollupPrefix = nodeVersions.stream().anyMatch(node -> node.before(Version.V_7_0_0)) ? "/_xpack/rollup" : "/_rollup";
+    public static Request withOptionalDeprecations(Request request, String... optionalWarnings) {
+        // TODO use https://github.com/elastic/elasticsearch/pull/36443 instead
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(warnings -> {
+            for (String optionalWarning : optionalWarnings) {
+                warnings.remove(optionalWarning);
+            }
+            return false == warnings.isEmpty();
+        });
+        request.setOptions(options);
+        return request;
+    }
 
-        Response response = adminClient().performRequest(new Request("GET", rollupPrefix + "/job/_all"));
+    private void wipeRollupJobs() throws IOException, InterruptedException {
+        final String rollupPrefix = usedDeprecatedXPackEndpoints ? "/_xpack/rollup" : "/_rollup";
+        Response response = adminClient().performRequest(withOptionalDeprecations(
+                new Request("GET", rollupPrefix + "/job/_all"),
+                "[GET /_xpack/rollup/job/{id}/] is deprecated! Use [GET /_rollup/job/{id}] instead."));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
@@ -495,7 +518,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
-            adminClient().performRequest(request);
+            adminClient().performRequest(withOptionalDeprecations(request,
+                    "[POST /_xpack/rollup/job/{id}/_stop] is deprecated! Use [POST /_rollup/job/{id}/_stop] instead."));
         }
 
         for (Map<String, Object> jobConfig : jobConfigs) {
@@ -504,7 +528,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             Request request = new Request("DELETE", rollupPrefix + "/job/" + jobId);
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
-            adminClient().performRequest(request);
+            adminClient().performRequest(withOptionalDeprecations(request,
+                    "[DELETE /_xpack/rollup/job/{id}] is deprecated! Use [DELETE /_rollup/job/{id}] instead."));
         }
     }
 

@@ -728,8 +728,7 @@ public final class Def {
         } else if (value instanceof Double) {
             return (double)value;
         } else {
-            throw new ClassCastException("cannot implicitly " +
-                    "cast def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to double");
+            throw new ClassCastException("cannot implicitly cast def [" + value.getClass().getCanonicalName() + "] to double");
         }
     }
 
@@ -746,8 +745,7 @@ public final class Def {
         ) {
             return ((Number)value).byteValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to byte");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to byte");
         }
     }
 
@@ -764,8 +762,7 @@ public final class Def {
         ) {
             return ((Number)value).shortValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to short");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to short");
         }
     }
 
@@ -782,8 +779,7 @@ public final class Def {
         ) {
             return (char)((Number)value).intValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to char");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to char");
         }
     }
 
@@ -800,8 +796,7 @@ public final class Def {
         ) {
             return ((Number)value).intValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to int");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to int");
         }
     }
 
@@ -818,8 +813,7 @@ public final class Def {
         ) {
             return ((Number)value).longValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to long");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to long");
         }
     }
 
@@ -836,8 +830,7 @@ public final class Def {
         ) {
             return ((Number)value).floatValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to float");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to float");
         }
     }
 
@@ -854,8 +847,7 @@ public final class Def {
         ) {
             return ((Number)value).doubleValue();
         } else {
-            throw new ClassCastException("cannot explicitly cast " +
-                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to double");
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to double");
         }
     }
 

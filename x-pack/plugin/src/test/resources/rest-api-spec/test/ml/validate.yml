@@ -1,7 +1,7 @@
 ---
 "Test valid job config":
   - do:
-      xpack.ml.validate:
+      ml.validate:
         body:  >
           {
             "analysis_config": {
@@ -21,7 +21,7 @@
 "Test invalid job config":
   - do:
       catch: /.data_description. failed to parse field .format./
-      xpack.ml.validate:
+      ml.validate:
         body:  >
           {
             "analysis_config": {
@@ -39,7 +39,7 @@
 ---
 "Test valid job config with job ID":
   - do:
-      xpack.ml.validate:
+      ml.validate:
         body:  >
           {
             "job_id": "validate-job-config-with-job-id",
@@ -60,7 +60,7 @@
 "Test job config that is invalid only because of the job ID":
   - do:
       catch: /Invalid job_id; '_' can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
-      xpack.ml.validate:
+      ml.validate:
         body:  >
           {
             "job_id": "_",
@@ -81,7 +81,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.validate:
+      ml.validate:
         body:  >
           {
             "model_snapshot_id": "wont-create-with-this-setting",
@@ -95,7 +95,7 @@
 
   - do:
       catch: /The job is configured with fields \[model_snapshot_id\] that are illegal to set at job creation/
-      xpack.ml.validate:
+      ml.validate:
         body:  >
           {
             "model_snapshot_id": "wont-create-with-this-setting",

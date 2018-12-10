@@ -31,11 +31,15 @@ import static org.hamcrest.Matchers.is;
 
 public class ApplicationResourcePrivilegesTests extends AbstractXContentTestCase<ApplicationResourcePrivileges> {
 
-    @Override
-    protected ApplicationResourcePrivileges createTestInstance() {
-        return new ApplicationResourcePrivileges(randomAlphaOfLengthBetween(1, 8),
+    public static ApplicationResourcePrivileges createNewRandom(String name) {
+        return new ApplicationResourcePrivileges(name,
                 Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))),
                 Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))));
+    }
+
+    @Override
+    protected ApplicationResourcePrivileges createTestInstance() {
+        return createNewRandom(randomAlphaOfLengthBetween(1, 8));
     }
 
     @Override

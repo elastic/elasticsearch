@@ -31,7 +31,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 .Example 1: Analyzing transactions with the lat_long function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example1
+PUT _ml/anomaly_detectors/example1
 {
   "analysis_config": {
     "detectors": [{
@@ -79,7 +79,7 @@ format. For example, the following Painless script transforms
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/datafeeds/datafeed-test2
+PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "farequote",
   "indices": ["farequote"],

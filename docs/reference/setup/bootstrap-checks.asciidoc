@@ -236,3 +236,21 @@ versions of the HotSpot JVM.
 The all permission check ensures that the security policy used during bootstrap
 does not grant the `java.security.AllPermission` to Elasticsearch. Running with
 the all permission granted is equivalent to disabling the security manager.
+
+=== Discovery configuration check
+
+By default, when Elasticsearch first starts up it will try and discover other
+nodes running on the same host. If no elected master can be discovered within a
+few seconds then Elasticsearch will form a cluster that includes any other
+nodes that were discovered. It is useful to be able to form this cluster
+without any extra configuration in development mode, but this is unsuitable for
+production because it's possible to form multiple clusters and lose data as a
+result.
+
+This bootstrap check ensures that discovery is not running with the default
+configuration. It can be satisfied by setting at least one of the following
+properties:
+
+- `discovery.zen.ping.unicast.hosts`
+- `discovery.zen.hosts_provider`
+- `cluster.initial_master_nodes`

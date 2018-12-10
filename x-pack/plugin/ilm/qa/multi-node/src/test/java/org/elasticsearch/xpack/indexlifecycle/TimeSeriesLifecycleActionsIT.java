@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -453,6 +455,31 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertThat(ex.getMessage(), containsString("invalid policy name"));
     }
 
+    public void testDeletePolicyInUse() throws IOException {
+        String managedIndex1 = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
+        String managedIndex2 = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
+        String unmanagedIndex = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
+
+        createNewSingletonPolicy("delete", new DeleteAction(), TimeValue.timeValueHours(12));
+        createIndexWithSettingsNoAlias(managedIndex1, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,10))
+            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy));
+        createIndexWithSettingsNoAlias(managedIndex2, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,10))
+            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy));
+        createIndexWithSettingsNoAlias(unmanagedIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,10)));
+
+        Request deleteRequest = new Request("DELETE", "_ilm/policy/" + policy);
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
+        assertThat(ex.getCause().getMessage(),
+            Matchers.allOf(
+                containsString("Cannot delete policy [" + policy + "]. It is in use by one or more indices: ["),
+                containsString(managedIndex1),
+                containsString(managedIndex2),
+                not(containsString(unmanagedIndex))));
+    }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
@@ -492,9 +519,21 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    private void createIndexWithSettingsNoAlias(String index, Settings.Builder settings) throws IOException {
+        // create the test-index index
+        Request request = new Request("PUT", "/" + index);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
+            + "}");
+        client().performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(index);
+
+    }
+
     private void createIndexWithSettings(String index, Settings.Builder settings) throws IOException {
         // create the test-index index
         Request request = new Request("PUT", "/" + index);
+
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
             + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }");
         client().performRequest(request);

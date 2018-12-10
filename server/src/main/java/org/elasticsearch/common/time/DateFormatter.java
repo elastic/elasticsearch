@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTime;
 
 import java.time.Instant;
@@ -133,7 +134,7 @@ public interface DateFormatter {
         }
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            formatters.add(DateFormatter.forPattern(pattern, locale));
+            formatters.add(Joda.forPattern(pattern, locale));
         }
 
         if (formatters.size() == 1) {

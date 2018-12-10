@@ -32,6 +32,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowStatsRequest;
+import org.elasticsearch.client.ccr.FollowStatsResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
@@ -84,6 +86,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36339")
     public void testIndexFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
 
@@ -111,9 +114,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(leaderSearchResponse.getHits().getTotalHits(), equalTo(1L));
 
         assertBusy(() -> {
-            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
-            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
-            List<ShardFollowStats> shardFollowStats = ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+            FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
+            FollowStatsResponse followStatsResponse =
+                execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
+            List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
             long followerGlobalCheckpoint = shardFollowStats.stream()
                 .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
                 .max()
@@ -136,9 +140,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(resumeFollowResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {
-            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
-            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
-            List<ShardFollowStats> shardFollowStats = ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+            FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
+            FollowStatsResponse followStatsResponse =
+                execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
+            List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
             long followerGlobalCheckpoint = shardFollowStats.stream()
                 .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
                 .max()

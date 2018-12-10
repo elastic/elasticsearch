@@ -577,7 +577,7 @@ public class RestClient implements Closeable {
                     long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
                     if (timeout <= 0) {
                         IOException retryTimeoutException = new IOException(
-                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]");
+                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]", exception);
                         listener.onDefinitiveFailure(retryTimeoutException);
                     } else {
                         listener.trackFailure(exception);

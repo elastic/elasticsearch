@@ -117,7 +117,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private Map<String, SearchHits> innerHits;
 
-    private SearchHit() {
+    SearchHit() {
 
     }
 

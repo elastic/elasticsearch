@@ -37,14 +37,22 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
         // endpoints that support body parameters must also accept POST
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
 
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots", this);
         // endpoints that support body parameters must also accept POST
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots", this);
     }
 

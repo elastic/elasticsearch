@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -117,7 +118,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
-        parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
+        parser.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
         parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         parser.declareBoolean(Builder::setDeleting, DELETING);
@@ -660,7 +661,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.id = job.getId();
             this.jobType = job.getJobType();
             this.jobVersion = job.getJobVersion();
-            this.groups = job.getGroups();
+            this.groups = new ArrayList<>(job.getGroups());
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
             this.analysisLimits = job.getAnalysisLimits();
@@ -674,7 +675,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
-            this.customSettings = job.getCustomSettings();
+            this.customSettings = job.getCustomSettings() == null ? null : new LinkedHashMap<>(job.getCustomSettings());
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleting = job.isDeleting();

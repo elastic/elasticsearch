@@ -40,12 +40,15 @@ DOW             |SCALAR
 DOY             |SCALAR         
 HOUR            |SCALAR         
 HOUR_OF_DAY     |SCALAR         
+IDOW            |SCALAR
 ISODAYOFWEEK    |SCALAR
 ISODOW          |SCALAR
 ISOWEEK         |SCALAR
 ISOWEEKOFYEAR   |SCALAR
 ISO_DAY_OF_WEEK |SCALAR
 ISO_WEEK_OF_YEAR|SCALAR
+IW              |SCALAR
+IWOY            |SCALAR
 MINUTE          |SCALAR         
 MINUTE_OF_DAY   |SCALAR         
 MINUTE_OF_HOUR  |SCALAR         

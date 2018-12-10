@@ -43,7 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedLeaderIndices;
+import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedRemoteIndices;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -92,7 +92,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, followerClusterStateSupplier(currentState)) {
             @Override
-            void getLeaderClusterState(String remoteCluster,
+            void getRemoteClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
                 handler.accept(leaderState, null);
@@ -121,7 +121,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void cleanFollowedLeaderIndices(ClusterState remoteClusterState, List<String> patterns) {
+            void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
                 // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
             }
         };
@@ -157,7 +157,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, followerClusterStateSupplier(followerState)) {
             @Override
-            void getLeaderClusterState(String remoteCluster,
+            void getRemoteClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(null, failure);
             }
@@ -212,7 +212,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, followerClusterStateSupplier(followerState)) {
             @Override
-            void getLeaderClusterState(String remoteCluster,
+            void getRemoteClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
@@ -269,7 +269,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, followerClusterStateSupplier(followerState)) {
             @Override
-            void getLeaderClusterState(String remoteCluster,
+            void getRemoteClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
@@ -292,7 +292,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void cleanFollowedLeaderIndices(ClusterState remoteClusterState, List<String> patterns) {
+            void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
                 // Ignore, to avoid invoking updateAutoFollowMetadata(...)
             }
         };
@@ -455,7 +455,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 .numberOfReplicas(0))
             .build();
 
-        Function<ClusterState, ClusterState> function = cleanFollowedLeaderIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
         AutoFollowMetadata result = function.apply(clusterState).metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(2));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
@@ -490,7 +490,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 .numberOfReplicas(0))
             .build();
 
-        Function<ClusterState, ClusterState> function = cleanFollowedLeaderIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
         ClusterState result = function.apply(clusterState);
         assertThat(result, sameInstance(clusterState));
     }
@@ -509,7 +509,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 .numberOfReplicas(0))
             .build();
 
-        Function<ClusterState, ClusterState> function = cleanFollowedLeaderIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
         ClusterState result = function.apply(clusterState);
         assertThat(result, sameInstance(clusterState));
     }

@@ -96,8 +96,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
             if (Strings.isNullOrEmpty(tokenString)) {
                 validationException =
                     addValidationError("token string must be provided when not specifying a realm name or a username", null);
-            }
-            else if (tokenType == null) {
+            } else if (tokenType == null) {
                 validationException =
                     addValidationError("token type must be provided when a token string is specified", null);
             }

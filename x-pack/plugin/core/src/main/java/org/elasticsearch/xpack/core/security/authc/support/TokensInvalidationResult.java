@@ -90,7 +90,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         builder.startObject()
             .field("invalidated_tokens", invalidatedTokens.size())
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens.size())
-            .field("error_size", errors.size());
+            .field("error_count", errors.size());
         if (errors.isEmpty() == false) {
             builder.field("error_details");
             builder.startArray();
@@ -102,30 +102,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
             builder.endArray();
         }
         return builder.endObject();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TokensInvalidationResult that = (TokensInvalidationResult) o;
-        if (errors.size() != that.errors.size()) {
-            return false;
-        }
-        for (ElasticsearchException e : errors) {
-            // ElasticsearchException#toString contains the class name and the detailed message
-            if (that.errors.stream().anyMatch(e1 -> e1.toString().equals(e.toString())) == false) {
-                return false;
-            }
-        }
-        return attemptCount == that.attemptCount &&
-            Objects.equals(invalidatedTokens, that.invalidatedTokens) &&
-            Objects.equals(previouslyInvalidatedTokens, that.previouslyInvalidatedTokens);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(errors, attemptCount, invalidatedTokens, previouslyInvalidatedTokens);
     }
 
     @Override

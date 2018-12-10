@@ -113,7 +113,7 @@ specific tokens.
 {
   "invalidated_tokens":9, <1>
   "previously_invalidated_tokens":15, <2>
-  "error_size":2, <3>
+  "error_count":2, <3>
   "error_details":[ <4>
     {
       "type":"exception",
@@ -140,4 +140,4 @@ specific tokens.
 <2> The number of tokens that were already invalidated.
 <3> The number of errors that were encountered when invalidating the tokens.
 <4> Details about these errors. This field is not present in the response when
-    `errors_size` is 0.
+    `error_count` is 0.

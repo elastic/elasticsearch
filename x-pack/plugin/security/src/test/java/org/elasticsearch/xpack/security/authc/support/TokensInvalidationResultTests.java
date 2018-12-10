@@ -34,7 +34,7 @@ public class TokensInvalidationResultTests extends ESTestCase {
                 equalTo(
                     "{\"invalidated_tokens\":2," +
                         "\"previously_invalidated_tokens\":2," +
-                        "\"error_size\":2," +
+                        "\"error_count\":2," +
                         "\"error_details\":[" +
                         "{\"type\":\"exception\"," +
                         "\"reason\":\"foo\"," +
@@ -65,7 +65,7 @@ public class TokensInvalidationResultTests extends ESTestCase {
                 equalTo(
                     "{\"invalidated_tokens\":2," +
                         "\"previously_invalidated_tokens\":2," +
-                        "\"error_size\":0" +
+                        "\"error_count\":0" +
                         "}"));
         }
     }

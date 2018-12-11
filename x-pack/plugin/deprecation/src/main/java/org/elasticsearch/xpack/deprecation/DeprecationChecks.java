@@ -49,6 +49,7 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::delimitedPayloadFilterCheck,
+            IndexDeprecationChecks::percolatorUnmappedFieldsAsStringCheck,
             IndexDeprecationChecks::indexNameCheck
             ));
 

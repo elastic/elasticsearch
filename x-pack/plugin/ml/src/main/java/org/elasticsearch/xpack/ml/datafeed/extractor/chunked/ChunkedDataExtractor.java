@@ -201,7 +201,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             Aggregations aggregations = response.getAggregations();
             long earliestTime = 0;
             long latestTime = 0;
-            long totalHits = response.getHits().getTotalHits();
+            long totalHits = response.getHits().getTotalHits().value;
             if (totalHits > 0) {
                 Min min = aggregations.get(EARLIEST_TIME);
                 earliestTime = (long) min.getValue();
@@ -237,7 +237,8 @@ public class ChunkedDataExtractor implements DataExtractor {
         private SearchRequestBuilder rangeSearchRequest() {
             return new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setIndices(context.indices)
-                .setSource(rangeSearchBuilder());
+                .setSource(rangeSearchBuilder())
+                .setTrackTotalHits(true);
         }
 
         private RollupSearchAction.RequestBuilder rollupRangeSearchRequest() {

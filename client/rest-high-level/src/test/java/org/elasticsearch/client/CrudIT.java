@@ -175,7 +175,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testExists() throws IOException {
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         IndexRequest index = new IndexRequest("index", "_doc", "id");
@@ -183,22 +183,22 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "does_not_exist");
+            GetRequest getRequest = new GetRequest("index", "does_not_exist");
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "does_not_exist").version(1);
+            GetRequest getRequest = new GetRequest("index", "does_not_exist").version(1);
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
 
     public void testSourceExists() throws IOException {
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         IndexRequest index = new IndexRequest("index", "_doc", "id");
@@ -206,15 +206,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             assertTrue(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "does_not_exist");
+            GetRequest getRequest = new GetRequest("index", "does_not_exist");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "does_not_exist").version(1);
+            GetRequest getRequest = new GetRequest("index", "does_not_exist").version(1);
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
@@ -245,7 +245,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             );
         }
         {
-            GetRequest getRequest = new GetRequest(noSourceIndex, "_doc", "1");
+            GetRequest getRequest = new GetRequest(noSourceIndex, "1");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
@@ -253,7 +253,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testGet() throws IOException {
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -266,7 +266,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id").version(2);
+            GetRequest getRequest = new GetRequest("index", "id").version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.CONFLICT, exception.status());
@@ -275,7 +275,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             if (randomBoolean()) {
                 getRequest.version(1L);
             }
@@ -289,7 +289,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(document, getResponse.getSourceAsString());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "does_not_exist");
+            GetRequest getRequest = new GetRequest("index", "does_not_exist");
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
             assertEquals("_doc", getResponse.getType());
@@ -300,7 +300,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertNull(getResponse.getSourceAsString());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             getRequest.fetchSourceContext(new FetchSourceContext(false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY));
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
@@ -312,7 +312,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertNull(getResponse.getSourceAsString());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id");
+            GetRequest getRequest = new GetRequest("index", "id");
             if (randomBoolean()) {
                 getRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, Strings.EMPTY_ARRAY));
             } else {
@@ -334,15 +334,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testMultiGet() throws IOException {
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
-            multiGetRequest.add("index", "_doc", "id1");
-            multiGetRequest.add("index", "_doc", "id2");
+            multiGetRequest.add("index", "id1");
+            multiGetRequest.add("index", "id2");
             MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
             assertTrue(response.getResponses()[0].isFailed());
             assertNull(response.getResponses()[0].getResponse());
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
-            assertEquals("_doc", response.getResponses()[0].getFailure().getType());
+            assertNull(response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[0].getFailure().getFailure().getMessage());
@@ -350,7 +350,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertTrue(response.getResponses()[1].isFailed());
             assertNull(response.getResponses()[1].getResponse());
             assertEquals("id2", response.getResponses()[1].getId());
-            assertEquals("_doc", response.getResponses()[1].getType());
+            assertNull(response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
@@ -366,8 +366,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
-            multiGetRequest.add("index", "_doc", "id1");
-            multiGetRequest.add("index", "_doc", "id2");
+            multiGetRequest.add("index", "id1");
+            multiGetRequest.add("index", "id2");
             MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
@@ -789,7 +789,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, bulkResponse.getSearchFailures().size());
             assertEquals(
                 3,
-                (int) (highLevelClient().get(new GetRequest(sourceIndex, "_doc", "2"), RequestOptions.DEFAULT)
+                (int) (highLevelClient().get(new GetRequest(sourceIndex, "2"), RequestOptions.DEFAULT)
                     .getSourceAsMap().get("foo"))
             );
         }
@@ -882,7 +882,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, bulkResponse.getSearchFailures().size());
             assertEquals(
                 2,
-                highLevelClient().search(new SearchRequest(sourceIndex), RequestOptions.DEFAULT).getHits().totalHits
+                highLevelClient().search(new SearchRequest(sourceIndex), RequestOptions.DEFAULT).getHits().getTotalHits().value
             );
         }
         {
@@ -1059,7 +1059,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id#1", indexResponse.getId());
         }
         {
-            GetRequest getRequest = new GetRequest(indexPattern, "_doc", "id#1");
+            GetRequest getRequest = new GetRequest(indexPattern, "id#1");
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals(expectedIndex, getResponse.getIndex());
@@ -1077,7 +1077,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(docId, indexResponse.getId());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", docId);
+            GetRequest getRequest = new GetRequest("index", docId);
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
@@ -1101,7 +1101,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id", indexResponse.getId());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "_doc", "id").routing(routing);
+            GetRequest getRequest = new GetRequest("index", "id").routing(routing);
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
@@ -1137,7 +1137,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // test _termvectors on real documents
-            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "1");
             tvRequest.setFields("field");
             TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
@@ -1160,7 +1160,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
 
-            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, docBuilder);
             TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
             TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
@@ -1180,7 +1180,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermvectorsWithNonExistentIndex() {
-        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent", "non-existent");
+        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
@@ -1214,7 +1214,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test _mtermvectors where MultiTermVectorsRequest is constructed with ids and a template
             String[] expectedIds = {"1", "2"};
-            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "_doc", "fake_id");
+            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "fake_id");
             tvRequestTemplate.setFields("field");
             MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest(expectedIds, tvRequestTemplate);
 
@@ -1233,13 +1233,13 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test _mtermvectors where MultiTermVectorsRequest constructed with adding each separate request
             MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
-            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "1");
             tvRequest1.setFields("field");
             mtvRequest.add(tvRequest1);
 
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
-            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, docBuilder);
             mtvRequest.add(tvRequest2);
 
             MultiTermVectorsResponse mtvResponse =

@@ -84,7 +84,8 @@ public class SearchAfterIT extends ESIntegTestCase {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
+                assertThat(failure.getCause().getMessage(),
+                        Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
             }
         }
 
@@ -164,7 +165,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .searchAfter(new Object[]{0, null})
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
         assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
         assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));

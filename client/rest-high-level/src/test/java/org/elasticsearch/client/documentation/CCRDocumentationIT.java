@@ -33,10 +33,16 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.ccr.AutoFollowStats;
+import org.elasticsearch.client.ccr.CcrStatsRequest;
+import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowStatsRequest;
+import org.elasticsearch.client.ccr.FollowStatsResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse.Pattern;
+import org.elasticsearch.client.ccr.IndicesFollowStats;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
@@ -294,6 +300,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-resume-follow-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        client.ccr().pauseFollow(new PauseFollowRequest(followIndex), RequestOptions.DEFAULT);
     }
 
     public void testUnfollow() throws Exception {
@@ -557,6 +566,109 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         client.ccr().getAutoFollowPatternAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::ccr-get-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testGetCCRStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::ccr-get-stats-request
+        CcrStatsRequest request =
+            new CcrStatsRequest(); // <1>
+        // end::ccr-get-stats-request
+
+        // tag::ccr-get-stats-execute
+        CcrStatsResponse response = client.ccr()
+            .getCcrStats(request, RequestOptions.DEFAULT);
+        // end::ccr-get-stats-execute
+
+        // tag::ccr-get-stats-response
+        IndicesFollowStats indicesFollowStats =
+            response.getIndicesFollowStats(); // <1>
+        AutoFollowStats autoFollowStats =
+            response.getAutoFollowStats(); // <2>
+        // end::ccr-get-stats-response
+
+        // tag::ccr-get-stats-execute-listener
+        ActionListener<CcrStatsResponse> listener =
+            new ActionListener<CcrStatsResponse>() {
+                @Override
+                public void onResponse(CcrStatsResponse response) { // <1>
+                    IndicesFollowStats indicesFollowStats =
+                        response.getIndicesFollowStats();
+                    AutoFollowStats autoFollowStats =
+                        response.getAutoFollowStats();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-get-stats-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-get-stats-execute-async
+        client.ccr().getCcrStatsAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-get-stats-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetFollowStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::ccr-get-follow-stats-request
+        FollowStatsRequest request =
+            new FollowStatsRequest("follower"); // <1>
+        // end::ccr-get-follow-stats-request
+
+        // tag::ccr-get-follow-stats-execute
+        FollowStatsResponse response = client.ccr()
+            .getFollowStats(request, RequestOptions.DEFAULT);
+        // end::ccr-get-follow-stats-execute
+
+        // tag::ccr-get-follow-stats-response
+        IndicesFollowStats indicesFollowStats =
+            response.getIndicesFollowStats(); // <1>
+        // end::ccr-get-follow-stats-response
+
+        // tag::ccr-get-follow-stats-execute-listener
+        ActionListener<FollowStatsResponse> listener =
+            new ActionListener<FollowStatsResponse>() {
+                @Override
+                public void onResponse(FollowStatsResponse response) { // <1>
+                    IndicesFollowStats indicesFollowStats =
+                        response.getIndicesFollowStats();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-get-follow-stats-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-get-follow-stats-execute-async
+        client.ccr().getFollowStatsAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-get-follow-stats-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

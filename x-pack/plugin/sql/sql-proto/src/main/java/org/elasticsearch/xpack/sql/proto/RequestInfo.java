@@ -6,11 +6,15 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class RequestInfo {
     public static final String CLI = "cli";
-    public static final String CANVAS = "canvas";
+    private static final String CANVAS = "canvas";
+    public static final List<String> CLIENT_IDS = Arrays.asList(CLI, CANVAS);
     
     private Mode mode;
     private String clientId;
@@ -20,8 +24,8 @@ public class RequestInfo {
     }
     
     public RequestInfo(Mode mode, String clientId) {
-        this.mode = mode;
-        this.clientId = clientId;
+        mode(mode);
+        clientId(clientId);
     }
     
     public Mode mode() {
@@ -37,6 +41,12 @@ public class RequestInfo {
     }
     
     public void clientId(String clientId) {
+        if (clientId != null) {
+            clientId = clientId.toLowerCase(Locale.ROOT);
+            if (false == CLIENT_IDS.contains(clientId)) {
+                clientId = null;
+            }
+        }
         this.clientId = clientId;
     }
 

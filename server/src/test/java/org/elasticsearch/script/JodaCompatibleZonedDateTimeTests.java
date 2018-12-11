@@ -97,6 +97,14 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
         assertDeprecation(assertions, "Use of the joda time method [" + oldMethod + "] is deprecated. Use [" + newMethod + "] instead.");
     }
 
+    public void testEquals() {
+        assertThat(javaTime, equalTo(javaTime));
+    }
+
+    public void testToString() {
+        assertThat(javaTime.toString(), equalTo(jodaTime.toString()));
+    }
+
     public void testDayOfMonth() {
         assertThat(javaTime.getDayOfMonth(), equalTo(jodaTime.getDayOfMonth()));
     }
@@ -236,5 +244,15 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
 
     public void testDayOfWeekEnum() {
         assertThat(javaTime.getDayOfWeekEnum(), equalTo(DayOfWeek.of(jodaTime.getDayOfWeek())));
+    }
+
+    public void testToStringWithLocaleAndZeroOffset() {
+        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
+        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm", Locale.ROOT), "toString(String,Locale)", "a DateTimeFormatter");
+    }
+
+    public void testToStringAndZeroOffset() {
+        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
+        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm"), "toString(String)", "a DateTimeFormatter");
     }
 }

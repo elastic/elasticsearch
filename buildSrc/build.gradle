@@ -95,6 +95,7 @@ dependencies {
   }
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
+  minimumRuntimeCompile gradleApi()
 }
 jar {
   from sourceSets.minimumRuntime.output
@@ -147,10 +148,8 @@ if (project == rootProject) {
       mavenLocal()
     }
   }
-  test {
-    include "**/*Tests.class"
-    exclude "**/*IT.class"
-  }
+  // only run tests as build-tools
+  test.enabled = false
 }
 
 /*****************************************************************************
@@ -180,9 +179,17 @@ if (project != rootProject) {
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
-  // tests can't  be run with randomized test runner
-  // it's fine as we run them as part of :buildSrc
-  test.enabled = false
+  test {
+    include "**/*Tests.class"
+    exclude "**/*IT.class"
+    // The test task is configured to runtimeJava version, but build-tools doesn't support all of them, so test
+    // with compiler instead on the ones that are too old.
+    if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_10) {
+      jvm = "${project.compilerJavaHome}/bin/java"
+    }
+  }
+
+  // This can't be an RandomizedTestingTask because we can't yet reference it
   task integTest(type: Test) {
     // integration test requires the local testing repo for example plugin builds
     dependsOn project.rootProject.allprojects.collect {
@@ -211,7 +218,7 @@ if (project != rootProject) {
   forbiddenPatterns {
     exclude '**/*.wav'
     // the file that actually defines nocommit
-    exclude '**/ForbiddenPatternsTask.groovy'
+    exclude '**/ForbiddenPatternsTask.java'
   }
 
   namingConventions {

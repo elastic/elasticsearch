@@ -28,8 +28,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,22 +99,8 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
         }
-        if (parent instanceof HistogramAggregatorFactory) {
-            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
-                        + "] must have min_doc_count of 0");
-            }
-        } else if (parent instanceof DateHistogramAggregatorFactory) {
-            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
-                        + "] must have min_doc_count of 0");
-            }
-        } else {
-            throw new IllegalStateException("cumulative sum aggregation [" + name
-                    + "] must have a histogram or date_histogram as parent");
-        }
+        
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

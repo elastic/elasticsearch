@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -30,17 +32,28 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestSetEnabledAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSetEnabledAction.class));
+
     public RestSetEnabledAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_xpack/security/user/{username}/_enable", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/{username}/_enable", this);
-        controller.registerHandler(POST, "/_xpack/security/user/{username}/_disable", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/{username}/_disable", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/{username}/_enable", this,
+            POST, "/_xpack/security/user/{username}/_enable", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_security/user/{username}/_enable", this,
+            PUT, "/_xpack/security/user/{username}/_enable", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/{username}/_disable", this,
+            POST, "/_xpack/security/user/{username}/_disable", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_security/user/{username}/_disable", this,
+            PUT, "/_xpack/security/user/{username}/_disable", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_set_enabled_action";
+        return "security_set_enabled_action";
     }
 
     @Override

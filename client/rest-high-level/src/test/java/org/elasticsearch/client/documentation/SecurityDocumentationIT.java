@@ -1023,12 +1023,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            // tag::put-role-execute
+            // tag::put-role-request
             final Role role = Role.builder()
-                    .name("testPutRole")
-                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
-                    .build();
+                .name("testPutRole")
+                .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
+                .build();
             final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
+            // end::put-role-request
+            // tag::put-role-execute
             final PutRoleResponse response = client.security().putRole(request, RequestOptions.DEFAULT);
             // end::put-role-execute
             // tag::put-role-response
@@ -1039,9 +1041,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             final Role role = Role.builder()
-                    .name("testPutRole")
-                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
-                    .build();
+                .name("testPutRole")
+                .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
+                .build();
             final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
             // tag::put-role-execute-listener
             ActionListener<PutRoleResponse> listener = new ActionListener<PutRoleResponse>() {
@@ -1075,9 +1077,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void addRole(String roleName) throws IOException {
         final Role role = Role.builder()
-                .name(roleName)
-                .clusterPrivileges("all")
-                .build();
+            .name(roleName)
+            .clusterPrivileges("all")
+            .build();
         final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.IMMEDIATE);
         highLevelClient().security().putRole(request, RequestOptions.DEFAULT);
     }
@@ -1366,22 +1368,22 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-privileges-request
             final List<ApplicationPrivilege> privileges = new ArrayList<>();
             privileges.add(ApplicationPrivilege.builder()
-                    .application("app01")
-                    .privilege("all")
-                    .actions(Sets.newHashSet("action:login"))
-                    .metadata(Collections.singletonMap("k1", "v1"))
-                    .build());
+                .application("app01")
+                .privilege("all")
+                .actions(Sets.newHashSet("action:login"))
+                .metadata(Collections.singletonMap("k1", "v1"))
+                .build());
             privileges.add(ApplicationPrivilege.builder()
-                    .application("app01")
-                    .privilege("write")
-                    .actions(Sets.newHashSet("action:write"))
-                    .build());
+                .application("app01")
+                .privilege("write")
+                .actions(Sets.newHashSet("action:write"))
+                .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
             // end::put-privileges-request
 
             // tag::put-privileges-execute
             final PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest,
-                    RequestOptions.DEFAULT);
+                RequestOptions.DEFAULT);
             // end::put-privileges-execute
 
             final String applicationName = "app01";
@@ -1395,11 +1397,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             final List<ApplicationPrivilege> privileges = new ArrayList<>();
             privileges.add(ApplicationPrivilege.builder()
-                    .application("app01")
-                    .privilege("all")
-                    .actions(Sets.newHashSet("action:login"))
-                    .metadata(Collections.singletonMap("k1", "v1"))
-                    .build());
+                .application("app01")
+                .privilege("all")
+                .actions(Sets.newHashSet("action:login"))
+                .metadata(Collections.singletonMap("k1", "v1"))
+                .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
 
             // tag::put-privileges-execute-listener
@@ -1437,20 +1439,20 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             List<ApplicationPrivilege> applicationPrivileges = new ArrayList<>();
             applicationPrivileges.add(ApplicationPrivilege.builder()
-                    .application("testapp")
-                    .privilege("read")
-                    .actions("action:login", "data:read/*")
-                    .build());
+                .application("testapp")
+                .privilege("read")
+                .actions("action:login", "data:read/*")
+                .build());
             applicationPrivileges.add(ApplicationPrivilege.builder()
-                    .application("testapp")
-                    .privilege("write")
-                    .actions("action:login", "data:write/*")
-                    .build());
+                .application("testapp")
+                .privilege("write")
+                .actions("action:login", "data:write/*")
+                .build());
             applicationPrivileges.add(ApplicationPrivilege.builder()
-                    .application("testapp")
-                    .privilege("all")
-                    .actions("action:login", "data:write/*")
-                    .build());
+                .application("testapp")
+                .privilege("all")
+                .actions("action:login", "data:write/*")
+                .build());
             PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
             PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
 

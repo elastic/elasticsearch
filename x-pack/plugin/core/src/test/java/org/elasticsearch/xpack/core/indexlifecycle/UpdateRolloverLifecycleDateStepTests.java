@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.Collections;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -23,9 +24,13 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
     @Override
     public UpdateRolloverLifecycleDateStep createRandomInstance() {
+        return createRandomInstanceWithFallbackTime(null);
+    }
+
+    public UpdateRolloverLifecycleDateStep createRandomInstanceWithFallbackTime(LongSupplier fallbackTimeSupplier) {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        return new UpdateRolloverLifecycleDateStep(stepKey, nextStepKey);
+        return new UpdateRolloverLifecycleDateStep(stepKey, nextStepKey, fallbackTimeSupplier);
     }
 
     @Override
@@ -39,12 +44,12 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
         }
 
-        return new UpdateRolloverLifecycleDateStep(key, nextKey);
+        return new UpdateRolloverLifecycleDateStep(key, nextKey, null);
     }
 
     @Override
     public UpdateRolloverLifecycleDateStep copyInstance(UpdateRolloverLifecycleDateStep instance) {
-        return new UpdateRolloverLifecycleDateStep(instance.getKey(), instance.getNextStepKey());
+        return new UpdateRolloverLifecycleDateStep(instance.getKey(), instance.getNextStepKey(), null);
     }
 
     @SuppressWarnings("unchecked")
@@ -104,5 +109,27 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             () -> step.performAction(indexMetaData.getIndex(), clusterState));
         assertThat(exceptionThrown.getMessage(),
             equalTo("setting [index.lifecycle.rollover_alias] is not set on index [" + indexMetaData.getIndex().getName() +"]"));
+    }
+
+    public void testPerformActionWithIndexingComplete() {
+        String alias = randomAlphaOfLength(3);
+        long creationDate = randomLongBetween(0, 1000000);
+        long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
+
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder()
+                .put(indexMetaData, false)).build();
+
+        UpdateRolloverLifecycleDateStep step = createRandomInstanceWithFallbackTime(() -> rolloverTime);
+        ClusterState newState = step.performAction(indexMetaData.getIndex(), clusterState);
+        long actualRolloverTime = LifecycleExecutionState
+            .fromIndexMetadata(newState.metaData().index(indexMetaData.getIndex()))
+            .getLifecycleDate();
+        assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 }

@@ -34,6 +34,7 @@ import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.AbstractMap;
@@ -45,6 +46,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Checks for patterns in source files for the project which are forbidden.
@@ -97,7 +99,12 @@ public class ForbiddenPatternsTask extends DefaultTask {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<String> failures = new ArrayList<>();
         for (File f : files()) {
-            List<String> lines = Files.lines(f.toPath(), StandardCharsets.UTF_8).collect(Collectors.toList());
+            List<String> lines;
+            try(Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
+                    lines = stream.collect(Collectors.toList());
+            } catch (UncheckedIOException e) {
+                throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
+            }
             List<Integer> invalidLines = IntStream.range(0, lines.size())
                 .filter(i -> allPatterns.matcher(lines.get(i)).find())
                 .boxed()

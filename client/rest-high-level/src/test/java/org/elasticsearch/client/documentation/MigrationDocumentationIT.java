@@ -82,7 +82,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::migration-request-ctor
-            IndexRequest request = new IndexRequest("index", "_doc", "id"); // <1>
+            IndexRequest request = new IndexRequest("index").id("id"); // <1>
             request.source("{\"field\":\"value\"}", XContentType.JSON);
             //end::migration-request-ctor
 

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InvalidateTokenResponseTests extends ESTestCase {
@@ -33,7 +34,12 @@ public class InvalidateTokenResponseTests extends ESTestCase {
             try (StreamInput input = output.bytes().streamInput()) {
                 InvalidateTokenResponse serialized = new InvalidateTokenResponse();
                 serialized.readFrom(input);
-                assertEquals(response, serialized);
+                assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
+                assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
+                    equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
+                assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
+                assertThat(serialized.getResult().getErrors().get(0).toString(), containsString("this is an error message"));
+                assertThat(serialized.getResult().getErrors().get(1).toString(), containsString("this is an error message2"));
             }
         }
 
@@ -46,7 +52,10 @@ public class InvalidateTokenResponseTests extends ESTestCase {
             try (StreamInput input = output.bytes().streamInput()) {
                 InvalidateTokenResponse serialized = new InvalidateTokenResponse();
                 serialized.readFrom(input);
-                assertEquals(response, serialized);
+                assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
+                assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
+                    equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
+                assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
             }
         }
     }

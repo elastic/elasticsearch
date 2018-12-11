@@ -256,7 +256,7 @@ $ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
 It is technically sufficient to set this on a single master-eligible node in
 the cluster, and only to mention a single master-eligible node, but this does
 not allow for this single node to fail before the cluster has fully formed. It
-is therefore better to bootstrap using multiple master-eligible-nodes. In any
+is therefore better to bootstrap using multiple master-eligible nodes. In any
 case, when specifying the list of initial master nodes, **it is vitally
 important** to configure each node with exactly the same list of nodes, to
 prevent two independent clusters from forming. Typically you will set this on

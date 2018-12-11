@@ -500,9 +500,9 @@ scheduling of elections.
 
 `cluster.election.initial_timeout`::
 
-    Sets the upper bound on how long a node will wait initially, or after a
-    leader failure, before attempting its first election. This defaults to
-    `100ms`.
+    Sets the upper bound on how long a node will wait initially, or after the
+    elected master fails, before attempting its first election. This defaults
+    to `100ms`.
 
 `cluster.election.back_off_time`::
 
@@ -538,17 +538,20 @@ cluster. This join process can be configured with the following settings.
 [[fault-detection]]
 === Fault Detection
 
-An elected master periodically checks each of its followers in order to ensure
-that they are still connected and healthy, and in turn each follower
-periodically checks the health of the elected master. Elasticsearch allows for
-these checks occasionally to fail or timeout without taking any action, and will
-only consider a node to be truly faulty after a number of consecutive checks
-have failed. The following settings control the behaviour of fault detection.
+An elected master periodically checks each of the nodes in the cluster in order
+to ensure that they are still connected and healthy, and in turn each node in
+the cluster periodically checks the health of the elected master. These checks
+are known respectively as _follower checks_ and _leader checks_.
+
+Elasticsearch allows for these checks occasionally to fail or timeout without
+taking any action, and will only consider a node to be truly faulty after a
+number of consecutive checks have failed. The following settings control the
+behaviour of fault detection.
 
 `cluster.fault_detection.follower_check.interval`::
 
-    Sets how long the elected master waits between checks of its followers.
-    Defaults to `1s`.
+    Sets how long the elected master waits between follower checks to each
+    other node in the cluster. Defaults to `1s`.
 
 `cluster.fault_detection.follower_check.timeout`::
 
@@ -557,33 +560,32 @@ have failed. The following settings control the behaviour of fault detection.
 
 `cluster.fault_detection.follower_check.retry_count`::
 
-    Sets how many consecutive follower check failures must occur before the
-    elected master considers a follower node to be faulty and removes it from
-    the cluster. Defaults to `3`.
+    Sets how many consecutive follower check failures must occur to each node
+    before the elected master considers that node to be faulty and removes it
+    from the cluster. Defaults to `3`.
 
 `cluster.fault_detection.leader_check.interval`::
 
-    Sets how long each follower node waits between checks of its leader.
+    Sets how long each node waits between checks of the elected master.
     Defaults to `1s`.
 
 `cluster.fault_detection.leader_check.timeout`::
 
-    Sets how long each follower node waits for a response to a leader check
-    before considering it to have failed. Defaults to `30s`.
+    Sets how long each node waits for a response to a leader check from the
+    elected master before considering it to have failed. Defaults to `30s`.
 
 `cluster.fault_detection.leader_check.retry_count`::
 
-    Sets how many consecutive leader check failures must occur before a follower
-    node considers the elected master to be faulty and attempts to find or elect
-    a new master. Defaults to `3`.
+    Sets how many consecutive leader check failures must occur before a node
+    considers the elected master to be faulty and attempts to find or elect a
+    new master. Defaults to `3`.
 
-If the elected master detects that a follower has disconnected then this is
-treated as an immediate failure, bypassing the timeouts and retries listed
-above, and the master attempts to remove the node from the cluster.  Similarly,
-if a follower detects that the elected master has disconnected then this is
-treated as an immediate failure, bypassing the timeouts and retries listed
-above, and the follower restarts its discovery phase to try and find or elect a
-new master.
+If the elected master detects that a node has disconnected then this is treated
+as an immediate failure, bypassing the timeouts and retries listed above, and
+the master attempts to remove the node from the cluster. Similarly, if a node
+detects that the elected master has disconnected then this is treated as an
+immediate failure, bypassing the timeouts and retries listed above, and the
+follower restarts its discovery phase to try and find or elect a new master.
 
 [float]
 [[modules-discovery-quorums]]

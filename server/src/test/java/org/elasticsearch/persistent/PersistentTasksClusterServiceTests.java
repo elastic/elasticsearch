@@ -53,12 +53,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.persistent.PersistentTasksClusterService.isAssignedToValidNode;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.requiresAssignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -408,9 +409,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             .add(new DiscoveryNode("_node_2", buildNewFakeTransportAddress(), Version.CURRENT))
             .build();
 
-        assertTrue(isAssignedToValidNode(new Assignment(null, "unassigned"), nodes));
-        assertTrue(isAssignedToValidNode(new Assignment("_node_left", "assigned to a node that left"), nodes));
-        assertFalse(isAssignedToValidNode(new Assignment("_node_1", "assigned"), nodes));
+        assertTrue(requiresAssignment(new Assignment(null, "unassigned"), nodes));
+        assertTrue(requiresAssignment(new Assignment("_node_left", "assigned to a node that left"), nodes));
+        assertFalse(requiresAssignment(new Assignment("_node_1", "assigned"), nodes));
     }
 
     public void testPeriodicRecheck() throws Exception {
@@ -426,7 +427,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
         nonClusterStateCondition = false;
 
-        ClusterService recheckTestClusterService = createRecheckTestClusterService(clusterState);
+        boolean shouldSimulateFailure = randomBoolean();
+        ClusterService recheckTestClusterService = createRecheckTestClusterService(clusterState, shouldSimulateFailure);
         PersistentTasksClusterService service = createService(recheckTestClusterService,
             (params, currentState) -> assignBasedOnNonClusterStateCondition(currentState.nodes()));
 
@@ -440,7 +442,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             for (PersistentTask<?> task : tasksInProgress.tasks()) {
                 assertThat(task.getExecutorNode(), nullValue());
                 assertThat(task.isAssigned(), equalTo(false));
-                assertThat(task.getAssignment().getExplanation(), equalTo("non-cluster state condition prevents assignment"));
+                assertThat(task.getAssignment().getExplanation(), equalTo(shouldSimulateFailure ?
+                    "explanation: assign_based_on_non_cluster_state_condition" : "non-cluster state condition prevents assignment"));
             }
             assertThat(tasksInProgress.tasks().size(), equalTo(1));
         }
@@ -461,7 +464,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         });
     }
 
-    private ClusterService createRecheckTestClusterService(ClusterState initialState) {
+    private ClusterService createRecheckTestClusterService(ClusterState initialState, boolean shouldSimulateFailure) {
+        AtomicBoolean testFailureNextTime = new AtomicBoolean(shouldSimulateFailure);
         AtomicReference<ClusterState> state = new AtomicReference<>(initialState);
         ClusterService recheckTestClusterService = mock(ClusterService.class);
         when(recheckTestClusterService.getClusterSettings()).thenReturn(clusterService.getClusterSettings());
@@ -472,8 +476,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             ClusterState before = state.get();
             ClusterState after = task.execute(before);
-            state.set(after);
-            task.clusterStateProcessed("test", before, after);
+            if (testFailureNextTime.compareAndSet(true, false)) {
+                task.onFailure("testing failure", new RuntimeException("foo"));
+            } else {
+                state.set(after);
+                task.clusterStateProcessed("test", before, after);
+            }
             return null;
         }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
 

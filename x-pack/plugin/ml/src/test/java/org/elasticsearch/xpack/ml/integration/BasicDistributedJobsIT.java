@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.isAssignedToValidNode;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.requiresAssignment;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
@@ -395,7 +395,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         if (hasExecutorNode) {
             assertNotNull(task.getExecutorNode());
-            assertFalse(isAssignedToValidNode(task.getAssignment(), clusterState.nodes()));
+            assertFalse(requiresAssignment(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));

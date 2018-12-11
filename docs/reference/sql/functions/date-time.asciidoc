@@ -4,6 +4,7 @@
 === Date and Time Functions
 
 beta[]
+
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH`/`DOM`/`DAY`
 
@@ -150,7 +151,7 @@ include-tagged::{sql-specs}/docs.csv-spec[isoDayOfWeek]
 --------------------------------------------------
 
 [[sql-functions-datetime-isoweek]]
-==== `ISO_WEEK_OF_YEAR`/`ISOWEEKOFYEAR`/`ISOWEEK`/`IWOY/`IW`
+==== `ISO_WEEK_OF_YEAR`/`ISOWEEKOFYEAR`/`ISOWEEK`/`IWOY`/`IW`
 
 .Synopsis:
 [source, sql]

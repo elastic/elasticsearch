@@ -34,16 +34,18 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
     public static final String NAME = DataFrame.TASK_NAME;
 
     private final IndexerState state;
+    private final long generation;
 
     @Nullable
     private final SortedMap<String, Object> currentPosition;
 
     private static final ParseField STATE = new ParseField("job_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    private static final ParseField GENERATION = new ParseField("generation");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameJobState, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new DataFrameJobState((IndexerState) args[0], (HashMap<String, Object>) args[1]));
+            args -> new DataFrameJobState((IndexerState) args[0], (HashMap<String, Object>) args[1], (long) args[2]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {
@@ -62,16 +64,19 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), GENERATION);
     }
 
-    public DataFrameJobState(IndexerState state, @Nullable Map<String, Object> position) {
+    public DataFrameJobState(IndexerState state, @Nullable Map<String, Object> position, long generation) {
         this.state = state;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
+        this.generation = generation;
     }
 
     public DataFrameJobState(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
+        generation = in.readLong();
     }
 
     public IndexerState getIndexerState() {
@@ -80,6 +85,10 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
 
     public Map<String, Object> getPosition() {
         return currentPosition;
+    }
+
+    public long getGeneration() {
+        return generation;
     }
 
     public static DataFrameJobState fromXContent(XContentParser parser) {
@@ -97,6 +106,7 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
         if (currentPosition != null) {
             builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
         }
+        builder.field(GENERATION.getPreferredName(), generation);
         builder.endObject();
         return builder;
     }
@@ -113,6 +123,7 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
         if (currentPosition != null) {
             out.writeMap(currentPosition);
         }
+        out.writeLong(generation);
     }
 
     @Override
@@ -127,11 +138,12 @@ public class DataFrameJobState implements Task.Status, PersistentTaskState {
 
         DataFrameJobState that = (DataFrameJobState) other;
 
-        return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition);
+        return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition)
+                && this.generation == that.generation;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(state, currentPosition);
+        return Objects.hash(state, currentPosition, generation);
     }
 }

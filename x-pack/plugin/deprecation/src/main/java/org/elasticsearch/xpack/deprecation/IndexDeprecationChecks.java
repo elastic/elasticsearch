@@ -125,11 +125,11 @@ public class IndexDeprecationChecks {
         if (Strings.isNullOrEmpty(value) == false) {
             if ("fix".equalsIgnoreCase(value)) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "The value 'fix' for setting index.shard.check_on_startup is no longer valid",
+                    "The value [fix] for setting [" + setting + "] is no longer valid",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                         "#_literal_fix_literal_value_for_literal_index_shard_check_on_startup_literal_is_removed",
-                    "The index [" + indexMetaData.getIndex().getName() + "] has the setting index.shard.check_on_startup = 'fix'. " +
-                        "Valid values are 'true', 'false', and 'checksum'");
+                    "The index [" + indexMetaData.getIndex().getName() + "] has the setting [" + setting + "] set to value [fix]" +
+                        ", but [fix] is no longer a valid value. Valid values are true, false, and checksum");
             }
         }
         return null;

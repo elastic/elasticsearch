@@ -16,7 +16,8 @@ versions prior to 5.x.
 WARNING: If the {es} {security-features} are enabled on your 5.x cluster, before
 you can do a rolling upgrade you must encrypt the internode-communication with
 SSL/TLS, which requires a full cluster restart. For more information about this
-requirement and the associated bootstrap check, see <<bootstrap-checks-tls>>.
+requirement and the associated bootstrap check, see
+{ref}/bootstrap-checks-xpack.html#bootstrap-checks-tls[SSL/TLS check].
 
 To perform a rolling upgrade:
 

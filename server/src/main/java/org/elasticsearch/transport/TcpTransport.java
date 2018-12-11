@@ -59,6 +59,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -179,6 +180,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final Version version;
     protected final ThreadPool threadPool;
     protected final BigArrays bigArrays;
+    protected final PageCacheRecycler pageCacheRecycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
@@ -206,7 +208,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, BigArrays bigArrays,
+    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, PageCacheRecycler recycler,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         super(settings);
@@ -214,7 +216,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
-        this.bigArrays = bigArrays;
+        this.bigArrays = new BigArrays(recycler, circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS), false);
+        this.pageCacheRecycler = recycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);

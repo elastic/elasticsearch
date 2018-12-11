@@ -32,7 +32,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -190,7 +190,7 @@ public class TcpTransportTests extends ESTestCase {
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null) {
+                PageCacheRecycler.NON_RECYCLING_INSTANCE, null, null, null) {
 
                 @Override
                 protected FakeServerChannel bind(String name, InetSocketAddress address) throws IOException {

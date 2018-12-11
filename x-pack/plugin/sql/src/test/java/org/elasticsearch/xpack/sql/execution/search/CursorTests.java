@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -69,7 +70,7 @@ public class CursorTests extends ESTestCase {
                         randomInt(), randomInt(25)));
             }
         }
-        return new SqlQueryResponse("", columns, Collections.emptyList());
+        return new SqlQueryResponse("", randomFrom(Mode.values()), columns, Collections.emptyList());
     }
 
     @SuppressWarnings("unchecked")

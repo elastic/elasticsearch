@@ -7,7 +7,7 @@ Removes
 
 ==== Request
 
-`DELETE /_xpack/security/privilege/<application>/<privilege>` 
+`DELETE /_security/privilege/<application>/<privilege>` 
 
 //==== Description
 
@@ -37,7 +37,7 @@ The following example deletes the `read` application privilege from the
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/privilege/myapp/read
+DELETE /_security/privilege/myapp/read
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:app0102_privileges] 

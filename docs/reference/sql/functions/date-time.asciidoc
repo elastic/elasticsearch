@@ -3,6 +3,7 @@
 [[sql-functions-datetime]]
 === Date and Time Functions
 
+beta[]
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH`/`DOM`/`DAY`
 

@@ -1,15 +1,17 @@
 {
-  "xpack.security.delete_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html",
-    "methods": [ "DELETE" ],
+  "security.disable_user": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html",
+    "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/user/{username}",
-      "paths": [ "/_xpack/security/user/{username}" ],
+      "path": "/_security/user/{username}/_disable",
+      "paths": [
+        "/_security/user/{username}/_disable"
+      ],
       "parts": {
         "username": {
           "type" : "string",
-          "description" : "username",
-          "required" : true
+          "description" : "The username of the user to disable",
+          "required" : false
         }
       },
       "params": {

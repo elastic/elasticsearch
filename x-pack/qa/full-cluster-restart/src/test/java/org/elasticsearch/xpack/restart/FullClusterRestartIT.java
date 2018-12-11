@@ -96,8 +96,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     @SuppressWarnings("unchecked")
     public void testSecurityNativeRealm() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            createUser("preupgrade_user");
-            createRole("preupgrade_role");
+            createUser(true);
+            createRole(true);
         } else {
             waitForYellow(".security");
             Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
@@ -126,7 +126,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 logger.info("upgrading security index {}", concreteSecurityIndex);
                 // without upgrade, an error should be thrown
                 try {
-                    createUser("postupgrade_user");
+                    createUser(false);
                     fail("should not be able to add a user when upgrade hasn't taken place");
                 } catch (ResponseException e) {
                     assertThat(e.getMessage(), containsString("Security index is not on the current version - " +
@@ -139,16 +139,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
 
             // create additional user and role
-            createUser("postupgrade_user");
-            createRole("postupgrade_role");
+            createUser(false);
+            createRole(false);
         }
 
-        assertUserInfo("preupgrade_user");
-        assertRoleInfo("preupgrade_role");
-        if (isRunningAgainstOldCluster() == false) {
-            assertUserInfo("postupgrade_user");
-            assertRoleInfo("postupgrade_role");
-        }
+        assertUserInfo(isRunningAgainstOldCluster());
+        assertRoleInfo(isRunningAgainstOldCluster());
     }
 
     public void testWatcher() throws Exception {
@@ -578,8 +574,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
-    private void createUser(final String id) throws Exception {
-        Request request = new Request("PUT", "/_xpack/security/user/" + id);
+    private void createUser(final boolean oldCluster) throws Exception {
+        final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
+        Request request;
+        if (oldCluster) {
+            request = new Request("PUT", "/_xpack/security/user/" + id);
+        } else {
+            request = new Request("PUT", "/_security/user/" + id);
+        }
         request.setJsonEntity(
             "{\n" +
             "   \"password\" : \"j@rV1s\",\n" +
@@ -591,8 +593,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(request);
     }
 
-    private void createRole(final String id) throws Exception {
-        Request request = new Request("PUT", "/_xpack/security/role/" + id);
+    private void createRole(final boolean oldCluster) throws Exception {
+        final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
+        Request request;
+        if (oldCluster) {
+            request = new Request("PUT", "/_xpack/security/role/" + id);
+        } else {
+            request = new Request("PUT", "/_security/role/" + id);
+        }
         request.setJsonEntity(
             "{\n" +
             "  \"run_as\": [ \"abc\" ],\n" +
@@ -611,17 +619,22 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(request);
     }
 
-    private void assertUserInfo(final String user) throws Exception {
-        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/user/" + user)));
+    private void assertUserInfo(final boolean oldCluster) throws Exception {
+        final String user = oldCluster ? "preupgrade_user" : "postupgrade_user";
+        Map<String, Object> response = oldCluster ?
+            entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/user/" + user))) :
+            entityAsMap(client().performRequest(new Request("GET", "/_security/user/" + user)));
         @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
         assertNotNull(userInfo.get("full_name"));
         assertNotNull(userInfo.get("roles"));
     }
 
-    private void assertRoleInfo(final String role) throws Exception {
-        @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>)
-                entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/role/" + role))).get(role);
+    private void assertRoleInfo(final boolean oldCluster) throws Exception {
+        final String role = oldCluster ? "preupgrade_role" : "postupgrade_role";
+        @SuppressWarnings("unchecked") Map<String, Object> response = oldCluster ?
+            (Map<String, Object>) entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/role/" + role))).get(role) :
+            (Map<String, Object>) entityAsMap(client().performRequest(new Request("GET", "/_security/role/" + role))).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
         assertNotNull(response.get("indices"));

@@ -245,9 +245,16 @@ class BuildPlugin implements Plugin<Project> {
              *
              *  If either of these fail, we fail the build.
              */
+
+            // check if the Docker binary exists and record its path
+            final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
+            final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
+
             final boolean buildDocker
             final String buildDockerProperty = System.getProperty("build.docker")
-            if (buildDockerProperty == null || buildDockerProperty == "true") {
+            if (buildDockerProperty == null) {
+                buildDocker = dockerBinary != null
+            } else if (buildDockerProperty == "true") {
                 buildDocker = true
             } else if (buildDockerProperty == "false") {
                 buildDocker = false
@@ -258,10 +265,6 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.rootProject.ext.buildDocker = buildDocker
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                // check if the Docker binary exists and record its path
-                final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
-                final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
-
                 int exitCode
                 String dockerErrorOutput
                 if (dockerBinary == null) {

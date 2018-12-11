@@ -59,6 +59,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testHttpEnabledCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "HTTP Enabled setting removed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#remove-http-enabled",
+            "nodes with http.enabled set: [node_check]");
+        assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
+    }
+
     public void testTribeNodeCheck() {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,

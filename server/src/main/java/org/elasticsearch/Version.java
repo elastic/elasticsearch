@@ -130,6 +130,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_5_6_13 = new Version(V_5_6_13_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_5_6_14_ID = 5061499;
     public static final Version V_5_6_14 = new Version(V_5_6_14_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_15_ID = 5061599;
+    public static final Version V_5_6_15 = new Version(V_5_6_15_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 = new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
     public static final int V_6_0_0_alpha2_ID = 6000002;
@@ -194,8 +196,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_5_2 = new Version(V_6_5_2_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
     public static final int V_6_5_3_ID = 6050399;
     public static final Version V_6_5_3 = new Version(V_6_5_3_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
+    public static final int V_6_5_4_ID = 6050499;
+    public static final Version V_6_5_4 = new Version(V_6_5_4_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
 
-    public static final Version CURRENT = V_6_5_3;
+    public static final Version CURRENT = V_6_5_4;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -208,6 +212,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_6_5_4_ID:
+                return V_6_5_4;
             case V_6_5_3_ID:
                 return V_6_5_3;
             case V_6_5_2_ID:
@@ -266,6 +272,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_15_ID:
+                return V_5_6_15;
             case V_5_6_14_ID:
                 return V_5_6_14;
             case V_5_6_13_ID:

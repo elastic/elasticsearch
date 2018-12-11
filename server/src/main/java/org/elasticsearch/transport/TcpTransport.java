@@ -224,9 +224,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.handshaker = new TcpTransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
-                TransportStatus.setHandshake((byte) 0)),
+                false, TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
-                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
+                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, false,
+                TransportStatus.setHandshake((byte) 0)));
         this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
@@ -334,11 +335,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-
-            if (compress) {
-                options = TransportRequestOptions.builder(options).withCompress(true).build();
-            }
-            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
+            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), compress, (byte) 0);
         }
     }
 
@@ -765,11 +762,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
-                                      byte status) throws IOException, TransportException {
+                                      boolean compressRequest, byte status) throws IOException, TransportException {
 
         // only compress if asked and the request is not bytes. Otherwise only
         // the header part is compressed, and the "body" can't be extracted as compressed
-        final boolean compressMessage = options.compress() && canCompress(request);
+        final boolean compressMessage = compressRequest && canCompress(request);
 
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -868,8 +865,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final TransportResponse response,
         final long requestId,
         final String action,
-        final TransportResponseOptions options) throws IOException {
-        sendResponse(nodeVersion, features, channel, response, requestId, action, options, (byte) 0);
+        final TransportResponseOptions options,
+        final boolean compress) throws IOException {
+        sendResponse(nodeVersion, features, channel, response, requestId, action, options, compress, (byte) 0);
     }
 
     private void sendResponse(
@@ -880,17 +878,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long requestId,
         final String action,
         TransportResponseOptions options,
+        boolean compress,
         byte status) throws IOException {
-        if (compressResponses && options.compress() == false) {
-            options = TransportResponseOptions.builder(options).withCompress(true).build();
-        }
+        boolean compressMessage = compress || compressResponses;
 
         status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
+        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
         boolean addedReleaseListener = false;
         try {
-            if (options.compress()) {
+            if (compressMessage) {
                 status = TransportStatus.setCompress(status);
             }
             threadPool.getThreadContext().writeTo(stream);

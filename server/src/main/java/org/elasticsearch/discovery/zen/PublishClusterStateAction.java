@@ -288,7 +288,7 @@ public class PublishClusterStateAction {
             //  and not log an error if it arrives after the timeout
             // -> no need to compress, we already compressed the bytes
             TransportRequestOptions options = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
+                .withType(TransportRequestOptions.Type.STATE).build();
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.getVersion()),
                     options,

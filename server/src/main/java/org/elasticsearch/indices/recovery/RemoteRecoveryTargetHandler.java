@@ -62,12 +62,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
-                .withCompress(true)
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout())
                 .build();
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
-                .withCompress(false)  // lucene files are already compressed and therefore compressing this won't really help much so
                 // we are saving the cpu for other things
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())

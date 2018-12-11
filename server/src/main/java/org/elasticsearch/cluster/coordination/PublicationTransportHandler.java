@@ -258,7 +258,7 @@ public class PublicationTransportHandler {
             //  and not log an error if it arrives after the timeout
             // -> no need to compress, we already compressed the bytes
             final TransportRequestOptions options = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
+                .withType(TransportRequestOptions.Type.STATE).build();
             final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
             final Consumer<TransportException> transportExceptionHandler = exp -> {
                 if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {

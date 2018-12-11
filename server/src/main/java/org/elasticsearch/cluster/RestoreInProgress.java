@@ -44,6 +44,9 @@ import java.util.UUID;
  */
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
+    /**
+     * Fallback UUID used for restore operations that were started before v7.0 and don't have a uuid in the cluster state.
+     */
     public static final String BWC_UUID = new UUID(0, 0).toString();
 
     public static final String TYPE = "restore";
@@ -129,6 +132,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             this.uuid = Objects.requireNonNull(uuid);
         }
 
+        /**
+         * Returns restore uuid
+         * @return
+         */
         public String uuid() {
             return uuid;
         }

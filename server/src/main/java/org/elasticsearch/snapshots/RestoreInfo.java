@@ -74,6 +74,11 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return name;
     }
 
+    /**
+     * UUID of the restore operation
+     *
+     * @return uuid of the restore operation
+     */
     public String id() {
         return uuid;
     }

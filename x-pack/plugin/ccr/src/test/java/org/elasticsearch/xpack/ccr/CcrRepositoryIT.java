@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -176,7 +175,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                                 clusterService.removeListener(this);
                                 ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 RestoreInfo ri = new RestoreInfo(
-                                    UUIDs.randomBase64UUID(),
+                                    uuid,
                                     prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),
                                     shards.size(),

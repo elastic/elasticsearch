@@ -155,7 +155,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private void createUser(String name, String role) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject(); {
             user.field("password", "testpass");
@@ -167,7 +167,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private void deleteUser(String name) throws IOException {
-        Request request = new Request("DELETE", "/_xpack/security/user/" + name);
+        Request request = new Request("DELETE", "/_security/user/" + name);
         client().performRequest(request);
     }
     

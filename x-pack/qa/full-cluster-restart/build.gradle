@@ -86,6 +86,9 @@ licenseHeaders {
     approvedLicenses << 'Apache'
 }
 
+forbiddenPatterns {
+    exclude '**/system_key'
+}
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -113,6 +116,10 @@ subprojects {
 
   licenseHeaders {
     approvedLicenses << 'Apache'
+  }
+
+  forbiddenPatterns {
+    exclude '**/system_key'
   }
 
   String outputDir = "${buildDir}/generated-resources/${project.name}"

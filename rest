@@ -1,5 +1,0 @@
-#!/bin/bash
-
-./gradlew :distribution:archives:integ-test-zip:integTest \
-	-Dtests.class="org.elasticsearch.test.rest.*Yaml*IT" \
-	-Dtests.method="test {p0=$1}"

@@ -14,7 +14,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
@@ -29,11 +28,13 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         SqlClearCursorRequest sqlRequest;
-        try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlClearCursorRequest.fromXContent(parser, Mode.fromString(request.param("mode")));
+        try (XContentParser parser = request.contentParser()) {
+            sqlRequest = SqlClearCursorRequest.fromXContent(parser);
         }
+        
         return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

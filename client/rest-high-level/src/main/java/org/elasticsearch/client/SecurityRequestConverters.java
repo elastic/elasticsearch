@@ -70,7 +70,7 @@ final class SecurityRequestConverters {
 
     static Request getUsers(GetUsersRequest getUsersRequest) {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/user");
+            .addPathPartAsIs("/_security/user");
         if (getUsersRequest.getUsernames().size() > 0) {
             builder.addPathPart(Strings.collectionToCommaDelimitedString(getUsersRequest.getUsernames()));
         }

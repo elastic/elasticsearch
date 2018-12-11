@@ -109,7 +109,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
         Request request = SecurityRequestConverters.getUsers(getUsersRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/test", request.getEndpoint());
+        assertEquals("/_security/user/test", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
 

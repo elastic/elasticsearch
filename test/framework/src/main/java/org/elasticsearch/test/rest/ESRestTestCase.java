@@ -245,7 +245,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();
-    }    
+    }
+
+    /**
+     * Creates request options designed to be used when calling a deprecated 'typed' API. The
+     * options will ensure that the given warnings are returned if all nodes are on 7.x, and will
+     * allow (but not require) the warnings if any node is running 6.x.
+     *
+     * @param warnings The expected types removal warnings.
+     * @return A {@link RequestOptions} instance for use with a deprecated 'typed' request.
+     */
+    public static RequestOptions expectTypesWarnings(String... warnings) {
+        return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
+    }
 
     /**
      * Construct an HttpHost from the given host and port

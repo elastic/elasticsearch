@@ -83,7 +83,6 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new MatchNoDocsQuery(), query);
     }
 
-
     static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {
         Document doc = new Document();
         StringField typeField = new StringField(TypeFieldMapper.NAME, type, Store.NO);

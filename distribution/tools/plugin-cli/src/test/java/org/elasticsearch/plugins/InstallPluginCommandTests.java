@@ -797,6 +797,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         installPlugin(terminal, true);
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
+        assertThat(terminal.getOutput(), containsString("-> Downloading"));
+        // No progress bar in batch mode
+        assertThat(terminal.getOutput(), not(containsString("100%")));
     }
 
     public void testQuietFlagDisabled() throws Exception {

@@ -376,11 +376,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = url.openConnection();
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
-        try (InputStream in = new TerminalProgressInputStream(
-            urlConnection.getInputStream(),
-            isBatch ? 0 : urlConnection.getContentLength(),
-            terminal
-        )) {
+        try (InputStream in = isBatch ? urlConnection.getInputStream() :
+            new TerminalProgressInputStream(urlConnection.getInputStream(),urlConnection.getContentLength(),terminal)) {
             // must overwrite since creating the temp file above actually created the file
             Files.copy(in, zip, StandardCopyOption.REPLACE_EXISTING);
         }

@@ -597,9 +597,8 @@ if the new cluster doesn't contain nodes with appropriate attributes that a rest
 index will not be successfully restored unless these index allocation settings are changed during restore operation.
 
 The restore operation also checks that restored persistent settings are compatible with the current cluster to avoid accidentally
-restoring an incompatible settings such as `discovery.zen.minimum_master_nodes` and as a result disable a smaller cluster until the
-required number of master eligible nodes is added. If you need to restore a snapshot with incompatible persistent settings, try
-restoring it without the global cluster state.
+restoring incompatible settings. If you need to restore a snapshot with incompatible persistent settings, try restoring it without
+the global cluster state.
 
 [float]
 === Snapshot status

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.analytics.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractorFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,28 +42,39 @@ public class AnalyticsProcessManager {
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
     }
 
-    public void processData(String jobId, DataFrameDataExtractor dataExtractor) {
+    public void runJob(String jobId, DataFrameDataExtractorFactory dataExtractorFactory) {
         threadPool.generic().execute(() -> {
-            AnalyticsProcess process = createProcess(jobId, dataExtractor);
-            try {
-                writeHeaderRecord(dataExtractor, process);
-                writeDataRows(dataExtractor, process);
-                process.writeEndOfDataMessage();
-                process.flushStream();
+            DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
+            AnalyticsProcess process = createProcess(jobId, createProcessConfig(dataExtractor));
+            ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
+            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(client, dataExtractorFactory.newExtractor(true));
+            executorService.execute(() -> resultProcessor.process(process));
+            executorService.execute(() -> processData(jobId, dataExtractor, process, resultProcessor));
+        });
+    }
 
-                LOGGER.debug("[{}] Closing process", jobId);
+    private void processData(String jobId, DataFrameDataExtractor dataExtractor, AnalyticsProcess process,
+                             AnalyticsResultProcessor resultProcessor) {
+        try {
+            writeHeaderRecord(dataExtractor, process);
+            writeDataRows(dataExtractor, process);
+            process.writeEndOfDataMessage();
+            process.flushStream();
+
+            LOGGER.info("[{}] Waiting for result processor to complete", jobId);
+            resultProcessor.awaitForCompletion();
+            LOGGER.info("[{}] Result processor has completed", jobId);
+        } catch (IOException e) {
+            LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
+        } finally {
+            LOGGER.info("[{}] Closing process", jobId);
+            try {
                 process.close();
                 LOGGER.info("[{}] Closed process", jobId);
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
-            } finally {
-                try {
-                    process.close();
-                } catch (IOException e) {
-                    LOGGER.error("[{}] Error closing data frame analyzer process", jobId);
-                }
+                LOGGER.error("[{}] Error closing data frame analyzer process", jobId);
             }
-        });
+        }
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess process) throws IOException {
@@ -75,8 +87,8 @@ public class AnalyticsProcessManager {
             Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
             if (rows.isPresent()) {
                 for (DataFrameDataExtractor.Row row : rows.get()) {
-                    String[] rowValues = row.getValues();
-                    if (rowValues != null) {
+                    if (row.shouldSkip() == false) {
+                        String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         process.writeRecord(record);
                     }
@@ -96,10 +108,10 @@ public class AnalyticsProcessManager {
         process.writeRecord(headerRecord);
     }
 
-    private AnalyticsProcess createProcess(String jobId, DataFrameDataExtractor dataExtractor) {
+    private AnalyticsProcess createProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig) {
         // TODO We should rename the thread pool to reflect its more general use now, e.g. JOB_PROCESS_THREAD_POOL_NAME
         ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
-        AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, createProcessConfig(dataExtractor), executorService);
+        AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, analyticsProcessConfig, executorService);
         if (process.isProcessAlive() == false) {
             throw ExceptionsHelper.serverError("Failed to start analytics process");
         }

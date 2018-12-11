@@ -35,7 +35,7 @@ public class AnalyticsControlMessageWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("r");
+        inOrder.verify(lengthEncodedWriter).writeField("$");
 
         StringBuilder spaces = new StringBuilder();
         IntStream.rangeClosed(1, 8192).forEach(i -> spaces.append(' '));

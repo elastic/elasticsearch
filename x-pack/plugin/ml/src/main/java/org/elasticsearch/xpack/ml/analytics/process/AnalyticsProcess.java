@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.analytics.process;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 public interface AnalyticsProcess extends NativeProcess {
 
@@ -17,4 +18,17 @@ public interface AnalyticsProcess extends NativeProcess {
      * @throws IOException If an error occurs writing to the process
      */
     void writeEndOfDataMessage() throws IOException;
+
+    /**
+     * @return stream of analytics results.
+     */
+    Iterator<AnalyticsResult> readAnalyticsResults();
+
+    /**
+     * Read anything left in the stream before
+     * closing the stream otherwise if the process
+     * tries to write more after the close it gets
+     * a SIGPIPE
+     */
+    void consumeAndCloseOutputStream();
 }

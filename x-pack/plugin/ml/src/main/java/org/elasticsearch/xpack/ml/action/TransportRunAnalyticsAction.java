@@ -38,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.RunAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.analytics.DataFrameFields;
 import org.elasticsearch.xpack.ml.analytics.process.AnalyticsProcessManager;
@@ -178,8 +177,7 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
 
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
-                DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor();
-                analyticsProcessManager.processData(jobId, dataExtractor);
+                analyticsProcessManager.runJob(jobId, dataExtractorFactory);
                 listener.onResponse(new AcknowledgedResponse(true));
             },
             listener::onFailure

@@ -63,14 +63,16 @@ public class DataFrameDataExtractorFactory {
         this.extractedFields = Objects.requireNonNull(extractedFields);
     }
 
-    public DataFrameDataExtractor newExtractor() {
+    public DataFrameDataExtractor newExtractor(boolean includeSource) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
                 "ml-analytics-" + index,
                 extractedFields,
                 Arrays.asList(index),
                 QueryBuilders.matchAllQuery(),
                 1000,
-                Collections.emptyMap());
+                Collections.emptyMap(),
+                includeSource
+            );
         return new DataFrameDataExtractor(client, context);
     }
 

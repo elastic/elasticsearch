@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
@@ -606,7 +607,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg,
                               AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
         final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
         if (shouldLog) {
@@ -625,7 +626,8 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
                              AuthorizationInfo authorizationInfo) {
-        if (events.contains(ACCESS_DENIED) && (XPackUser.is(authentication.getUser()) == false)) {
+        if (events.contains(ACCESS_DENIED) && (XPackUser.is(authentication.getUser()) == false &&
+            XPackSecurityUser.is(authentication.getUser()) == false)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();

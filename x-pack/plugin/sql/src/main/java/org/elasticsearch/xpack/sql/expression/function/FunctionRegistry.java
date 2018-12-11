@@ -153,7 +153,7 @@ public class FunctionRegistry {
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
         // Scalar functions
-        // conditional
+        // Conditional
         addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
                  def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                  def(NullIf.class, NullIf::new, "NULLIF"),

@@ -20,9 +20,9 @@ import java.util.Objects;
 import java.util.TimeZone;
 import java.util.function.Function;
 
-public class NonISODateTimeProcessor extends BaseDateTimeProcessor {
+public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
     
-    public enum NonISODateTimeExtractor {
+    public enum NonIsoDateTimeExtractor {
         DAY_OF_WEEK(zdt -> {
             // by ISO 8601 standard, Monday is the first day of the week and has the value 1
             // non-ISO 8601 standard considers Sunday as the first day of the week and value 1
@@ -43,7 +43,7 @@ public class NonISODateTimeProcessor extends BaseDateTimeProcessor {
 
         private final Function<ZonedDateTime, Integer> apply;
 
-        NonISODateTimeExtractor(Function<ZonedDateTime, Integer> apply) {
+        NonIsoDateTimeExtractor(Function<ZonedDateTime, Integer> apply) {
             this.apply = apply;
         }
 
@@ -58,16 +58,16 @@ public class NonISODateTimeProcessor extends BaseDateTimeProcessor {
     
     public static final String NAME = "nidt";
 
-    private final NonISODateTimeExtractor extractor;
+    private final NonIsoDateTimeExtractor extractor;
 
-    public NonISODateTimeProcessor(NonISODateTimeExtractor extractor, TimeZone timeZone) {
+    public NonIsoDateTimeProcessor(NonIsoDateTimeExtractor extractor, TimeZone timeZone) {
         super(timeZone);
         this.extractor = extractor;
     }
 
-    public NonISODateTimeProcessor(StreamInput in) throws IOException {
+    public NonIsoDateTimeProcessor(StreamInput in) throws IOException {
         super(in);
-        extractor = in.readEnum(NonISODateTimeExtractor.class);
+        extractor = in.readEnum(NonIsoDateTimeExtractor.class);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class NonISODateTimeProcessor extends BaseDateTimeProcessor {
         return NAME;
     }
 
-    NonISODateTimeExtractor extractor() {
+    NonIsoDateTimeExtractor extractor() {
         return extractor;
     }
 
@@ -100,7 +100,7 @@ public class NonISODateTimeProcessor extends BaseDateTimeProcessor {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        NonISODateTimeProcessor other = (NonISODateTimeProcessor) obj;
+        NonIsoDateTimeProcessor other = (NonIsoDateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
                 && Objects.equals(timeZone(), other.timeZone());
     }

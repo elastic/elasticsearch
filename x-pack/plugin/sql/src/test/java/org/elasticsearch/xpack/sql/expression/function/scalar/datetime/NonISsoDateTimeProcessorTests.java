@@ -7,39 +7,39 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonISODateTimeProcessor.NonISODateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
 import java.io.IOException;
 import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
-public class NonISODateTimeProcessorTests extends AbstractWireSerializingTestCase<NonISODateTimeProcessor> {
+public class NonISsoDateTimeProcessorTests extends AbstractWireSerializingTestCase<NonIsoDateTimeProcessor> {
     
     private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
-    public static NonISODateTimeProcessor randomNonISODateTimeProcessor() {
-        return new NonISODateTimeProcessor(randomFrom(NonISODateTimeExtractor.values()), UTC);
+    public static NonIsoDateTimeProcessor randomNonISODateTimeProcessor() {
+        return new NonIsoDateTimeProcessor(randomFrom(NonIsoDateTimeExtractor.values()), UTC);
     }
 
     @Override
-    protected NonISODateTimeProcessor createTestInstance() {
+    protected NonIsoDateTimeProcessor createTestInstance() {
         return randomNonISODateTimeProcessor();
     }
 
     @Override
-    protected Reader<NonISODateTimeProcessor> instanceReader() {
-        return NonISODateTimeProcessor::new;
+    protected Reader<NonIsoDateTimeProcessor> instanceReader() {
+        return NonIsoDateTimeProcessor::new;
     }
 
     @Override
-    protected NonISODateTimeProcessor mutateInstance(NonISODateTimeProcessor instance) throws IOException {
-        NonISODateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(NonISODateTimeExtractor.values()));
-        return new NonISODateTimeProcessor(replaced, UTC);
+    protected NonIsoDateTimeProcessor mutateInstance(NonIsoDateTimeProcessor instance) throws IOException {
+        NonIsoDateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(NonIsoDateTimeExtractor.values()));
+        return new NonIsoDateTimeProcessor(replaced, UTC);
     }
 
     public void testNonISOWeekOfYearInUTC() {
-        NonISODateTimeProcessor proc = new NonISODateTimeProcessor(NonISODateTimeExtractor.WEEK_OF_YEAR, UTC);
+        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, UTC);
         assertEquals(2, proc.process(dateTime(568372930000L)));  //1988-01-05T09:22:10Z[UTC]
         assertEquals(6, proc.process(dateTime(981278530000L)));  //2001-02-04T09:22:10Z[UTC]
         assertEquals(7, proc.process(dateTime(224241730000L)));  //1977-02-08T09:22:10Z[UTC]
@@ -52,7 +52,7 @@ public class NonISODateTimeProcessorTests extends AbstractWireSerializingTestCas
     }
 
     public void testNonISOWeekOfYearInNonUTCTimeZone() {
-        NonISODateTimeProcessor proc = new NonISODateTimeProcessor(NonISODateTimeExtractor.WEEK_OF_YEAR, TimeZone.getTimeZone("GMT-10:00"));
+        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, TimeZone.getTimeZone("GMT-10:00"));
         assertEquals(2, proc.process(dateTime(568372930000L)));
         assertEquals(5, proc.process(dateTime(981278530000L)));
         assertEquals(7, proc.process(dateTime(224241730000L)));
@@ -65,7 +65,7 @@ public class NonISODateTimeProcessorTests extends AbstractWireSerializingTestCas
     }
     
     public void testNonISODayOfWeekInUTC() {
-        NonISODateTimeProcessor proc = new NonISODateTimeProcessor(NonISODateTimeExtractor.DAY_OF_WEEK, UTC);
+        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.DAY_OF_WEEK, UTC);
         assertEquals(3, proc.process(dateTime(568372930000L))); //1988-01-05T09:22:10Z[UTC]
         assertEquals(1, proc.process(dateTime(981278530000L))); //2001-02-04T09:22:10Z[UTC]
         assertEquals(3, proc.process(dateTime(224241730000L))); //1977-02-08T09:22:10Z[UTC]
@@ -78,7 +78,7 @@ public class NonISODateTimeProcessorTests extends AbstractWireSerializingTestCas
     }
 
     public void testNonISODayOfWeekInNonUTCTimeZone() {
-        NonISODateTimeProcessor proc = new NonISODateTimeProcessor(NonISODateTimeExtractor.DAY_OF_WEEK, TimeZone.getTimeZone("GMT-10:00"));
+        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.DAY_OF_WEEK, TimeZone.getTimeZone("GMT-10:00"));
         assertEquals(2, proc.process(dateTime(568372930000L)));
         assertEquals(7, proc.process(dateTime(981278530000L)));
         assertEquals(2, proc.process(dateTime(224241730000L)));

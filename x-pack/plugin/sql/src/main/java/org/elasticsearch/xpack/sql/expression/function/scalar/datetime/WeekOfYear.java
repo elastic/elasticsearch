@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonISODateTimeProcessor.NonISODateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
@@ -15,10 +15,10 @@ import java.util.TimeZone;
 /**
  * Extract the week of the year from a datetime following the non-ISO standard.
  */
-public class WeekOfYear extends NonISODateTimeFunction {
+public class WeekOfYear extends NonIsoDateTimeFunction {
     
     public WeekOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, NonISODateTimeExtractor.WEEK_OF_YEAR);
+        super(location, field, timeZone, NonIsoDateTimeExtractor.WEEK_OF_YEAR);
     }
 
     @Override

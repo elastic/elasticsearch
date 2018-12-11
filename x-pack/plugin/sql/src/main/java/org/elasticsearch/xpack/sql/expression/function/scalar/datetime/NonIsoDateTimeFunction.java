@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonISODateTimeProcessor.NonISODateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -24,11 +24,11 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 /*
  * Base class for date/time functions that behave differently in a non-ISO format
  */
-abstract class NonISODateTimeFunction extends BaseDateTimeFunction {
+abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
 
-    private final NonISODateTimeExtractor extractor;
+    private final NonIsoDateTimeExtractor extractor;
 
-    NonISODateTimeFunction(Location location, Expression field, TimeZone timeZone, NonISODateTimeExtractor extractor) {
+    NonIsoDateTimeFunction(Location location, Expression field, TimeZone timeZone, NonIsoDateTimeExtractor extractor) {
         super(location, field, timeZone);
         this.extractor = extractor;
     }
@@ -51,7 +51,7 @@ abstract class NonISODateTimeFunction extends BaseDateTimeFunction {
 
     @Override
     protected Processor makeProcessor() {
-        return new NonISODateTimeProcessor(extractor, timeZone());
+        return new NonIsoDateTimeProcessor(extractor, timeZone());
     }
 
     @Override

@@ -131,7 +131,7 @@ public class NetworkModuleTests extends ESTestCase {
         Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
@@ -187,7 +187,7 @@ public class NetworkModuleTests extends ESTestCase {
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
@@ -222,7 +222,7 @@ public class NetworkModuleTests extends ESTestCase {
         Supplier<Transport> customTransport = () -> null;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,

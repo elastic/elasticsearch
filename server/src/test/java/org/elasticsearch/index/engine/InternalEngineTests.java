@@ -5481,7 +5481,7 @@ public class InternalEngineTests extends EngineTestCase {
             final List<DocIdSeqNoAndTerm> docs;
             try (InternalEngine engine = createEngine(
                 config(softDeletesEnabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get))) {
-                List<Engine.Operation> ops = generateReplicaHistory(between(1, 100), randomBoolean());
+                List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
                 applyOperations(engine, ops);
                 globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
                 engine.syncTranslog();

@@ -48,8 +48,7 @@ public final class Whitelist {
         "java.util.txt",
         "java.util.function.txt",
         "java.util.regex.txt",
-        "java.util.stream.txt",
-        "joda.time.txt"
+        "java.util.stream.txt"
     };
 
     public static final List<Whitelist> BASE_WHITELISTS =

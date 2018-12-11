@@ -25,6 +25,8 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events", this);
+        controller.registerHandler(RestRequest.Method.GET,
+                MachineLearning.V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events", this);
     }
 
     @Override

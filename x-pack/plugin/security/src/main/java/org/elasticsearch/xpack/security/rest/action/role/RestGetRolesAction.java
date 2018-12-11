@@ -38,7 +38,9 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
     public RestGetRolesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(GET, "/_xpack/security/role/", this);
+        controller.registerHandler(GET, "/_security/role/", this);
         controller.registerHandler(GET, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(GET, "/_security/role/{name}", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(GET, "/_shield/role", this,

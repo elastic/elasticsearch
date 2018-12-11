@@ -61,6 +61,7 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
     public RestGetTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
         controller.registerHandler(POST, "/_xpack/security/oauth2/token", this);
+        controller.registerHandler(POST, "/_security/oauth2/token", this);
     }
 
     @Override

@@ -97,6 +97,14 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
         assertDeprecation(assertions, "Use of the joda time method [" + oldMethod + "] is deprecated. Use [" + newMethod + "] instead.");
     }
 
+    public void testEquals() {
+        assertThat(javaTime, equalTo(javaTime));
+    }
+
+    public void testToString() {
+        assertThat(javaTime.toString(), equalTo(jodaTime.toString()));
+    }
+
     public void testDayOfMonth() {
         assertThat(javaTime.getDayOfMonth(), equalTo(jodaTime.getDayOfMonth()));
     }

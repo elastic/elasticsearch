@@ -429,7 +429,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public String toString() {
-            return "[index=" + index + ", deleteDate=" + Joda.getStrictStandardDateFormatter().printer().print(deleteDateInMillis) + "]";
+            return "[index=" + index + ", deleteDate=" + Joda.getStrictStandardDateFormatter().formatMillis(deleteDateInMillis) + "]";
         }
 
         @Override

@@ -138,12 +138,12 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
         if (events.contains(AUTHENTICATION_SUCCESS) && (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]{}, request_body=[{}]",
-                        localNodeInfo.prefix, principal(user), realm, request.uri(), request.params(), opaqueId(),
+                logger.info("{}[rest] [authentication_success]\t{}, {}, realm=[{}], uri=[{}], params=[{}]{}, request_body=[{}]",
+                        localNodeInfo.prefix, hostAttributes(request), principal(user), realm, request.uri(), request.params(), opaqueId(),
                         restRequestContent(request));
             } else {
-                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]{}", localNodeInfo.prefix,
-                        principal(user), realm, request.uri(), request.params(), opaqueId());
+                logger.info("{}[rest] [authentication_success]\t{}, {}, realm=[{}], uri=[{}], params=[{}]{}", localNodeInfo.prefix,
+                        hostAttributes(request), principal(user), realm, request.uri(), request.params(), opaqueId());
             }
         }
     }

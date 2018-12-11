@@ -24,7 +24,7 @@ and clauses are considered for caching.
 the score. If the `bool` query is a <<query-filter-context,filter context>>
 or has neither `must` or `filter` then at least one of the `should` queries
 must match a document for it to match the `bool` query. This behavior may be
-explicitly controlled by settings the
+explicitly controlled by setting the
 <<query-dsl-minimum-should-match,`minimum_should_match`>> parameter.
 
 |`must_not` |The clause (query) must not appear in the matching

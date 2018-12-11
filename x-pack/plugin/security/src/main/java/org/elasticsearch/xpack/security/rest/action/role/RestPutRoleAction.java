@@ -38,7 +38,9 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
     public RestPutRoleAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(POST, "/_security/role/{name}", this);
         controller.registerHandler(PUT, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(PUT, "/_security/role/{name}", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(POST, "/_shield/role/{name}", this,

@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-beats-${monitoring.template.version}-*" ],
-  "version": 6050099,
+  "version": 6050399,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -293,6 +293,9 @@
                                   "type": "long"
                                 },
                                 "unauthorized": {
+                                  "type": "long"
+                                },
+                                "internal": {
                                   "type": "long"
                                 },
                                 "decode": {

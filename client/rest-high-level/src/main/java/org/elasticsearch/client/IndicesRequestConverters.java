@@ -45,11 +45,13 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
 
@@ -385,13 +387,27 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
-        String[] names = getIndexTemplatesRequest.names();
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        params.withLocal(getIndexTemplatesRequest.local());
-        params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
+    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_template")
+            .addCommaSeparatedPathParts(getIndexTemplatesRequest.names())
+            .build();
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(getIndexTemplatesRequest.isLocal());
+        params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
+        return request;
+    }
+
+    static Request templatesExist(IndexTemplatesExistRequest indexTemplatesExistRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_template")
+            .addCommaSeparatedPathParts(indexTemplatesExistRequest.names())
+            .build();
+        final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(indexTemplatesExistRequest.isLocal());
+        params.withMasterTimeout(indexTemplatesExistRequest.getMasterNodeTimeout());
         return request;
     }
 
@@ -426,6 +442,15 @@ final class IndicesRequestConverters {
         parameters.withMasterTimeout(unfreezeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(unfreezeIndexRequest.indicesOptions());
         parameters.withWaitForActiveShards(unfreezeIndexRequest.getWaitForActiveShards(), ActiveShardCount.DEFAULT);
+        return request;
+    }
+
+    static Request deleteTemplate(DeleteIndexTemplateRequest deleteIndexTemplateRequest) {
+        String name = deleteIndexTemplateRequest.name();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template").addPathPart(name).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withMasterTimeout(deleteIndexTemplateRequest.masterNodeTimeout());
         return request;
     }
 }

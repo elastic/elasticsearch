@@ -31,6 +31,7 @@ public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
     public RestDeleteRoleMappingAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/role_mapping/{name}", this);
+        controller.registerHandler(DELETE, "/_security/role_mapping/{name}", this);
     }
 
     @Override

@@ -22,6 +22,8 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
@@ -50,6 +52,7 @@ import java.util.Objects;
 public class JodaCompatibleZonedDateTime {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
+    private static final DateFormatter DATE_FORMATTER = DateFormatters.forPattern("strict_date_time");
 
     private static void logDeprecated(String key, String message, Object... params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
@@ -89,7 +92,7 @@ public class JodaCompatibleZonedDateTime {
 
     @Override
     public String toString() {
-        return dt.toString();
+        return DATE_FORMATTER.format(dt);
     }
 
     public boolean isAfter(ZonedDateTime o) {

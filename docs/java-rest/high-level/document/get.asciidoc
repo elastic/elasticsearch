@@ -17,8 +17,7 @@ A +{request}+ requires the following arguments:
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Index
-<2> Type
-<3> Document id
+<2> Document id
 
 [id="{upid}-{api}-request-optional-arguments"]
 ==== Optional arguments

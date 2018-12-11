@@ -19,12 +19,15 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -41,6 +44,10 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestGetAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
+        "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     public RestGetAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -55,9 +62,12 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GetRequest getRequest = new GetRequest(request.param("index"),
-            request.param("type"),
-            request.param("id"));
+        String type = request.param("type");
+        if (!type.equals(MapperService.SINGLE_MAPPING_NAME)) {
+            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+        }
+
+        final GetRequest getRequest = new GetRequest(request.param("index"), type, request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));

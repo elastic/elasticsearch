@@ -582,12 +582,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, IntervalType type) throws IOException {
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
             if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                 throw new IllegalArgumentException("Cannot create source against field [" + name() + "] with no positions indexed");
             }
-            IntervalBuilder builder = new IntervalBuilder(name(), searchAnalyzer());
-            return builder.analyzeText(text, type);
+            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
+            return builder.analyzeText(text, maxGaps, ordered);
         }
 
         @Override

@@ -38,7 +38,7 @@ public class IntervalBuilderTests extends ESTestCase {
 
         CannedTokenStream ts = new CannedTokenStream(new Token("term1", 1, 2));
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), MappedFieldType.IntervalType.ORDERED);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
         IntervalsSource expected = Intervals.term("term1");
 
         assertEquals(expected, source);
@@ -52,7 +52,7 @@ public class IntervalBuilderTests extends ESTestCase {
             new Token("term3", 5, 6)
         );
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), MappedFieldType.IntervalType.ORDERED);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
         IntervalsSource expected = Intervals.ordered(
             Intervals.term("term1"), Intervals.term("term2"), Intervals.term("term3")
         );
@@ -69,7 +69,7 @@ public class IntervalBuilderTests extends ESTestCase {
             new Token("term3", 5, 6)
         );
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), MappedFieldType.IntervalType.UNORDERED);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, false);
         IntervalsSource expected = Intervals.unordered(
             Intervals.term("term1"), Intervals.term("term2"), Intervals.term("term3")
         );
@@ -86,7 +86,7 @@ public class IntervalBuilderTests extends ESTestCase {
             new Token("term3", 5, 6)
         );
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), MappedFieldType.IntervalType.PHRASE);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), 0, true);
         IntervalsSource expected = Intervals.phrase(
             Intervals.term("term1"), Intervals.term("term2"), Intervals.term("term3")
         );
@@ -104,7 +104,7 @@ public class IntervalBuilderTests extends ESTestCase {
             new Token("term3", 5, 6)
         );
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), MappedFieldType.IntervalType.ORDERED);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
         IntervalsSource expected = Intervals.ordered(
             Intervals.term("term1"), Intervals.or(Intervals.term("term2"), Intervals.term("term4")), Intervals.term("term3")
         );
@@ -128,7 +128,7 @@ public class IntervalBuilderTests extends ESTestCase {
             new Token("term5", 6, 7)
         );
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), MappedFieldType.IntervalType.ORDERED);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
         IntervalsSource expected = Intervals.ordered(
             Intervals.term("term1"),
             Intervals.or(Intervals.term("term2"), Intervals.phrase("term3", "term4")),

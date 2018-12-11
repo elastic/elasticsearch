@@ -133,12 +133,6 @@ public interface SearchPlugin {
     default List<RescorerSpec<?>> getRescorers() {
         return emptyList();
     }
-    /**
-     * The new {@link IntervalsSourceProvider}s added by this plugin
-     */
-    default List<IntervalSpec<?>> getIntervalsSourceProviders() {
-        return emptyList();
-    }
 
     /**
      * Specification of custom {@link ScoreFunction}.
@@ -245,20 +239,6 @@ public interface SearchPlugin {
         public QuerySpec(String name, Writeable.Reader<T> reader, QueryParser<T> parser) {
             super(name, reader, parser);
         }
-    }
-
-    /**
-     * Specification of custom {@link IntervalsSourceProvider}
-     */
-    class IntervalSpec<T extends IntervalsSourceProvider> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-
-        /**
-         * Specification of custom {@link IntervalsSourceProvider}
-         */
-        public IntervalSpec(String name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
-            super(name, reader, parser);
-        }
-
     }
 
     /**

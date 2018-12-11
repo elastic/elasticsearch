@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.apache.lucene.search.intervals.Intervals;
@@ -40,20 +41,32 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource());
     }
 
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+    }
+
+    private static final String[] filters = new String[]{
+        "containing", "contained_by", "not_containing", "not_contained_by", "not_overlapping"
+    };
+
+    private IntervalsSourceProvider.IntervalFilter createRandomFilter() {
+        if (randomInt(20) > 18) {
+            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(), randomFrom(filters));
+        }
+        return null;
+    }
+
     private IntervalsSourceProvider createRandomSource() {
         switch (randomInt(20)) {
             case 0:
-                IntervalsSourceProvider source1 = createRandomSource();
-                IntervalsSourceProvider source2 = createRandomSource();
-                int relOrd = randomInt(IntervalsSourceProvider.Relate.Relation.values().length - 1);
-                return new IntervalsSourceProvider.Relate(source1, source2, IntervalsSourceProvider.Relate.Relation.values()[relOrd]);
             case 1:
                 int orCount = randomInt(4) + 1;
                 List<IntervalsSourceProvider> orSources = new ArrayList<>();
                 for (int i = 0; i < orCount; i++) {
                     orSources.add(createRandomSource());
                 }
-                return new IntervalsSourceProvider.Disjunction(orSources);
+                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter());
             case 2:
             case 3:
                 int count = randomInt(5) + 1;
@@ -61,9 +74,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 for (int i = 0; i < count; i++) {
                     subSources.add(createRandomSource());
                 }
-                int typeOrd = randomInt(IntervalsSourceProvider.CombineType.values().length - 1);
-                int width = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(count, 100);
-                return new IntervalsSourceProvider.Combine(subSources, IntervalsSourceProvider.CombineType.values()[typeOrd], width);
+                boolean ordered = randomBoolean();
+                int maxGaps = randomInt(5) - 1;
+                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter();
+                return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
             default:
                 int wordCount = randomInt(4) + 1;
                 List<String> words = new ArrayList<>();
@@ -71,9 +85,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                     words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
                 }
                 String text = String.join(" ", words);
-                int mtypeOrd = randomInt(MappedFieldType.IntervalType.values().length - 1);
-                MappedFieldType.IntervalType type = MappedFieldType.IntervalType.values()[mtypeOrd];
-                return new IntervalsSourceProvider.Match(text, randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 20), type);
+                boolean mOrdered = randomBoolean();
+                int maxMGaps = randomInt(5) - 1;
+                String analyzer = randomFrom("simple", "keyword", "whitespace");
+                return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter());
         }
     }
 
@@ -85,159 +100,149 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     public void testMatchInterval() throws IOException {
 
         String json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\"," +
-            "  \"source\" : { \"match\" : { " +
-            "                       \"text\" : \"Hello world\" } } } }";
+            "{ \"" + STRING_FIELD_NAME + "\" : { \"match\" : { \"query\" : \"Hello world\" } } } }";
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        IntervalQuery expected = new IntervalQuery(STRING_FIELD_NAME,
+        Query expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.unordered(Intervals.term("hello"), Intervals.term("world")));
 
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\"," +
-            "  \"source\" : { \"match\" : { " +
-            "                       \"text\" : \"Hello world\"," +
-            "                       \"max_width\" : 40 } } } }";
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"Hello world\"," +
+            "           \"max_gaps\" : 40 } } } }";
+
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.maxwidth(40, Intervals.unordered(Intervals.term("hello"), Intervals.term("world"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\"," +
-            "  \"source\" : { \"match\" : { " +
-            "                       \"text\" : \"Hello world\"," +
-            "                       \"type\" : \"ordered\" } } } }";
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"Hello world\"," +
+            "           \"ordered\" : true }," +
+            "       \"boost\" : 2 } } }";
+
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.ordered(Intervals.term("hello"), Intervals.term("world")));
+        expected = new BoostQuery(new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.ordered(Intervals.term("hello"), Intervals.term("world"))), 2);
         assertEquals(expected, builder.toQuery(createShardContext()));
 
+        json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"Hello world\"," +
+            "           \"max_gaps\" : 10," +
+            "           \"analyzer\" : \"whitespace\"," +
+            "           \"ordered\" : true } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.maxwidth(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"Hello world\"," +
+            "           \"max_gaps\" : 10," +
+            "           \"analyzer\" : \"whitespace\"," +
+            "           \"ordered\" : true," +
+            "           \"filter\" : {" +
+            "               \"containing\" : {" +
+            "                   \"match\" : { \"query\" : \"blah\" } } } } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.containing(Intervals.maxwidth(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
+                                 Intervals.term("blah")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
     public void testOrInterval() throws IOException {
-        String json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"or\" : {" +
-            "           \"sources\": [" +
-            "               { \"match\" : { \"text\" : \"one\" } }," +
-            "               { \"match\" : { \"text\" : \"two\" } } ] } } } }";
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"any_of\" : { " +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"one\" } }," +
+            "               { \"match\" : { \"query\" : \"two\" } } ] } } } }";
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.or(Intervals.term("one"), Intervals.term("two")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"any_of\" : { " +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"one\" } }," +
+            "               { \"match\" : { \"query\" : \"two\" } } ]," +
+            "           \"filter\" : {" +
+            "               \"not_containing\" : { \"match\" : { \"query\" : \"three\" } } } } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.notContaining(
+                Intervals.or(Intervals.term("one"), Intervals.term("two")),
+                Intervals.term("three")));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
     public void testCombineInterval() throws IOException {
 
-        String json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"combine\" : {" +
-            "           \"type\" : \"ordered\"," +
-            "           \"sources\" : [" +
-            "               { \"match\" : { \"text\" : \"one\" } }," +
-            "               { \"combine\" : { " +
-            "                   \"type\" : \"unordered\"," +
-            "                   \"sources\" : [" +
-            "                       { \"match\" : { \"text\" : \"two\" } }," +
-            "                       { \"match\" : { \"text\" : \"three\" } } ] } } ]," +
-            "           \"max_width\" : 30 } } } }";
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"all_of\" : {" +
+            "           \"ordered\" : true," +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"one\" } }," +
+            "               { \"all_of\" : { " +
+            "                   \"ordered\" : false," +
+            "                   \"intervals\" : [" +
+            "                       { \"match\" : { \"query\" : \"two\" } }," +
+            "                       { \"match\" : { \"query\" : \"three\" } } ] } } ]," +
+            "           \"max_gaps\" : 30," +
+            "           \"filter\" : { " +
+            "               \"contained_by\" : { " +
+            "                   \"match\" : { " +
+            "                       \"query\" : \"SENTENCE\"," +
+            "                       \"analyzer\" : \"keyword\" } } } }," +
+            "       \"boost\" : 1.5 } } }";
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxwidth(30, Intervals.ordered(
-                Intervals.term("one"),
-                Intervals.unordered(Intervals.term("two"), Intervals.term("three")))));
+        Query expected = new BoostQuery(new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.containedBy(
+                    Intervals.maxwidth(30, Intervals.ordered(
+                        Intervals.term("one"),
+                        Intervals.unordered(Intervals.term("two"), Intervals.term("three")))),
+                    Intervals.term("SENTENCE"))), 1.5f);
         assertEquals(expected, builder.toQuery(createShardContext()));
 
     }
 
     public void testCombineDisjunctionInterval() throws IOException {
         String json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"combine\" : {" +
-            "           \"type\" : \"ordered\"," +
-            "           \"sources\" : [" +
-            "               { \"match\" : { \"text\" : \"atmosphere\" } }," +
-            "               { \"or\" : {" +
-            "                   \"sources\" : [" +
-            "                       { \"match\" : { \"text\" : \"cold\" } }," +
-            "                       { \"match\" : { \"text\" : \"outside\" } } ] } } ]," +
-            "           \"max_width\" : 30 } } } }";
+            "{ \"" + STRING_FIELD_NAME + "\": { " +
+            "       \"all_of\" : {" +
+            "           \"ordered\" : true," +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"atmosphere\" } }," +
+            "               { \"any_of\" : {" +
+            "                   \"intervals\" : [" +
+            "                       { \"match\" : { \"query\" : \"cold\" } }," +
+            "                       { \"match\" : { \"query\" : \"outside\" } } ] } } ]," +
+            "           \"max_gaps\" : 30," +
+            "           \"filter\" : { " +
+            "               \"not_contained_by\" : { " +
+            "                   \"match\" : { \"query\" : \"freeze\" } } } } } } }";
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxwidth(30, Intervals.ordered(
-                Intervals.term("atmosphere"),
-                Intervals.or(Intervals.term("cold"), Intervals.term("outside"))
-            )));
-        assertEquals(expected, builder.toQuery(createShardContext()));
-    }
-
-    public void testRelateIntervals() throws IOException {
-
-        String json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"relate\" : {" +
-            "           \"relation\" : \"containing\"," +
-            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
-            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
-        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.containing(Intervals.term("one"), Intervals.term("two")));
-        assertEquals(expected, builder.toQuery(createShardContext()));
-
-        json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"relate\" : {" +
-            "           \"relation\" : \"contained_by\"," +
-            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
-            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
-        builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.containedBy(Intervals.term("one"), Intervals.term("two")));
-        assertEquals(expected, builder.toQuery(createShardContext()));
-
-        json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"relate\" : {" +
-            "           \"relation\" : \"not_containing\"," +
-            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
-            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
-        builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.notContaining(Intervals.term("one"), Intervals.term("two")));
-        assertEquals(expected, builder.toQuery(createShardContext()));
-
-        json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"relate\" : {" +
-            "           \"relation\" : \"not_contained_by\"," +
-            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
-            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
-        builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.notContainedBy(Intervals.term("one"), Intervals.term("two")));
-        assertEquals(expected, builder.toQuery(createShardContext()));
-
-        json = "{ \"intervals\" : " +
-            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
-            "  \"source\" : { " +
-            "       \"relate\" : {" +
-            "           \"relation\" : \"not_overlapping\"," +
-            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
-            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
-        builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.nonOverlapping(Intervals.term("one"), Intervals.term("two")));
+            Intervals.notContainedBy(
+                Intervals.maxwidth(30, Intervals.ordered(
+                    Intervals.term("atmosphere"),
+                    Intervals.or(Intervals.term("cold"), Intervals.term("outside"))
+                )),
+                Intervals.term("freeze")));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
 

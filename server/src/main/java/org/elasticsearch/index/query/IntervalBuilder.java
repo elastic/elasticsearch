@@ -55,14 +55,14 @@ public class IntervalBuilder {
         this.analyzer = analyzer;
     }
 
-    public IntervalsSource analyzeText(String query, MappedFieldType.IntervalType type) throws IOException {
+    public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
         try (TokenStream ts = analyzer.tokenStream(field, query);
              CachingTokenFilter stream = new CachingTokenFilter(ts)) {
-            return analyzeText(stream, type);
+            return analyzeText(stream, maxGaps, ordered);
         }
     }
 
-    protected IntervalsSource analyzeText(CachingTokenFilter stream, MappedFieldType.IntervalType type) throws IOException {
+    protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered) throws IOException {
 
         TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
         PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
@@ -102,15 +102,15 @@ public class IntervalBuilder {
             return analyzeTerm(stream);
         } else if (isGraph) {
             // graph
-            return combineSources(analyzeGraph(stream), type);
+            return combineSources(analyzeGraph(stream), maxGaps, ordered);
         } else {
             // phrase
             if (hasSynonyms) {
                 // phrase with single-term synonyms
-                return analyzeSynonyms(stream, type);
+                return analyzeSynonyms(stream, maxGaps, ordered);
             } else {
                 // simple phrase
-                return combineSources(analyzeTerms(stream), type);
+                return combineSources(analyzeTerms(stream), maxGaps, ordered);
             }
         }
 
@@ -123,22 +123,23 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
-    protected IntervalsSource combineSources(List<IntervalsSource> sources, MappedFieldType.IntervalType type) {
+    public static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
         if (sources.size() == 0) {
             return NO_INTERVALS;
         }
         if (sources.size() == 1) {
             return sources.get(0);
         }
-        switch (type) {
-            case ORDERED:
-                return Intervals.ordered(sources.toArray(new IntervalsSource[0]));
-            case UNORDERED:
-                return Intervals.unordered(sources.toArray(new IntervalsSource[0]));
-            case PHRASE:
-                return Intervals.phrase(sources.toArray(new IntervalsSource[0]));
+        IntervalsSource[] sourcesArray = sources.toArray(new IntervalsSource[0]);
+        if (maxGaps == 0 && ordered) {
+            return Intervals.phrase(sourcesArray);
         }
-        throw new IllegalStateException("Unknown interval type [" + type + "]");
+        IntervalsSource inner = ordered ? Intervals.ordered(sourcesArray) : Intervals.unordered(sourcesArray);
+        if (maxGaps == -1) {
+            return inner;
+        }
+        // norelease
+        return Intervals.maxwidth(maxGaps, inner);  // TODO Change this to maxgaps when lucene snapshot upgraded
     }
 
     protected List<IntervalsSource> analyzeTerms(TokenStream ts) throws IOException {
@@ -153,7 +154,7 @@ public class IntervalBuilder {
         return terms;
     }
 
-    protected IntervalsSource analyzeSynonyms(TokenStream ts, MappedFieldType.IntervalType type) throws IOException {
+    protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, boolean ordered) throws IOException {
         List<IntervalsSource> terms = new ArrayList<>();
         List<IntervalsSource> synonyms = new ArrayList<>();
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
@@ -177,7 +178,7 @@ public class IntervalBuilder {
         else {
             terms.add(Intervals.or(synonyms.toArray(new IntervalsSource[0])));
         }
-        return combineSources(terms, type);
+        return combineSources(terms, maxGaps, ordered);
     }
 
     protected List<IntervalsSource> analyzeGraph(TokenStream source) throws IOException {
@@ -200,7 +201,7 @@ public class IntervalBuilder {
                 Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                 while (it.hasNext()) {
                     TokenStream ts = it.next();
-                    IntervalsSource phrase = combineSources(analyzeTerms(ts), MappedFieldType.IntervalType.PHRASE);
+                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true);
                     if (paths.size() >= maxClauseCount) {
                         throw new BooleanQuery.TooManyClauses();
                     }

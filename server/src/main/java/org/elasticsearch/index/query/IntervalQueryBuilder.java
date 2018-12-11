@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -65,23 +66,56 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("field", field);
-        builder.field("source", sourceProvider);
+        builder.field(field);
+        builder.startObject();
+        sourceProvider.toXContent(builder, params);
         printBoostAndQueryName(builder);
+        builder.endObject();
         builder.endObject();
     }
 
-    private static final ConstructingObjectParser<IntervalQueryBuilder, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, args -> new IntervalQueryBuilder((String) args[0], (IntervalsSourceProvider) args[1]));
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("field"));
-        PARSER.declareObject(constructorArg(), (parser, c) -> IntervalsSourceProvider.fromXContent(parser), new ParseField("source"));
-        PARSER.declareFloat(IntervalQueryBuilder::boost, new ParseField("boost"));
-        PARSER.declareString(IntervalQueryBuilder::queryName, new ParseField("_name"));
-    }
-
     public static IntervalQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+        if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+        }
+        String field = parser.currentName();
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+        }
+        String name = null;
+        float boost = 1;
+        IntervalsSourceProvider provider = null;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+            }
+            switch (parser.currentName()) {
+                case "_name":
+                    parser.nextToken();
+                    name = parser.text();
+                    break;
+                case "boost":
+                    parser.nextToken();
+                    boost = parser.floatValue();
+                    break;
+                default:
+                    provider = IntervalsSourceProvider.fromXContent(parser);
+
+            }
+        }
+        if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+        }
+        if (provider == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing intervals from interval query definition");
+        }
+        IntervalQueryBuilder builder = new IntervalQueryBuilder(field, provider);
+        builder.queryName(name);
+        builder.boost(boost);
+        return builder;
+
     }
 
     @Override
@@ -94,7 +128,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
             throw new IllegalArgumentException("Cannot create IntervalQuery over field [" + field + "] with no indexed positions");
         }
-        return new IntervalQuery(field, sourceProvider.getSource(fieldType));
+        return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));
     }
 
     @Override

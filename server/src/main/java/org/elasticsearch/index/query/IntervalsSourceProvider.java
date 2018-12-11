@@ -26,11 +26,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -48,12 +51,12 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Built-in sources include {@link Match}, which analyzes a text string and converts it
  * to a proximity source (phrase, ordered or unordered depending on how
  * strict the matching should be); {@link Combine}, which allows proximity queries
- * between different sub-sources; and {@link Relate}, which allows sources to be filtered
+ * between different sub-sources; and {@link Filter}, which allows sources to be filtered
  * by their relation to other sources.
  */
-public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentObject {
+public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentFragment {
 
-    public abstract IntervalsSource getSource(MappedFieldType fieldType) throws IOException;
+    public abstract IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException;
 
     @Override
     public abstract int hashCode();
@@ -62,59 +65,65 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
     public abstract boolean equals(Object other);
 
     public static IntervalsSourceProvider fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Malformed IntervalsSource definition, expected [start_object] but found [" + parser.currentToken() + "]");
+        assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
+        switch (parser.currentName()) {
+            case "match":
+                return Match.fromXContent(parser);
+            case "any_of":
+                return Disjunction.fromXContent(parser);
+            case "all_of":
+                return Combine.fromXContent(parser);
         }
+        throw new ParsingException(parser.getTokenLocation(),
+            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of]");
+    }
+
+    private static IntervalsSourceProvider parseInnerIntervals(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Malformed IntervalsSource definition, no field after start_object");
+            throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
         }
-        String sourceType = parser.currentName();
-        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Malformed IntervalsSource definition, expected [start_object] after source name but found ["
-                    + parser.currentToken() + "]");
-        }
-        IntervalsSourceProvider provider = parser.namedObject(IntervalsSourceProvider.class, sourceType, null);
-        //end_object of the specific query (e.g. match, multi_match etc.) element
-        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "[" + sourceType + "] malformed source, expected [end_object] but found [" + parser.currentToken() + "]");
-        }
-        //end_object of the query object
+        IntervalsSourceProvider isp = IntervalsSourceProvider.fromXContent(parser);
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "[" + sourceType + "] malformed source, expected [end_object] but found [" + parser.currentToken() + "]");
+            throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
         }
-        return provider;
+        return isp;
     }
 
     public static class Match extends IntervalsSourceProvider {
 
         public static final String NAME = "match";
 
-        private final String text;
-        private final int maxWidth;
-        private final MappedFieldType.IntervalType type;
+        private final String query;
+        private final int maxGaps;
+        private final boolean ordered;
+        private final String analyzer;
+        private final IntervalFilter filter;
 
-        public Match(String text, int maxWidth, MappedFieldType.IntervalType type) {
-            this.text = text;
-            this.maxWidth = maxWidth;
-            this.type = type;
+        public Match(String query, int maxGaps, boolean ordered, String analyzer, IntervalFilter filter) {
+            this.query = query;
+            this.maxGaps = maxGaps;
+            this.ordered = ordered;
+            this.analyzer = analyzer;
+            this.filter = filter;
         }
 
         public Match(StreamInput in) throws IOException {
-            this.text = in.readString();
-            this.maxWidth = in.readInt();
-            this.type = in.readEnum(MappedFieldType.IntervalType.class);
+            this.query = in.readString();
+            this.maxGaps = in.readVInt();
+            this.ordered = in.readBoolean();
+            this.analyzer = in.readOptionalString();
+            this.filter = in.readOptionalWriteable(IntervalFilter::new);
         }
 
         @Override
-        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
-            IntervalsSource source = fieldType.intervals(text, type);
-            if (maxWidth != Integer.MAX_VALUE) {
-                return Intervals.maxwidth(maxWidth, source);
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+            NamedAnalyzer analyzer = null;
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+            }
+            IntervalsSource source = fieldType.intervals(query, maxGaps, ordered, analyzer);
+            if (filter != null) {
+                return filter.filter(source, context, fieldType);
             }
             return source;
         }
@@ -124,13 +133,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Match match = (Match) o;
-            return Objects.equals(text, match.text) && Objects.equals(maxWidth, match.maxWidth)
-                && Objects.equals(type, match.type);
+            return maxGaps == match.maxGaps &&
+                ordered == match.ordered &&
+                Objects.equals(query, match.query) &&
+                Objects.equals(filter, match.filter) &&
+                Objects.equals(analyzer, match.analyzer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(text, maxWidth, type);
+            return Objects.hash(query, maxGaps, ordered, analyzer, filter);
         }
 
         @Override
@@ -140,64 +152,79 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(text);
-            out.writeInt(maxWidth);
-            out.writeEnum(type);
+            out.writeString(query);
+            out.writeVInt(maxGaps);
+            out.writeBoolean(ordered);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalWriteable(filter);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(NAME);
             builder.startObject();
-            builder.startObject(NAME);
-            builder.field("text", text);
-            builder.field("max_width", maxWidth);
-            builder.field("type", type.toString().toLowerCase(Locale.ROOT));
-            return builder.endObject().endObject();
+            builder.field("query", query);
+            builder.field("max_gaps", maxGaps);
+            builder.field("ordered", ordered);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (filter != null) {
+                builder.field("filter", filter);
+            }
+            return builder.endObject();
         }
 
         private static final ConstructingObjectParser<Match, Void> PARSER = new ConstructingObjectParser<>(NAME,
             args -> {
-                String text = (String) args[0];
-                int max_width = (args[1] == null ? Integer.MAX_VALUE : (Integer) args[1]);
-                MappedFieldType.IntervalType type = (args[2] == null
-                    ? MappedFieldType.IntervalType.UNORDERED
-                    : (MappedFieldType.IntervalType) args[2]);
-                return new Match(text, max_width, type);
+                String query = (String) args[0];
+                int max_gaps = (args[1] == null ? -1 : (Integer) args[1]);
+                boolean ordered = (args[2] != null && (boolean) args[2]);
+                String analyzer = (String) args[3];
+                IntervalFilter filter = (IntervalFilter) args[4];
+                return new Match(query, max_gaps, ordered, analyzer, filter);
             });
         static {
-            PARSER.declareString(constructorArg(), new ParseField("text"));
-            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_width"));
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> MappedFieldType.IntervalType.valueOf(p.text().toUpperCase(Locale.ROOT)),
-                new ParseField("type"), ObjectParser.ValueType.STRING);
+            PARSER.declareString(constructorArg(), new ParseField("query"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_gaps"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
         }
 
-        public static Match fromXContent(XContentParser parser) throws IOException {
+        public static Match fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
 
     public static class Disjunction extends IntervalsSourceProvider {
 
-        public static final String NAME = "or";
+        public static final String NAME = "any_of";
 
         private final List<IntervalsSourceProvider> subSources;
+        private final IntervalFilter filter;
 
-        public Disjunction(List<IntervalsSourceProvider> subSources) {
+        public Disjunction(List<IntervalsSourceProvider> subSources, IntervalFilter filter) {
             this.subSources = subSources;
+            this.filter = filter;
         }
 
         public Disjunction(StreamInput in) throws IOException {
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
+            this.filter = in.readOptionalWriteable(IntervalFilter::new);
         }
 
         @Override
-        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(QueryShardContext ctx, MappedFieldType fieldType) throws IOException {
             List<IntervalsSource> sources = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
-                sources.add(provider.getSource(fieldType));
+                sources.add(provider.getSource(ctx, fieldType));
             }
-            return Intervals.or(sources.toArray(new IntervalsSource[0]));
+            IntervalsSource source = Intervals.or(sources.toArray(new IntervalsSource[0]));
+            if (filter == null) {
+                return source;
+            }
+            return filter.filter(source, ctx, fieldType);
         }
 
         @Override
@@ -221,18 +248,22 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteableList(subSources);
+            out.writeOptionalWriteable(filter);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
             builder.startObject(NAME);
-            builder.startArray("sources");
+            builder.startArray("intervals");
             for (IntervalsSourceProvider provider : subSources) {
+                builder.startObject();
                 provider.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
-            builder.endObject();
+            if (filter != null) {
+                builder.field("filter", filter);
+            }
             return builder.endObject();
         }
 
@@ -240,10 +271,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private static final ConstructingObjectParser<Disjunction, Void> PARSER = new ConstructingObjectParser<>(NAME,
             args -> {
                 List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>)args[0];
-                return new Disjunction(subSources);
+                IntervalFilter filter = (IntervalFilter) args[1];
+                return new Disjunction(subSources, filter);
             });
         static {
-            PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("sources"));
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.parseInnerIntervals(p),
+                new ParseField("intervals"));
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p),
+                new ParseField("filter"));
         }
 
         public static Disjunction fromXContent(XContentParser parser) throws IOException {
@@ -251,71 +286,40 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public enum CombineType {
-
-        ORDERED {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                if (subSources.size() == 1) {
-                    return subSources.get(0);
-                }
-                return Intervals.ordered(subSources.toArray(new IntervalsSource[0]));
-            }
-        },
-        UNORDERED {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                if (subSources.size() == 1) {
-                    return subSources.get(0);
-                }
-                return Intervals.unordered(subSources.toArray(new IntervalsSource[0]));
-            }
-        },
-        BLOCK {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                if (subSources.size() == 1) {
-                    return subSources.get(0);
-                }
-                return Intervals.phrase(subSources.toArray(new IntervalsSource[0]));
-            }
-        };
-
-        public abstract IntervalsSource source(List<IntervalsSource> subSources);
-
-    }
-
     public static class Combine extends IntervalsSourceProvider {
 
-        public static final String NAME = "combine";
+        public static final String NAME = "all_of";
 
         private final List<IntervalsSourceProvider> subSources;
-        private final CombineType type;
-        private final int maxWidth;
+        private final boolean ordered;
+        private final int maxGaps;
+        private final IntervalFilter filter;
 
-        public Combine(List<IntervalsSourceProvider> subSources, CombineType type, int maxWidth) {
+        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, int maxGaps, IntervalFilter filter) {
             this.subSources = subSources;
-            this.type = type;
-            this.maxWidth = maxWidth;
+            this.ordered = ordered;
+            this.maxGaps = maxGaps;
+            this.filter = filter;
         }
 
         public Combine(StreamInput in) throws IOException {
-            this.type = in.readEnum(CombineType.class);
+            this.ordered = in.readBoolean();
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
-            this.maxWidth = in.readInt();
+            this.maxGaps = in.readInt();
+            this.filter = in.readOptionalWriteable(IntervalFilter::new);
         }
 
         @Override
-        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(QueryShardContext ctx, MappedFieldType fieldType) throws IOException {
             List<IntervalsSource> ss = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
-                ss.add(provider.getSource(fieldType));
+                ss.add(provider.getSource(ctx, fieldType));
             }
-            IntervalsSource source = type.source(ss);
-            if (maxWidth == Integer.MAX_VALUE) {
-                return source;
+            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered);
+            if (filter != null) {
+                return filter.filter(source, ctx, fieldType);
             }
-            return Intervals.maxwidth(maxWidth, source);
+            return source;
         }
 
         @Override
@@ -324,12 +328,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             Combine combine = (Combine) o;
             return Objects.equals(subSources, combine.subSources) &&
-                type == combine.type && maxWidth == combine.maxWidth;
+                ordered == combine.ordered && maxGaps == combine.maxGaps;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, type, maxWidth);
+            return Objects.hash(subSources, ordered, maxGaps);
         }
 
         @Override
@@ -339,38 +343,45 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(type);
+            out.writeBoolean(ordered);
             out.writeNamedWriteableList(subSources);
-            out.writeInt(maxWidth);
+            out.writeInt(maxGaps);
+            out.writeOptionalWriteable(filter);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
             builder.startObject(NAME);
-            builder.field("type", type.toString().toLowerCase(Locale.ROOT));
-            builder.field("max_width", maxWidth);
-            builder.startArray("sources");
+            builder.field("ordered", ordered);
+            builder.field("max_gaps", maxGaps);
+            builder.startArray("intervals");
             for (IntervalsSourceProvider provider : subSources) {
+                builder.startObject();
                 provider.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
-            builder.endObject();
+            if (filter != null) {
+                builder.field("filter", filter);
+            }
             return builder.endObject();
         }
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Combine, Void> PARSER = new ConstructingObjectParser<>(NAME,
             args -> {
-                CombineType type = CombineType.valueOf(((String)args[0]).toUpperCase(Locale.ROOT));
+                boolean ordered = (args[0] != null && (boolean) args[0]);
                 List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>)args[1];
-                Integer maxWidth = (args[2] == null ? Integer.MAX_VALUE : (Integer)args[2]);
-                return new Combine(subSources, type, maxWidth);
+                Integer maxGaps = (args[2] == null ? -1 : (Integer)args[2]);
+                IntervalFilter filter = (IntervalFilter) args[3];
+                return new Combine(subSources, ordered, maxGaps, filter);
             });
         static {
-            PARSER.declareString(constructorArg(), new ParseField("type"));
-            PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("sources"));
-            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_width"));
+            PARSER.declareBoolean(constructorArg(), new ParseField("ordered"));
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.parseInnerIntervals(p),
+                new ParseField("intervals"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_gaps"));
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
         }
 
         public static Combine fromXContent(XContentParser parser) {
@@ -378,115 +389,91 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public static class Relate extends IntervalsSourceProvider {
+    public static class IntervalFilter implements ToXContent, Writeable {
 
-        public static final String NAME = "relate";
+        public static final String NAME = "filter";
 
-        public enum Relation {
-            CONTAINING {
-                @Override
-                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
-                    return Intervals.containing(source, filter);
-                }
-            }, NOT_CONTAINING {
-                @Override
-                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
-                    return Intervals.notContaining(source, filter);
-                }
-            }, CONTAINED_BY {
-                @Override
-                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
-                    return Intervals.containedBy(source, filter);
-                }
-            }, NOT_CONTAINED_BY {
-                @Override
-                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
-                    return Intervals.notContainedBy(source, filter);
-                }
-            }, NOT_OVERLAPPING {
-                @Override
-                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
-                    return Intervals.nonOverlapping(source, filter);
-                }
-            };
-            abstract IntervalsSource getSource(IntervalsSource source, IntervalsSource filter);
-        }
-
-        private final IntervalsSourceProvider source;
+        private final String type;
         private final IntervalsSourceProvider filter;
-        private final Relation relation;
 
-        public Relate(IntervalsSourceProvider source, IntervalsSourceProvider filter, Relation relation) {
-            this.source = source;
+        public IntervalFilter(IntervalsSourceProvider filter, String type) {
             this.filter = filter;
-            this.relation = relation;
+            this.type = type.toLowerCase(Locale.ROOT);
         }
 
-        public Relate(StreamInput in) throws IOException {
-            this.source = in.readNamedWriteable(IntervalsSourceProvider.class);
+        public IntervalFilter(StreamInput in) throws IOException {
+            this.type = in.readString();
             this.filter = in.readNamedWriteable(IntervalsSourceProvider.class);
-            this.relation = in.readEnum(Relation.class);
         }
 
-        @Override
-        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
-            IntervalsSource s = source.getSource(fieldType);
-            IntervalsSource f = filter.getSource(fieldType);
-            return relation.getSource(s, f);
+        public IntervalsSource filter(IntervalsSource input, QueryShardContext context, MappedFieldType fieldType) throws IOException {
+            IntervalsSource filterSource = filter.getSource(context, fieldType);
+            switch (type) {
+                case "containing":
+                    return Intervals.containing(input, filterSource);
+                case "contained_by":
+                    return Intervals.containedBy(input, filterSource);
+                case "not_containing":
+                    return Intervals.notContaining(input, filterSource);
+                case "not_contained_by":
+                    return Intervals.notContainedBy(input, filterSource);
+                case "not_overlapping":
+                    return Intervals.nonOverlapping(input, filterSource);
+                default:
+                    throw new IllegalArgumentException("Unknown filter type [" + type + "]");
+            }
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Relate relate = (Relate) o;
-            return Objects.equals(source, relate.source) &&
-                Objects.equals(filter, relate.filter) &&
-                relation == relate.relation;
+            IntervalFilter that = (IntervalFilter) o;
+            return Objects.equals(type, that.type) &&
+                Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(source, filter, relation);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
+            return Objects.hash(type, filter);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(source);
+            out.writeString(type);
             out.writeNamedWriteable(filter);
-            out.writeEnum(relation);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startObject(NAME);
-            builder.field("source", source);
-            builder.field("filter", filter);
-            builder.field("relation", relation.toString().toLowerCase(Locale.ROOT));
+            builder.field(type);
+            builder.startObject();
+            filter.toXContent(builder, params);
             builder.endObject();
             builder.endObject();
             return builder;
         }
 
-        static final ConstructingObjectParser<Relate, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> {
-                Relation relation = Relation.valueOf(((String)args[2]).toUpperCase(Locale.ROOT));
-                return new Relate((IntervalsSourceProvider)args[0], (IntervalsSourceProvider)args[1], relation);
-            });
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("source"));
-            PARSER.declareObject(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("filter"));
-            PARSER.declareString(constructorArg(), new ParseField("relation"));
-        }
-
-        public static Relate fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
+        public static IntervalFilter fromXContent(XContentParser parser) throws IOException {
+            if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+            }
+            String type = parser.currentName();
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+            }
+            if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+            }
+            IntervalsSourceProvider intervals = IntervalsSourceProvider.fromXContent(parser);
+            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+            }
+            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+            }
+            return new IntervalFilter(intervals, type);
         }
     }
 

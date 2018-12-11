@@ -3,8 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -32,15 +35,22 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestPutWatchAction extends WatcherRestHandler implements RestRequestFilter {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutWatchAction.class));
+
     public RestPutWatchAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, URI_BASE + "/watch/{id}", this);
-        controller.registerHandler(PUT, URI_BASE + "/watch/{id}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/watch/{id}", this,
+            POST, URI_BASE + "/watcher/watch/{id}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_watcher/watch/{id}", this,
+            PUT, URI_BASE + "/watcher/watch/{id}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_watcher_put_watch_action";
+        return "watcher_put_watch";
     }
 
     @Override

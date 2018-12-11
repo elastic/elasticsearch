@@ -194,6 +194,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_5_2 = new Version(V_6_5_2_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
     public static final int V_6_5_3_ID = 6050399;
     public static final Version V_6_5_3 = new Version(V_6_5_3_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
+    public static final int V_6_5_4_ID = 6050499;
+    public static final Version V_6_5_4 = new Version(V_6_5_4_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
 
     public static final Version CURRENT = V_6_5_3;
 
@@ -208,6 +210,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_6_5_4_ID:
+                return V_6_5_4;
             case V_6_5_3_ID:
                 return V_6_5_3;
             case V_6_5_2_ID:

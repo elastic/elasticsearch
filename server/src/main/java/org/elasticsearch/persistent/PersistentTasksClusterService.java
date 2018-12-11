@@ -322,20 +322,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             || event.metaDataChanged()
             || masterChanged) {
 
-            return anyTaskReassignmentRequired(tasks, event.state());
-        }
-        return false;
-    }
-
-    /**
-     * Returns true if any persistent task would change assignment if reassignment were run now.
-     */
-    private boolean anyTaskReassignmentRequired(final PersistentTasksCustomMetaData tasks, final ClusterState state) {
-        for (PersistentTask<?> task : tasks.tasks()) {
-            if (requiresAssignment(task.getAssignment(), state.nodes())) {
-                Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), state);
-                if (Objects.equals(assignment, task.getAssignment()) == false) {
-                    return true;
+            for (PersistentTask<?> task : tasks.tasks()) {
+                if (needsReassignment(task.getAssignment(), event.state().nodes())) {
+                    Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), event.state());
+                    if (Objects.equals(assignment, task.getAssignment()) == false) {
+                        return true;
+                    }
                 }
             }
         }
@@ -365,7 +357,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             // We need to check if removed nodes were running any of the tasks and reassign them
             for (PersistentTask<?> task : tasks.tasks()) {
-                if (requiresAssignment(task.getAssignment(), nodes)) {
+                if (needsReassignment(task.getAssignment(), nodes)) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState);
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace("reassigning task {} from node {} to node {}", task.getId(),
@@ -389,7 +381,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
-    public static boolean requiresAssignment(final Assignment assignment, final DiscoveryNodes nodes) {
+    public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
     }
 

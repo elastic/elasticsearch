@@ -59,7 +59,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.persistent.PersistentTasksClusterService.requiresAssignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -409,9 +409,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             .add(new DiscoveryNode("_node_2", buildNewFakeTransportAddress(), Version.CURRENT))
             .build();
 
-        assertTrue(requiresAssignment(new Assignment(null, "unassigned"), nodes));
-        assertTrue(requiresAssignment(new Assignment("_node_left", "assigned to a node that left"), nodes));
-        assertFalse(requiresAssignment(new Assignment("_node_1", "assigned"), nodes));
+        assertTrue(needsReassignment(new Assignment(null, "unassigned"), nodes));
+        assertTrue(needsReassignment(new Assignment("_node_left", "assigned to a node that left"), nodes));
+        assertFalse(needsReassignment(new Assignment("_node_1", "assigned"), nodes));
     }
 
     public void testPeriodicRecheck() throws Exception {

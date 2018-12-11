@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -263,7 +263,7 @@ public class TypeParsers {
         }
     }
 
-    public static FormatDateTimeFormatter parseDateTimeFormatter(Object node) {
+    public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
             return Joda.forPattern((String) node);
         }

@@ -84,6 +84,10 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         return index;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
     public String getType() {
         return type;
     }

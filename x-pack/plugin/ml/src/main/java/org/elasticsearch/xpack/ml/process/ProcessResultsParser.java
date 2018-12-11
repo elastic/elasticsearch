@@ -29,7 +29,7 @@ import java.util.Objects;
  */
 public class ProcessResultsParser<T> {
 
-    private static final Logger LOGGER = LogManager.getLogger(ProcessResultsParser.class);
+    private static final Logger logger = LogManager.getLogger(ProcessResultsParser.class);
 
     private final ConstructingObjectParser<T, Void> resultParser;
 
@@ -69,13 +69,13 @@ public class ProcessResultsParser<T> {
             try {
                 token = parser.nextToken();
             } catch (IOException e) {
-                LOGGER.debug("io error while parsing", e);
+                logger.debug("io error while parsing", e);
                 return false;
             }
             if (token == XContentParser.Token.END_ARRAY) {
                 return false;
             } else if (token != XContentParser.Token.START_OBJECT) {
-                LOGGER.error("Expecting Json Field name token after the Start Object token");
+                logger.error("Expecting Json Field name token after the Start Object token");
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
             return true;

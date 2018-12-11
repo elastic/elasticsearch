@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.analytics.process;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;

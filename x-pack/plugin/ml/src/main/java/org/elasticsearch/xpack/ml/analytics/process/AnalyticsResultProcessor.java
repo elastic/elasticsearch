@@ -17,8 +17,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -97,7 +97,7 @@ public class AnalyticsResultProcessor {
             }
             AnalyticsResult result = currentResults.get(i);
             SearchHit hit = row.getHit();
-            Map<String, Object> source = new HashMap(hit.getSourceAsMap());
+            Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
             source.putAll(result.getResults());
             IndexRequest indexRequest = new IndexRequest(hit.getIndex(), hit.getType(), hit.getId());
             indexRequest.source(source);

@@ -2,6 +2,7 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
+import org.junit.Before;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -22,6 +23,14 @@ import org.gradle.testkit.runner.BuildResult;
  * under the License.
  */
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
+
+    @Before
+    public void setUp() throws Exception {
+        // Build the sample jars
+        getGradleRunner("thirdPartyAudit")
+            .withArguments("build", "-s")
+            .build();
+    }
 
     public void testElasticsearchIgnored() {
         BuildResult result = getGradleRunner("thirdPartyAudit")
@@ -74,7 +83,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertOutputContains(result.getOutput(),
             "> Audit of third party dependencies failed:",
             "  Classes with violations:",
-            "    * TestingIoClass"
+            "    * TestingIO"
         );
         assertOutputDoesNotContain(result.getOutput(),"Missing classes:");
     }
@@ -91,7 +100,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertOutputContains(result.getOutput(),
             "> Audit of third party dependencies failed:",
             "  Missing classes:",
-            "    * org.apache.log4j.Logger"
+            "    * org.apache.logging.log4j.LogManager"
         );
         assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
     }

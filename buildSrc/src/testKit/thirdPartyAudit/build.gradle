@@ -14,7 +14,7 @@ repositories {
      *   - version 0.0.2 has the same class and one extra file just to make the jar different
      */
     maven {
-        url = file("testrepo")
+        url = file("sample_jars/build/testrepo")
     }
     jcenter()
 }
@@ -36,3 +36,5 @@ task absurd(type: ThirdPartyAuditTask) {
     targetCompatibility = JavaVersion.VERSION_11
     signatureFile = file('third-party-audit-absurd.txt')
 }
+
+// ---------------- SETUP ----------------

@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -32,7 +32,6 @@ public class MultiMatchQuery extends LeafQuery {
         appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));
         appliers.put("cutoff_frequency", (qb, s) -> qb.cutoffFrequency(Float.valueOf(s)));
         appliers.put("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s)));
-        appliers.put("use_dis_max", (qb, s) -> qb.useDisMax(Booleans.parseBoolean(s)));
         appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
         appliers.put("minimum_should_match", (qb, s) -> qb.minimumShouldMatch(s));
         appliers.put("operator", (qb, s) -> qb.operator(Operator.fromString(s)));

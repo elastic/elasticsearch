@@ -103,20 +103,26 @@ public class TransportHandshakerTests extends ESTestCase {
 
         TcpChannel mockChannel = mock(TcpChannel.class);
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        handshakeRequest.writeTo(bytesStreamOutput);
-        BytesStreamOutput taskIdStream = new BytesStreamOutput();
-        TaskId.EMPTY_TASK_ID.writeTo(taskIdStream);
-        int taskIdBytes = taskIdStream.bytes().length();
-        int currentPosition = (int) bytesStreamOutput.position();
-        bytesStreamOutput.seek(taskIdBytes);
-        bytesStreamOutput.writeInt((currentPosition - taskIdBytes - 4) + 1024);
-        bytesStreamOutput.seek(currentPosition);
-        bytesStreamOutput.write(new byte[1024]);
-        StreamInput input = bytesStreamOutput.bytes().streamInput();
-        assertEquals(1033, input.available());
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input);
-        assertEquals(0, input.available());
+        BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
+        handshakeRequest.writeTo(currentHandshakeBytes);
+
+        BytesStreamOutput lengthCheckingHandshake = new BytesStreamOutput();
+        BytesStreamOutput futureHandshake = new BytesStreamOutput();
+        TaskId.EMPTY_TASK_ID.writeTo(lengthCheckingHandshake);
+        TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
+        try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
+            Version.writeVersion(Version.CURRENT, internalMessage);
+            lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
+            internalMessage.write(new byte[1024]);
+            futureHandshake.writeBytesReference(internalMessage.bytes());
+        }
+        StreamInput futureHandshakeStream = futureHandshake.bytes().streamInput();
+        // We check that the handshake we serialize for this test equals the actual request.
+        // Otherwise, we need to update the test.
+        assertEquals(currentHandshakeBytes.bytes().length(), lengthCheckingHandshake.bytes().length());
+        assertEquals(1031, futureHandshakeStream.available());
+        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, futureHandshakeStream);
+        assertEquals(0, futureHandshakeStream.available());
 
 
         ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);

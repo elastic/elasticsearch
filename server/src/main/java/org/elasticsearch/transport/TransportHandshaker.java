@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -171,18 +170,16 @@ final class TransportHandshaker {
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
-            int remainingMessageBytes;
+            BytesReference remainingMessage;
             try {
-                remainingMessageBytes = streamInput.readInt();
+                remainingMessage = streamInput.readBytesReference();
             } catch (EOFException e) {
-                remainingMessageBytes = -1;
+                remainingMessage = null;
             }
-            if (remainingMessageBytes == -1) {
+            if (remainingMessage == null) {
                 version = null;
             } else {
-                byte[] messageByteArray = new byte[remainingMessageBytes];
-                streamInput.readFully(messageByteArray);
-                try (StreamInput messageStreamInput = new BytesArray(messageByteArray).streamInput()) {
+                try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
                     this.version = Version.readVersion(messageStreamInput);
                 }
             }
@@ -200,8 +197,7 @@ final class TransportHandshaker {
             try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
                 Version.writeVersion(version, messageStreamOutput);
                 BytesReference reference = messageStreamOutput.bytes();
-                streamOutput.writeInt(reference.length());
-                reference.writeTo(streamOutput);
+                streamOutput.writeBytesReference(reference);
             }
         }
     }

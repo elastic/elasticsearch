@@ -75,7 +75,6 @@ public class DateUtils {
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }
-        return ZoneId.of(zoneId);
-
+        return ZoneId.of(zoneId).normalized();
     }
 }

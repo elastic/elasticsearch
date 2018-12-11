@@ -2,7 +2,7 @@
 == Discovery Plugins
 
 Discovery plugins extend Elasticsearch by adding new host providers that
-can be used to extend the {ref}/modules-discovery-zen.html[cluster formation module].
+can be used to extend the {ref}/modules-discovery.html[cluster formation module].
 
 [float]
 ==== Core discovery plugins

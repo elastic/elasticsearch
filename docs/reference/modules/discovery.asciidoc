@@ -167,11 +167,21 @@ Discovery operates in two phases: First, each node probes the addresses of all
 known master-eligible nodes by connecting to each address and attempting to
 identify the node to which it is connected. Secondly it shares with the remote
 node a list of all of its known master-eligible peers and the remote node
-responds with _its_ peers in turn. The node then probes all the new nodes about
-which it just discovered, requests their peers, and so on, until it has
-discovered an elected master node or enough other masterless master-eligible
-nodes that it can perform an election. If neither of these occur quickly enough
-then it tries again. This process is controlled by the following settings.
+responds with _its_ peers in turn. The node then probes all the new nodes that
+it just discovered, requests their peers, and so on.
+
+If the node is not master-eligible then it continues this discovery process
+until it has discovered an elected master node. If no elected master is
+discovered then the node will retry after `discovery.find_peers_interval` which
+defaults to `1s`.
+
+If the node is master-eligible then it continues this discovery process until it
+has either discovered an elected master node or else it has discovered enough
+masterless master-eligible nodes to complete an election. If neither of these
+occur quickly enough then the node will retry after
+`discovery.find_peers_interval` which defaults to `1s`.
+
+The discovery process is controlled by the following settings.
 
 `discovery.find_peers_interval`::
 
@@ -199,8 +209,9 @@ then it tries again. This process is controlled by the following settings.
     that the cluster did not form. Defaults to `10s`.
 
 If a cluster has not formed after `discovery.cluster_formation_warning_timeout`
-has elapsed then the node will log a warning message starting with `master not
-discovered` which describes the current state of the discovery module.
+has elapsed then the node will log a warning message that starts with the phrase
+`master not discovered` which describes the current state of the discovery
+process.
 
 [float]
 [[modules-discovery-bootstrap-cluster]]

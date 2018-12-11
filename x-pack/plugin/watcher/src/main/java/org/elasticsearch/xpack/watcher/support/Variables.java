@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,7 +37,8 @@ public final class Variables {
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put(ID, ctx.id().value());
         ctxModel.put(WATCH_ID, ctx.id().watchId());
-        ctxModel.put(EXECUTION_TIME, ctx.executionTime());
+        ctxModel.put(EXECUTION_TIME,
+            new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(ctx.executionTime().getMillis()), ZoneOffset.UTC));
         ctxModel.put(TRIGGER, ctx.triggerEvent().data());
         if (payload != null) {
             ctxModel.put(PAYLOAD, payload.data());

@@ -7,7 +7,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -18,7 +18,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
 
@@ -32,7 +32,7 @@ teardown:
 
 # enable
   - do:
-      xpack.security.enable_user:
+      security.enable_user:
         username: "joe"
 
 # validate user can login

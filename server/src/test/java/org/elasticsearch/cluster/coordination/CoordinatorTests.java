@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
@@ -95,10 +97,15 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ALL;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ID;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -110,6 +117,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -887,6 +895,64 @@ public class CoordinatorTests extends ESTestCase {
             postPublishStats.getIncompatibleClusterStateDiffReceivedCount());
     }
 
+    /**
+     * Simulates a situation where a follower becomes disconnected from the leader, but only for such a short time where
+     * it becomes candidate and puts up a NO_MASTER_BLOCK, but then receives a follower check from the leader. If the leader
+     * does not notice the node disconnecting, it is important for the node not to be turned back into a follower but try
+     * and join the leader again.
+     */
+    public void testStayCandidateAfterReceivingFollowerCheckFromKnownMaster() {
+        final Cluster cluster = new Cluster(2, false);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode nonLeader = cluster.getAnyNodeExcept(leader);
+        onNode(nonLeader.getLocalNode(), () -> {
+            logger.debug("forcing {} to become candidate", nonLeader.getId());
+            synchronized (nonLeader.coordinator.mutex) {
+                nonLeader.coordinator.becomeCandidate("forced");
+            }
+            logger.debug("simulate follower check coming through from {} to {}", leader.getId(), nonLeader.getId());
+            nonLeader.coordinator.onFollowerCheckRequest(new FollowersChecker.FollowerCheckRequest(leader.coordinator.getCurrentTerm(),
+                leader.getLocalNode()));
+        }).run();
+        cluster.stabilise();
+    }
+
+    public void testAppliesNoMasterBlockWritesByDefault() {
+        testAppliesNoMasterBlock(null, NO_MASTER_BLOCK_WRITES);
+    }
+
+    public void testAppliesNoMasterBlockWritesIfConfigured() {
+        testAppliesNoMasterBlock("write", NO_MASTER_BLOCK_WRITES);
+    }
+
+    public void testAppliesNoMasterBlockAllIfConfigured() {
+        testAppliesNoMasterBlock("all", NO_MASTER_BLOCK_ALL);
+    }
+
+    private void testAppliesNoMasterBlock(String noMasterBlockSetting, ClusterBlock expectedBlock) {
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        leader.submitUpdateTask("update NO_MASTER_BLOCK_SETTING", cs -> {
+            final Builder settingsBuilder = Settings.builder().put(cs.metaData().persistentSettings());
+            settingsBuilder.put(NO_MASTER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
+            return ClusterState.builder(cs).metaData(MetaData.builder(cs.metaData()).persistentSettings(settingsBuilder.build())).build();
+        });
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
+
+        leader.disconnect();
+        cluster.runFor(defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
+
+        assertThat(leader.clusterApplier.lastAppliedClusterState.blocks().global(), contains(expectedBlock));
+
+        // TODO reboot the leader and verify that the same block is applied when it restarts
+    }
+
     private static long defaultMillis(Setting<TimeValue> setting) {
         return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
     }
@@ -1176,8 +1242,15 @@ public class CoordinatorTests extends ESTestCase {
                     assertTrue(nodeId + " is in the latest applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                     assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
+                    assertThat(nodeId + " has correct master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        equalTo(leader.getLocalNode()));
+                    assertThat(nodeId + " has no NO_MASTER_BLOCK",
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(false));
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
+                    assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
+                    assertThat(nodeId + " has NO_MASTER_BLOCK",
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 }

@@ -3,6 +3,8 @@
 [[sql-functions-datetime]]
 === Date and Time Functions
 
+beta[]
+
 * Extract the year from a date (`YEAR`)
 
 ["source","sql",subs="attributes,callouts,macros"]

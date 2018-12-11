@@ -243,6 +243,9 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
                                                 boolean requiredFullRange) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
+            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
+        }
         return readHistoryOperations(source, mapperService, fromSeqNo);
     }
 

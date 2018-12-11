@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -30,15 +32,22 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetUsersAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetUsersAction.class));
+
     public RestGetUsersAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(GET, "/_xpack/security/user/", this);
-        controller.registerHandler(GET, "/_xpack/security/user/{username}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/user/", this,
+            GET, "/_xpack/security/user/", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/user/{username}", this,
+            GET, "/_xpack/security/user/{username}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_get_users_action";
+        return "security_get_users_action";
     }
 
     @Override

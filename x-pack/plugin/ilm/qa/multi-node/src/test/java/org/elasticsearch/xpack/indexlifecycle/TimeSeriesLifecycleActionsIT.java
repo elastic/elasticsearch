@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
@@ -230,6 +231,47 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         assertBusy(() -> assertTrue(indexExists(originalIndex)));
+        assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
+    }
+
+    public void testRolloverActionWithIndexingComplete() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
+        updateSettingsRequest.setJsonEntity("{\n" +
+            "  \"settings\": {\n" +
+            "    \"" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE + "\": true\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(updateSettingsRequest);
+        Request updateAliasRequest = new Request("POST", "/_aliases");
+        updateAliasRequest.setJsonEntity("{\n" +
+            "  \"actions\": [\n" +
+            "    {\n" +
+            "      \"add\": {\n" +
+            "        \"index\": \"" + originalIndex + "\",\n" +
+            "        \"alias\": \"alias\",\n" +
+            "        \"is_write_index\": false\n" +
+            "      }\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}");
+        client().performRequest(updateAliasRequest);
+
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        // index document {"foo": "bar"} to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertEquals(TerminalPolicyStep.KEY, getStepKeyForIndex(originalIndex)));
+        assertBusy(() -> assertTrue(indexExists(originalIndex)));
+        assertBusy(() -> assertFalse(indexExists(secondIndex)));
+        assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
     }
 
     public void testRolloverAlreadyExists() throws Exception {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -33,6 +34,8 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -78,6 +81,7 @@ public class PagerDutyActionTests extends ESTestCase {
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
+        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(now.getMillis()), ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
@@ -92,10 +96,10 @@ public class PagerDutyActionTests extends ESTestCase {
         ctxModel.put("watch_id", wid.watchId());
         ctxModel.put("payload", data);
         ctxModel.put("metadata", metadata);
-        ctxModel.put("execution_time", now);
+        ctxModel.put("execution_time", jodaJavaNow);
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("triggered_time", now);
-        triggerModel.put("scheduled_time", now);
+        triggerModel.put("triggered_time", jodaJavaNow);
+        triggerModel.put("scheduled_time", jodaJavaNow);
         ctxModel.put("trigger", triggerModel);
         ctxModel.put("vars", Collections.emptyMap());
         Map<String, Object> expectedModel = new HashMap<>();

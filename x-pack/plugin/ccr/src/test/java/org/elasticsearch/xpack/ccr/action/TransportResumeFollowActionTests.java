@@ -30,6 +30,7 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.validate;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -76,7 +77,9 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
+            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled. " +
+                "soft deletes must be enabled when the index is created by setting " + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()
+                + " to true"));
         }
         {
             // should fail because the follower index does not have soft deletes enabled

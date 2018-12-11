@@ -124,9 +124,11 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
             listener.onFailure(
-                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
+                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled. " +
+                    "soft deletes must be enabled when the index is created by setting " + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()
+                    + " to true"));
             return;
         }
 

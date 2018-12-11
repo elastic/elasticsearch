@@ -169,6 +169,9 @@ test {
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
+  exclude '**/*.dic'
+  exclude '**/*.binary'
+  exclude '**/*.st'
 }
 
 task generateModulesList {

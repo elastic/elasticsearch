@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -138,6 +139,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
         assertThat(searchRequest.types().length, equalTo(0));
         assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
+        assertThat(searchRequest.source().trackTotalHits(), is(true));
     }
 
     private void assertSearchScrollRequests(int expectedCount) {

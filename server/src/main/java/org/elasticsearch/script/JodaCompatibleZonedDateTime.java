@@ -22,8 +22,10 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -42,11 +44,13 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime {
+    private static final DateFormatter DATE_FORMATTER = DateFormatters.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
 
@@ -75,7 +79,10 @@ public class JodaCompatibleZonedDateTime {
 
     @Override
     public boolean equals(Object o) {
-        return dt.equals(o);
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
+        return Objects.equals(dt, that.dt);
     }
 
     @Override
@@ -85,7 +92,7 @@ public class JodaCompatibleZonedDateTime {
 
     @Override
     public String toString() {
-        return dt.toString();
+        return DATE_FORMATTER.format(dt);
     }
 
     public boolean isAfter(ZonedDateTime o) {
@@ -391,14 +398,14 @@ public class JodaCompatibleZonedDateTime {
     public String toString(String format) {
         logDeprecatedMethod("toString(String)", "a DateTimeFormatter");
         // TODO: replace with bwc formatter
-        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.forID(dt.getZone().getId())).toString(format);
+        return new DateTime(dt.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dt.getZone())).toString(format);
     }
 
     @Deprecated
     public String toString(String format, Locale locale) {
         logDeprecatedMethod("toString(String,Locale)", "a DateTimeFormatter");
         // TODO: replace with bwc formatter
-        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.forID(dt.getZone().getId())).toString(format, locale);
+        return new DateTime(dt.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dt.getZone())).toString(format, locale);
     }
 
     public DayOfWeek getDayOfWeekEnum() {

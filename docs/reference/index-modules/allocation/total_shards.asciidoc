@@ -1,5 +1,5 @@
 [[allocation-total-shards]]
-=== Total Shards Per Node
+=== Total shards per node
 
 The cluster-level shard allocator tries to spread the shards of a single index
 across as many nodes as possible.  However, depending on how many shards and
@@ -28,6 +28,3 @@ allocated.
 
 Use with caution.
 =======================================
-
-
-

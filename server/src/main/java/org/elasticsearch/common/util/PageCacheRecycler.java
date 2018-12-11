@@ -59,6 +59,12 @@ public class PageCacheRecycler implements Releasable {
     private final Recycler<long[]> longPage;
     private final Recycler<Object[]> objectPage;
 
+    public static final PageCacheRecycler NON_RECYCLING_INSTANCE;
+
+    static {
+        NON_RECYCLING_INSTANCE = new PageCacheRecycler(Settings.builder().put(LIMIT_HEAP_SETTING.getKey(), "0%").build());
+    }
+
     @Override
     public void close() {
         Releasables.close(true, bytePage, intPage, longPage, objectPage);

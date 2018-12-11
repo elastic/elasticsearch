@@ -83,7 +83,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
         @Override
         public String getKeyAsString() {
-            return format.format(termBytes).toString();
+            return format.format(termBytes);
         }
 
         @Override

@@ -139,7 +139,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
-        String value = format.format(termBytes).toString();
+        String value = format.format(termBytes);
         return getBackgroundFrequency(value);
     }
 

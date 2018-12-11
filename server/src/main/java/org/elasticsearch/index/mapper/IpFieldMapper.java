@@ -295,7 +295,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Object valueForDisplay(Object value) {
+        public String valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

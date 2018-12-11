@@ -151,7 +151,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
-        String value = config.format().format(termBytes).toString();
+        String value = config.format().format(termBytes);
         return getBackgroundFrequency(value);
     }
 

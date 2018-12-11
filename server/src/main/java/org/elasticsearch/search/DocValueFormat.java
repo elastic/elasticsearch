@@ -66,7 +66,7 @@ public interface DocValueFormat extends NamedWriteable {
     /** Format a binary value. This is used by terms aggregations to format
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
-    default Object format(BytesRef value) {
+    default String format(BytesRef value) {
         throw new UnsupportedOperationException();
     }
 

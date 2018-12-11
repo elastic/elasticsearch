@@ -363,7 +363,7 @@ public class InternalComposite
      * If the format is equals to {@link DocValueFormat#RAW}, the object is returned as is
      * for numbers and a string for {@link BytesRef}s.
      */
-    static Object formatObject(Object obj, DocValueFormat format) {
+    private static Object formatObject(Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }

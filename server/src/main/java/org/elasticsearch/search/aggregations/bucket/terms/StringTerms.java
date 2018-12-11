@@ -23,9 +23,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.List;
@@ -80,7 +80,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
         @Override
         public String getKeyAsString() {
-            return format.format(termBytes).toString();
+            return format.format(termBytes);
         }
 
         @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.CharArrays;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
@@ -83,7 +84,9 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
             new GetUsersRequest(putUserRequest.getUser().getUsername());
         final GetUsersResponse getUsersResponse =
             execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
-        assertThat(Arrays.asList(getUsersResponse.getUsers()).get(0), is(putUserRequest.getUser()));
+        ArrayList<User> usrs = new ArrayList<>();
+        usrs.addAll(getUsersResponse.getUsers());
+        assertThat(usrs.get(0), is(putUserRequest.getUser()));
 
         // delete user
         final DeleteUserRequest deleteUserRequest =

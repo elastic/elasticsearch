@@ -63,6 +63,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1143,7 +1144,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getMessage(), containsString("now() is not supported in [after] key"));
 
-        exc = expectThrows(ElasticsearchParseException.class,
+        DateTimeParseException dtExc = expectThrows(DateTimeParseException.class,
             () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date")), Collections.emptyList(),
                 () -> {
                     DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
@@ -1155,8 +1156,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 },
                 (result) -> {}
             ));
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getCause().getMessage(), containsString("Parse failure"));
+        assertThat(dtExc.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(dtExc.getCause().getMessage(), containsString("Parse failure"));
     }
 
     public void testWithDateHistogramAndTimeZone() throws IOException {

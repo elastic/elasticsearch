@@ -1,10 +1,12 @@
 {
-  "xpack.security.get_privileges": {
+  "security.get_privileges": {
     "documentation": "TODO",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/security/privilege/{application}/{name}",
-      "paths": [ "/_xpack/security/privilege/{application}/{name}" ],
+      "path": "/_security/privilege/{application}/{name}",
+      "paths": [
+        "/_security/privilege/{application}/{name}"
+      ],
       "parts": {
         "application": {
           "type" : "string",

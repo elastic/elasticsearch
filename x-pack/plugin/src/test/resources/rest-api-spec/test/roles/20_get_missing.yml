@@ -1,12 +1,12 @@
 "Get missing role":
   - do:
       catch:  missing
-      xpack.security.get_role:
+      security.get_role:
         name: 'foo'
 
 ---
 "Get missing (multiple) roles":
   - do:
       catch:  missing
-      xpack.security.get_role:
+      security.get_role:
         name: [ 'foo', 'bar' ]

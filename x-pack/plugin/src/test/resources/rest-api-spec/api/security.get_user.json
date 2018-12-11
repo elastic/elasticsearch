@@ -1,10 +1,13 @@
 {
-  "xpack.security.get_user": {
+  "security.get_user": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/security/user/{username}",
-      "paths": [ "/_xpack/security/user/{username}", "/_xpack/security/user" ],
+      "path": "/_security/user/{username}",
+      "paths": [
+        "/_security/user/{username}",
+        "/_security/user"
+      ],
       "parts": {
         "username": {
           "type" : "list",

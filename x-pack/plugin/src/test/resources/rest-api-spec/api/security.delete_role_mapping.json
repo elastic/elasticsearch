@@ -1,10 +1,12 @@
 {
-  "xpack.security.delete_role_mapping": {
+  "security.delete_role_mapping": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role-mapping.html",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/security/role_mapping/{name}",
-      "paths": [ "/_xpack/security/role_mapping/{name}" ],
+      "path": "/_security/role_mapping/{name}",
+      "paths": [
+        "/_security/role_mapping/{name}"
+      ],
       "parts": {
         "name": {
           "type" : "string",

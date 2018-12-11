@@ -1,10 +1,12 @@
 {
-  "xpack.security.delete_role": {
+  "security.delete_role": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role.html",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/security/role/{name}",
-      "paths": [ "/_xpack/security/role/{name}" ],
+      "path": "/_security/role/{name}",
+      "paths": [
+        "/_security/role/{name}"
+      ],
       "parts": {
         "name": {
           "type" : "string",

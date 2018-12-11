@@ -6,31 +6,22 @@
 
 package org.elasticsearch.xpack.rollup.rest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
-
 public class RestPutRollupJobAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutRollupJobAction.class));
 
     public RestPutRollupJobAction(Settings settings, RestController controller) {
         super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                PUT, "/_rollup/job/{id}", this,
-                PUT, Rollup.BASE_PATH +  "job/{id}", deprecationLogger);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/rollup/job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_rollup/job/{id}/", this);
     }
 
     @Override
@@ -42,7 +33,7 @@ public class RestPutRollupJobAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "put_rollup_job";
+        return "rollup_put_job_action";
     }
 
 }

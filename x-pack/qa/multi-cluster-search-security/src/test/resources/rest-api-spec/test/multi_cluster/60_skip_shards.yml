@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -30,11 +30,11 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "x_cluster_role"
         ignore: 404
 ---
@@ -66,6 +66,7 @@ teardown:
   - do:
      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
      search:
+       rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
@@ -82,6 +83,7 @@ teardown:
   - do:
      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
      search:
+       rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2015-02-01", "lt": "2016-02-01"} } } }

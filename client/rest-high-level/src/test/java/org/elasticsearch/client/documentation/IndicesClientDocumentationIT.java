@@ -59,7 +59,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
@@ -70,10 +70,15 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -2279,13 +2284,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::get-templates-request
         GetIndexTemplatesRequest request = new GetIndexTemplatesRequest("my-template"); // <1>
-        request.names("template-1", "template-2"); // <2>
-        request.names("my-*"); // <3>
+        request = new GetIndexTemplatesRequest("template-1", "template-2"); // <2>
+        request = new GetIndexTemplatesRequest("my-*"); // <3>
         // end::get-templates-request
 
         // tag::get-templates-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setMasterNodeTimeout("1m"); // <2>
         // end::get-templates-request-masterTimeout
 
         // tag::get-templates-execute
@@ -2323,6 +2328,59 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testTemplatesExist() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Collections.singletonList("foo"));
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        {
+            // tag::templates-exist-request
+            IndexTemplatesExistRequest request;
+            request = new IndexTemplatesExistRequest("my-template"); // <1>
+            request = new IndexTemplatesExistRequest("template-1", "template-2"); // <2>
+            request = new IndexTemplatesExistRequest("my-*"); // <3>
+            // end::templates-exist-request
+
+            // tag::templates-exist-request-optionals
+            request.setLocal(true); // <1>
+            request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <2>
+            request.setMasterNodeTimeout("1m"); // <3>
+            // end::templates-exist-request-optionals
+
+            // tag::templates-exist-execute
+            boolean exists = client.indices().existsTemplate(request, RequestOptions.DEFAULT);
+            // end::templates-exist-execute
+            assertTrue(exists);
+
+            // tag::templates-exist-execute-listener
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean aBoolean) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::templates-exist-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::templates-exist-execute-async
+            client.indices().existsTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::templates-exist-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
     }
 
     @SuppressWarnings("unused")
@@ -2526,5 +2584,221 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-field-request
         }
 
+    }
+
+    public void testFreezeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::freeze-index-request
+            FreezeIndexRequest request = new FreezeIndexRequest("index"); // <1>
+            // end::freeze-index-request
+
+            // tag::freeze-index-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::freeze-index-request-timeout
+            // tag::freeze-index-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::freeze-index-request-masterTimeout
+            // tag::freeze-index-request-waitForActiveShards
+            request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
+            // end::freeze-index-request-waitForActiveShards
+
+            // tag::freeze-index-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::freeze-index-request-indicesOptions
+
+            // tag::freeze-index-execute
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, RequestOptions.DEFAULT);
+            // end::freeze-index-execute
+
+            // tag::freeze-index-response
+            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
+            // end::freeze-index-response
+            assertTrue(acknowledged);
+            assertTrue(shardsAcked);
+
+            // tag::freeze-index-execute-listener
+            ActionListener<ShardsAcknowledgedResponse> listener =
+                new ActionListener<ShardsAcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(ShardsAcknowledgedResponse freezeIndexResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::freeze-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::freeze-index-execute-async
+            client.indices().freezeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::freeze-index-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::freeze-index-notfound
+            try {
+                FreezeIndexRequest request = new FreezeIndexRequest("does_not_exist");
+                client.indices().freeze(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::freeze-index-notfound
+        }
+    }
+
+    public void testUnfreezeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::unfreeze-index-request
+            UnfreezeIndexRequest request = new UnfreezeIndexRequest("index"); // <1>
+            // end::unfreeze-index-request
+
+            // tag::unfreeze-index-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::unfreeze-index-request-timeout
+            // tag::unfreeze-index-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::unfreeze-index-request-masterTimeout
+            // tag::unfreeze-index-request-waitForActiveShards
+            request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
+            // end::unfreeze-index-request-waitForActiveShards
+
+            // tag::unfreeze-index-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::unfreeze-index-request-indicesOptions
+
+            // tag::unfreeze-index-execute
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, RequestOptions.DEFAULT);
+            // end::unfreeze-index-execute
+
+            // tag::unfreeze-index-response
+            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
+            // end::unfreeze-index-response
+            assertTrue(acknowledged);
+            assertTrue(shardsAcked);
+
+            // tag::unfreeze-index-execute-listener
+            ActionListener<ShardsAcknowledgedResponse> listener =
+                new ActionListener<ShardsAcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(ShardsAcknowledgedResponse freezeIndexResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::unfreeze-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::unfreeze-index-execute-async
+            client.indices().unfreezeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::unfreeze-index-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::unfreeze-index-notfound
+            try {
+                UnfreezeIndexRequest request = new UnfreezeIndexRequest("does_not_exist");
+                client.indices().unfreeze(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::unfreeze-index-notfound
+        }
+    }
+
+    public void testDeleteTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-template-request
+        DeleteIndexTemplateRequest request = new DeleteIndexTemplateRequest();
+        request.name("my-template"); // <1>
+        // end::delete-template-request
+
+        // tag::delete-template-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::delete-template-request-masterTimeout
+
+        // tag::delete-template-execute
+        AcknowledgedResponse deleteTemplateAcknowledge = client.indices().deleteTemplate(request, RequestOptions.DEFAULT);
+        // end::delete-template-execute
+
+        // tag::delete-template-response
+        boolean acknowledged = deleteTemplateAcknowledge.isAcknowledged(); // <1>
+        // end::delete-template-response
+        assertThat(acknowledged, equalTo(true));
+
+        {
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+        // tag::delete-template-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::delete-template-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::delete-template-execute-async
+        client.indices().deleteTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::delete-template-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

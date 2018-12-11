@@ -57,8 +57,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
         this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
     }
 
-    private WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
-                        Map<String, ActionStatus> actions, Map<String, String> headers) {
+    public WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
+                       Map<String, ActionStatus> actions, Map<String, String> headers) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
@@ -234,6 +234,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
         }
         if (in.readBoolean()) {
             headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            headers = Collections.emptyMap();
         }
     }
 
@@ -340,6 +342,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 if (token == XContentParser.Token.START_OBJECT) {
                     headers = parser.mapStrings();
                 }
+            } else {
+                parser.skipChildren();
             }
         }
 
@@ -395,6 +399,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
                     active = parser.booleanValue();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
                     timestamp = parseDate(currentFieldName, parser, UTC);
+                } else {
+                    parser.skipChildren();
                 }
             }
             return new State(active, timestamp);

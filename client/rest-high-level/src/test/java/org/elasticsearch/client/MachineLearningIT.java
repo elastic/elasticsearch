@@ -63,6 +63,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -137,6 +139,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
@@ -524,7 +527,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -535,7 +538,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         while(pastCopy < now) {
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
-            doc.type("doc");
+            doc.type("_doc");
             doc.id("id" + i);
             doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ pastCopy +"}", XContentType.JSON);
             bulk.add(doc);
@@ -555,7 +558,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("doc"))
+            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -600,7 +603,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -664,7 +667,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -733,7 +736,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -745,7 +748,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             Integer total = randomInt(1000);
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
-            doc.type("doc");
+            doc.type("_doc");
             doc.id("id" + i);
             doc.source("{\"total\":" + total + ",\"timestamp\":"+ thePast +"}", XContentType.JSON);
             bulk.add(doc);
@@ -765,7 +768,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Collections.singletonList("doc"))
+            .setTypes(Collections.singletonList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -792,7 +795,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexId = jobId + "-data";
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
-        createIndexRequest.mapping("doc", "timestamp", "type=date,format=epoch_millis", "total", "type=long");
+        createIndexRequest.mapping("_doc", "timestamp", "type=date,format=epoch_millis", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -806,7 +809,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(indexId, "doc");
+                IndexRequest indexRequest = new IndexRequest(indexId, "_doc");
                 indexRequest.source(XContentType.JSON, "timestamp", timestamp, "total", randomInt(1000));
                 bulk.add(indexRequest);
             }
@@ -816,7 +819,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {
             // Index a randomly named unused state document
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#1", "quantiles", "categorizer_state#1");
-            IndexRequest indexRequest = new IndexRequest(".ml-state", "doc", docId);
+            IndexRequest indexRequest = new IndexRequest(".ml-state", "_doc", docId);
             indexRequest.source(Collections.emptyMap(), XContentType.JSON);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -1282,6 +1285,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    public void testGetMlInfo() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        MlInfoResponse infoResponse = execute(new MlInfoRequest(), machineLearningClient::getMlInfo, machineLearningClient::getMlInfoAsync);
+        Map<String, Object> info = infoResponse.getInfo();
+        assertThat(info, notNullValue());
+        assertTrue(info.containsKey("defaults"));
+        assertTrue(info.containsKey("limits"));
+    }
+
     public static String randomValidJobId() {
         CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz0123456789".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
@@ -1375,7 +1388,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
 
         String snapshotUpdate = "{ \"timestamp\": " + timestamp + "}";
-        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "doc", documentId);
+        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "_doc", documentId);
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
 
@@ -1390,7 +1403,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("doc"))
+            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         return datafeedId;
@@ -1401,7 +1414,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -1421,7 +1434,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         for(String snapshotId : snapshotIds) {
             String documentId = jobId + "_model_snapshot_" + snapshotId;
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +

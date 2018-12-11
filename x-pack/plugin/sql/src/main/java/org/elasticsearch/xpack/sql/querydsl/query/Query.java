@@ -44,7 +44,7 @@ public abstract class Query {
      * @return a new query if we could add the nested field, the same query
      *      instance otherwise
      */
-    public abstract Query addNestedField(String path, String field, boolean hasDocValues);
+    public abstract Query addNestedField(String path, String field, String format, boolean hasDocValues);
 
     /**
      * Attach the one and only one matching nested query's filter to this

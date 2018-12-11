@@ -196,7 +196,7 @@ public final class Def {
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             PainlessMethod painlessMethod =  painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
+             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
 
              if (painlessMethod == null) {
                  throw new IllegalArgumentException("dynamic method " +
@@ -445,7 +445,7 @@ public final class Def {
         }
 
         throw new IllegalArgumentException(
-                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
+                "dynamic setter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**
@@ -619,46 +619,47 @@ public final class Def {
         }
     }
 
+    // Conversion methods for def to primitive types.
 
-    // Conversion methods for Def to primitive types.
-
-    public static boolean DefToboolean(final Object value) {
-        return (boolean)value;
+    public static boolean defToboolean(final Object value) {
+        if (value instanceof Boolean) {
+            return (boolean) value;
+        } else {
+            throw new ClassCastException(
+                    "cannot cast def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to boolean");
+        }
     }
 
-    public static byte DefTobyteImplicit(final Object value) {
-        return (byte)value;
-    }
-
-    public static short DefToshortImplicit(final Object value) {
+    public static byte defTobyteImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else {
-            return (short)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to byte");
         }
     }
 
-    public static char DefTocharImplicit(final Object value) {
-        if (value instanceof Byte) {
-            return (char)(byte)value;
-        } else {
-            return (char)value;
-        }
-    }
-
-    public static int DefTointImplicit(final Object value) {
+    public static short defToshortImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
             return (short)value;
-        } else if (value instanceof Character) {
-            return (char)value;
         } else {
-            return (int)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to short");
         }
     }
 
-    public static long DefTolongImplicit(final Object value) {
+    public static char defTocharImplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to char");
+        }
+    }
+
+    public static int defTointImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -668,11 +669,12 @@ public final class Def {
         } else if (value instanceof Integer) {
             return (int)value;
         } else {
-            return (long)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to int");
         }
     }
 
-    public static float DefTofloatImplicit(final Object value) {
+    public static long defTolongImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -684,11 +686,13 @@ public final class Def {
         } else if (value instanceof Long) {
             return (long)value;
         } else {
-            return (float)value;
+            throw new ClassCastException(
+                    "cannot implicitly cast " +
+                            "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to long");
         }
     }
 
-    public static double DefTodoubleImplicit(final Object value) {
+    public static float defTofloatImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -702,61 +706,312 @@ public final class Def {
         } else if (value instanceof Float) {
             return (float)value;
         } else {
-            return (double)value;
+            throw new ClassCastException(
+                    "cannot implicitly cast " +
+                            "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to float");
         }
     }
 
-    public static byte DefTobyteExplicit(final Object value) {
+    public static double defTodoubleImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else if (value instanceof Float) {
+            return (float)value;
+        } else if (value instanceof Double) {
+            return (double)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast def [" + value.getClass().getCanonicalName() + "] to double");
+        }
+    }
+
+    public static byte defTobyteExplicit(final Object value) {
         if (value instanceof Character) {
+            return (byte)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).byteValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to byte");
+        }
+    }
+
+    public static short defToshortExplicit(final Object value) {
+        if (value instanceof Character) {
+            return (short)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).shortValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to short");
+        }
+    }
+
+    public static char defTocharExplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return (char)((Number)value).intValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to char");
+        }
+    }
+
+    public static int defTointExplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).intValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to int");
+        }
+    }
+
+    public static long defTolongExplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).longValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to long");
+        }
+    }
+
+    public static float defTofloatExplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).floatValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to float");
+        }
+    }
+
+    public static double defTodoubleExplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).doubleValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast def [" + value.getClass().getCanonicalName() + "] to double");
+        }
+    }
+
+    // Conversion methods for def to boxed types.
+
+    public static Byte defToByteImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else {
+            return (Byte)value;
+        }
+    }
+
+    public static Short defToShortImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (short)(byte)value;
+        } else {
+            return (Short)value;
+        }
+    }
+
+    public static Character defToCharacterImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else {
+            return (Character)value;
+        }
+    }
+
+    public static Integer defToIntegerImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (int)(byte)value;
+        } else if (value instanceof Short) {
+            return (int)(short)value;
+        } else if (value instanceof Character) {
+            return (int)(char)value;
+        } else {
+            return (Integer)value;
+        }
+    }
+
+    public static Long defToLongImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (long)(byte)value;
+        } else if (value instanceof Short) {
+            return (long)(short)value;
+        } else if (value instanceof Character) {
+            return (long)(char)value;
+        } else if (value instanceof Integer) {
+            return (long)(int)value;
+        } else {
+            return (Long)value;
+        }
+    }
+
+    public static Float defToFloatImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (float)(byte)value;
+        } else if (value instanceof Short) {
+            return (float)(short)value;
+        } else if (value instanceof Character) {
+            return (float)(char)value;
+        } else if (value instanceof Integer) {
+            return (float)(int)value;
+        } else if (value instanceof Long) {
+            return (float)(long)value;
+        } else {
+            return (Float)value;
+        }
+    }
+
+    public static Double defToDoubleImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (double)(byte)value;
+        } else if (value instanceof Short) {
+            return (double)(short)value;
+        } else if (value instanceof Character) {
+            return (double)(char)value;
+        } else if (value instanceof Integer) {
+            return (double)(int)value;
+        } else if (value instanceof Long) {
+            return (double)(long)value;
+        } else if (value instanceof Float) {
+            return (double)(float)value;
+        } else {
+            return (Double)value;
+        }
+    }
+
+    public static Byte defToByteExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (byte)(char)value;
         } else {
             return ((Number)value).byteValue();
         }
     }
 
-    public static short DefToshortExplicit(final Object value) {
-        if (value instanceof Character) {
+    public static Short defToShortExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (short)(char)value;
         } else {
             return ((Number)value).shortValue();
         }
     }
 
-    public static char DefTocharExplicit(final Object value) {
-        if (value instanceof Character) {
-            return ((Character)value);
+    public static Character defToCharacterExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (Character)value;
         } else {
             return (char)((Number)value).intValue();
         }
     }
 
-    public static int DefTointExplicit(final Object value) {
-        if (value instanceof Character) {
-            return (char)value;
+    public static Integer defToIntegerExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (int)(char)value;
         } else {
             return ((Number)value).intValue();
         }
     }
 
-    public static long DefTolongExplicit(final Object value) {
-        if (value instanceof Character) {
-            return (char)value;
+    public static Long defToLongExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (long)(char)value;
         } else {
             return ((Number)value).longValue();
         }
     }
 
-    public static float DefTofloatExplicit(final Object value) {
-        if (value instanceof Character) {
-            return (char)value;
+    public static Float defToFloatExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (float)(char)value;
         } else {
             return ((Number)value).floatValue();
         }
     }
 
-    public static double DefTodoubleExplicit(final Object value) {
-        if (value instanceof Character) {
-            return (char)value;
+    public static Double defToDoubleExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (double)(char)value;
         } else {
             return ((Number)value).doubleValue();
         }

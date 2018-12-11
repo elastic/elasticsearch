@@ -39,6 +39,20 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
      */
     private Float requestsPerSecond;
 
+    public RethrottleRequest() {
+    }
+
+    public RethrottleRequest(StreamInput in) throws IOException {
+        super(in);
+        this.requestsPerSecond = in.readFloat();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeFloat(requestsPerSecond);
+    }
+
     /**
      * The throttle to apply to all matching requests in sub-requests per second. 0 means set no throttle and that is the default.
      */
@@ -80,15 +94,4 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
         return validationException;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        requestsPerSecond = in.readFloat();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeFloat(requestsPerSecond);
-    }
 }

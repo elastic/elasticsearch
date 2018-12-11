@@ -3,6 +3,8 @@
 [[sql-concepts]]
 == Conventions and Terminology
 
+experimental[]
+
 For clarity, it is important to establish the meaning behind certain words as, the same wording might convey different meanings to different readers depending on one's familiarity with SQL versus {es}.
 
 NOTE: This documentation while trying to be complete, does assume the reader has _basic_ understanding of {es} and/or SQL. If that is not the case, please continue reading the documentation however take notes and pursue the topics that are unclear either through the main {es} documentation or through the plethora of SQL material available in the open (there are simply too many excellent resources here to enumerate).

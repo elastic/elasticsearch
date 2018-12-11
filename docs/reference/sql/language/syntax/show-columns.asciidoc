@@ -3,6 +3,8 @@
 [[sql-syntax-show-columns]]
 === SHOW COLUMNS
 
+experimental[]
+
 .Synopsis
 [source, sql]
 ----

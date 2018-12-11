@@ -3,6 +3,8 @@
 [[sql-rest]]
 == SQL REST API
 
+experimental[]
+
 The SQL REST API accepts SQL in a JSON document, executes it,
 and returns the results. For example:
 

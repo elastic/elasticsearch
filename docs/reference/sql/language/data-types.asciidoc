@@ -3,6 +3,8 @@
 [[sql-data-types]]
 == Data Types
 
+experimental[]
+
 Most of {es} <<mapping-types, data types>> are available in {es-sql}, as indicated below:
 
 [cols="^,^,^",options="header"]

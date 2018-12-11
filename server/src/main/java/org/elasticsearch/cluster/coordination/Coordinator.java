@@ -206,8 +206,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
+    void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
         synchronized (mutex) {
+            final long previousTerm = getCurrentTerm();
             ensureTermAtLeast(followerCheckRequest.getSender(), followerCheckRequest.getTerm());
 
             if (getCurrentTerm() != followerCheckRequest.getTerm()) {
@@ -216,7 +217,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + getCurrentTerm() + "], rejecting " + followerCheckRequest);
             }
 
-            becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            if (previousTerm != getCurrentTerm()) {
+                becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            }
         }
     }
 

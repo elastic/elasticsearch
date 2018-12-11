@@ -55,7 +55,6 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1")));
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("Expected legacy warning")));
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "Expected legacy warning")));
-        assertFalse(handler.warningsShouldFailRequest(Arrays.asList("Expected legacy warning")));
         assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "Unexpected legacy warning")));
         assertTrue(handler.warningsShouldFailRequest(Arrays.asList("Unexpected legacy warning")));        
         assertFalse(handler.warningsShouldFailRequest(Collections.emptyList()));

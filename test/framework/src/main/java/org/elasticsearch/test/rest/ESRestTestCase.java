@@ -182,8 +182,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodeVersions != null;
     }
     
-    // Helper class to check warnings in REST responses with sensitivity to versions
-    // used in the target cluster.
+    /**
+     * Helper class to check warnings in REST responses with sensitivity to versions
+     * used in the target cluster.
+     */
     public static class VersionSensitiveWarningsHandler implements WarningsHandler {
         Set<String> requiredSameVersionClusterWarnings = new HashSet<>();
         Set<String> allowedWarnings = new HashSet<>();

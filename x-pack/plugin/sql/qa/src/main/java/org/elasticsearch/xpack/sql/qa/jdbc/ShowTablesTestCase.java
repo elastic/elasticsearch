@@ -18,7 +18,7 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_show_tables.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
-            assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));
+            assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"), true);
         }
     }
 
@@ -34,7 +34,7 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
             }
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock ORDER BY name");
-            assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));
+            assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"), true);
         }
     }
 }

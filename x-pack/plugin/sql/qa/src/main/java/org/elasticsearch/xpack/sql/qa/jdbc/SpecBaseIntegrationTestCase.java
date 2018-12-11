@@ -94,7 +94,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     /**
      * Implementations should pay attention on using
      * {@link #executeJdbcQuery(Connection, String)} (typically for
-     * ES connections) and {@link #assertResults(ResultSet, ResultSet)}
+     * ES connections) and {@link #assertResults(ResultSet, ResultSet, boolean)}
      * which takes into account logging/debugging results (through
      * {@link #logEsResultSet()}.
      */
@@ -122,9 +122,15 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         return false;
     }
 
-    protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
+    /*
+     * Asserts the numeric results for floating point numbers in a leninent way, if chosen to. Usually,
+     * we would want lening treatment for floating point numbers in sql-spec tests where the comparison is being made with H2.
+     * Typically, H2 doesn't return floating point numbers for some functions (AVG() being on example), and we'd want
+     * to be lenient about this, so that we can still compare the average values between H2 and ES-SQL.
+     */
+    protected void assertResults(ResultSet expected, ResultSet elastic, boolean lenientFloatingNumbers) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
-        JdbcAssert.assertResultSets(expected, elastic, log);
+        JdbcAssert.assertResultSets(expected, elastic, log, false, lenientFloatingNumbers);
     }
 
     private Throwable reworkException(Throwable th) {

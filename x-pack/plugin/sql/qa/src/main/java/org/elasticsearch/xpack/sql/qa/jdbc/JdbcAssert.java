@@ -47,25 +47,31 @@ public class JdbcAssert {
         }
     }
 
-    public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
-        assertResultSets(expected, actual, null);
+    public static void assertResultSets(ResultSet expected, ResultSet actual, boolean lenientFloatingNumbers) throws SQLException {
+        assertResultSets(expected, actual, null, lenientFloatingNumbers);
     }
 
-    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
-        assertResultSets(expected, actual, logger, false);
+    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientFloatingNumbers) 
+           throws SQLException {
+        assertResultSets(expected, actual, logger, false, lenientFloatingNumbers);
     }
 
     /**
      * Assert the given result sets, potentially in a lenient way.
-     * When lenient is specified, the type comparison of a column is widden to reach a common, compatible ground.
+     * When lenientDataType is specified, the type comparison of a column is widden to reach a common, compatible ground.
      * This means promoting integer types to long and floating types to double and comparing their values.
-     * For example in a non-lenient, strict case a comparison between an int and a tinyint would fail, with lenient it will succeed as
-     * long as the actual value is the same.
+     * For example in a non-lenient, strict case a comparison between an int and a tinyint would fail, with lenientDataType it will succeed
+     * as long as the actual value is the same.
+     * Also, has the option of treating the numeric results for floating point numbers in a leninent way, if chosen to. Usually,
+     * we would want lening treatment for floating point numbers in sql-spec tests where the comparison is being made with H2.
+     * Typically, H2 doesn't return floating point numbers for some functions (AVG() being on example), and we'd want
+     * to be lenient about this, so that we can still compare the average values between H2 and ES-SQL.
      */
-    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
+    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
+            boolean lenientFloatingNumbers) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {
-            assertResultSetMetadata(ex, ac, logger, lenient);
-            assertResultSetData(ex, ac, logger, lenient);
+            assertResultSetMetadata(ex, ac, logger, lenientDataType);
+            assertResultSetData(ex, ac, logger, lenientDataType, lenientFloatingNumbers);
         }
     }
 
@@ -74,7 +80,8 @@ public class JdbcAssert {
     }
 
     // metadata doesn't consume a ResultSet thus it shouldn't close it
-    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
+    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger,
+            boolean lenientDataType) throws SQLException {
         ResultSetMetaData expectedMeta = expected.getMetaData();
         ResultSetMetaData actualMeta = actual.getMetaData();
 
@@ -116,8 +123,8 @@ public class JdbcAssert {
             }
 
             // use the type not the name (timestamp with timezone returns spaces for example)
-            int expectedType = typeOf(expectedMeta.getColumnType(column), lenient);
-            int actualType = typeOf(actualMeta.getColumnType(column), lenient);
+            int expectedType = typeOf(expectedMeta.getColumnType(column), lenientDataType);
+            int actualType = typeOf(actualMeta.getColumnType(column), lenientDataType);
 
             // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
@@ -137,7 +144,7 @@ public class JdbcAssert {
                 expectedType = Types.NULL;
             }
 
-            // when lenient is used, an int is equivalent to a short, etc...
+            // when lenientDataType is used, an int is equivalent to a short, etc...
             assertEquals(
                     "Different column type for column [" + expectedName + "] (" + nameOf(expectedType) + " != " + nameOf(actualType) + ")",
                     expectedType, actualType);
@@ -150,16 +157,18 @@ public class JdbcAssert {
 
     // The ResultSet is consumed and thus it should be closed
     public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
-        assertResultSetData(expected, actual, logger, false);
+        assertResultSetData(expected, actual, logger, false, true);
     }
 
-    public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
+    public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
+            boolean lenientFloatingNumbers) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {
-            doAssertResultSetData(ex, ac, logger, lenient);
+            doAssertResultSetData(ex, ac, logger, lenientDataType, lenientFloatingNumbers);
         }
     }
 
-    private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
+    private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
+            boolean lenientFloatingNumbers) throws SQLException {
         ResultSetMetaData metaData = expected.getMetaData();
         int columns = metaData.getColumnCount();
 
@@ -199,7 +208,7 @@ public class JdbcAssert {
                     }
 
                     Object expectedObject = expected.getObject(column);
-                    Object actualObject = lenient ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
+                    Object actualObject = lenientDataType ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
 
                     String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
                         metaData.getColumnName(column), count + 1);
@@ -219,10 +228,9 @@ public class JdbcAssert {
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {
-                        // the 1d/1f difference is used due to rounding/flooring
-                        assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
+                        assertEquals(msg, (double) expectedObject, (double) actualObject, lenientFloatingNumbers ? 1d : 0.0d);
                     } else if (type == Types.FLOAT) {
-                        assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
+                        assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
                     }
                     // intervals
                     else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {
@@ -251,8 +259,8 @@ public class JdbcAssert {
     /**
      * Returns the value of the given type either in a lenient fashion (widened) or strict.
      */
-    private static int typeOf(int columnType, boolean lenient) {
-        if (lenient) {
+    private static int typeOf(int columnType, boolean lenientDataType) {
+        if (lenientDataType) {
             // integer upcast to long
             if (columnType == TINYINT || columnType == SMALLINT || columnType == INTEGER || columnType == BIGINT) {
                 return BIGINT;

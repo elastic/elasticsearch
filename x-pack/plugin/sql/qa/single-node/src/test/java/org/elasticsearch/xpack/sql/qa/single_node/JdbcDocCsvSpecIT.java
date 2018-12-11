@@ -62,14 +62,14 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
     }
 
     @Override
-    protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
+    protected void assertResults(ResultSet expected, ResultSet elastic, boolean lenientFloatingNumbers) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
 
         //
         // uncomment this to printout the result set and create new CSV tests
         //
         //JdbcTestUtils.logLikeCLI(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log, true);
+        JdbcAssert.assertResultSets(expected, elastic, log, true, lenientFloatingNumbers);
     }
 
     @Override
@@ -84,7 +84,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
             // pass the testName as table for debugging purposes (in case the underlying reader is missing)
             ResultSet expected = executeCsvQuery(csv, testName);
             ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
-            assertResults(expected, elasticResults);
+            assertResults(expected, elasticResults, false);
         }
     }
 }

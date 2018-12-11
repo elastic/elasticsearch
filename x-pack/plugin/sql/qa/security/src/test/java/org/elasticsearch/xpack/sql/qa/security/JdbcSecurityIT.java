@@ -86,7 +86,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             String user, CheckedFunction<Connection, ResultSet, SQLException> userAction) throws Exception {
         try (Connection adminConnection = es(adminProperties());
                 Connection userConnection = es(userProperties(user))) {
-            assertResultSets(adminAction.apply(adminConnection), userAction.apply(userConnection));
+            assertResultSets(adminAction.apply(adminConnection), userAction.apply(userConnection), false);
         }
     }
 
@@ -129,7 +129,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                 h2.createStatement().executeUpdate("INSERT INTO test (a, b, c) VALUES (1, 2, 3), (4, 5, 6)");
 
                 ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM test ORDER BY a");
-                assertResultSets(expected, es.createStatement().executeQuery("SELECT * FROM test ORDER BY a"));
+                assertResultSets(expected, es.createStatement().executeQuery("SELECT * FROM test ORDER BY a"), false);
             }
         }
 
@@ -183,7 +183,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                 }
 
                 ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
-                assertResultSets(expected, es.createStatement().executeQuery("DESCRIBE test"));
+                assertResultSets(expected, es.createStatement().executeQuery("DESCRIBE test"), false);
             }
         }
 

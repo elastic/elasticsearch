@@ -16,8 +16,8 @@ SELECT gender, PERCENTILE(emp_no, 97.76) p1 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d
 null                 |10019.0           
-F                    |10099.51          
-M                    |10095.789999999999
+F                    |10099.7608          
+M                    |10096.2232
 ;
 
 multiplePercentilesOneWithCommaOneWithout

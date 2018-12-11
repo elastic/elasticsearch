@@ -92,7 +92,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
             expected = executeJdbcQuery(h2, query);
             elasticResults = executeJdbcQuery(es, query);
 
-            assertResults(expected, elasticResults);
+            assertResults(expected, elasticResults, true);
         }
     }
 }

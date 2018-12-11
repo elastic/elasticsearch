@@ -107,6 +107,6 @@ SELECT gender, PERCENTILE(emp_no, 97) p1 FROM "test_*" WHERE gender is NOT NULL 
 
 gender:s             | p1:d
 
-F                    | 10099.32
-M                    | 10095.98
+F                    | 10099.52
+M                    | 10096.0
 ;

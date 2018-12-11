@@ -34,7 +34,6 @@ import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;

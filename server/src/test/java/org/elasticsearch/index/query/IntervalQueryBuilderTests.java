@@ -23,7 +23,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.apache.lucene.search.intervals.Intervals;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 

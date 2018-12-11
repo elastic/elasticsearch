@@ -57,6 +57,7 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -270,6 +271,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
             assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
         }, this::logAndFail));
@@ -289,6 +291,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
         }, this::logAndFail));
@@ -306,6 +309,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         assertThat(result, notNullValue());
         assertThat(result, is(authentication));
+        assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
         verifyZeroInteractions(auditTrail);
         verifyZeroInteractions(firstRealm);
         verifyZeroInteractions(secondRealm);
@@ -342,6 +346,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         assertThat(result, notNullValue());
         assertThat(result.getUser(), is(user));
+        assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
 
         String userStr = threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY);
         assertThat(userStr, notNullValue());
@@ -387,6 +392,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Authentication result = authenticateBlocking("_action", message, user1);
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance(user1));
+        assertThat(result.getAuthenticationType(), is(AuthenticationType.INTERNAL));
         assertThreadContextContainsAuthentication(result);
     }
 
@@ -432,6 +438,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), sameInstance(user));
             assertThreadContextContainsAuthentication(result);
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
@@ -450,6 +457,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         service.authenticate(restRequest, ActionListener.wrap(authentication -> {
             assertThat(authentication, notNullValue());
             assertThat(authentication.getUser(), sameInstance(user1));
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(authentication);
             setCompletedToTrue(completed);
         }, this::logAndFail));
@@ -459,7 +467,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
     }
 
-    public void testAutheticateTransportContextAndHeader() throws Exception {
+    public void testAuthenticateTransportContextAndHeader() throws Exception {
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
@@ -469,9 +477,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         final SetOnce<String> authHeaderRef = new SetOnce<>();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             service.authenticate("_action", message, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
-
                 assertThat(authentication, notNullValue());
                 assertThat(authentication.getUser(), sameInstance(user1));
+                assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
                 assertThreadContextContainsAuthentication(authentication);
                 authRef.set(authentication);
                 authHeaderRef.set(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
@@ -530,6 +538,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), equalTo(user1));
+                assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
                 setCompletedToTrue(completed);
             }, this::logAndFail));
             assertTrue(completed.get());
@@ -570,6 +579,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance((Object) anonymousUser));
+        assertThat(result.getAuthenticationType(), is(AuthenticationType.ANONYMOUS));
         assertThreadContextContainsAuthentication(result);
         String reqId = expectAuditRequestId();
         verify(auditTrail).authenticationSuccess(reqId, "__anonymous", new AnonymousUser(settings), request);
@@ -588,6 +598,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Authentication result = authenticateBlocking("_action", message, null);
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance(anonymousUser));
+        assertThat(result.getAuthenticationType(), is(AuthenticationType.ANONYMOUS));
         assertThreadContextContainsAuthentication(result);
     }
 
@@ -604,6 +615,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Authentication result = authenticateBlocking("_action", message, SystemUser.INSTANCE);
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance(SystemUser.INSTANCE));
+        assertThat(result.getAuthenticationType(), is(AuthenticationType.INTERNAL));
         assertThreadContextContainsAuthentication(result);
     }
 
@@ -790,6 +802,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AtomicBoolean completed = new AtomicBoolean(false);
         ActionListener<Authentication> listener = ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             User authenticated = result.getUser();
 
             assertThat(authenticated.principal(), is("looked up user"));
@@ -835,6 +848,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AtomicBoolean completed = new AtomicBoolean(false);
         ActionListener<Authentication> listener = ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             User authenticated = result.getUser();
 
             assertThat(SystemUser.is(authenticated), is(false));
@@ -958,7 +972,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(result.getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
                 assertThat(result.getAuthenticatedBy(), is(notNullValue()));
-                assertEquals(expected, result);
+                assertThat(result.getAuthenticationType(), is(AuthenticationType.TOKEN));
                 setCompletedToTrue(completed);
             }, this::logAndFail));
         }
@@ -1115,6 +1129,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             final Authentication authentication = authenticateBlocking("_action", message, null);
             assertThat(authentication.getUser().principal(), is("johndoe"));
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.API_KEY));
         }
     }
 

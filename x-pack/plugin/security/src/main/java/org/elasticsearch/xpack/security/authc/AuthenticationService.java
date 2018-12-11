@@ -362,7 +362,8 @@ public class AuthenticationService {
             final Authentication authentication;
             if (fallbackUser != null) {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
-                authentication = new Authentication(fallbackUser, authenticatedBy, null);
+                authentication = new Authentication(fallbackUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.INTERNAL,
+                    Collections.emptyMap());
             } else if (isAnonymousUserEnabled) {
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
                 authentication = new Authentication(anonymousUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.ANONYMOUS,

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -230,10 +231,9 @@ public final class TokenService {
             final Instant created = clock.instant();
             final Instant expiration = getExpirationTime(created);
             final Version version = clusterService.state().nodes().getMinNodeVersion();
-            final Authentication matchingVersionAuth = version.equals(authentication.getVersion()) ? authentication :
-                    new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(), authentication.getLookedUpBy(),
-                            version);
-            final UserToken userToken = new UserToken(version, matchingVersionAuth, expiration, metadata);
+            final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
+                authentication.getLookedUpBy(), version, AuthenticationType.TOKEN, authentication.getMetadata());
+            final UserToken userToken = new UserToken(version, tokenAuth, expiration, metadata);
             final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

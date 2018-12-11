@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.BwcXPackUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -171,8 +172,7 @@ public interface ServerTransportFilter {
 
         private void executeAsOldVersionXPackUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
                                                   ActionListener<Void> listener) {
-            final User xpackUser = new User(XPackUser.NAME, "superuser");
-            executeAsUser(xpackUser, securityAction, request, transportChannel, listener);
+            executeAsUser(BwcXPackUser.INSTANCE, securityAction, request, transportChannel, listener);
         }
 
         private void executeAsUser(User user, String securityAction, TransportRequest request, TransportChannel transportChannel,

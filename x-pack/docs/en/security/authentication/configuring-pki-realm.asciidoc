@@ -140,7 +140,7 @@ For example, the following mapping configuration maps `John Doe` to the
 Using the role-mapping API:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/users
+PUT /_security/role_mapping/users
 {
   "roles" : [ "user" ],
   "rules" : { "field" : {

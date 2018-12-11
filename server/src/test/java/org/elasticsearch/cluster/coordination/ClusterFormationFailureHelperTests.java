@@ -156,20 +156,20 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList()).getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
-                "cluster bootstrapping is disabled on this node: have discovered []; " +
+                "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList()).getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
-                "cluster bootstrapping is disabled on this node: have discovered []; " +
+                "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [" + otherAddress + "] from hosts providers and [" + localNode +
                 "] from last-known cluster state"));
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode)).getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
-                "cluster bootstrapping is disabled on this node: have discovered [" + otherNode + "]; " +
+                "[cluster.initial_master_nodes] is empty on this node: have discovered [" + otherNode + "]; " +
                 "discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
 
         assertThat(new ClusterFormationState(Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2).build(),

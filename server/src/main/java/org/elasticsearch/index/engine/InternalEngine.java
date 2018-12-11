@@ -2481,7 +2481,9 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        // TODO: Should we defer the refresh until we really need it?
+        if (softDeleteEnabled == false) {
+            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
+        }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);

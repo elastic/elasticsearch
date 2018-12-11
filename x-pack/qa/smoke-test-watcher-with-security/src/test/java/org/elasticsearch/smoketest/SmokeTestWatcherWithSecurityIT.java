@@ -42,7 +42,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        Request createAllowedDoc = new Request("PUT", "/my_test_index/doc/1");
+        Request createAllowedDoc = new Request("PUT", "/my_test_index/_doc/1");
         createAllowedDoc.setJsonEntity("{ \"value\" : \"15\" }");
         createAllowedDoc.addParameter("refresh", "true");
         adminClient().performRequest(createAllowedDoc);
@@ -51,7 +51,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         adminClient().performRequest(new Request("DELETE", ".watcher-history-*"));
 
         // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
-        Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/doc/1");
+        Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
         createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(createNotAllowedDoc);
 
@@ -211,7 +211,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
-        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/my_test_index/doc/my-id")));
+        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/my_test_index/_doc/my-id")));
         String value = getObjectPath.evaluate("_source.hits.hits.0._source.value");
         assertThat(value, is("15"));
     }
@@ -239,7 +239,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         getWatchHistoryEntry(watchId);
 
-        Response response = adminClient().performRequest(new Request("HEAD", "/my_test_index/doc/some-id"));
+        Response response = adminClient().performRequest(new Request("HEAD", "/my_test_index/_doc/some-id"));
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 
@@ -262,7 +262,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
-        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/my_test_index/doc/my-id")));
+        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/my_test_index/_doc/my-id")));
         String spam = getObjectPath.evaluate("_source.spam");
         assertThat(spam, is("eggs"));
     }
@@ -286,7 +286,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
-        Response response = adminClient().performRequest(new Request("HEAD", "/index_not_allowed_to_read/doc/my-id"));
+        Response response = adminClient().performRequest(new Request("HEAD", "/index_not_allowed_to_read/_doc/my-id"));
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 

@@ -156,6 +156,9 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
+  exclude '**/*.dic'
+  exclude '**/*.binary'
+  exclude '**/*.st'
 }
 
 task generateModulesList {

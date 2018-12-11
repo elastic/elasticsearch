@@ -8,7 +8,7 @@ authenticate a user and retrieve information about the authenticated user.
 
 ==== Request
 
-`GET _xpack/security/_authenticate`
+`GET /_security/_authenticate`
 
 
 ==== Description
@@ -21,11 +21,11 @@ If the user cannot be authenticated, this API returns a 401 status code.
 ==== Examples
 
 To authenticate a user, submit a GET request to the
-`_xpack/security/_authenticate` endpoint:
+`/_security/_authenticate` endpoint:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/security/_authenticate
+GET /_security/_authenticate
 --------------------------------------------------
 // CONSOLE
 

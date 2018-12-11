@@ -136,7 +136,7 @@ public class IndexResolver {
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
-
+    private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
 
     private final Client client;
     private final String clusterName;
@@ -274,7 +274,9 @@ public class IndexResolver {
 
             // Skip internal fields (name starting with underscore and its type reported by field_caps starts with underscore
             // as well). A meta field named "_version", for example, has the type named "_version".
-            if (false == (name.startsWith("_") && entry.getValue().values().stream().anyMatch(f -> f.getType().startsWith("_")))) {
+            // Also, skip any of the blacklisted field names.
+            if (false == (name.startsWith("_") && entry.getValue().values().stream().anyMatch(f -> f.getType().startsWith("_"))) &&
+                    false == FIELD_NAMES_BLACKLIST.contains(name)) {
                 Map<String, FieldCapabilities> types = entry.getValue();
                 // field is mapped differently across indices
                 if (types.size() > 1) {

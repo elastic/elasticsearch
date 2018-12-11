@@ -25,11 +25,12 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -170,14 +172,17 @@ public interface DocValueFormat extends NamedWriteable {
 
         public static final String NAME = "date_time";
 
-        final FormatDateTimeFormatter formatter;
+        final DateFormatter formatter;
+        // TODO: change this to ZoneId, but will require careful change to serialization
         final DateTimeZone timeZone;
+        private final ZoneId zoneId;
         private final DateMathParser parser;
 
-        public DateTime(FormatDateTimeFormatter formatter, DateTimeZone timeZone) {
+        public DateTime(DateFormatter formatter, DateTimeZone timeZone) {
             this.formatter = Objects.requireNonNull(formatter);
             this.timeZone = Objects.requireNonNull(timeZone);
-            this.parser = new DateMathParser(formatter);
+            this.zoneId = DateUtils.dateTimeZoneToZoneId(timeZone);
+            this.parser = formatter.toDateMathParser();
         }
 
         public DateTime(StreamInput in) throws IOException {
@@ -191,13 +196,13 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(formatter.format());
+            out.writeString(formatter.pattern());
             out.writeString(timeZone.getID());
         }
 
         @Override
         public String format(long value) {
-            return formatter.printer().withZone(timeZone).print(value);
+            return formatter.withZone(zoneId).formatMillis(value);
         }
 
         @Override
@@ -212,7 +217,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, timeZone);
+            return parser.parse(value, now, roundUp, DateUtils.dateTimeZoneToZoneId(timeZone));
         }
 
         @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,8 +31,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,11 +75,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = in.readEnum(XContentType.class);
-        } else {
-            xContentType = XContentHelper.xContentType(source);
-        }
+        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override
@@ -123,9 +118,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeEnum(xContentType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override
@@ -164,14 +157,13 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         }
     }
 
-    private static final Pipeline.Factory PIPELINE_FACTORY = new Pipeline.Factory();
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
-    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) {
+    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, IngestService ingestService) {
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
-        Pipeline pipeline = pipelineStore.get(pipelineId);
+        Pipeline pipeline = ingestService.getPipeline(pipelineId);
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
@@ -179,9 +171,11 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
+    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
-        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactories());
+        Pipeline pipeline = Pipeline.create(
+            SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories(), ingestService.getScriptService()
+        );
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }

@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: get-influencers-test
         body:  >
           {
@@ -82,7 +84,7 @@ setup:
 ---
 "Test result influencers api":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
 
   - match: { count: 3 }
@@ -96,7 +98,7 @@ setup:
 ---
 "Test get influencers with paging":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         from: 1
         size: 2
@@ -111,7 +113,7 @@ setup:
 ---
 "Test get influencers with paging in body":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         body:  >
           {
@@ -131,7 +133,7 @@ setup:
 ---
 "Test get influencers given exclude_interim false":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         exclude_interim: false
 
@@ -140,7 +142,7 @@ setup:
 ---
 "Test get influencers given exclude_interim true":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         exclude_interim: true
 
@@ -153,7 +155,7 @@ setup:
 ---
 "Test result influencers api with time range":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         start: "2016-06-01T00:00:00Z"
         end: "2016-06-01T01:00:00Z"
@@ -165,13 +167,13 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "non-existent-job"
 
 ---
 "Test get influencers api with influencer score filter":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         influencer_score: 70
 
@@ -181,7 +183,7 @@ setup:
 ---
 "Test get influencers api sort":
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         desc: false
 
@@ -191,7 +193,7 @@ setup:
   - match: { influencers.2.influencer_score: 80}
 
   - do:
-      xpack.ml.get_influencers:
+      ml.get_influencers:
         job_id: "get-influencers-test"
         sort: timestamp
 

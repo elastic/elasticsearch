@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Update_by_query as same user works":
 
@@ -21,6 +24,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:
@@ -52,6 +56,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:
@@ -83,6 +88,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:
@@ -157,6 +163,7 @@
   # We only updated one doc, presumably the one without the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:
@@ -167,6 +174,7 @@
   # We didn't update the doc with the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: source
         body:
           query:

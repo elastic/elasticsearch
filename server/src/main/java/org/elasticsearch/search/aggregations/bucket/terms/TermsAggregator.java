@@ -92,12 +92,14 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
         public void ensureValidity() {
 
-            // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
+            // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return
+            // <size>
             if (shardSize < requiredSize) {
                 setShardSize(requiredSize);
             }
 
-            // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
+            // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match
+            // the min_doc_count criteria
             if (shardMinDocCount > minDocCount) {
                 setShardMinDocCount(minDocCount);
             }
@@ -225,7 +227,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     private boolean subAggsNeedScore() {
         for (Aggregator subAgg : subAggregators) {
-            if (subAgg.needsScores()) {
+            if (subAgg.scoreMode().needsScores()) {
                 return true;
             }
         }

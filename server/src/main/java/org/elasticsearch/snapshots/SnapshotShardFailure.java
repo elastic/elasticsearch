@@ -40,15 +40,11 @@ import java.util.Objects;
 /**
  * Stores information about failures that occurred during shard snapshotting process
  */
-public class SnapshotShardFailure implements ShardOperationFailedException {
-    private ShardId shardId;
-
-    private String reason;
+public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Nullable
     private String nodeId;
-
-    private RestStatus status;
+    private ShardId shardId;
 
     private SnapshotShardFailure() {
 
@@ -74,56 +70,9 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * @param status  rest status
      */
     private SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason, RestStatus status) {
-        assert reason != null;
+        super(shardId.getIndexName(), shardId.id(), reason, status, new IndexShardSnapshotFailedException(shardId, reason));
         this.nodeId = nodeId;
         this.shardId = shardId;
-        this.reason = reason;
-        this.status = status;
-    }
-
-    /**
-     * Returns index where failure occurred
-     *
-     * @return index
-     */
-    @Override
-    public String index() {
-        return this.shardId.getIndexName();
-    }
-
-    /**
-     * Returns shard id where failure occurred
-     *
-     * @return shard id
-     */
-    @Override
-    public int shardId() {
-        return this.shardId.id();
-    }
-
-    /**
-     * Returns reason for the failure
-     *
-     * @return reason for the failure
-     */
-    @Override
-    public String reason() {
-        return this.reason;
-    }
-
-    /**
-     * Returns {@link RestStatus} corresponding to this failure
-     *
-     * @return REST status
-     */
-    @Override
-    public RestStatus status() {
-        return status;
-    }
-
-    @Override
-    public Throwable getCause() {
-        return new IndexShardSnapshotFailedException(shardId, reason);
     }
 
     /**
@@ -142,7 +91,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * @param in stream input
      * @return shard failure information
      */
-    public static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
+    static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
         SnapshotShardFailure exp = new SnapshotShardFailure();
         exp.readFrom(in);
         return exp;
@@ -152,6 +101,8 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
     public void readFrom(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
         shardId = ShardId.readShardId(in);
+        super.shardId = shardId.getId();
+        index = shardId.getIndexName();
         reason = in.readString();
         status = RestStatus.readFrom(in);
     }

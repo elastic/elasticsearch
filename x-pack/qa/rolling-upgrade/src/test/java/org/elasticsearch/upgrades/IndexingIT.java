@@ -7,11 +7,18 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Basic test that indexed documents survive the rolling restart.
@@ -45,6 +52,26 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
+            {
+                Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+                assertThat("this branch is not needed if we aren't compatible with 6.0",
+                        minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
+                    XContentBuilder template = jsonBuilder();
+                    template.startObject();
+                    {
+                        template.field("index_patterns", "*");
+                        template.startObject("settings");
+                        template.field("number_of_shards", 5);
+                        template.endObject();
+                    }
+                    template.endObject();
+                    Request createTemplate = new Request("PUT", "/_template/template");
+                    createTemplate.setJsonEntity(Strings.toString(template));
+                    client().performRequest(createTemplate);
+                }
+            }
+
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);
@@ -88,13 +115,13 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
             bulk("test_index", "_" + CLUSTER_TYPE, 5);
-            Request toBeDeleted = new Request("PUT", "/test_index/doc/to_be_deleted");
+            Request toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted");
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
             assertCount("test_index", expectedCount + 6);
 
-            Request delete = new Request("DELETE", "/test_index/doc/to_be_deleted");
+            Request delete = new Request("DELETE", "/test_index/_doc/to_be_deleted");
             delete.addParameter("refresh", "true");
             client().performRequest(delete);
 
@@ -105,7 +132,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");
@@ -116,6 +143,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
     private void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+        searchTestIndexRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":" + count + "}}",

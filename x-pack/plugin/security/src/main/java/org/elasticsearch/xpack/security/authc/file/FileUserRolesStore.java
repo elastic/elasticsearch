@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.file;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -39,10 +40,9 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
 public class FileUserRolesStore {
+    private static final Logger logger = LogManager.getLogger(FileUserRolesStore.class);
 
     private static final Pattern USERS_DELIM = Pattern.compile("\\s*,\\s*");
-
-    private final Logger logger;
 
     private final Path file;
     private final CopyOnWriteArrayList<Runnable> listeners;
@@ -53,7 +53,6 @@ public class FileUserRolesStore {
     }
 
     FileUserRolesStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
-        logger = config.logger(FileUserRolesStore.class);
         file = resolveFile(config.env());
         userRoles = parseFileLenient(file, logger);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));

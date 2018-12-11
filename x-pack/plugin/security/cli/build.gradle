@@ -1,12 +1,15 @@
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
 apply plugin: 'elasticsearch.build'
 
 archivesBaseName = 'elasticsearch-security-cli'
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
-    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
+    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
     testImplementation 'com.google.jimfs:jimfs:1.1'
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
@@ -17,4 +20,16 @@ dependencies {
 
 dependencyLicenses {
     mapping from: /bc.*/, to: 'bouncycastle'
+}
+
+if (project.inFipsJvm) {
+    test.enabled = false
+    // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
+    // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
+    tasks.withType(CheckForbiddenApis) {
+        bundledSignatures -= "jdk-non-portable"
+    }
+    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+    // rather than provide a long list of exclusions, disable the check on FIPS.
+    thirdPartyAudit.enabled = false
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -81,6 +82,9 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     @Override
     protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        if (query instanceof SpanMatchNoDocsQuery) {
+            return;
+        }
         if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(query, instanceOf(SpanBoostQuery.class));
             SpanBoostQuery boostQuery = (SpanBoostQuery) query;
@@ -97,7 +101,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
         assertThat(multiTermQuery, either(instanceOf(MultiTermQuery.class)).or(instanceOf(TermQuery.class)));
         assertThat(spanMultiTermQueryWrapper.getWrappedQuery(),
-            equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
+            equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery) multiTermQuery).getWrappedQuery()));
     }
 
     public void testIllegalArgument() {
@@ -108,11 +112,6 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         @Override
         public Query toQuery(QueryShardContext context) throws IOException {
             return new TermQuery(new Term("foo", "bar"));
-        }
-
-        @Override
-        public Query toFilter(QueryShardContext context) throws IOException {
-            return toQuery(context);
         }
 
         @Override
@@ -153,6 +152,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         @Override
         public void writeTo(StreamOutput out) throws IOException {
 
+        }
+
+        @Override
+        public String fieldName() {
+            return "foo";
         }
     }
 

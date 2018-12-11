@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -62,7 +63,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         ensureGreen();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-        OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
+        AcknowledgedResponse openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertTrue(openJobResponse.isAcknowledged());
 
         // Record which node the job starts off on
@@ -95,7 +96,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertEquals(0L, searchResponse.getHits().getTotalHits());
+        assertEquals(0L, searchResponse.getHits().getTotalHits().value);
 
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(job.getId());
         CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
@@ -105,6 +106,6 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertEquals(1L, searchResponse.getHits().getTotalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
     }
 }

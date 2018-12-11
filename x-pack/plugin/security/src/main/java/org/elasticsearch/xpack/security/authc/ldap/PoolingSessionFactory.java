@@ -19,13 +19,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -60,23 +59,23 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
      * @param threadPool a thread pool used for async queries execution
      */
     PoolingSessionFactory(RealmConfig config, SSLService sslService, LdapSession.GroupsResolver groupResolver,
-                          Setting<Boolean> poolingEnabled, @Nullable String bindDn, Supplier<String> healthCheckDNSupplier,
+                          Setting.AffixSetting<Boolean> poolingEnabled, @Nullable String bindDn, Supplier<String> healthCheckDNSupplier,
                           ThreadPool threadPool) throws LDAPException {
         super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
-        this.metaDataResolver = new LdapMetaDataResolver(config.settings(), ignoreReferralErrors);
+        this.metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
 
         final byte[] bindPassword;
-        if (LEGACY_BIND_PASSWORD.exists(config.settings())) {
-            if (SECURE_BIND_PASSWORD.exists(config.settings())) {
+        if (config.hasSetting(LEGACY_BIND_PASSWORD)) {
+            if (config.hasSetting(SECURE_BIND_PASSWORD)) {
                 throw new IllegalArgumentException("You cannot specify both ["
                         + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD) + "] and ["
                         + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD) + "]");
             } else {
-                bindPassword = CharArrays.toUtf8Bytes(LEGACY_BIND_PASSWORD.get(config.settings()).getChars());
+                bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
             }
-        } else if (SECURE_BIND_PASSWORD.exists(config.settings())) {
-            bindPassword = CharArrays.toUtf8Bytes(SECURE_BIND_PASSWORD.get(config.settings()).getChars());
+        } else if (config.hasSetting(SECURE_BIND_PASSWORD)) {
+            bindPassword = CharArrays.toUtf8Bytes(config.getSetting(SECURE_BIND_PASSWORD).getChars());
         } else {
             bindPassword = null;
         }
@@ -87,7 +86,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
         }
 
-        this.useConnectionPool = poolingEnabled.get(config.settings());
+        this.useConnectionPool = config.getSetting(poolingEnabled);
         if (useConnectionPool) {
             this.connectionPool = createConnectionPool(config, serverSet, timeout, logger, bindCredentials, healthCheckDNSupplier);
         } else {
@@ -142,17 +141,16 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, Logger logger,
                                                    BindRequest bindRequest,
                                                    Supplier<String> healthCheckDnSupplier) throws LDAPException {
-        Settings settings = config.settings();
-        final int initialSize = PoolingSessionFactorySettings.POOL_INITIAL_SIZE.get(settings);
-        final int size = PoolingSessionFactorySettings.POOL_SIZE.get(settings);
+        final int initialSize = config.getSetting(PoolingSessionFactorySettings.POOL_INITIAL_SIZE);
+        final int size = config.getSetting(PoolingSessionFactorySettings.POOL_SIZE);
         LDAPConnectionPool pool = null;
         boolean success = false;
         try {
             pool = LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(serverSet, bindRequest, initialSize, size));
             pool.setRetryFailedOperationsDueToInvalidConnections(true);
-            if (PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED.get(settings)) {
-                String entryDn = PoolingSessionFactorySettings.HEALTH_CHECK_DN.get(settings).orElseGet(healthCheckDnSupplier);
-                final long healthCheckInterval = PoolingSessionFactorySettings.HEALTH_CHECK_INTERVAL.get(settings).millis();
+            if (config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED)) {
+                String entryDn = config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_DN).orElseGet(healthCheckDnSupplier);
+                final long healthCheckInterval = config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_INTERVAL).millis();
                 if (entryDn != null) {
                     // Checks the status of the LDAP connection at a specified interval in the background. We do not check on
                     // create as the LDAP server may require authentication to get an entry and a bind request has not been executed

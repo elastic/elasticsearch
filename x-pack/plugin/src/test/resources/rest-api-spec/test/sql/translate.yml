@@ -33,3 +33,5 @@
         sort:
           - int:
               order: asc
+              missing: _last
+              unmapped_type: long

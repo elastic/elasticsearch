@@ -132,7 +132,7 @@
           body:
             script:
               lang:   painless
-              source: "for (def key : params.keySet()) { ctx._source[key] = params[key]}"
+              source: "ctx._source.ctx = ctx"
               params: { bar: 'xxx' }
 
   - match: { error.root_cause.0.type: "remote_transport_exception" }

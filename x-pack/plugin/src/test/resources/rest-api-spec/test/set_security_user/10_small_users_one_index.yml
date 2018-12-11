@@ -21,7 +21,7 @@ setup:
             ]
           }
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -29,7 +29,7 @@ setup:
               "roles" : [ "company_x_logs_role" ]
             }
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "john"
         body:  >
             {
@@ -38,7 +38,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "company_x_logs_role"
         body:  >
             {
@@ -55,7 +55,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "company_y_logs_role"
         body:  >
             {
@@ -74,24 +74,24 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "john"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "company_x_logs_role"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "company_y_logs_role"
         ignore: 404
 
 ---
-"Test shared index seperating user by using DLS":
+"Test shared index separating user by using DLS":
   - do:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
@@ -125,6 +125,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -136,6 +137,7 @@ teardown:
       headers:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}

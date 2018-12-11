@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -62,6 +62,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -132,12 +135,10 @@ public class UpdateRequestTests extends ESTestCase {
                     return null;
                 });
         scripts.put("return", vars -> null);
-        final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
+        final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
-        final Settings settings = settings(Version.CURRENT).build();
-
-        updateHelper = new UpdateHelper(settings, scriptService);
+        updateHelper = new UpdateHelper(scriptService);
     }
 
     @SuppressWarnings("unchecked")
@@ -512,6 +513,25 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
+    }
+
+    public void testValidate() {
+        {
+            UpdateRequest request = new UpdateRequest("index", "type", "id");
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, nullValue());
+        }
+
+        {
+            UpdateRequest request = new UpdateRequest("index", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, not(nullValue()));
+            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+        }
     }
 
     public void testRoutingExtraction() throws Exception {

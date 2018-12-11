@@ -52,36 +52,6 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
         return new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(actions), Collections.emptyMap());
     }
 
-    public void testBuildRequestFromJsonObject() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
-        builder.source("foo", "read", new BytesArray(
-                "{  \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
-        ), XContentType.JSON);
-        final List<ApplicationPrivilegeDescriptor> privileges = builder.request().getPrivileges();
-        assertThat(privileges, iterableWithSize(1));
-        assertThat(privileges, contains(descriptor("foo", "read", "data:/read/*", "admin:/read/*")));
-    }
-
-    public void testPrivilegeNameValidationOfSingleElement() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-                builder.source("foo", "write", new BytesArray(
-                        "{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
-                ), XContentType.JSON));
-        assertThat(exception.getMessage(), containsString("write"));
-        assertThat(exception.getMessage(), containsString("read"));
-    }
-
-    public void testApplicationNameValidationOfSingleElement() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-                builder.source("bar", "read", new BytesArray(
-                        "{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
-                ), XContentType.JSON));
-        assertThat(exception.getMessage(), containsString("foo"));
-        assertThat(exception.getMessage(), containsString("bar"));
-    }
-
     public void testPrivilegeNameValidationOfMultipleElement() throws Exception {
         final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->

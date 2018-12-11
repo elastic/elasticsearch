@@ -35,9 +35,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -110,17 +111,6 @@ public abstract class MappedFieldType extends FieldType {
     public boolean equals(Object o) {
         if (!super.equals(o)) return false;
         MappedFieldType fieldType = (MappedFieldType) o;
-        // check similarity first because we need to check the name, and it might be null
-        // TODO: SimilarityProvider should have equals?
-        if (similarity == null || fieldType.similarity == null) {
-            if (similarity != fieldType.similarity) {
-                return false;
-            }
-        } else {
-            if (Objects.equals(similarity.name(), fieldType.similarity.name()) == false) {
-                return false;
-            }
-        }
 
         return boost == fieldType.boost &&
             docValues == fieldType.docValues &&
@@ -130,7 +120,8 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
-            Objects.equals(nullValueAsString, fieldType.nullValueAsString);
+            Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
+            Objects.equals(similarity, fieldType.similarity);
     }
 
     @Override
@@ -147,9 +138,11 @@ public abstract class MappedFieldType extends FieldType {
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
     private void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
-            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
+            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName()
+                + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
-            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and " + other.getClass().getSimpleName());
+            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and "
+                + other.getClass().getSimpleName());
         }
     }
 
@@ -314,7 +307,13 @@ public abstract class MappedFieldType extends FieldType {
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes,
      *  boosted by {@link #boost()}.
-     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
+     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
+     *      due to the way it is configured (eg. not indexed)
+     *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
+     *  @throws UnsupportedOperationException if the field is not searchable regardless of options
+     *  @throws QueryShardException if the field is not searchable regardless of options
+     */
+    // TODO: Standardize exception types
     public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a
@@ -341,25 +340,38 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query wildcardQuery(String value,
+                               @Nullable MultiTermQuery.RewriteMethod method,
+                               QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method,
+                             QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     public abstract Query existsQuery(QueryShardContext context);
 
     public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     /**
@@ -397,7 +409,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
+        if (indexOptions() == IndexOptions.NONE && pointDataDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }

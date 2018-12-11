@@ -112,7 +112,16 @@ public class Packages {
         if (Platforms.isRPM()) {
             return sh.runIgnoreExitCode("rpm -i " + distributionFile);
         } else {
-            return sh.runIgnoreExitCode("dpkg -i " + distributionFile);
+            Result r = sh.runIgnoreExitCode("dpkg -i " + distributionFile);
+            if (r.exitCode != 0) {
+                Result lockOF = sh.runIgnoreExitCode("lsof /var/lib/dpkg/lock");
+                if (lockOF.exitCode == 0) {
+                    throw new RuntimeException(
+                            "dpkg failed and the lockfile still exists. "
+                            + "Failure:\n" + r + "\nLockfile:\n" + lockOF);
+                }
+            }
+            return r;
         }
     }
 
@@ -187,7 +196,7 @@ public class Packages {
             "elasticsearch",
             "elasticsearch-plugin",
             "elasticsearch-keystore",
-            "elasticsearch-translog"
+            "elasticsearch-shard"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         Stream.of(

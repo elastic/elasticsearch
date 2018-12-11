@@ -33,6 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+
 /**
  * Represents a list initialization shortcut.
  */
@@ -63,16 +65,17 @@ public final class EListInit extends AExpression {
 
         actual = ArrayList.class;
 
-        try {
-            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
-        } catch (IllegalArgumentException iae) {
-            throw createError(iae);
+        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+
+        if (constructor == null) {
+            throw createError(new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
         }
 
-        try {
-            method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
-        } catch (IllegalArgumentException iae) {
-            throw createError(iae);
+        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
+
+        if (method == null) {
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", add/1] not found"));
         }
 
         for (int index = 0; index < values.size(); ++index) {

@@ -17,9 +17,7 @@
  * under the License.
  */
 
-
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
@@ -58,13 +56,12 @@ if (!isEclipse && !isIdea) {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
-  
-  /* Enable this when forbiddenapis was updated to 2.6.
-   * See: https://github.com/elastic/elasticsearch/issues/29292
+
   forbiddenApisJava9 {
-    targetCompatibility = 9
+    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+    }
   }
-  */
 
   jar {
     metaInf {
@@ -106,7 +103,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
@@ -175,9 +172,9 @@ task generateModulesList {
 }
 
 task generatePluginsList {
-  List<String> plugins = project(':plugins').subprojects
-    .findAll { it.name.contains('example') == false }
-    .collect { it.name }
+  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+  plugins.remove('example')
+
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
   processResources.from(pluginsFile)
   inputs.property('plugins', plugins)
@@ -304,17 +301,7 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2LatLng',
 ]
 
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
-  // Used by Log4J 2.11.1
-  thirdPartyAudit.excludes += [
-    'java.io.ObjectInputFilter',
-    'java.io.ObjectInputFilter$Config',
-    'java.io.ObjectInputFilter$FilterInfo',
-    'java.io.ObjectInputFilter$Status'
-  ]
-}
-
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
 }
 
@@ -333,12 +320,8 @@ if (isEclipse == false || project.path == ":server-tests") {
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
                  dependsOn: test.dependsOn) {
-    configure(BuildPlugin.commonTestConfig(project))
-    classpath = project.test.classpath
-    testClassesDirs = project.test.testClassesDirs
     include '**/*IT.class'
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
 }
-

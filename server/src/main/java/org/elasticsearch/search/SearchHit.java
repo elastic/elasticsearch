@@ -82,7 +82,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private transient int docId;
 
-    private static final float DEFAULT_SCORE = Float.NEGATIVE_INFINITY;
+    private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
 
     private Text id;
@@ -117,7 +117,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private Map<String, SearchHits> innerHits;
 
-    private SearchHit() {
+    SearchHit() {
 
     }
 
@@ -183,7 +183,11 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     /**
      * The type of the document.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
+    @Deprecated
     public String getType() {
         return type != null ? type.string() : null;
     }
@@ -429,7 +433,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (type != null && params.paramAsBoolean("include_type_name", true)) {
+        if (type != null) {
             builder.field(Fields._TYPE, type);
         }
         if (id != null) {
@@ -788,6 +792,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
                 SearchHits value = SearchHits.readSearchHits(in);
                 innerHits.put(key, value);
             }
+        } else {
+            innerHits = null;
         }
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -118,7 +117,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parameter. "
                     + "Specify it in the [dest] object instead.");
         }
-        ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
+        ReindexRequest internal = new ReindexRequest();
         try (XContentParser parser = request.contentParser()) {
             PARSER.parse(parser, internal, null);
         }

@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-result-categories
         body:  >
           {
@@ -52,7 +54,7 @@ setup:
 ---
 "Test result categories api":
   - do:
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
 
   - match: { count: 2 }
@@ -64,7 +66,7 @@ setup:
 ---
 "Test get categories with pagination":
   - do:
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         size: 1
 
@@ -73,7 +75,7 @@ setup:
   - match: { categories.0.category_id: 1 }
 
   - do:
-     xpack.ml.get_categories:
+     ml.get_categories:
         job_id: "jobs-get-result-categories"
         from: 1
         size: 2
@@ -85,7 +87,7 @@ setup:
 ---
 "Test post get categories with pagination":
   - do:
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         body: >
           {
@@ -97,7 +99,7 @@ setup:
   - match: { categories.0.category_id: 1 }
 
   - do:
-     xpack.ml.get_categories:
+     ml.get_categories:
         job_id: "jobs-get-result-categories"
         body: >
           {
@@ -111,7 +113,7 @@ setup:
 ---
 "Test get category by id":
   - do:
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: "1"
 
@@ -122,21 +124,21 @@ setup:
 "Test with invalid param combinations":
   - do:
       catch: bad_request
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         from: 0
 
   - do:
       catch: bad_request
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         size: 1
 
   - do:
       catch: bad_request
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         from: 0
@@ -146,7 +148,7 @@ setup:
 "Test with invalid param combinations via body":
   - do:
       catch: bad_request
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         body:
@@ -154,7 +156,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         body:
@@ -162,7 +164,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "jobs-get-result-categories"
         category_id: 1
         body:
@@ -173,5 +175,5 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.get_categories:
+      ml.get_categories:
         job_id: "non-existent-job"

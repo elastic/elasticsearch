@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="gold+"]
 [[certgen]]
-== certgen
+== elasticsearch-certgen
 
-deprecated[6.1,Replaced by <<certutil,`certutil`>>.]
+deprecated[6.1,Replaced by <<certutil,`elasticsearch-certutil`>>.]
 
 The `elasticsearch-certgen` command simplifies the creation of certificate
 authorities (CA), certificate signing requests (CSR), and signed certificates

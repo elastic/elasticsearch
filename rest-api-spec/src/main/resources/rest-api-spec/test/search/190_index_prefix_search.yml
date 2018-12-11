@@ -34,15 +34,18 @@ setup:
       reason: index_prefixes is only available as of 6.3.0
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: shor*
         df: text
 
   - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
   - match: {hits.hits.0._score: 1}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:
@@ -52,15 +55,18 @@ setup:
               boost: 2
 
   - match: {hits.total: 1}
+  - match: {hits.max_score: 2}
   - match: {hits.hits.0._score: 2}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: stupendousl*
         df: text
 
   - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
   - match: {hits.hits.0._score: 1}
 
 ---
@@ -71,6 +77,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:

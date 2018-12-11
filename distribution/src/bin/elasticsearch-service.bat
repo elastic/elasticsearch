@@ -34,6 +34,7 @@ if /i %SERVICE_CMD% == start goto doStart
 if /i %SERVICE_CMD% == stop goto doStop
 if /i %SERVICE_CMD% == manager goto doManagment
 echo Unknown option "%SERVICE_CMD%"
+exit /B 1
 
 :displayUsage
 echo.
@@ -44,6 +45,7 @@ goto:eof
 "%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 :started
 echo The service '%SERVICE_ID%' has been started
@@ -53,16 +55,18 @@ goto:eof
 "%EXECUTABLE%" //SS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto stopped
 echo Failed stopping '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 :stopped
 echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
 :doManagment
-set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr.exe
+set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr
 "%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
+exit /B 1
 goto:eof
 :managed
 echo Successfully started service manager for '%SERVICE_ID%'.
@@ -73,6 +77,7 @@ rem Remove the service
 "%EXECUTABLE%" //DS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto removed
 echo Failed removing '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 :removed
 echo The service '%SERVICE_ID%' has been removed
@@ -173,10 +178,11 @@ if not "%SERVICE_USERNAME%" == "" (
 	)
 )
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS%
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 
 :installed

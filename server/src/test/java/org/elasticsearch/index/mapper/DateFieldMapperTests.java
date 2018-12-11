@@ -77,7 +77,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(8, pointField.fieldType().pointNumBytes());
         assertFalse(pointField.fieldType().stored());
         assertEquals(1457654400000L, pointField.numericValue().longValue());
@@ -128,7 +128,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
     }
 
     public void testStore() throws Exception {
@@ -150,7 +150,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         IndexableField storedField = fields[2];
@@ -304,7 +304,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(8, pointField.fieldType().pointNumBytes());
         assertFalse(pointField.fieldType().stored());
         assertEquals(1457654400000L, pointField.numericValue().longValue());
@@ -413,5 +413,23 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.merge(update.mapping()));
         assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
+    }
+
+    public void testIllegalFormatField() throws Exception {
+        String mapping =  Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date")
+                            .array("format", "test_format")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
     }
 }

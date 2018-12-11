@@ -18,17 +18,20 @@ the API, and other roles that are mapped through files.
 
 When you use role-mappings, you assign existing roles to users.
 The available roles should either be added using the
-{ref}/security-api-roles.html[Role Management APIs] or defined in the
+{ref}/security-api.html#security-role-apis[role management APIs] or defined in the
 <<roles-management-file, roles file>>. Either role-mapping method can use
 either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
 
+NOTE: The PKI, LDAP, Kerberos and SAML realms support using
+<<authorization_realms, authorization realms>> as an alternative to role mapping.
+
 [[mapping-roles-api]]
 ==== Using the role mapping API
 
 You can define role-mappings through the
-{ref}/security-api-role-mapping.html[role mapping API].
+{ref}/security-api-put-role-mapping.html[add role mapping API].
 
 [[mapping-roles-file]]
 ==== Using role mapping files
@@ -89,7 +92,7 @@ user:
 You can use the role-mapping API to define equivalent mappings as follows:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admins
+PUT /_security/role_mapping/admins
 {
   "roles" : [ "monitoring", "user" ],
   "rules" : { "field" : { "groups" : "cn=admins,dc=example,dc=com" } },
@@ -100,7 +103,7 @@ PUT _xpack/security/role_mapping/admins
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_users
+PUT /_security/role_mapping/basic_users
 {
   "roles" : [ "user" ],
   "rules" : { "any" : [
@@ -133,7 +136,7 @@ The following example creates equivalent mappings using the API:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admin_user
+PUT /_security/role_mapping/admin_user
 {
   "roles" : [ "monitoring" ],
   "rules" : { "field" : { "dn" : "cn=Admin,ou=example,o=com" } },
@@ -144,7 +147,7 @@ PUT _xpack/security/role_mapping/admin_user
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_user
+PUT /_security/role_mapping/basic_user
 {
   "roles" : [ "user" ],
   "rules" : { "field" : { "dn" : "cn=John Doe,ou=example,o=com" } },

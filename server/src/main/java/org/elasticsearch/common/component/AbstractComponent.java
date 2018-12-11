@@ -19,48 +19,18 @@
 
 package org.elasticsearch.common.component;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
+import org.apache.logging.log4j.LogManager;
 
+/**
+ * @deprecated declare your own logger
+ */
+@Deprecated
 public abstract class AbstractComponent {
 
     protected final Logger logger;
-    protected final DeprecationLogger deprecationLogger;
-    protected final Settings settings;
 
-    public AbstractComponent(Settings settings) {
+    public AbstractComponent() {
         this.logger = LogManager.getLogger(getClass());
-        this.deprecationLogger = new DeprecationLogger(logger);
-        this.settings = settings;
     }
-
-    /**
-     * Returns the nodes name from the settings or the empty string if not set.
-     */
-    public final String nodeName() {
-        return Node.NODE_NAME_SETTING.get(settings);
-    }
-
-    /**
-     * Checks for a deprecated setting and logs the correct alternative
-     */
-    protected void logDeprecatedSetting(String settingName, String alternativeName) {
-        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
-            deprecationLogger.deprecated("Setting [{}] is deprecated, use [{}] instead", settingName, alternativeName);
-        }
-    }
-
-    /**
-     * Checks for a removed setting and logs the correct alternative
-     */
-    protected void logRemovedSetting(String settingName, String alternativeName) {
-        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
-            deprecationLogger.deprecated("Setting [{}] has been removed, use [{}] instead", settingName, alternativeName);
-        }
-    }
-
 }

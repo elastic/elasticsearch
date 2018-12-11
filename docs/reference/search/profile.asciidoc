@@ -6,6 +6,9 @@ WARNING:  The Profile API is a debugging tool and adds significant overhead to s
 The Profile API provides detailed timing information about the execution of individual components
 in a search request.  It gives the user insight into how search requests are executed at a low level so that
 the user can understand why certain requests are slow, and take steps to improve them.
+Note that the Profile API, <<profile-limitations, amongst other things>>, doesn't measure
+network latency, time spent in the search fetch phase, time spent while the requests spends
+in queues or while merging shard responses on the coordinating node.
 
 The output from the Profile API is *very* verbose, especially for complicated requests executed across
 many shards. Pretty-printing the response is recommended to help understand the output
@@ -45,7 +48,10 @@ This will yield the following result:
       "failed": 0
    },
    "hits": {
-      "total": 4,
+      "total" : {
+          "value": 4,
+          "relation": "eq"
+      },
       "max_score": 0.5093388,
       "hits": [...] <1>
    },
@@ -72,7 +78,11 @@ This will yield the following result:
                           "next_doc": 53876,
                           "next_doc_count": 5,
                           "advance": 0,
-                          "advance_count": 0
+                          "advance_count": 0,
+                          "compute_max_score": 0,
+                          "compute_max_score_count": 0,
+                          "shallow_advance": 0,
+                          "shallow_advance_count": 0
                        },
                        "children": [
                           {
@@ -91,7 +101,11 @@ This will yield the following result:
                                 "next_doc": 10111,
                                 "next_doc_count": 5,
                                 "advance": 0,
-                                "advance_count": 0
+                                "advance_count": 0,
+                                "compute_max_score": 0,
+                                "compute_max_score_count": 0,
+                                "shallow_advance": 0,
+                                "shallow_advance_count": 0
                              }
                           },
                           {
@@ -110,7 +124,11 @@ This will yield the following result:
                                 "next_doc": 2852,
                                 "next_doc_count": 5,
                                 "advance": 0,
-                                "advance_count": 0
+                                "advance_count": 0,
+                                "compute_max_score": 0,
+                                "compute_max_score_count": 0,
+                                "shallow_advance": 0,
+                                "shallow_advance_count": 0
                              }
                           }
                        ]
@@ -288,7 +306,11 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
    "next_doc": 53876,
    "next_doc_count": 5,
    "advance": 0,
-   "advance_count": 0
+   "advance_count": 0,
+   "compute_max_score": 0,
+   "compute_max_score_count": 0,
+   "shallow_advance": 0,
+   "shallow_advance_count": 0
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:some message:number",\n"time_in_nanos": $body.$_path,/]
@@ -548,7 +570,11 @@ And the response:
                               "score_count": 1,
                               "build_scorer": 377872,
                               "advance": 0,
-                              "advance_count": 0
+                              "advance_count": 0,
+                              "compute_max_score": 0,
+                              "compute_max_score_count": 0,
+                              "shallow_advance": 0,
+                              "shallow_advance_count": 0
                            }
                         },
                         {
@@ -567,7 +593,11 @@ And the response:
                               "score_count": 1,
                               "build_scorer": 112551,
                               "advance": 0,
-                              "advance_count": 0
+                              "advance_count": 0,
+                              "compute_max_score": 0,
+                              "compute_max_score_count": 0,
+                              "shallow_advance": 0,
+                              "shallow_advance_count": 0
                            }
                         }
                      ],
@@ -596,7 +626,7 @@ And the response:
                                   ]
                                 },
                                 {
-                                  "name": "BucketCollector: [[my_scoped_agg, my_global_agg]]",
+                                  "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
                                   "reason": "aggregation",
                                   "time_in_nanos": 8273
                                 }
@@ -834,8 +864,12 @@ There are also cases where special Lucene optimizations are disabled, since they
 could cause some queries to report larger relative times than their non-profiled counterparts, but in general should
 not have a drastic effect compared to other components in the profiled query.
 
+[[profile-limitations]]
 ==== Limitations
 
+- Profiling currently does not measure the search fetch phase nor the network overhead
+- Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node or
+additional work like e.g. building global ordinals (an internal data structure used to speed up search)
 - Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
 - Profiling of the reduce phase of aggregation is currently not available
 - The Profiler is still highly experimental. The Profiler is instrumenting parts of Lucene that were

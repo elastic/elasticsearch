@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
+public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
     public static final TemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES = new TemplateConfig(
             WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, "triggered-watches");
@@ -46,13 +46,14 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
     };
 
+    private static final Logger logger = LogManager.getLogger(WatcherIndexTemplateRegistry.class);
+
     private final Client client;
     private final ThreadPool threadPool;
     private final TemplateConfig[] indexTemplates;
     private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
 
-    public WatcherIndexTemplateRegistry(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
-        super(settings);
+    public WatcherIndexTemplateRegistry(ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.client = client;
         this.threadPool = threadPool;
         this.indexTemplates = TEMPLATE_CONFIGS;
@@ -108,9 +109,9 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.load(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, request,
-                    new ActionListener<PutIndexTemplateResponse>() {
+                    new ActionListener<AcknowledgedResponse>() {
                         @Override
-                        public void onResponse(PutIndexTemplateResponse response) {
+                        public void onResponse(AcknowledgedResponse response) {
                             creationCheck.set(false);
                             if (response.isAcknowledged() == false) {
                                 logger.error("Error adding watcher template [{}], request was not acknowledged", templateName);

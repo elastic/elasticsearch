@@ -20,9 +20,10 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
@@ -78,10 +79,8 @@ import static org.hamcrest.Matchers.is;
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode masterNode = randomNode("master");
+        DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs =
@@ -97,7 +96,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (i > 0) {
                     clusterState = builder.build();
                 }
-                switch (randomInt(4)) {
+                switch (randomInt(5)) {
                     case 0:
                         builder = randomNodes(clusterState);
                         break;
@@ -112,6 +111,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 4:
                         builder = randomMetaDataChanges(clusterState);
+                        break;
+                    case 5:
+                        builder = randomCoordinationMetaData(clusterState);
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -141,7 +143,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
+                assertThat(clusterStateFromDiffs.coordinationMetaData(), equalTo(clusterState.coordinationMetaData()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
@@ -162,7 +164,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 // Check cluster blocks
                 assertThat(clusterStateFromDiffs.blocks().global(), equalTo(clusterStateFromDiffs.blocks().global()));
                 assertThat(clusterStateFromDiffs.blocks().indices(), equalTo(clusterStateFromDiffs.blocks().indices()));
-                assertThat(clusterStateFromDiffs.blocks().disableStatePersistence(), equalTo(clusterStateFromDiffs.blocks().disableStatePersistence()));
+                assertThat(clusterStateFromDiffs.blocks().disableStatePersistence(),
+                    equalTo(clusterStateFromDiffs.blocks().disableStatePersistence()));
 
                 // Check metadata
                 assertThat(clusterStateFromDiffs.metaData().version(), equalTo(clusterState.metaData().version()));
@@ -179,9 +182,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
                 // Smoke test - we cannot compare bytes to bytes because some elements might get serialized in different order
                 // however, serialized size should remain the same
-                assertThat(ClusterState.Builder.toBytes(clusterStateFromDiffs).length, equalTo(ClusterState.Builder.toBytes(clusterState).length));
+                assertThat(ClusterState.Builder.toBytes(clusterStateFromDiffs).length,
+                    equalTo(ClusterState.Builder.toBytes(clusterState).length));
             } catch (AssertionError error) {
-                logger.error("Cluster state:\n{}\nCluster state from diffs:\n{}", clusterState.toString(), clusterStateFromDiffs.toString());
+                logger.error("Cluster state:\n{}\nCluster state from diffs:\n{}",
+                    clusterState.toString(), clusterStateFromDiffs.toString());
                 throw error;
             }
         }
@@ -190,25 +195,46 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     }
 
+    private ClusterState.Builder randomCoordinationMetaData(ClusterState clusterState) {
+        ClusterState.Builder builder = ClusterState.builder(clusterState);
+        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder(clusterState.coordinationMetaData());
+        metaBuilder.term(randomNonNegativeLong());
+        if (randomBoolean()) {
+            metaBuilder.lastCommittedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+        }
+        if (randomBoolean()) {
+            metaBuilder.lastAcceptedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+        }
+        if (randomBoolean()) {
+            metaBuilder.addVotingConfigExclusion(new VotingConfigExclusion(randomNode("node-" + randomAlphaOfLength(10))));
+        }
+        return builder;
+    }
+
+    private DiscoveryNode randomNode(String nodeId) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+    }
+
     /**
      * Randomly updates nodes in the cluster state
      */
     private ClusterState.Builder randomNodes(ClusterState clusterState) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        List<String> nodeIds = randomSubsetOf(randomInt(clusterState.nodes().getNodes().size() - 1), clusterState.nodes().getNodes().keys().toArray(String.class));
+        List<String> nodeIds = randomSubsetOf(randomInt(clusterState.nodes().getNodes().size() - 1),
+            clusterState.nodes().getNodes().keys().toArray(String.class));
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.add(new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-                            emptySet(), randomVersion(random())));
+                    nodes.add(randomNode(nodeId));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(new DiscoveryNode("node-" + randomAlphaOfLength(10), buildNewFakeTransportAddress(),
-                    emptyMap(), emptySet(), randomVersion(random())));
+            nodes.add(randomNode("node-" + randomAlphaOfLength(10)));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
     }
@@ -220,18 +246,21 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         RoutingTable.Builder builder = RoutingTable.builder(clusterState.routingTable());
         int numberOfIndices = clusterState.routingTable().indicesRouting().size();
         if (numberOfIndices > 0) {
-            List<String> randomIndices = randomSubsetOf(randomInt(numberOfIndices - 1), clusterState.routingTable().indicesRouting().keys().toArray(String.class));
+            List<String> randomIndices = randomSubsetOf(randomInt(numberOfIndices - 1),
+                clusterState.routingTable().indicesRouting().keys().toArray(String.class));
             for (String index : randomIndices) {
                 if (randomBoolean()) {
                     builder.remove(index);
                 } else {
-                    builder.add(randomChangeToIndexRoutingTable(clusterState.routingTable().indicesRouting().get(index), clusterState.nodes().getNodes().keys().toArray(String.class)));
+                    builder.add(randomChangeToIndexRoutingTable(clusterState.routingTable().indicesRouting().get(index),
+                        clusterState.nodes().getNodes().keys().toArray(String.class)));
                 }
             }
         }
         int additionalIndexCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
-            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keys().toArray(String.class)));
+            builder.add(randomIndexRoutingTable("index-" + randomInt(),
+                clusterState.nodes().getNodes().keys().toArray(String.class)));
         }
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }
@@ -299,7 +328,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         ClusterBlocks.Builder builder = ClusterBlocks.builder().blocks(clusterState.blocks());
         int globalBlocksCount = clusterState.blocks().global().size();
         if (globalBlocksCount > 0) {
-            List<ClusterBlock> blocks = randomSubsetOf(randomInt(globalBlocksCount - 1), clusterState.blocks().global().toArray(new ClusterBlock[globalBlocksCount]));
+            List<ClusterBlock> blocks = randomSubsetOf(randomInt(globalBlocksCount - 1),
+                clusterState.blocks().global().toArray(new ClusterBlock[globalBlocksCount]));
             for (ClusterBlock block : blocks) {
                 builder.removeGlobalBlock(block);
             }
@@ -366,7 +396,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         ImmutableOpenMap<String, T> parts = randomPart.parts(clusterState);
         int partCount = parts.size();
         if (partCount > 0) {
-            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(clusterState).keys().toArray(String.class));
+            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1),
+                randomPart.parts(clusterState).keys().toArray(String.class));
             for (String part : randomParts) {
                 if (randomBoolean()) {
                     randomPart.remove(builder, part);
@@ -477,7 +508,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         ImmutableOpenMap<String, T> parts = randomPart.parts(metaData);
         int partCount = parts.size();
         if (partCount > 0) {
-            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metaData).keys().toArray(String.class));
+            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1),
+                randomPart.parts(metaData).keys().toArray(String.class));
             for (String part : randomParts) {
                 if (randomBoolean()) {
                     randomPart.remove(builder, part);
@@ -545,7 +577,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         }
                         break;
                     case 2:
-                        builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                        builder.settings(Settings.builder().put(part.getSettings())
+                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -47,14 +48,14 @@ import java.util.Locale;
 
 public class Joda {
 
-    public static FormatDateTimeFormatter forPattern(String input) {
+    public static JodaDateFormatter forPattern(String input) {
         return forPattern(input, Locale.ROOT);
     }
 
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
-    public static FormatDateTimeFormatter forPattern(String input, Locale locale) {
+    public static JodaDateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -104,9 +105,9 @@ public class Joda {
         } else if ("dateOptionalTime".equals(input) || "date_optional_time".equals(input)) {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
-            return new FormatDateTimeFormatter(input,
-                    ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC), locale);
+            return new JodaDateFormatter(input,
+                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(locale).withZone(DateTimeZone.UTC),
+                    ISODateTimeFormat.dateTime().withLocale(locale).withZone(DateTimeZone.UTC));
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -154,9 +155,11 @@ public class Joda {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
         } else if ("epoch_second".equals(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(false), new EpochTimeParser(false)).toFormatter();
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(false),
+                new EpochTimeParser(false)).toFormatter();
         } else if ("epoch_millis".equals(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(true), new EpochTimeParser(true)).toFormatter();
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(true),
+                new EpochTimeParser(true)).toFormatter();
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             formatter = StrictISODateTimeFormat.basicWeekDate();
@@ -179,9 +182,9 @@ public class Joda {
         } else if ("strictDateOptionalTime".equals(input) || "strict_date_optional_time".equals(input)) {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
-            return new FormatDateTimeFormatter(input,
-                    StrictISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
-                    StrictISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC), locale);
+            return new JodaDateFormatter(input,
+                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(locale).withZone(DateTimeZone.UTC),
+                    StrictISODateTimeFormat.dateTime().withLocale(locale).withZone(DateTimeZone.UTC));
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
             formatter = StrictISODateTimeFormat.dateTime();
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
@@ -233,19 +236,20 @@ public class Joda {
                 DateTimeParser[] parsers = new DateTimeParser[formats.length];
 
                 if (formats.length == 1) {
-                    formatter = forPattern(input, locale).parser();
+                    formatter = forPattern(input, locale).parser;
                 } else {
                     DateTimeFormatter dateTimeFormatter = null;
                     for (int i = 0; i < formats.length; i++) {
-                        FormatDateTimeFormatter currentFormatter = forPattern(formats[i], locale);
-                        DateTimeFormatter currentParser = currentFormatter.parser();
+                        JodaDateFormatter currentFormatter = forPattern(formats[i], locale);
+                        DateTimeFormatter currentParser = currentFormatter.parser;
                         if (dateTimeFormatter == null) {
-                            dateTimeFormatter = currentFormatter.printer();
+                            dateTimeFormatter = currentFormatter.printer;
                         }
                         parsers[i] = currentParser.getParser();
                     }
 
-                    DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                    DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                        .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
                     formatter = builder.toFormatter();
                 }
         } else {
@@ -256,10 +260,11 @@ public class Joda {
             }
         }
 
-        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC), locale);
+        formatter = formatter.withLocale(locale).withZone(DateTimeZone.UTC);
+        return new JodaDateFormatter(input, formatter, formatter);
     }
 
-    public static FormatDateTimeFormatter getStrictStandardDateFormatter() {
+    public static DateFormatter getStrictStandardDateFormatter() {
         // 2014/10/10
         DateTimeFormatter shortFormatter = new DateTimeFormatterBuilder()
                 .appendFixedDecimal(DateTimeFieldType.year(), 4)
@@ -286,9 +291,11 @@ public class Joda {
                 .toFormatter()
                 .withZoneUTC();
 
-        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(), new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
+        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(),
+            new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", builder.toFormatter().withZone(DateTimeZone.UTC), Locale.ROOT);
+        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        return new JodaDateFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", formatter, formatter);
     }
 
 
@@ -312,7 +319,8 @@ public class Joda {
 
         @Override
         public DateTimeField getField(Chronology chronology) {
-            return new OffsetDateTimeField(new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
+            return new OffsetDateTimeField(
+                new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
         }
     };
 
@@ -393,7 +401,8 @@ public class Joda {
          * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
          */
         @Override
-        public void printTo(Writer out, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) throws IOException {
+        public void printTo(Writer out, long instant, Chronology chrono, int displayOffset,
+                            DateTimeZone displayZone, Locale locale) throws IOException {
             if (hasMilliSecondPrecision) {
                 out.write(String.valueOf(instant - displayOffset));
             } else {
@@ -427,7 +436,8 @@ public class Joda {
             int minuteOfHour = partial.get(DateTimeFieldType.minuteOfHour());
             int secondOfMinute = partial.get(DateTimeFieldType.secondOfMinute());
             int millisOfSecond = partial.get(DateTimeFieldType.millisOfSecond());
-            return partial.getChronology().getDateTimeMillis(year, monthOfYear, dayOfMonth, hourOfDay, minuteOfHour, secondOfMinute, millisOfSecond);
+            return partial.getChronology().getDateTimeMillis(year, monthOfYear, dayOfMonth,
+                hourOfDay, minuteOfHour, secondOfMinute, millisOfSecond);
         }
     }
 }

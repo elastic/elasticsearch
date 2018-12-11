@@ -58,11 +58,17 @@ public class PutRoleRequestTests extends ESTestCase {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();
+        if (randomBoolean()) {
+            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+            logger.info("Serializing with version {}", version);
+            out.setVersion(version);
+        }
         original.writeTo(out);
 
         final PutRoleRequest copy = new PutRoleRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        in.setVersion(out.getVersion());
         copy.readFrom(in);
 
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
@@ -72,7 +78,7 @@ public class PutRoleRequestTests extends ESTestCase {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_3_2);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_2);
         out.setVersion(version);
         original.writeTo(out);
 

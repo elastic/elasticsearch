@@ -1,3 +1,5 @@
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -20,9 +22,10 @@
 esplugin {
   description 'The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.'
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
+  hasClientJar = true
 }
 
-forbiddenApis {
+tasks.withType(CheckForbiddenApis) {
   signatures += [
     "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
   ]
@@ -30,9 +33,10 @@ forbiddenApis {
 
 dependencies {
   compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
-  compile 'com.ibm.icu:icu4j:62.1'
+  compile "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+

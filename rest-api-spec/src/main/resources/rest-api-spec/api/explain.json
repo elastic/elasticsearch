@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/{type}/{id}/_explain",
-      "paths": ["/{index}/{type}/{id}/_explain"],
+      "path": "/{index}/_explain/{id}",
+      "paths": ["/{index}/_explain/{id}", "/{index}/{type}/{id}/_explain"],
       "parts": {
         "id": {
           "type" : "string",
@@ -18,7 +18,6 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
           "description" : "The type of the document"
         }
       },
@@ -69,11 +68,11 @@
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         }

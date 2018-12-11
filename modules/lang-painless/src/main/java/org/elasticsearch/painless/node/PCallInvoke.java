@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+
 /**
  * Represents a method call and defers to a child subnode.
  */
@@ -67,13 +69,15 @@ public final class PCallInvoke extends AExpression {
         if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            try {
-                PainlessMethod method =
-                        locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
-                sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
-            } catch (IllegalArgumentException iae) {
-                throw createError(iae);
+            PainlessMethod method =
+                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+
+            if (method == null) {
+                throw createError(new IllegalArgumentException(
+                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
+
+            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }
 
         if (nullSafe) {

@@ -78,7 +78,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         };
         doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         watcherService = mock(WatcherService.class);
-        lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, clusterService, watcherService);
+        lifeCycleService = new WatcherLifeCycleService(clusterService, watcherService);
     }
 
     public void testNoRestartWithoutAllocationIdsConfigured() {
@@ -254,9 +254,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .add(newNode("node_2"))
             .build();
 
+        ShardRouting firstShardOnSecondNode = TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED);
+        ShardRouting secondShardOnFirstNode = TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED);
+
         IndexRoutingTable previousWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-            .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
+            .addShard(secondShardOnFirstNode)
+            .addShard(firstShardOnSecondNode)
             .build();
 
         IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX)
@@ -273,10 +276,19 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .metaData(MetaData.builder().put(indexMetaData, false))
             .build();
 
+        // add a replica in the local node
+        boolean addShardOnLocalNode = randomBoolean();
+        final ShardRouting addedShardRouting;
+        if (addShardOnLocalNode) {
+            addedShardRouting = TestShardRouting.newShardRouting(shardId, "node_1", false, STARTED);
+        } else {
+            addedShardRouting = TestShardRouting.newShardRouting(secondShardId, "node_2", false, STARTED);
+        }
+
         IndexRoutingTable currentWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-            .addShard(TestShardRouting.newShardRouting(shardId, "node_1", false, STARTED))
-            .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
+            .addShard(secondShardOnFirstNode)
+            .addShard(firstShardOnSecondNode)
+            .addShard(addedShardRouting)
             .build();
 
         ClusterState stateWithReplicaAdded = ClusterState.builder(new ClusterName("my-cluster"))
@@ -477,7 +489,67 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         assertThat(lifeCycleService.getState(), is(WatcherState.STARTED));
     }
 
-    private ClusterState startWatcher() {
+    // this emulates a node outage somewhere in the cluster that carried a watcher shard
+    // the number of shards remains the same, but we need to ensure that watcher properly reloads
+    // previously we only checked the local shard allocations, but we also need to check if shards in the cluster have changed
+    public void testWatcherReloadsOnNodeOutageWithWatcherShard() {
+        Index watchIndex = new Index(Watch.INDEX, "foo");
+        ShardId shardId = new ShardId(watchIndex, 0);
+        String localNodeId = randomFrom("node_1", "node_2");
+        String outageNodeId = localNodeId.equals("node_1") ? "node_2" : "node_1";
+        DiscoveryNodes previousDiscoveryNodes = new DiscoveryNodes.Builder().masterNodeId(localNodeId).localNodeId(localNodeId)
+            .add(newNode(localNodeId))
+            .add(newNode(outageNodeId))
+            .build();
+
+        ShardRouting replicaShardRouting = TestShardRouting.newShardRouting(shardId, localNodeId, false, STARTED);
+        ShardRouting primartShardRouting = TestShardRouting.newShardRouting(shardId, outageNodeId, true, STARTED);
+        IndexRoutingTable previousWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
+            .addShard(replicaShardRouting)
+            .addShard(primartShardRouting)
+            .build();
+
+        IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX)
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 6)
+            ).build();
+
+        ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
+            .nodes(previousDiscoveryNodes)
+            .routingTable(RoutingTable.builder().add(previousWatchRoutingTable).build())
+            .metaData(MetaData.builder().put(indexMetaData, false))
+            .build();
+
+        ShardRouting nowPrimaryShardRouting = replicaShardRouting.moveActiveReplicaToPrimary();
+        IndexRoutingTable currentWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
+            .addShard(nowPrimaryShardRouting)
+            .build();
+
+        DiscoveryNodes currentDiscoveryNodes = new DiscoveryNodes.Builder().masterNodeId(localNodeId).localNodeId(localNodeId)
+            .add(newNode(localNodeId))
+            .build();
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
+            .nodes(currentDiscoveryNodes)
+            .routingTable(RoutingTable.builder().add(currentWatchRoutingTable).build())
+            .metaData(MetaData.builder().put(indexMetaData, false))
+            .build();
+
+        // initialize the previous state, so all the allocation ids are loaded
+        when(watcherService.validate(anyObject())).thenReturn(true);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("whatever", previousState, currentState));
+
+        reset(watcherService);
+        when(watcherService.validate(anyObject())).thenReturn(true);
+        ClusterChangedEvent event = new ClusterChangedEvent("whatever", currentState, previousState);
+        lifeCycleService.clusterChanged(event);
+        verify(watcherService).reload(eq(event.state()), anyString());
+    }
+
+    private void startWatcher() {
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addShard(
@@ -506,12 +578,10 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", state, emptyState));
         assertThat(lifeCycleService.getState(), is(WatcherState.STARTED));
         verify(watcherService, times(1)).reload(eq(state), anyString());
-        assertThat(lifeCycleService.allocationIds(), hasSize(1));
+        assertThat(lifeCycleService.shardRoutings(), hasSize(1));
 
         // reset the mock, the user has to mock everything themselves again
         reset(watcherService);
-
-        return state;
     }
 
     private List<String> randomIndexPatterns() {

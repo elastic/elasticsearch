@@ -22,10 +22,13 @@ import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -48,13 +51,10 @@ public class LeafFieldsLookup implements Map {
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    private final SingleFieldsVisitor fieldVisitor;
-
     LeafFieldsLookup(MapperService mapperService, @Nullable String[] types, LeafReader reader) {
         this.mapperService = mapperService;
         this.types = types;
         this.reader = reader;
-        this.fieldVisitor = new SingleFieldsVisitor(null);
     }
 
     public void setDocument(int docId) {
@@ -142,16 +142,23 @@ public class LeafFieldsLookup implements Map {
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
-            String fieldName = data.fieldType().name();
-            fieldVisitor.reset(fieldName);
-            try {
-                reader.document(docId, fieldVisitor);
-                fieldVisitor.postProcess(mapperService);
-                List<Object> storedFields = fieldVisitor.fields().get(data.fieldType().name());
-                data.fields(singletonMap(fieldName, storedFields));
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to load field [{}]", e, name);
+            List<Object> values;
+            if (TypeFieldMapper.NAME.equals(data.fieldType().name())) {
+                values = new ArrayList<>(1);
+                final DocumentMapper mapper = mapperService.documentMapper();
+                if (mapper != null) {
+                    values.add(mapper.type());
+                }
+            } else {
+                values = new ArrayList<Object>(2);
+                SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
+                try {
+                    reader.document(docId, visitor);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to load field [{}]", e, name);
+                }
             }
+            data.fields(singletonMap(data.fieldType().name(), values));
         }
         return data;
     }

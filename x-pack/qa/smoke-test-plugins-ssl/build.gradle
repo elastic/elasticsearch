@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -71,6 +71,7 @@ integTestCluster {
   setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
   keystoreSetting 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore

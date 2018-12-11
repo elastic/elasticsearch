@@ -92,7 +92,10 @@ public abstract class EnvironmentAwareCommand extends Command {
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, settings, getConfigPath(esPathConf));
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, settings,
+                getConfigPath(esPathConf),
+                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                () -> System.getenv("HOSTNAME"));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
@@ -32,11 +31,11 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             indices[i] = randomSimpleString(random(), 1, 30);
         }
 
-        SearchRequest searchRequest = new SearchRequest(indices);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        searchRequest.indicesOptions(indicesOptions);
 
-        UpdateByQueryRequest request = new UpdateByQueryRequest(searchRequest);
+        UpdateByQueryRequest request = new UpdateByQueryRequest();
+        request.indices(indices);
+        request.setIndicesOptions(indicesOptions);
         for (int i = 0; i < numIndices; i++) {
             assertEquals(indices[i], request.indices()[i]);
         }
@@ -60,7 +59,7 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
 
     @Override
     protected UpdateByQueryRequest newRequest() {
-        return new UpdateByQueryRequest(new SearchRequest(randomAlphaOfLength(5)));
+        return new UpdateByQueryRequest(randomAlphaOfLength(5));
     }
 
     @Override

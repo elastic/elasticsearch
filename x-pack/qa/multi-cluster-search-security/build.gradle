@@ -3,7 +3,8 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+  testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
@@ -14,7 +15,8 @@ task remoteClusterTest(type: RestIntegTestTask) {
 remoteClusterTestCluster {
   numNodes = 2
   clusterName = 'remote-cluster'
-  setting 'search.remote.connect', false
+  setting 'cluster.remote.connect', false
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
@@ -59,9 +61,9 @@ mixedClusterTestCluster {
             retries: 10)
     return tmpFile.exists()
   }
-  setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
-  setting 'search.remote.connections_per_cluster', 1
-  setting 'search.remote.connect', true
+  setting 'cluster.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+  setting 'cluster.remote.connections_per_cluster', 1
+  setting 'cluster.remote.connect', true
 }
 
 mixedClusterTestRunner {

@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -61,11 +61,15 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.mock;
@@ -79,9 +83,11 @@ public class SecurityTests extends ESTestCase {
 
     public static class DummyExtension implements SecurityExtension {
         private String realmType;
+
         DummyExtension(String realmType) {
             this.realmType = realmType;
         }
+
         @Override
         public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
             return Collections.singletonMap(realmType, config -> null);
@@ -153,7 +159,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testCustomRealmExtensionConflict() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> createComponents(Settings.EMPTY, new DummyExtension(FileRealmSettings.TYPE)));
+                () -> createComponents(Settings.EMPTY, new DummyExtension(FileRealmSettings.TYPE)));
         assertEquals("Realm type [" + FileRealmSettings.TYPE + "] is already registered", e.getMessage());
     }
 
@@ -175,8 +181,8 @@ public class SecurityTests extends ESTestCase {
 
     public void testIndexAuditTrail() throws Exception {
         Settings settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "index").build();
+                .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
+                .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "index").build();
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
@@ -186,8 +192,8 @@ public class SecurityTests extends ESTestCase {
 
     public void testIndexAndLoggingAuditTrail() throws Exception {
         Settings settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "index,logfile").build();
+                .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
+                .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "index,logfile").build();
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
@@ -198,8 +204,8 @@ public class SecurityTests extends ESTestCase {
 
     public void testUnknownOutput() {
         Settings settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
+                .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
+                .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createComponents(settings));
         assertEquals("Unknown audit trail output [foo]", e.getMessage());
     }
@@ -212,9 +218,9 @@ public class SecurityTests extends ESTestCase {
 
     public void testTransportSettingNetty4Both() {
         Settings both4 = Security.additionalSettings(Settings.builder()
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
-            .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
-            .build(), true, false);
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+                .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
+                .build(), true, false);
         assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both4));
         assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both4));
     }
@@ -237,12 +243,28 @@ public class SecurityTests extends ESTestCase {
     public void testSettingFilter() throws Exception {
         createComponents(Settings.EMPTY);
         final List<String> filter = security.getSettingsFilter();
-        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.bind_dn")));
-        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.bind_password")));
-        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*." + SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)));
-        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.ssl.truststore.password")));
-        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.ssl.truststore.path")));
-        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.ssl.truststore.algorithm")));
+        assertThat(filter, hasItem("transport.profiles.*.xpack.security.*"));
+    }
+
+    public void testFilteredSettings() throws Exception {
+        createComponents(Settings.EMPTY);
+        final List<Setting<?>> realmSettings = security.getSettings().stream()
+                .filter(s -> s.getKey().startsWith("xpack.security.authc.realms"))
+                .collect(Collectors.toList());
+
+        Arrays.asList(
+                "bind_dn", "bind_password",
+                "hostname_verification",
+                "truststore.password", "truststore.path", "truststore.algorithm",
+                "keystore.key_password").forEach(suffix -> {
+
+            final List<Setting<?>> matching = realmSettings.stream()
+                    .filter(s -> s.getKey().endsWith("." + suffix))
+                    .collect(Collectors.toList());
+            assertThat("For suffix " + suffix, matching, Matchers.not(empty()));
+            matching.forEach(setting -> assertThat("For setting " + setting,
+                    setting.getProperties(), Matchers.hasItem(Setting.Property.Filtered)));
+        });
     }
 
     public void testJoinValidatorOnDisabledSecurity() throws Exception {
@@ -258,10 +280,10 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         joinValidator.accept(node, ClusterState.builder(ClusterName.DEFAULT).build());
-        int numIters = randomIntBetween(1,10);
+        int numIters = randomIntBetween(1, 10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
-            String discoveryType = randomFrom("single-node", "zen", randomAlphaOfLength(4));
+            String discoveryType = randomFrom("single-node", ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
             Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
             MetaData.Builder builder = MetaData.builder();
             License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
@@ -318,18 +340,18 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT - 1))
-            .numberOfShards(1).numberOfReplicas(0)
-            .build();
+                .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT - 1))
+                .numberOfShards(1).numberOfReplicas(0)
+                .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(discoveryNodes)
+                .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> joinValidator.accept(node, clusterState));
+                () -> joinValidator.accept(node, clusterState));
         assertThat(e.getMessage(), equalTo("Security index is not on the current version [6] - " +
-            "The Upgrade API must be run for 7.x nodes to join the cluster"));
+                "The Upgrade API must be run for 7.x nodes to join the cluster"));
     }
 
     public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {
@@ -339,14 +361,14 @@ public class SecurityTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         int indexFormat = randomBoolean() ? INTERNAL_INDEX_FORMAT : INTERNAL_INDEX_FORMAT - 1;
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
-            .numberOfShards(1).numberOfReplicas(0)
-            .build();
+                .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
+                .numberOfShards(1).numberOfReplicas(0)
+                .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(discoveryNodes)
+                .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
         joinValidator.accept(node, clusterState);
     }
 
@@ -357,14 +379,14 @@ public class SecurityTests extends ESTestCase {
         Version version = randomBoolean() ? Version.CURRENT : Version.V_6_1_0;
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
-            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT))
-            .numberOfShards(1).numberOfReplicas(0)
-            .build();
+                .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT))
+                .numberOfShards(1).numberOfReplicas(0)
+                .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(discoveryNodes)
+                .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
         joinValidator.accept(node, clusterState);
     }
 
@@ -375,8 +397,8 @@ public class SecurityTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);
     }
 

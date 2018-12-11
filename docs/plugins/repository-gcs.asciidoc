@@ -10,71 +10,66 @@ include::install_remove.asciidoc[]
 [[repository-gcs-usage]]
 ==== Getting started
 
-The plugin uses the https://cloud.google.com/storage/docs/json_api/[Google Cloud Storage JSON API] (v1)
-to connect to the Storage service. If this is the first time you use Google Cloud Storage, you first
-need to connect to the https://console.cloud.google.com/[Google Cloud Platform Console] and create a new
-project. Once your project is created, you must enable the Cloud Storage Service for your project.
+The plugin uses the https://github.com/GoogleCloudPlatform/google-cloud-java/tree/master/google-cloud-clients/google-cloud-storage[Google Cloud Java Client for Storage]
+to connect to the Storage service. If you are using  
+https://cloud.google.com/storage/[Google Cloud Storage] for the first time, you 
+must connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
+and create a new project. After your project is created, you must enable the
+Cloud Storage Service for your project.
 
 [[repository-gcs-creating-bucket]]
 ===== Creating a Bucket
 
-Google Cloud Storage service uses the concept of https://cloud.google.com/storage/docs/key-terms[Bucket]
-as a container for all the data. Buckets are usually created using the
-https://console.cloud.google.com/[Google Cloud Platform Console]. The plugin will not automatically
-create buckets.
+The Google Cloud Storage service uses the concept of a 
+https://cloud.google.com/storage/docs/key-terms[bucket] as a container for all 
+the data. Buckets are usually created using the 
+https://console.cloud.google.com/[Google Cloud Platform Console]. The plugin 
+does not automatically create buckets.
 
 To create a new bucket:
 
-1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
-2. Select your project
-3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser]
-4. Click the "Create Bucket" button
-5. Enter the name of the new bucket
-6. Select a storage class
-7. Select a location
-8. Click the "Create" button
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
+2. Select your project.
+3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser].
+4. Click the *Create Bucket* button.
+5. Enter the name of the new bucket.
+6. Select a storage class.
+7. Select a location.
+8. Click the *Create* button.
 
-The bucket should now be created.
+For more detailed instructions, see the
+https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google Cloud documentation].
 
 [[repository-gcs-service-authentication]]
 ===== Service Authentication
 
-The plugin supports two authentication modes:
-
-* The built-in <<repository-gcs-using-compute-engine, Compute Engine authentication>>. This mode is
-recommended if your Elasticsearch node is running on a Compute Engine virtual machine.
-
-* Specifying <<repository-gcs-using-service-account, Service Account>> credentials.
-
-[[repository-gcs-using-compute-engine]]
-===== Using Compute Engine
-When running on Compute Engine, the plugin use Google's built-in authentication mechanism to
-authenticate on the Storage service. Compute Engine virtual machines are usually associated to a
-default service account. This service account can be found in the VM instance details in the
-https://console.cloud.google.com/compute/[Compute Engine console].
-
-This is the default authentication mode and requires no configuration.
-
-NOTE: The Compute Engine VM must be allowed to use the Storage service. This can be done only at VM
-creation time, when "Storage" access can be configured to "Read/Write" permission. Check your
-instance details at the section "Cloud API access scopes".
+The plugin must authenticate the requests it makes to the Google Cloud Storage 
+service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
+However, that strategy is **not** supported for use with Elasticsearch. The 
+plugin operates under the Elasticsearch process, which runs with the security 
+manager enabled. The security manager obstructs the "automatic" credential discovery.
+Therefore, you must configure <<repository-gcs-using-service-account,service account>> 
+credentials even if you are using an environment that does not normally require
+this configuration (such as Compute Engine, Kubernetes Engine or App Engine).
 
 [[repository-gcs-using-service-account]]
 ===== Using a Service Account
-If your Elasticsearch node is not running on Compute Engine, or if you don't want to use Google's
-built-in authentication mechanism, you can authenticate on the Storage service using a
-https://cloud.google.com/iam/docs/overview#service_account[Service Account] file.
+You have to obtain and provide https://cloud.google.com/iam/docs/overview#service_account[service account credentials]
+manually.
 
-To create a service account file:
+For detailed information about generating JSON service account files, see the  https://cloud.google.com/storage/docs/authentication?hl=en#service_accounts[Google Cloud documentation].
+Note that the PKCS12 format is not supported by this plugin.
 
-1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
-2. Select your project
-3. Got to the https://console.cloud.google.com/permissions[Permission] tab
-4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab
-5. Click on "Create service account"
-6. Once created, select the new service account and download a JSON key file
+Here is a summary of the steps:
 
-A service account file looks like this:
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
+2. Select your project.
+3. Got to the https://console.cloud.google.com/permissions[Permission] tab.
+4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab.
+5. Click *Create service account*.
+6. After the account is created, select it and download a JSON key file. 
+
+A JSON service account file looks like this:
 
 [source,js]
 ----
@@ -84,19 +79,26 @@ A service account file looks like this:
   "private_key_id": "...",
   "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
   "client_email": "service-account-for-your-repository@your-project-id.iam.gserviceaccount.com",
-  "client_id": "..."
+  "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/your-bucket@your-project-id.iam.gserviceaccount.com"
 }
 ----
 // NOTCONSOLE
 
-This file must be stored in the {ref}/secure-settings.html[elasticsearch keystore], under a setting name
-of the form `gcs.client.NAME.credentials_file`, where `NAME` is the name of the client configuration.
-The default client name is `default`, but a different client name can be specified in repository
-settings using `client`.
+To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must add a setting name of the form `gcs.client.NAME.credentials_file`, where `NAME`
+is the name of the client configuration for the repository. The implicit client
+name is `default`, but a different client name can be specified in the
+repository settings with the `client` key. 
 
-For example, if specifying the credentials file in the keystore under
-`gcs.client.my_alternate_client.credentials_file`, you can configure a repository to use these
-credentials like this:
+NOTE: Passing the file path via the GOOGLE_APPLICATION_CREDENTIALS environment 
+variable is **not** supported.
+
+For example, if you added a `gcs.client.my_alternate_client.credentials_file` 
+setting in the keystore, you can configure a repository to use those credentials 
+like this:
 
 [source,js]
 ----
@@ -113,19 +115,18 @@ PUT _snapshot/my_gcs_repository
 // TEST[skip:we don't have gcs setup while testing this]
 
 The `credentials_file` settings are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
-After you reload the settings, the internal `gcs` clients, used to transfer the
-snapshot contents, will utilize the latest settings from the keystore.
+After you reload the settings, the internal `gcs` clients, which are used to 
+transfer the snapshot contents, utilize the latest settings from the keystore.
 
-
-NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
-of the client's `credentials_file` settings. They will complete using the client
-as it was built when the operation started.
+NOTE: Snapshot or restore jobs that are in progress are not preempted by a *reload*
+of the client's `credentials_file` settings. They complete using the client as 
+it was built when the operation started.
 
 [[repository-gcs-client]]
 ==== Client Settings
 
 The client used to connect to Google Cloud Storage has a number of settings available.
-Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and specified
+Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and are specified
 inside `elasticsearch.yml`. The default client name looked up by a `gcs` repository is
 called `default`, but can be customized with the repository setting `client`.
 
@@ -146,7 +147,7 @@ PUT _snapshot/my_gcs_repository
 // TEST[skip:we don't have gcs setup while testing this]
 
 Some settings are sensitive and must be stored in the
-{ref}/secure-settings.html[elasticsearch keystore]. This is the case for the service account file:
+{ref}/secure-settings.html[Elasticsearch keystore]. This is the case for the service account file:
 
 [source,sh]
 ----
@@ -185,7 +186,7 @@ are marked as `Secure`.
 
 `project_id`::
 
-    The Google Cloud project id. This will be automatically infered from the credentials file but
+    The Google Cloud project id. This will be automatically inferred from the credentials file but
     can be specified explicitly. For example, it can be used to switch between projects when the
     same credentials are usable for both the production and the development projects.
 
@@ -248,8 +249,8 @@ The following settings are supported:
 
 The service account used to access the bucket must have the "Writer" access to the bucket:
 
-1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
-2. Select your project
-3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
-4. Select the bucket and "Edit bucket permission"
-5. The service account must be configured as a "User" with "Writer" access
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
+2. Select your project.
+3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser].
+4. Select the bucket and "Edit bucket permission".
+5. The service account must be configured as a "User" with "Writer" access.

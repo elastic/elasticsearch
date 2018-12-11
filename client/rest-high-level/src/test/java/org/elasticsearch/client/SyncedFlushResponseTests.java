@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -63,7 +63,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
                 .xContent()
                 .createParser(
                     xContentRegistry(),
-                    LoggingDeprecationHandler.INSTANCE,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                     BytesReference.bytes(serverResponsebuilder).streamInput()
                 ).map()
         );
@@ -74,7 +74,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
                 .xContent()
                 .createParser(
                     xContentRegistry(),
-                    LoggingDeprecationHandler.INSTANCE,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                     BytesReference.bytes(clientResponsebuilder).streamInput()
                 )
                 .map()
@@ -94,7 +94,9 @@ public class SyncedFlushResponseTests extends ESTestCase {
             .contentType()
             .xContent()
             .createParser(
-                xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput()
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
             );
         SyncedFlushResponse originalResponse = plan.clientResult;
         SyncedFlushResponse parsedResponse = SyncedFlushResponse.fromXContent(parser);
@@ -175,7 +177,8 @@ public class SyncedFlushResponseTests extends ESTestCase {
                                     .contentType()
                                     .xContent()
                                     .createParser(
-                                        xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
+                                        xContentRegistry(),
+                                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                                         BytesReference.bytes(builder).streamInput()
                                     )
                                     .map();

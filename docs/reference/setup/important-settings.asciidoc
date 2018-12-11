@@ -14,6 +14,7 @@ The following settings *must* be considered before going to production:
 * <<heap-size,Heap size>>
 * <<heap-dump-path,Heap dump path>>
 * <<gc-logging,GC logging>>
+* <<es-tmpdir,Temp directory>>
 
 include::important-settings/path-settings.asciidoc[]
 
@@ -30,5 +31,7 @@ include::important-settings/heap-size.asciidoc[]
 include::important-settings/heap-dump-path.asciidoc[]
 
 include::important-settings/gc-logging.asciidoc[]
+
+include::important-settings/es-tmpdir.asciidoc[]
 
 include::important-settings/error-file.asciidoc[]

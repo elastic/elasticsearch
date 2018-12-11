@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-result-overall-buckets-60
         body:  >
           {
@@ -19,7 +21,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-result-overall-buckets-30
         body:  >
           {
@@ -36,7 +38,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-result-overall-buckets-17
         body:  >
           {
@@ -236,13 +238,13 @@ setup:
 "Test overall buckets given missing job":
   - do:
       catch: missing
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "missing-job"
 
 ---
 "Test overall buckets given non-matching expression and allow_no_jobs":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "none-matching-*"
   - match: { count: 0 }
 
@@ -250,7 +252,7 @@ setup:
 "Test overall buckets given non-matching expression and not allow_no_jobs":
   - do:
       catch: missing
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "none-matching-*"
         allow_no_jobs: false
 
@@ -258,7 +260,7 @@ setup:
 "Test overall buckets given top_n is 0":
   - do:
       catch: /\[topN\] parameter must be positive, found \[0\]/
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: 0
 
@@ -266,14 +268,14 @@ setup:
 "Test overall buckets given top_n is negative":
   - do:
       catch: /\[topN\] parameter must be positive, found \[-1\]/
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: -1
 
 ---
 "Test overall buckets given default":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
   - match: { count: 3 }
   - match: { overall_buckets.0.timestamp: 1464739200000 }
@@ -312,7 +314,7 @@ setup:
 ---
 "Test overall buckets given top_n is 2":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-group"
         top_n: 2
   - match: { count: 3 }
@@ -352,7 +354,7 @@ setup:
 ---
 "Test overall buckets given top_n is 3":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-group"
         top_n: 3
   - match: { count: 3 }
@@ -392,7 +394,7 @@ setup:
 ---
 "Test overall buckets given top_n is greater than the job count":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: 333
   - match: { count: 3 }
@@ -432,7 +434,7 @@ setup:
 ---
 "Test overall buckets given overall_score filter":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: 2
         overall_score: 50.0
@@ -443,7 +445,7 @@ setup:
 ---
 "Test overall buckets given exclude_interim":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         exclude_interim: true
   - match: { count: 3 }
@@ -483,7 +485,7 @@ setup:
 ---
 "Test overall buckets given string start and end params":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: 2
         start: "2016-06-01T00:30:00Z"
@@ -496,7 +498,7 @@ setup:
 ---
 "Test overall buckets given epoch start and end params":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: 2
         start: 1464744600000
@@ -516,7 +518,7 @@ setup:
 "Test overall buckets given invalid start param":
   - do:
       catch: /.*Query param \[start\] with value \[invalid\] cannot be parsed as a date or converted to a number.*/
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         start: "invalid"
 
@@ -524,14 +526,14 @@ setup:
 "Test overall buckets given invalid end param":
   - do:
       catch: /.*Query param \[end\] with value \[invalid\] cannot be parsed as a date or converted to a number.*/
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         end: "invalid"
 
 ---
 "Test overall buckets given bucket_span":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         bucket_span: "2h"
   - match: { count: 2 }
@@ -563,7 +565,7 @@ setup:
 ---
 "Test overall buckets given bucket_span and top_n is 2":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         top_n: 2
         bucket_span: "2h"
@@ -597,7 +599,7 @@ setup:
 ---
 "Test overall buckets given bucket_span and overall_score filter":
   - do:
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         bucket_span: "2h"
         overall_score: "41.0"
@@ -620,6 +622,6 @@ setup:
 "Test overall buckets given bucket_span is smaller than max job bucket_span":
   - do:
       catch: /.*Param \[bucket_span\] must be greater or equal to the max bucket_span \[60m\]*/
-      xpack.ml.get_overall_buckets:
+      ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         bucket_span: "59m"

@@ -57,16 +57,17 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
     }
 
     @Override
-    public final void execute(IngestDocument document) {
+    public final IngestDocument execute(IngestDocument document) {
         String val = document.getFieldValue(field, String.class, ignoreMissing);
 
         if (val == null && ignoreMissing) {
-            return;
+            return document;
         } else if (val == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
         document.setFieldValue(targetField, process(val));
+        return document;
     }
 
     protected abstract T process(String value);

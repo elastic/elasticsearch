@@ -20,22 +20,25 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ScriptedMetricAggContexts {
-    private abstract static class ParamsAndStateBase {
-        private final Map<String, Object> params;
-        private final Object state;
 
-        ParamsAndStateBase(Map<String, Object> params, Object state) {
+    public abstract static class InitScript {
+        private final Map<String, Object> params;
+        private final Map<String, Object> state;
+
+        public InitScript(Map<String, Object> params, Map<String, Object> state) {
             this.params = params;
             this.state = state;
         }
@@ -47,31 +50,62 @@ public class ScriptedMetricAggContexts {
         public Object getState() {
             return state;
         }
-    }
-
-    public abstract static class InitScript extends ParamsAndStateBase {
-        public InitScript(Map<String, Object> params, Object state) {
-            super(params, state);
-        }
 
         public abstract void execute();
 
         public interface Factory {
-            InitScript newInstance(Map<String, Object> params, Object state);
+            InitScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
         public static String[] PARAMETERS = {};
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_init", Factory.class);
     }
 
-    public abstract static class MapScript extends ParamsAndStateBase {
+    public abstract static class MapScript {
+        private static final Map<String, String> DEPRECATIONS;
+
+        static {
+            Map<String, String> deprecations = new HashMap<>();
+            deprecations.put(
+                "doc",
+                "Accessing variable [doc] via [params.doc] from within a scripted metric agg map script " +
+                    "is deprecated in favor of directly accessing [doc]."
+            );
+            deprecations.put(
+                "_doc",
+                "Accessing variable [doc] via [params._doc] from within a scripted metric agg map script " +
+                    "is deprecated in favor of directly accessing [doc]."
+            );
+            deprecations.put(
+                "_agg",
+                "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script " +
+                    "is deprecated in favor of using [state]."
+            );
+            DEPRECATIONS = Collections.unmodifiableMap(deprecations);
+        }
+
+        private final Map<String, Object> params;
+        private final Map<String, Object> state;
         private final LeafSearchLookup leafLookup;
-        private Scorer scorer;
+        private Scorable scorer;
 
-        public MapScript(Map<String, Object> params, Object state, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, state);
-
+        public MapScript(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup, LeafReaderContext leafContext) {
+            this.state = state;
             this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);
+            if (leafLookup != null) {
+                params = new HashMap<>(params); // copy params so we aren't modifying input
+                params.putAll(leafLookup.asMap()); // add lookup vars
+                params = new ParameterMap(params, DEPRECATIONS); // wrap with deprecations
+            }
+            this.params = params;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public Map<String, Object> getState() {
+            return state;
         }
 
         // Return the doc as a map (instead of LeafDocLookup) in order to abide by type whitelisting rules for
@@ -86,7 +120,7 @@ public class ScriptedMetricAggContexts {
             }
         }
 
-        public void setScorer(Scorer scorer) {
+        public void setScorer(Scorable scorer) {
             this.scorer = scorer;
         }
 
@@ -110,22 +144,34 @@ public class ScriptedMetricAggContexts {
         }
 
         public interface Factory {
-            LeafFactory newFactory(Map<String, Object> params, Object state, SearchLookup lookup);
+            LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup);
         }
 
         public static String[] PARAMETERS = new String[] {};
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_map", Factory.class);
     }
 
-    public abstract static class CombineScript extends ParamsAndStateBase {
-        public CombineScript(Map<String, Object> params, Object state) {
-            super(params, state);
+    public abstract static class CombineScript {
+        private final Map<String, Object> params;
+        private final Map<String, Object> state;
+
+        public CombineScript(Map<String, Object> params, Map<String, Object> state) {
+            this.params = params;
+            this.state = state;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public Map<String, Object> getState() {
+            return state;
         }
 
         public abstract Object execute();
 
         public interface Factory {
-            CombineScript newInstance(Map<String, Object> params, Object state);
+            CombineScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
         public static String[] PARAMETERS = {};

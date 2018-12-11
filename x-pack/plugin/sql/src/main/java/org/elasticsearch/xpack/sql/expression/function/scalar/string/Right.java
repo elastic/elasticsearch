@@ -6,13 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-
-import java.util.function.BiFunction;
 
 /**
  * Returns the rightmost count characters of a string.
@@ -24,21 +20,13 @@ public class Right extends BinaryStringNumericFunction {
     }
 
     @Override
-    protected BiFunction<String, Number, String> operation() {
+    protected BinaryStringNumericOperation operation() {
         return BinaryStringNumericOperation.RIGHT;
     }
 
     @Override
     protected Right replaceChildren(Expression newLeft, Expression newRight) {
         return new Right(location(), newLeft, newRight);
-    }
-
-    @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new BinaryStringNumericProcessorDefinition(location(), this,
-                ProcessorDefinitions.toProcessorDefinition(left()),
-                ProcessorDefinitions.toProcessorDefinition(right()),
-                BinaryStringNumericOperation.RIGHT);
     }
 
     @Override

@@ -13,11 +13,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -25,7 +21,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
 
 public class HttpRequestTests extends ESTestCase {
 
@@ -129,14 +124,12 @@ public class HttpRequestTests extends ESTestCase {
         try (XContentBuilder xContentBuilder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
             httpRequest.toXContent(xContentBuilder, WatcherParams.builder().hideSecrets(false).build());
 
-            HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
-            HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
-    
+
             try (XContentParser parser = createParser(xContentBuilder)) {
                 assertNull(parser.currentToken());
                 parser.nextToken();
-    
-                HttpRequest parsedRequest = httpRequestParser.parse(parser);
+
+                HttpRequest parsedRequest = HttpRequest.Parser.parse(parser);
                 assertEquals(httpRequest, parsedRequest);
             }
         }
@@ -161,14 +154,13 @@ public class HttpRequestTests extends ESTestCase {
         XContentParser urlContentParser = createParser(urlContentBuilder);
         urlContentParser.nextToken();
 
-        HttpRequest.Parser parser = new HttpRequest.Parser(mock(HttpAuthRegistry.class));
-        HttpRequest urlParsedRequest = parser.parse(urlContentParser);
+        HttpRequest urlParsedRequest = HttpRequest.Parser.parse(urlContentParser);
 
         WatcherParams params = WatcherParams.builder().hideSecrets(false).build();
         XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), params);
         XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
-        HttpRequest parsedRequest = parser.parse(xContentParser);
+        HttpRequest parsedRequest = HttpRequest.Parser.parse(xContentParser);
 
         assertThat(parsedRequest, is(urlParsedRequest));
     }

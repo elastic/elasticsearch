@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * directory. Internal processes should acquire a lock on a shard
  * before executing any write operations on the shards data directory.
  *
- * @see org.elasticsearch.env.NodeEnvironment
+ * @see NodeEnvironment
  */
 public abstract class ShardLock implements Closeable {
 
@@ -55,13 +55,6 @@ public abstract class ShardLock implements Closeable {
     }
 
     protected  abstract void closeInternal();
-
-    /**
-     * Returns true if this lock is still open ie. has not been closed yet.
-     */
-    public final boolean isOpen() {
-        return closed.get() == false;
-    }
 
     @Override
     public String toString() {

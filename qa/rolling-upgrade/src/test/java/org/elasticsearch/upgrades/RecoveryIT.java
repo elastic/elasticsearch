@@ -26,6 +26,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -148,12 +149,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
             case UPGRADED:
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
-                asyncIndexDocs(index, 60, 50).get();
+                asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
-                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 105);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
@@ -165,7 +166,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         request.addParameter("preference", preference);
         final Response response = client().performRequest(request);
         final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
-        assertThat(actualCount, equalTo(expectedCount));
+        assertThat("preference [" + preference + "]", actualCount, equalTo(expectedCount));
     }
 
 
@@ -182,7 +183,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return null;
     }
 
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34950")
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {
@@ -225,7 +226,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     .put("index.routing.allocation.include._id", (String)null)
                 );
-                asyncIndexDocs(index, 60, 50).get();
+                asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
                 Response response = client().performRequest(new Request("GET", "_nodes"));
@@ -233,9 +234,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
                 List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
-                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 105);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
@@ -272,4 +273,35 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(index);
     }
 
+    public void testRecoveryWithSoftDeletes() throws Exception {
+        final String index = "recover_with_soft_deletes";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            if (getNodeId(v -> v.onOrAfter(Version.V_6_5_0)) != null) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            }
+            createIndex(index, settings.build());
+            int numDocs = randomInt(10);
+            indexDocs(index, 0, numDocs);
+            if (randomBoolean()) {
+                client().performRequest(new Request("POST", "/" + index + "/_flush"));
+            }
+            for (int i = 0; i < numDocs; i++) {
+                if (randomBoolean()) {
+                    indexDocs(index, i, 1); // update
+                } else if (randomBoolean()) {
+                    client().performRequest(new Request("DELETE", index + "/test/" + i));
+                }
+            }
+        }
+        ensureGreen(index);
+    }
 }

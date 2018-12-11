@@ -32,7 +32,6 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -71,7 +70,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         final ResponseException e =
                 expectThrows(
                         ResponseException.class,
-                        () -> client().performRequest(randomFrom("GET", "POST", "PUT"), path, Collections.emptyMap()));
+                        () -> client().performRequest(new Request(randomFrom("GET", "POST", "PUT"), path)));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
         assertThat(e, hasToString(containsString("too_long_frame_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));

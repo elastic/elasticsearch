@@ -9,12 +9,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -25,8 +26,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 public class WatcherDateTimeUtils {
 
-    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-    public static final DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
+    public static final DateFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+    public static final DateMathParser dateMathParser = dateTimeFormatter.toDateMathParser();
 
     private WatcherDateTimeUtils() {
     }
@@ -34,6 +35,9 @@ public class WatcherDateTimeUtils {
     public static DateTime convertToDate(Object value, Clock clock) {
         if (value instanceof DateTime) {
             return (DateTime) value;
+        }
+        if (value instanceof JodaCompatibleZonedDateTime) {
+            return new DateTime(((JodaCompatibleZonedDateTime) value).toInstant().toEpochMilli(), DateTimeZone.UTC);
         }
         if (value instanceof String) {
             return parseDateMath((String) value, DateTimeZone.UTC, clock);
@@ -49,12 +53,12 @@ public class WatcherDateTimeUtils {
     }
 
     public static DateTime parseDate(String format, DateTimeZone timeZone) {
-        DateTime dateTime = dateTimeFormatter.parser().parseDateTime(format);
+        DateTime dateTime = dateTimeFormatter.parseJoda(format);
         return timeZone != null ? dateTime.toDateTime(timeZone) : dateTime;
     }
 
     public static String formatDate(DateTime date) {
-        return dateTimeFormatter.printer().print(date);
+        return dateTimeFormatter.formatJoda(date);
     }
 
     public static DateTime parseDateMath(String fieldName, XContentParser parser, DateTimeZone timeZone, Clock clock) throws IOException {

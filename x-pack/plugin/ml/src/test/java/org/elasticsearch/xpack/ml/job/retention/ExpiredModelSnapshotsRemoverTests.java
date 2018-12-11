@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -231,7 +233,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             modelSnapshots.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));
         }
-        SearchHits hits = new SearchHits(hitsArray, hitsArray.length, 1.0f);
+        SearchHits hits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(hits);
         return searchResponse;
@@ -270,8 +272,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 capturedDeleteModelSnapshotRequests.add((DeleteModelSnapshotAction.Request) invocationOnMock.getArguments()[1]);
-                ActionListener<DeleteModelSnapshotAction.Response> listener =
-                        (ActionListener<DeleteModelSnapshotAction.Response>) invocationOnMock.getArguments()[2];
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
                 if (shouldDeleteSnapshotRequestsSucceed) {
                     listener.onResponse(null);
                 } else {

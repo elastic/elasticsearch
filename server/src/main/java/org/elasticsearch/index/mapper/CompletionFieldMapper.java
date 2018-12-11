@@ -117,7 +117,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
             CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder(name);
             NamedAnalyzer indexAnalyzer = null;
             NamedAnalyzer searchAnalyzer = null;
@@ -368,7 +369,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
          */
         public Builder maxInputLength(int maxInputLength) {
             if (maxInputLength <= 0) {
-                throw new IllegalArgumentException(Fields.MAX_INPUT_LENGTH.getPreferredName() + " must be > 0 but was [" + maxInputLength + "]");
+                throw new IllegalArgumentException(Fields.MAX_INPUT_LENGTH.getPreferredName()
+                    + " must be > 0 but was [" + maxInputLength + "]");
             }
             this.maxInputLength = maxInputLength;
             return this;
@@ -400,13 +402,15 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             completionFieldType.setContextMappings(contextMappings);
             completionFieldType.setPreservePositionIncrements(preservePositionIncrements);
             completionFieldType.setPreserveSep(preserveSeparators);
-            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
+            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(),
+                multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }
     }
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
+    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings,
+                                 MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
@@ -430,13 +434,16 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
         Map<String, CompletionInputMetaData> inputMap = new HashMap<>(1);
-        if (token == Token.VALUE_NULL) {
-            throw new MapperParsingException("completion field [" + fieldType().name() + "] does not support null values");
+
+        if (context.externalValueSet()) {
+            inputMap = getInputMapFromExternalValue(context);
+        } else if (token == Token.VALUE_NULL) { // ignore null values
+            return;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
@@ -469,13 +476,33 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 context.doc().add(new SuggestField(fieldType().name(), input, metaData.weight));
             }
         }
+
         List<IndexableField> fields = new ArrayList<>(1);
         createFieldNamesField(context, fields);
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
-        multiFields.parse(this, context);
-        return null;
+
+        for (CompletionInputMetaData metaData: inputMap.values()) {
+            ParseContext externalValueContext = context.createExternalValueContext(metaData);
+            multiFields.parse(this, externalValueContext);
+        }
+    }
+
+    private Map<String, CompletionInputMetaData> getInputMapFromExternalValue(ParseContext context) {
+        Map<String, CompletionInputMetaData> inputMap;
+        if (isExternalValueOfClass(context, CompletionInputMetaData.class)) {
+            CompletionInputMetaData inputAndMeta = (CompletionInputMetaData) context.externalValue();
+            inputMap = Collections.singletonMap(inputAndMeta.input, inputAndMeta);
+        } else {
+            String fieldName = context.externalValue().toString();
+            inputMap = Collections.singletonMap(fieldName, new CompletionInputMetaData(fieldName, Collections.emptyMap(), 1));
+        }
+        return inputMap;
+    }
+
+    private boolean isExternalValueOfClass(ParseContext context, Class<?> clazz) {
+        return context.externalValue().getClass().equals(clazz);
     }
 
     /**
@@ -483,19 +510,21 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      */
-    private void parse(ParseContext parseContext, Token token, XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
+    private void parse(ParseContext parseContext, Token token,
+                       XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
-            inputMap.put(parser.text(), new CompletionInputMetaData(Collections.<String, Set<CharSequence>>emptyMap(), 1));
+            inputMap.put(parser.text(), new CompletionInputMetaData(parser.text(), Collections.<String, Set<String>>emptyMap(), 1));
         } else if (token == Token.START_OBJECT) {
             Set<String> inputs = new HashSet<>();
             int weight = 1;
-            Map<String, Set<CharSequence>> contextsMap = new HashMap<>();
+            Map<String, Set<String>> contextsMap = new HashMap<>();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                     if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
-                        throw new IllegalArgumentException("unknown field name [" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
+                        throw new IllegalArgumentException("unknown field name [" + currentFieldName
+                            + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
                 } else if (currentFieldName != null) {
                     if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
@@ -506,7 +535,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                                 if (token == Token.VALUE_STRING) {
                                     inputs.add(parser.text());
                                 } else {
-                                    throw new IllegalArgumentException("input array must have string values, but was [" + token.name() + "]");
+                                    throw new IllegalArgumentException("input array must have string values, but was ["
+                                        + token.name() + "]");
                                 }
                             }
                         } else {
@@ -529,8 +559,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                         } else {
                             throw new IllegalArgumentException("weight must be a number or string, but was [" + token.name() + "]");
                         }
-                        if (weightValue.longValue() < 0 || weightValue.longValue() > Integer.MAX_VALUE) { // always parse a long to make sure we don't get overflow
-                            throw new IllegalArgumentException("weight must be in the interval [0..2147483647], but was [" + weightValue.longValue() + "]");
+                        // always parse a long to make sure we don't get overflow
+                        if (weightValue.longValue() < 0 || weightValue.longValue() > Integer.MAX_VALUE) {
+                            throw new IllegalArgumentException("weight must be in the interval [0..2147483647], but was ["
+                                + weightValue.longValue() + "]");
                         }
                         weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
@@ -560,21 +592,29 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
             for (String input : inputs) {
                 if (inputMap.containsKey(input) == false || inputMap.get(input).weight < weight) {
-                    inputMap.put(input, new CompletionInputMetaData(contextsMap, weight));
+                    inputMap.put(input, new CompletionInputMetaData(input, contextsMap, weight));
                 }
             }
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName() + "]: expected text or object, but got " + token.name());
+            throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName()
+                + "]: expected text or object, but got " + token.name());
         }
     }
 
     static class CompletionInputMetaData {
-        public final Map<String, Set<CharSequence>> contexts;
+        public final String input;
+        public final Map<String, Set<String>> contexts;
         public final int weight;
 
-        CompletionInputMetaData(Map<String, Set<CharSequence>> contexts, int weight) {
+        CompletionInputMetaData(String input, Map<String, Set<String>> contexts, int weight) {
+            this.input = input;
             this.contexts = contexts;
             this.weight = weight;
+        }
+
+        @Override
+        public String toString() {
+            return input;
         }
     }
 

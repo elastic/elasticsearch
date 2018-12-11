@@ -16,10 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
-
 apply plugin: 'elasticsearch.build'
 
 targetCompatibility = JavaVersion.VERSION_1_7
@@ -36,7 +32,7 @@ dependencies {
 
 forbiddenApisMain {
   //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenApisTest {
@@ -44,7 +40,7 @@ forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 // JarHell is part of es server, which we don't want to pull in

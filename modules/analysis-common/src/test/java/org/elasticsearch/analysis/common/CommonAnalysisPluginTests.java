@@ -64,7 +64,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void testNGramNoDeprecationWarningPre6_4() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_3_0))
+                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_0))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -104,7 +104,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void testEdgeNGramNoDeprecationWarningPre6_4() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_3_0))
+                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_0))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

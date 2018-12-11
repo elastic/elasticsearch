@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,8 +20,6 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
@@ -56,7 +56,9 @@ import static org.joda.time.DateTimeZone.UTC;
  * the document should also be added to the local trigger service
  *
  */
-final class WatcherIndexingListener extends AbstractComponent implements IndexingOperationListener, ClusterStateListener {
+final class WatcherIndexingListener implements IndexingOperationListener, ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(WatcherIndexingListener.class);
 
     static final Configuration INACTIVE = new Configuration(null, Collections.emptyMap());
 
@@ -65,8 +67,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
     private final TriggerService triggerService;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(Settings settings, WatchParser parser, Clock clock, TriggerService triggerService) {
-        super(settings);
+    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
@@ -143,7 +144,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      *
      * @param shardId   The shard id object of the document being processed
      * @param index     The index operation
-     * @param ex        The exception occured during indexing
+     * @param ex        The exception occurred during indexing
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {

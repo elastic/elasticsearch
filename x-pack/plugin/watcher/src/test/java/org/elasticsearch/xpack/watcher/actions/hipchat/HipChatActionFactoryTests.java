@@ -32,7 +32,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         hipchatService = mock(HipChatService.class);
-        factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
+        factory = new HipChatActionFactory(mock(TextTemplateEngine.class), hipchatService);
     }
 
     public void testParseAction() throws Exception {
@@ -53,7 +53,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
     public void testParseActionUnknownAccount() throws Exception {
         hipchatService = new HipChatService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(HipChatService.getSettings())));
-        factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
+        factory = new HipChatActionFactory(mock(TextTemplateEngine.class), hipchatService);
         HipChatAction action = hipchatAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = createParser(jsonBuilder);

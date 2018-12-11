@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +52,7 @@ import static org.elasticsearch.search.suggest.completion.context.ContextMapping
  * and creates context queries for defined {@link ContextMapping}s
  * for a {@link CompletionFieldMapper}
  */
-public class ContextMappings implements ToXContent {
+public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> {
 
     private final List<ContextMapping<?>> contextMappings;
     private final Map<String, ContextMapping<?>> contextNameMap;
@@ -93,8 +95,13 @@ public class ContextMappings implements ToXContent {
      * Adds a context-enabled field for all the defined mappings to <code>document</code>
      * see {@link org.elasticsearch.search.suggest.completion.context.ContextMappings.TypedContextField}
      */
-    public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<CharSequence>> contexts) {
+    public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<String>> contexts) {
         document.add(new TypedContextField(name, input, weight, contexts, document));
+    }
+
+    @Override
+    public Iterator<ContextMapping<?>> iterator() {
+        return contextMappings.iterator();
     }
 
     /**
@@ -115,10 +122,10 @@ public class ContextMappings implements ToXContent {
      * at index time
      */
     private class TypedContextField extends ContextSuggestField {
-        private final Map<String, Set<CharSequence>> contexts;
+        private final Map<String, Set<String>> contexts;
         private final ParseContext.Document document;
 
-        TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
+        TypedContextField(String name, String value, int weight, Map<String, Set<String>> contexts,
                           ParseContext.Document document) {
             super(name, value, weight);
             this.contexts = contexts;
@@ -127,18 +134,18 @@ public class ContextMappings implements ToXContent {
 
         @Override
         protected Iterable<CharSequence> contexts() {
-            Set<CharSequence> typedContexts = new HashSet<>();
+            Set<CharsRef> typedContexts = new HashSet<>();
             final CharsRefBuilder scratch = new CharsRefBuilder();
             scratch.grow(1);
             for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
                 ContextMapping<?> mapping = contextMappings.get(typeId);
-                Set<CharSequence> contexts = new HashSet<>(mapping.parseContext(document));
+                Set<String> contexts = new HashSet<>(mapping.parseContext(document));
                 if (this.contexts.get(mapping.name()) != null) {
                     contexts.addAll(this.contexts.get(mapping.name()));
                 }
-                for (CharSequence context : contexts) {
+                for (String context : contexts) {
                     scratch.append(context);
                     typedContexts.add(scratch.toCharsRef());
                     scratch.setLength(1);
@@ -147,7 +154,7 @@ public class ContextMappings implements ToXContent {
             if (typedContexts.isEmpty()) {
                 throw new IllegalArgumentException("Contexts are mandatory in context enabled completion field [" + name + "]");
             }
-            return typedContexts;
+            return new ArrayList<CharSequence>(typedContexts);
         }
     }
 
@@ -192,18 +199,18 @@ public class ContextMappings implements ToXContent {
      * @return a map of context names and their values
      *
      */
-    public Map<String, Set<CharSequence>> getNamedContexts(List<CharSequence> contexts) {
-        Map<String, Set<CharSequence>> contextMap = new HashMap<>(contexts.size());
+    public Map<String, Set<String>> getNamedContexts(List<CharSequence> contexts) {
+        Map<String, Set<String>> contextMap = new HashMap<>(contexts.size());
         for (CharSequence typedContext : contexts) {
             int typeId = typedContext.charAt(0);
             assert typeId < contextMappings.size() : "Returned context has invalid type";
             ContextMapping<?> mapping = contextMappings.get(typeId);
-            Set<CharSequence> contextEntries = contextMap.get(mapping.name());
+            Set<String> contextEntries = contextMap.get(mapping.name());
             if (contextEntries == null) {
                 contextEntries = new HashSet<>();
                 contextMap.put(mapping.name(), contextEntries);
             }
-            contextEntries.add(typedContext.subSequence(1, typedContext.length()));
+            contextEntries.add(typedContext.subSequence(1, typedContext.length()).toString());
         }
         return contextMap;
     }

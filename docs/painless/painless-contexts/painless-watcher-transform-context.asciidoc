@@ -12,13 +12,13 @@ data into a new payload for use in a response to a condition.
 `ctx['watch_id']` (`String`, read-only)::
         The id of the watch.
 
-`ctx['execution_time']` (`DateTime`, read-only)::
+`ctx['execution_time']` (`ZonedDateTime`, read-only)::
         The start time for the watch.
 
-`ctx['trigger']['scheduled_time']` (`DateTime`, read-only)::
+`ctx['trigger']['scheduled_time']` (`ZonedDateTime`, read-only)::
         The scheduled trigger time for the watch.
 
-`ctx['trigger']['triggered_time']` (`DateTime`, read-only)::
+`ctx['trigger']['triggered_time']` (`ZonedDateTime`, read-only)::
         The actual trigger time for the watch.
 
 `ctx['metadata']` (`Map`, read-only)::

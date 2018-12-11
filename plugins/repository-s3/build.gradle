@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
 import java.lang.reflect.Field
 
@@ -32,19 +33,23 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.223'
+  'aws': '1.11.406'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
   compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  compile "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
@@ -53,6 +58,7 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
@@ -63,14 +69,17 @@ bundlePlugin {
   }
 }
 
-additionalTest('testRepositoryCreds'){
+task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/RepositoryCredentialsTests.class'
+  include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
+project.check.dependsOn(testRepositoryCreds)
 
 test {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
+  exclude '**/S3BlobStoreRepositoryTests.class'
 }
 
 boolean useFixture = false
@@ -98,19 +107,11 @@ String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3EC2Bucket && !s3EC2BasePath
-        && !s3ECSBucket && !s3ECSBasePath) {
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
   s3PermanentBasePath = 'integration_test'
-
-  s3EC2Bucket = 'ec2-bucket-test'
-  s3EC2BasePath = 'integration_test'
-
-  s3ECSBucket = 'ecs-bucket-test'
-  s3ECSBasePath = 'integration_test'
 
   useFixture = true
 
@@ -129,13 +130,23 @@ if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3T
   throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
 }
 
+if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
+  s3EC2Bucket = 'ec2-bucket-test'
+  s3EC2BasePath = 'integration_test'
+  s3ECSBucket = 'ecs-bucket-test'
+  s3ECSBasePath = 'integration_test'
+} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
+}
+
+
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
 final String minioBinDir = "${buildDir}/minio/bin"
 final String minioDataDir = "${buildDir}/minio/data"
-final String minioAddress = "127.0.0.1:60920"
+final String minioAddress = "127.0.0.1"
 
-final String minioDistribution
-final String minioCheckSum
+String minioDistribution
+String minioCheckSum
 if (Os.isFamily(Os.FAMILY_MAC)) {
   minioDistribution = 'darwin-amd64'
   minioCheckSum = '96b0bcb2f590e8e65fb83d5c3e221f9bd1106b49fa6f22c6b726b80b845d7c60'
@@ -187,15 +198,27 @@ if (useFixture && minioDistribution) {
     dependsOn installMinio
 
     ext.minioPid = 0L
+    ext.minioPort = 0
 
     doLast {
+      // get free port
+      ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
+      try {
+        minioPort = serverSocket.localPort
+      } finally {
+        serverSocket.close()
+      }
+      if (minioPort == 0) {
+        throw new GradleException("Could not find a free port for Minio")
+      }
+
       new File("${minioDataDir}/${s3PermanentBucket}").mkdirs()
       // we skip these tests on Windows so we do no need to worry about compatibility here
       final ProcessBuilder minio = new ProcessBuilder(
               "${minioBinDir}/${minioFileName}",
               "server",
               "--address",
-              minioAddress,
+              minioAddress + ":" + minioPort,
               minioDataDir)
       minio.environment().put('MINIO_ACCESS_KEY', s3PermanentAccessKey)
       minio.environment().put('MINIO_SECRET_KEY', s3PermanentSecretKey)
@@ -227,6 +250,7 @@ if (useFixture && minioDistribution) {
             final int index = line.lastIndexOf(":")
             assert index >= 0
             httpPort = Integer.parseInt(line.substring(index + 1))
+            assert httpPort == minioPort : "Port mismatch, expected ${minioPort} but was ${httpPort}"
 
             final File script = new File(project.buildDir, "minio/minio.killer.sh")
             script.setText(
@@ -269,10 +293,15 @@ if (useFixture && minioDistribution) {
   project.afterEvaluate {
     ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
     cluster.dependsOn(project.bundlePlugin)
+    cluster.dependsOn(startMinio) // otherwise we don't know the Minio port
     cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
 
-    cluster.setting 's3.client.integration_test_permanent.endpoint', "http://${minioAddress}"
+    Closure<String> minioAddressAndPort = {
+      assert startMinio.minioPort > 0
+      return 'http://' + minioAddress + ':' + startMinio.minioPort
+    }
+    cluster.setting 's3.client.integration_test_permanent.endpoint', "${ -> minioAddressAndPort.call()}"
 
     Task restIntegTestTask = project.tasks.getByName('integTestMinio')
     restIntegTestTask.clusterConfig.plugin(project.path)
@@ -426,7 +455,7 @@ thirdPartyAudit.excludes = [
 ]
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',

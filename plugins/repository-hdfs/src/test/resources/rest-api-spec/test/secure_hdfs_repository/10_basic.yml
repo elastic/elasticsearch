@@ -3,6 +3,9 @@
 # Check plugin is installed
 #
 "Plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 

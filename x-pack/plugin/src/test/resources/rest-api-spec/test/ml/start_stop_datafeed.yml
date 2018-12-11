@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: airline-data
@@ -18,7 +20,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: start-stop-datafeed-job
         body:  >
           {
@@ -41,7 +43,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: start-stop-datafeed-datafeed-1
         body:  >
           {
@@ -53,58 +55,58 @@ setup:
 ---
 "Test start and stop datafeed happy path":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: stopped }
 
 ---
 "Test force stop datafeed":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         "datafeed_id": "start-stop-datafeed-datafeed-1"
         "start": 0
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         "datafeed_id": "start-stop-datafeed-datafeed-1"
         force: true
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: stopped }
 
 ---
 "Test start datafeed given start is now":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: "now"
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
 
@@ -112,7 +114,7 @@ setup:
 "Test start non existing datafeed":
     - do:
         catch: missing
-        xpack.ml.start_datafeed:
+        ml.start_datafeed:
           datafeed_id: "non-existing-datafeed"
           start: 0
 
@@ -120,45 +122,45 @@ setup:
 "Test start datafeed job, but not open":
     - do:
         catch: conflict
-        xpack.ml.start_datafeed:
+        ml.start_datafeed:
           datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
     - do:
         catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because job \[start-stop-datafeed-job\] is closed/
-        xpack.ml.start_datafeed:
+        ml.start_datafeed:
           datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
 
 ---
 "Test start already started datafeed job":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
   - do:
       catch: conflict
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
 
   - do:
       catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because it has already been started/
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
 
 ---
 "Test start given end earlier than start":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
 
   - do:
       catch: /.* start \[1485910800000\] must be earlier than end \[1485907200000\]/
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: "2017-02-01T01:00:00Z"
         end: "2017-02-01T00:00:00Z"
@@ -166,12 +168,12 @@ setup:
 ---
 "Test start given end same as start":
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
 
   - do:
       catch: /.* start \[1485910800000\] must be earlier than end \[1485910800000\]/
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: "2017-02-01T01:00:00Z"
         end: "2017-02-01T01:00:00Z"
@@ -179,7 +181,7 @@ setup:
 ---
 "Test start given datafeed index does not exist":
   - do:
-      xpack.ml.update_datafeed:
+      ml.update_datafeed:
         datafeed_id: start-stop-datafeed-datafeed-1
         body:  >
           {
@@ -187,18 +189,18 @@ setup:
           }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
 
   - do:
       catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because index \[utopia\] does not exist/
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
 
 ---
 "Test start given field without mappings":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: start-stop-datafeed-job-field-without-mappings
         body:  >
           {
@@ -215,7 +217,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: start-stop-datafeed-job-field-without-mappings-feed
         body:  >
           {
@@ -225,26 +227,26 @@ setup:
           }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job-field-without-mappings"
 
   - do:
-      catch: /datafeed \[start-stop-datafeed-job-field-without-mappings-feed] cannot retrieve field \[airline2\] because it has no mappings/
-      xpack.ml.start_datafeed:
+      catch: /\[start-stop-datafeed-job-field-without-mappings-feed] cannot retrieve field \[airline2\] because it has no mappings/
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-job-field-without-mappings-feed"
 
 ---
 "Test stop non existing datafeed":
     - do:
         catch: missing
-        xpack.ml.stop_datafeed:
+        ml.stop_datafeed:
           datafeed_id: "non-existing-datafeed"
 
 ---
 "Test stop with expression that does not match and allow_no_datafeeds":
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "missing-*"
         allow_no_datafeeds: true
   - match: { stopped: true }
@@ -254,25 +256,25 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "missing-*"
         allow_no_datafeeds: false
 
 ---
 "Test stop already stopped datafeed job is not an error":
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
 
 ---
 "Test stop given expression":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: start-stop-datafeed-job-foo-1
         body:  >
           {
@@ -289,7 +291,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: start-stop-datafeed-job-foo-2
         body:  >
           {
@@ -306,7 +308,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: start-stop-datafeed-job-bar-1
         body:  >
           {
@@ -323,7 +325,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: start-stop-datafeed-job-foo-1-feed
         body:  >
           {
@@ -333,7 +335,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: start-stop-datafeed-job-foo-2-feed
         body:  >
           {
@@ -343,7 +345,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: start-stop-datafeed-job-bar-1-feed
         body:  >
           {
@@ -353,44 +355,44 @@ setup:
           }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: start-stop-datafeed-job-foo-1
   - match: { opened: true }
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: start-stop-datafeed-job-foo-2
   - match: { opened: true }
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: start-stop-datafeed-job-bar-1
   - match: { opened: true }
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-job-foo-1-feed"
   - match: { started: true }
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-job-foo-2-feed"
   - match: { started: true }
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-job-bar-1-feed"
   - match: { started: true }
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-job-foo-*"
   - match: { stopped: true }
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-job-foo-*"
   - match: { datafeeds.0.state: "stopped"}
   - match: { datafeeds.1.state: "stopped"}
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-job-bar-1-feed"
   - match: { datafeeds.0.state: "started"}
 
@@ -398,7 +400,7 @@ setup:
 "Test start datafeed when persistent task allocation disabled":
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "start-stop-datafeed-job"
   - match: { opened: true }
 
@@ -413,12 +415,12 @@ setup:
 
   - do:
       catch: /no persistent task assignments are allowed due to cluster settings/
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: stopped }
 
@@ -432,15 +434,15 @@ setup:
   - match: {transient.cluster.persistent_tasks.allocation.enable: "all"}
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"

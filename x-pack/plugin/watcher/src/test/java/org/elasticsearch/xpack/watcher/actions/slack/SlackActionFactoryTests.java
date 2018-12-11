@@ -31,7 +31,7 @@ public class SlackActionFactoryTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         service = mock(SlackService.class);
-        factory = new SlackActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
+        factory = new SlackActionFactory(mock(TextTemplateEngine.class), service);
     }
 
     public void testParseAction() throws Exception {
@@ -50,7 +50,7 @@ public class SlackActionFactoryTests extends ESTestCase {
     public void testParseActionUnknownAccount() throws Exception {
         SlackService service = new SlackService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(SlackService.getSettings())));
-        factory = new SlackActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
+        factory = new SlackActionFactory(mock(TextTemplateEngine.class), service);
         SlackAction action = slackAction("_unknown", createRandomTemplate()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = createParser(jsonBuilder);

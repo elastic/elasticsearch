@@ -83,7 +83,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean cachable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
-    private final String fullyQualifiedIndexName;
+    private final Index fullyQualifiedIndex;
 
     public void setTypes(String... types) {
         this.types = types;
@@ -97,7 +97,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
                              BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
@@ -116,7 +115,8 @@ public class QueryShardContext extends QueryRewriteContext {
         this.indexSettings = indexSettings;
         this.reader = reader;
         this.clusterAlias = clusterAlias;
-        this.fullyQualifiedIndexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName());
+        this.fullyQualifiedIndex = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+            indexSettings.getIndex().getUUID());
     }
 
     public QueryShardContext(QueryShardContext source) {
@@ -131,7 +131,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-        this.isFilter = false;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -163,7 +162,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndexName);
+        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -175,22 +174,6 @@ public class QueryShardContext extends QueryRewriteContext {
     public Map<String, Query> copyNamedQueries() {
         // This might be a good use case for CopyOnWriteHashMap
         return unmodifiableMap(new HashMap<>(namedQueries));
-    }
-
-    /**
-     * Return whether we are currently parsing a filter or a query.
-     */
-    public boolean isFilter() {
-        return isFilter;
-    }
-
-    /**
-     * Public for testing only!
-     *
-     * Sets whether we are currently parsing a filter or a query
-     */
-    public void setIsFilter(boolean isFilter) {
-        this.isFilter = isFilter;
     }
 
     /**
@@ -275,7 +258,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (lookup == null) {
             lookup = new SearchLookup(getMapperService(),
-                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndexName), types);
+                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()), types);
         }
         return lookup;
     }
@@ -286,16 +269,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Version indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
-    }
-
-    public ParsedQuery toFilter(QueryBuilder queryBuilder) {
-        return toQuery(queryBuilder, q -> {
-            Query filter = q.toFilter(this);
-            if (filter == null) {
-                return null;
-            }
-            return filter;
-        });
     }
 
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
@@ -426,9 +399,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the fully qualified index name including a remote cluster alias if applicable
+     * Returns the fully qualified index including a remote cluster alias if applicable, and the index uuid
      */
-    public String getFullyQualifiedIndexName() {
-        return fullyQualifiedIndexName;
+    public Index getFullyQualifiedIndex() {
+        return fullyQualifiedIndex;
     }
 }

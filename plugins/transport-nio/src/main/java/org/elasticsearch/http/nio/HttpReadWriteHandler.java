@@ -139,7 +139,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
             if (request.decoderResult().isFailure()) {
                 Throwable cause = request.decoderResult().cause();
                 if (cause instanceof Error) {
-                    ExceptionsHelper.dieOnError(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
                 } else {
                     transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);

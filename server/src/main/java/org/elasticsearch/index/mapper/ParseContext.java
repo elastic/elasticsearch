@@ -24,15 +24,16 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -196,7 +197,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Settings indexSettings() {
+        public IndexSettings indexSettings() {
             return in.indexSettings();
         }
 
@@ -315,8 +316,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final List<Document> documents;
 
-        @Nullable
-        private final Settings indexSettings;
+        private final IndexSettings indexSettings;
 
         private final SourceToParse sourceToParse;
 
@@ -334,8 +334,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
-        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                SourceToParse source, XContentParser parser) {
+        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
+                                    SourceToParse source, XContentParser parser) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -347,7 +347,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(indexSettings);
+            this.maxAllowedNumNestedDocs = indexSettings.getValue(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
             this.numNestedDocs = 0L;
         }
 
@@ -357,8 +357,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        @Nullable
-        public Settings indexSettings() {
+        public IndexSettings indexSettings() {
             return this.indexSettings;
         }
 
@@ -457,11 +456,38 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         void postParse() {
-            // reverse the order of docs for nested docs support, parent should be last
             if (documents.size() > 1) {
                 docsReversed = true;
-                Collections.reverse(documents);
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+                    /**
+                     * For indices created on or after {@link Version#V_6_5_0} we preserve the order
+                     * of the children while ensuring that parents appear after them.
+                     */
+                    List<Document> newDocs = reorderParent(documents);
+                    documents.clear();
+                    documents.addAll(newDocs);
+                } else {
+                    // reverse the order of docs for nested docs support, parent should be last
+                    Collections.reverse(documents);
+                }
             }
+        }
+
+        /**
+         * Returns a copy of the provided {@link List} where parent documents appear
+         * after their children.
+         */
+        private List<Document> reorderParent(List<Document> docs) {
+            List<Document> newDocs = new ArrayList<>(docs.size());
+            LinkedList<Document> parents = new LinkedList<>();
+            for (Document doc : docs) {
+                while (parents.peek() != doc.getParent()){
+                    newDocs.add(parents.poll());
+                }
+                parents.add(0, doc);
+            }
+            newDocs.addAll(parents);
+            return newDocs;
         }
 
         @Override
@@ -565,8 +591,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         return false;
     }
 
-    @Nullable
-    public abstract Settings indexSettings();
+    public abstract IndexSettings indexSettings();
 
     public abstract SourceToParse sourceToParse();
 

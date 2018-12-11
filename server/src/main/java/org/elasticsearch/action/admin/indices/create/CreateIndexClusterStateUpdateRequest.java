@@ -55,8 +55,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
-
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -80,11 +78,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest aliases(Set<Alias> aliases) {
         this.aliases.addAll(aliases);
-        return this;
-    }
-
-    public CreateIndexClusterStateUpdateRequest customs(Map<String, IndexMetaData.Custom> customs) {
-        this.customs.putAll(customs);
         return this;
     }
 
@@ -144,10 +137,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Set<Alias> aliases() {
         return aliases;
-    }
-
-    public Map<String, IndexMetaData.Custom> customs() {
-        return customs;
     }
 
     public Set<ClusterBlock> blocks() {

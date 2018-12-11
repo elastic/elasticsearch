@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -10,7 +8,7 @@ archivesBaseName = 'x-pack-transport'
 dependencies {
     // this "api" dependency looks weird, but it is correct, as it contains
     // all of x-pack for now, and transport client will be going away in the future.
-    compile project(path: xpackModule('core'), configuration: 'shadow')
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
     compile "org.elasticsearch.client:transport:${version}"
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
@@ -22,8 +20,7 @@ dependencyLicenses.enabled = false
 forbiddenApisTest {
     // we don't use the core test-framework, no lucene classes present so we don't want the es-test-signatures to
     // be pulled in
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                      PrecommitTasks.getResource('/forbidden/es-all-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
 }
 
 namingConventions {

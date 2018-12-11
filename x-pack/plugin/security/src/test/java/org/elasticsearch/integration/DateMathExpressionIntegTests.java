@@ -7,18 +7,17 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
@@ -60,7 +59,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
     public void testDateMathExpressionsCanBeAuthorized() throws Exception {
         final String expression = "<datemath-{now/M}>";
-        final String expectedIndexName = new IndexNameExpressionResolver(Settings.EMPTY).resolveDateMathExpression(expression);
+        final String expectedIndexName = new IndexNameExpressionResolver().resolveDateMathExpression(expression);
         final boolean refeshOnOperation = randomBoolean();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue("user1", USERS_PASSWD)));
 
@@ -80,12 +79,12 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         SearchResponse searchResponse = client.prepareSearch(expression)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), is(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
 
         MultiSearchResponse multiSearchResponse = client.prepareMultiSearch()
                 .add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request())
                 .get();
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
@@ -111,7 +110,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         assertEquals(expectedIndexName, multiGetResponse.getResponses()[0].getResponse().getIndex());
 
 
-        DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
+        AcknowledgedResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
         assertThat(deleteIndexResponse.isAcknowledged(), is(true));
     }
 

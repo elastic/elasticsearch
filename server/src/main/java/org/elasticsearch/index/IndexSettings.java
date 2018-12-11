@@ -71,17 +71,18 @@ public final class IndexSettings {
             (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
         Setting.boolSetting("index.warmer.enabled", true, Property.Dynamic, Property.IndexScope);
-    public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
-        switch(s) {
-            case "false":
-            case "true":
-            case "fix":
-            case "checksum":
-                return s;
-            default:
-                throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, fix, checksum] but was: " + s);
-        }
-    }, Property.IndexScope);
+    public static final Setting<String> INDEX_CHECK_ON_STARTUP =
+        new Setting<>("index.shard.check_on_startup", "false", (s) -> {
+            switch (s) {
+                case "false":
+                case "true":
+                case "checksum":
+                    return s;
+                default:
+                    throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of " +
+                        "[true, false, checksum] but was: " + s);
+            }
+        }, Property.IndexScope);
 
     /**
      * Index setting describing the maximum value of from + size on a query.
@@ -126,7 +127,8 @@ public final class IndexSettings {
      * indexing with offsets or term vectors is recommended.
      */
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING =
-        Setting.intSetting("index.highlight.max_analyzed_offset", 1000000, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.highlight.max_analyzed_offset", 1000000, 1,
+            Property.Dynamic, Property.IndexScope);
 
 
     /**
@@ -169,7 +171,8 @@ public final class IndexSettings {
      * because they both do the same thing: control the size of the heap of hits.
      */
     public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
-            Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1, Property.Dynamic, Property.IndexScope);
+            Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1,
+                Property.Dynamic, Property.IndexScope);
     /**
      * Index setting describing the maximum number of filters clauses that can be used
      * in an adjacency_matrix aggregation. The max number of buckets produced by
@@ -198,8 +201,8 @@ public final class IndexSettings {
      * the chance of ops based recoveries.
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1), Property.Dynamic,
-            Property.IndexScope);
+        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1),
+            Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
@@ -235,13 +238,29 @@ public final class IndexSettings {
      */
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
-        Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
-            Property.IndexScope);
+        Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS),
+            Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
+     */
+    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
+        Setting.boolSetting("index.soft_deletes.enabled", false, Property.IndexScope, Property.Final);
+
+    /**
+     * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
+     * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
+     * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
+     **/
+    public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
+        Setting.longSetting("index.soft_deletes.retention.operations", 0, 0,
+            Property.IndexScope, Property.Dynamic);
+
     /**
      * The maximum number of refresh listeners allows on this shard.
      */
-    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
-            Property.Dynamic, Property.IndexScope);
+    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners",
+        1000, 0, Property.Dynamic, Property.IndexScope);
 
     /**
      * The maximum number of slices allowed in a scroll request
@@ -262,6 +281,12 @@ public final class IndexSettings {
            }
         return s;
        }, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
+     */
+    public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
+        Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
     private final Index index;
     private final Version version;
@@ -289,6 +314,8 @@ public final class IndexSettings {
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
+    private final boolean softDeleteEnabled;
+    private volatile long softDeleteRetentionOperations;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -303,6 +330,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile boolean searchThrottled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -380,12 +408,13 @@ public final class IndexSettings {
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = indexMetaData.getIndex();
-        version = Version.indexCreated(settings);
-        logger = Loggers.getLogger(getClass(), settings, index);
+        version = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings);
+        logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
+        this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -400,6 +429,8 @@ public final class IndexSettings {
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
+        softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -421,15 +452,23 @@ public final class IndexSettings {
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, mergePolicyConfig::setFloorSegmentSetting);
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, mergePolicyConfig::setMaxMergesAtOnce);
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, mergePolicyConfig::setMaxMergesAtOnceExplicit);
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING, mergePolicyConfig::setMaxMergedSegment);
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING, mergePolicyConfig::setSegmentsPerTier);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
+            mergePolicyConfig::setDeletesPctAllowed);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
+            mergePolicyConfig::setExpungeDeletesAllowed);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
+            mergePolicyConfig::setFloorSegmentSetting);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
+            mergePolicyConfig::setMaxMergesAtOnce);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
+            mergePolicyConfig::setMaxMergesAtOnceExplicit);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
+            mergePolicyConfig::setMaxMergedSegment);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+            mergePolicyConfig::setSegmentsPerTier);
 
-        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING, MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-            mergeSchedulerConfig::setMaxThreadAndMergeCount);
+        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+            MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING, mergeSchedulerConfig::setMaxThreadAndMergeCount);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
@@ -458,6 +497,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -561,29 +602,42 @@ public final class IndexSettings {
     }
 
     /**
-     * Updates the settings and index metadata and notifies all registered settings consumers with the new settings iff at least one setting has changed.
+     * Updates the settings and index metadata and notifies all registered settings consumers with the new settings iff at least one
+     * setting has changed.
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
     public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
         final Settings newSettings = indexMetaData.getSettings();
         if (version.equals(Version.indexCreated(newSettings)) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));
+            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " +
+                Version.indexCreated(newSettings));
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
-        final Settings existingSettings = this.settings;
-        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-            .equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))) {
+        final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
             return false;
         }
         scopedSettings.applySettings(newSettings);
-        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        this.settings = newIndexSettings;
         return true;
+    }
+
+    /**
+     * Compare the specified settings for equality.
+     *
+     * @param left  the left settings
+     * @param right the right settings
+     * @return true if the settings are the same, otherwise false
+     */
+    public static boolean same(final Settings left, final Settings right) {
+        return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
+                .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
     }
 
     /**
@@ -634,7 +688,8 @@ public final class IndexSettings {
     public ByteSizeValue getTranslogRetentionSize() { return translogRetentionSize; }
 
     /**
-     * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept around
+     * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept
+     * around
      */
     public TimeValue getTranslogRetentionAge() { return translogRetentionAge; }
 
@@ -840,5 +895,35 @@ public final class IndexSettings {
 
     public void setDefaultPipeline(String defaultPipeline) {
         this.defaultPipeline = defaultPipeline;
+    }
+
+    /**
+     * Returns <code>true</code> if soft-delete is enabled.
+     */
+    public boolean isSoftDeleteEnabled() {
+        return softDeleteEnabled;
+    }
+
+    private void setSoftDeleteRetentionOperations(long ops) {
+        this.softDeleteRetentionOperations = ops;
+    }
+
+    /**
+     * Returns the number of extra operations (i.e. soft-deleted documents) to be kept for recoveries and history purpose.
+     */
+    public long getSoftDeleteRetentionOperations() {
+        return this.softDeleteRetentionOperations;
+    }
+
+    /**
+     * Returns true if the this index should be searched throttled ie. using the
+     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_THROTTLED} thread-pool
+     */
+    public boolean isSearchThrottled() {
+        return searchThrottled;
+    }
+
+    private void setSearchThrottled(boolean searchThrottled) {
+        this.searchThrottled = searchThrottled;
     }
 }

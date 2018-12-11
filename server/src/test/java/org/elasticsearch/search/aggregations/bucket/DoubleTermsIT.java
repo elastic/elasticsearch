@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
@@ -35,11 +34,11 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -107,7 +106,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
             });
 
             scripts.put("ceil(_score.doubleValue()/3)", vars -> {
-                ScoreAccessor score = (ScoreAccessor) vars.get("_score");
+                Number score = (Number) vars.get("_score");
                 return Math.ceil(score.doubleValue() / 3);
             });
 
@@ -277,7 +276,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 () -> client()
                         .prepareSearch("high_card_idx").addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME)
                                 .minDocCount(randomInt(1)).size(0).collectMode(randomFrom(SubAggCollectionMode.values())))
-                        .execute().actionGet());
+                        .get());
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
@@ -293,7 +292,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         // Find total number of unique terms
         SearchResponse allResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(allResponse);
         Terms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -306,7 +305,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int partition = 0; partition < numPartitions; partition++) {
             SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field(field)
                     .includeExclude(new IncludeExclude(partition, numPartitions)).collectMode(randomFrom(SubAggCollectionMode.values())))
-                    .execute().actionGet();
+                    .get();
             assertSearchResponse(response);
             terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
@@ -475,7 +474,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -500,7 +499,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .format("0000.00"))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -532,7 +531,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                                 .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(
                                         terms("subTerms").field(MULTI_VALUED_FIELD_NAME).collectMode(
-                                                randomFrom(SubAggCollectionMode.values())))).execute().actionGet();
+                                                randomFrom(SubAggCollectionMode.values())))).get();
 
         assertSearchResponse(response);
 
@@ -571,7 +570,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("num_tags").field("num_tag").collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("filter", asc))
-                                .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))).execute().actionGet();
+                                .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))).get();
 
 
         assertSearchResponse(response);
@@ -612,7 +611,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                                 .subAggregation(
                                         filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
                                                 filter("filter2", QueryBuilders.matchAllQuery()).subAggregation(
-                                                        max("max").field(SINGLE_VALUED_FIELD_NAME))))).execute().actionGet();
+                                                        max("max").field(SINGLE_VALUED_FIELD_NAME))))).get();
 
 
         assertSearchResponse(response);
@@ -662,7 +661,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 client().prepareSearch(index)
                         .addAggregation(
                                 terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                        .order(BucketOrder.aggregation("avg_i", true))).execute().actionGet();
+                                        .order(BucketOrder.aggregation("avg_i", true))).get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
@@ -683,7 +682,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                                         .order(BucketOrder.aggregation("num_tags", true))
                                         .subAggregation(
                                                 terms("num_tags").field("num_tags").collectMode(randomFrom(SubAggCollectionMode.values()))))
-                        .execute().actionGet();
+                        .get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
@@ -700,7 +699,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                         .addAggregation(
                                 terms("terms").field(SINGLE_VALUED_FIELD_NAME + "2").collectMode(randomFrom(SubAggCollectionMode.values()))
                                         .order(BucketOrder.aggregation("stats.foo", true))
-                                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).execute().actionGet();
+                                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "with an unknown specified metric to order by");
@@ -718,7 +717,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                         .addAggregation(
                                 terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                         .order(BucketOrder.aggregation("stats", true))
-                                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).execute().actionGet();
+                                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "where the metric name is not specified");
@@ -736,7 +735,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("stats.avg", asc))
-                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).execute().actionGet();
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
 
         assertSearchResponse(response);
 
@@ -764,7 +763,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("stats.avg", asc))
-                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).execute().actionGet();
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
 
         assertSearchResponse(response);
 
@@ -792,7 +791,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.aggregation("stats.variance", asc))
-                                .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))).execute().actionGet();
+                                .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
 
         assertSearchResponse(response);
 
@@ -890,7 +889,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.compound(order)).subAggregation(avg("avg_l").field("l"))
-                                .subAggregation(sum("sum_d").field("d"))).execute().actionGet();
+                                .subAggregation(sum("sum_d").field("d"))).get();
 
         assertSearchResponse(response);
 

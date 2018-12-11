@@ -1,5 +1,4 @@
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 evaluationDependsOn(xpackModule('core'))
 
@@ -9,9 +8,8 @@ esplugin {
     description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
     classname 'org.elasticsearch.xpack.ml.MachineLearning'
     hasNativeController true
-    extendedPlugins = ['x-pack-core']
+    extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-ml'
 
 configurations {
     nativeBundle {
@@ -40,14 +38,17 @@ compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
     // ml deps
     compile project(':libs:grok')
-    compile 'net.sf.supercsv:super-csv:2.4.0'
+    compile "com.ibm.icu:icu4j:${versions.icu4j}"
+    compile "net.sf.supercsv:super-csv:${versions.supercsv}"
     nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
     testCompile 'org.ini4j:ini4j:0.5.2'
 }
@@ -97,14 +98,20 @@ task internalClusterTest(type: RandomizedTestingTask,
                          group: JavaBasePlugin.VERIFICATION_GROUP,
                          description: 'Multi-node tests',
                          dependsOn: test.dependsOn) {
-  configure(BuildPlugin.commonTestConfig(project))
-  classpath = project.test.classpath
-  testClassesDirs = project.test.testClassesDirs
   include '**/*IT.class'
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 check.dependsOn internalClusterTest
 internalClusterTest.mustRunAfter test
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+    project.subprojects
+            .find { it.path == project.path + ":qa" }
+            .subprojects
+            .findAll { it.path.startsWith(project.path + ":qa") }
+            .each { check.dependsOn it.check }
+}
 
 // also add an "alias" task to make typing on the command line easier
 task icTest {

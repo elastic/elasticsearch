@@ -20,11 +20,12 @@
 package org.elasticsearch.test.disruption;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.InternalTestCluster;
@@ -48,7 +49,7 @@ import static org.junit.Assert.assertFalse;
  */
 public class NetworkDisruption implements ServiceDisruptionScheme {
 
-    private final Logger logger = Loggers.getLogger(NetworkDisruption.class);
+    private final Logger logger = LogManager.getLogger(NetworkDisruption.class);
 
     private final DisruptedLinks disruptedLinks;
     private final NetworkLinkDisruptionType networkLinkDisruptionType;

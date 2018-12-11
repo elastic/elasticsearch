@@ -25,11 +25,11 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Function;
 
 public class TypeFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -51,19 +52,12 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    public void testDocValuesMultipleTypes() throws Exception {
-        testDocValues(false);
-    }
-
     public void testDocValuesSingleType() throws Exception {
-        testDocValues(true);
+        testDocValues(this::createIndex);
     }
 
-    public void testDocValues(boolean singleType) throws IOException {
-        Settings indexSettings = singleType ? Settings.EMPTY : Settings.builder()
-                .put("index.version.created", Version.V_5_6_0)
-                .build();
-        MapperService mapperService = createIndex("test", indexSettings).mapperService();
+    public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {
+        MapperService mapperService = createIndex.apply("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
         ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
 

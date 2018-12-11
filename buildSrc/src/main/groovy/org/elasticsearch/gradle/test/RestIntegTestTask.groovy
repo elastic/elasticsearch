@@ -19,23 +19,19 @@
 package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
-import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
-import org.gradle.api.internal.tasks.options.Option
-import org.gradle.api.provider.Property
-import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
+import org.gradle.api.tasks.options.Option
+import org.gradle.plugins.ide.idea.IdeaPlugin
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
-
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -52,7 +48,7 @@ public class RestIntegTestTask extends DefaultTask {
 
     /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
-    Property<Boolean> includePackaged = project.objects.property(Boolean)
+    Boolean includePackaged = false
 
     public RestIntegTestTask() {
         runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
@@ -63,8 +59,6 @@ public class RestIntegTestTask extends DefaultTask {
         runner.testClassesDirs = project.sourceSets.test.output.classesDirs
         clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
 
-        // start with the common test configuration
-        runner.configure(BuildPlugin.commonTestConfig(project))
         // override/add more for rest tests
         runner.parallelism = '1'
         runner.include('**/*IT.class')
@@ -110,7 +104,7 @@ public class RestIntegTestTask extends DefaultTask {
         }
 
         // copy the rest spec/tests into the test resources
-        Task copyRestSpec = createCopyRestSpecTask(project, includePackaged)
+        Task copyRestSpec = createCopyRestSpecTask()
         runner.dependsOn(copyRestSpec)
         
         // this must run after all projects have been configured, so we know any project
@@ -131,7 +125,7 @@ public class RestIntegTestTask extends DefaultTask {
 
     /** Sets the includePackaged property */
     public void includePackaged(boolean include) {
-        includePackaged.set(include)
+        includePackaged = include
     }
 
     @Option(
@@ -216,7 +210,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
+    Task createCopyRestSpecTask() {
         project.configurations {
             restSpec
         }
@@ -238,15 +232,17 @@ public class RestIntegTestTask extends DefaultTask {
         project.afterEvaluate {
             copyRestSpec.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
                 include 'rest-api-spec/api/**'
-                if (includePackagedTests.get()) {
+                if (includePackaged) {
                     include 'rest-api-spec/test/**'
                 }
             }
         }
-        project.idea {
-            module {
-                if (scopes.TEST != null) {
-                    scopes.TEST.plus.add(project.configurations.restSpec)
+        if (project.plugins.hasPlugin(IdeaPlugin)) {
+            project.idea {
+                module {
+                    if (scopes.TEST != null) {
+                        scopes.TEST.plus.add(project.configurations.restSpec)
+                    }
                 }
             }
         }

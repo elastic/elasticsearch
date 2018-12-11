@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: custom-all-test-1
         body:  >
           {
@@ -15,7 +17,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: custom-all-test-2
         body:  >
           {
@@ -82,54 +84,63 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "A by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "A partition field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "An over field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "An influencer field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause partition field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause over field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause correlated by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "custom-all-test-1" } } }
   - match: { hits.total: 1 }
@@ -139,6 +150,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { query: { bool: { must: [
               { query_string: { query: "result_type:record"} },
               { query_string: { query: "A by field" } },

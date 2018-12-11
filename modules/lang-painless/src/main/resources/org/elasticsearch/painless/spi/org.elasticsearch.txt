@@ -24,31 +24,31 @@
 
 #### Primitive types
 
-class void only_fqn {
+class void no_import {
 }
 
-class boolean only_fqn {
+class boolean no_import {
 }
 
-class byte only_fqn {
+class byte no_import {
 }
 
-class short only_fqn {
+class short no_import {
 }
 
-class char only_fqn {
+class char no_import {
 }
 
-class int only_fqn {
+class int no_import {
 }
 
-class long only_fqn {
+class long no_import {
 }
 
-class float only_fqn {
+class float no_import {
 }
 
-class double only_fqn {
+class double no_import {
 }
 
 #### Painless debugging API
@@ -76,9 +76,93 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   List getValues()
 }
 
+class org.elasticsearch.script.JodaCompatibleZonedDateTime {
+  ##### ZonedDateTime methods
+  int getDayOfMonth()
+  int getDayOfYear()
+  int getHour()
+  LocalDate toLocalDate()
+  LocalDateTime toLocalDateTime()
+  int getMinute()
+  Month getMonth()
+  int getMonthValue()
+  int getNano()
+  int getSecond()
+  int getYear()
+  ZonedDateTime minus(TemporalAmount)
+  ZonedDateTime minus(long,TemporalUnit)
+  ZonedDateTime minusYears(long)
+  ZonedDateTime minusMonths(long)
+  ZonedDateTime minusWeeks(long)
+  ZonedDateTime minusDays(long)
+  ZonedDateTime minusHours(long)
+  ZonedDateTime minusMinutes(long)
+  ZonedDateTime minusSeconds(long)
+  ZonedDateTime minusNanos(long)
+  ZonedDateTime plus(TemporalAmount)
+  ZonedDateTime plus(long,TemporalUnit)
+  ZonedDateTime plusDays(long)
+  ZonedDateTime plusHours(long)
+  ZonedDateTime plusMinutes(long)
+  ZonedDateTime plusMonths(long)
+  ZonedDateTime plusNanos(long)
+  ZonedDateTime plusSeconds(long)
+  ZonedDateTime plusWeeks(long)
+  ZonedDateTime plusYears(long)
+  Instant toInstant()
+  OffsetDateTime toOffsetDateTime()
+  ZonedDateTime truncatedTo(TemporalUnit)
+  ZonedDateTime with(TemporalAdjuster)
+  ZonedDateTime with(TemporalField,long)
+  ZonedDateTime withDayOfMonth(int)
+  ZonedDateTime withDayOfYear(int)
+  ZonedDateTime withEarlierOffsetAtOverlap()
+  ZonedDateTime withFixedOffsetZone()
+  ZonedDateTime withHour(int)
+  ZonedDateTime withLaterOffsetAtOverlap()
+  ZonedDateTime withMinute(int)
+  ZonedDateTime withMonth(int)
+  ZonedDateTime withNano(int)
+  ZonedDateTime withSecond(int)
+  ZonedDateTime withYear(int)
+  ZonedDateTime withZoneSameLocal(ZoneId)
+  ZonedDateTime withZoneSameInstant(ZoneId)
+
+  #### Joda methods that exist in java time
+  boolean equals(Object)
+  int hashCode()
+  boolean isAfter(ZonedDateTime)
+  boolean isBefore(ZonedDateTime)
+  boolean isEqual(ZonedDateTime)
+  String toString()
+
+  #### Joda time methods
+  long getMillis()
+  int getCenturyOfEra()
+  int getEra()
+  int getHourOfDay()
+  int getMillisOfDay()
+  int getMillisOfSecond()
+  int getMinuteOfDay()
+  int getMinuteOfHour()
+  int getMonthOfYear()
+  int getSecondOfDay()
+  int getSecondOfMinute()
+  int getWeekOfWeekyear()
+  int getWeekyear()
+  int getYearOfCentury()
+  int getYearOfEra()
+  String toString(String)
+  String toString(String,Locale)
+
+  # conflicting methods
+  DayOfWeek getDayOfWeekEnum()
+  int getDayOfWeek()
+}
+
 class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
-  Object get(int)
-  Object getValue()
+  JodaCompatibleZonedDateTime get(int)
+  JodaCompatibleZonedDateTime getValue()
   List getValues()
 }
 
@@ -132,24 +216,6 @@ class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues
   List getValues()
 }
 
-# for testing.
-# currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
-class org.elasticsearch.painless.FeatureTest only_fqn {
-  int z
-  ()
-  (int,int)
-  int getX()
-  int getY()
-  void setX(int)
-  void setY(int)
-  boolean overloadedStatic()
-  boolean overloadedStatic(boolean)
-  Object twoFunctionsOfX(Function,Function)
-  void listInput(List)
-  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
-  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
-}
-
 class org.elasticsearch.search.lookup.FieldLookup {
   def getValue()
   List getValues()
@@ -174,4 +240,32 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Term {
 class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   int getLength()
   float getFreq()
+}
+
+# for testing
+class org.elasticsearch.painless.FeatureTest no_import {
+  int z
+  ()
+  (int,int)
+  int getX()
+  int getY()
+  Integer getI()
+  void setX(int)
+  void setY(int)
+  void setI(Integer)
+  boolean overloadedStatic()
+  boolean overloadedStatic(boolean)
+  int staticNumberTest(Number)
+  Double mixedAdd(int, Byte, char, Float)
+  Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
+}
+
+# for testing
+static_import {
+  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTest
+  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTest
+  int testAddWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingTest
 }

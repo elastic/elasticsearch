@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -32,7 +31,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -71,13 +69,19 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     @Override
     protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        assertThat(query, instanceOf(WildcardQuery.class));
-        WildcardQuery wildcardQuery = (WildcardQuery) query;
-
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-        assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
-        assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
-        assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
+
+        if (expectedFieldName.equals(STRING_FIELD_NAME)) {
+            assertThat(query, instanceOf(WildcardQuery.class));
+            WildcardQuery wildcardQuery = (WildcardQuery) query;
+
+            assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
+            assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
+            assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
+        } else {
+            Query expected = new MatchNoDocsQuery("unknown field [" + expectedFieldName + "]");
+            assertEquals(expected, query);
+        }
     }
 
     public void testIllegalArguments() {
@@ -93,7 +97,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder("doc", "");
+        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(STRING_FIELD_NAME, "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
     }
 
@@ -131,19 +135,9 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 
-    public void testWithMetaDataField() throws IOException {
-        QueryShardContext context = createShardContext();
-        for (String field : new String[]{"field1", "field2"}) {
-            WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(field, "toto");
-            Query query = wildcardQueryBuilder.toQuery(context);
-            Query expected = new WildcardQuery(new Term(field, "toto"));
-            assertEquals(expected, query);
-        }
-    }
-
     public void testIndexWildcard() throws IOException {
         QueryShardContext context = createShardContext();
-        String index = context.getFullyQualifiedIndexName();
+        String index = context.getFullyQualifiedIndex().getName();
 
         Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));

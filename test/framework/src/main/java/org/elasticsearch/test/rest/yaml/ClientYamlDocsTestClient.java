@@ -28,7 +28,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
@@ -50,8 +50,8 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion,
-            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
-        super(restSpec, restClient, hosts, esVersion, masterVersion, clientBuilderConsumer);
+            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
+        super(restSpec, restClient, hosts, esVersion, masterVersion, clientBuilderWithSniffedNodes);
     }
 
     @Override

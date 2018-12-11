@@ -19,39 +19,70 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Objects;
+
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
- *
  */
-public interface ShardOperationFailedException extends Streamable, ToXContent {
+public abstract class ShardOperationFailedException implements Streamable, ToXContent {
+
+    protected String index;
+    protected int shardId = -1;
+    protected String reason;
+    protected RestStatus status;
+    protected Throwable cause;
+
+    protected ShardOperationFailedException() {
+
+    }
+
+    protected ShardOperationFailedException(@Nullable String index, int shardId, String reason, RestStatus status, Throwable cause) {
+        this.index = index;
+        this.shardId = shardId;
+        this.reason = Objects.requireNonNull(reason, "reason cannot be null");
+        this.status = Objects.requireNonNull(status, "status cannot be null");
+        this.cause = Objects.requireNonNull(cause, "cause cannot be null");
+    }
 
     /**
      * The index the operation failed on. Might return {@code null} if it can't be derived.
      */
-    String index();
+    @Nullable
+    public final String index() {
+        return index;
+    }
 
     /**
      * The index the operation failed on. Might return {@code -1} if it can't be derived.
      */
-    int shardId();
+    public final int shardId() {
+        return shardId;
+    }
 
     /**
      * The reason of the failure.
      */
-    String reason();
+    public final String reason() {
+        return reason;
+    }
 
     /**
      * The status of the failure.
      */
-    RestStatus status();
+    public final RestStatus status() {
+        return status;
+    }
 
     /**
      * The cause of this failure
      */
-    Throwable getCause();
+    public final Throwable getCause() {
+        return cause;
+    }
 }

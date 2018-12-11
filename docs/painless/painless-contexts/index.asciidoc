@@ -1,3 +1,5 @@
+include::painless-ingest-processor-context.asciidoc[]
+
 include::painless-update-context.asciidoc[]
 
 include::painless-update-by-query-context.asciidoc[]
@@ -26,9 +28,11 @@ include::painless-metric-agg-combine-context.asciidoc[]
 
 include::painless-metric-agg-reduce-context.asciidoc[]
 
-include::painless-bucket-agg-context.asciidoc[]
+include::painless-bucket-script-agg-context.asciidoc[]
 
-include::painless-ingest-processor-context.asciidoc[]
+include::painless-bucket-selector-agg-context.asciidoc[]
+
+include::painless-analysis-predicate-context.asciidoc[]
 
 include::painless-watcher-condition-context.asciidoc[]
 

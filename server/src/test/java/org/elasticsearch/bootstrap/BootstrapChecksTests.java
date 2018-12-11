@@ -21,10 +21,14 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +44,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -52,7 +58,7 @@ import static org.mockito.Mockito.when;
 
 public class BootstrapChecksTests extends ESTestCase {
 
-    private static final BootstrapContext defaultContext = new BootstrapContext(Settings.EMPTY, MetaData.EMPTY_META_DATA);
+    static final BootstrapContext defaultContext = new BootstrapContext(Settings.EMPTY, MetaData.EMPTY_META_DATA);
 
     public void testNonProductionMode() throws NodeValidationException {
         // nothing should happen since we are in non-production mode
@@ -101,7 +107,7 @@ public class BootstrapChecksTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom("zen", "single-node");
+        final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
 
         assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
@@ -119,7 +125,7 @@ public class BootstrapChecksTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom("zen", "single-node");
+        final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
 
         assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
@@ -353,31 +359,6 @@ public class BootstrapChecksTests extends ESTestCase {
 
         // nothing should happen if max file size is not available
         maxFileSize.set(Long.MIN_VALUE);
-        BootstrapChecks.check(defaultContext, true, Collections.singletonList(check));
-    }
-
-    public void testMaxMapCountCheck() throws NodeValidationException {
-        final int limit = 1 << 18;
-        final AtomicLong maxMapCount = new AtomicLong(randomIntBetween(1, limit - 1));
-        final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck() {
-            @Override
-            long getMaxMapCount() {
-                return maxMapCount.get();
-            }
-        };
-
-        final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(defaultContext, true, Collections.singletonList(check)));
-        assertThat(e.getMessage(), containsString("max virtual memory areas vm.max_map_count"));
-
-        maxMapCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
-
-        BootstrapChecks.check(defaultContext, true, Collections.singletonList(check));
-
-        // nothing should happen if current vm.max_map_count is not
-        // available
-        maxMapCount.set(-1);
         BootstrapChecks.check(defaultContext, true, Collections.singletonList(check));
     }
 
@@ -723,4 +704,34 @@ public class BootstrapChecksTests extends ESTestCase {
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
+    public void testDiscoveryConfiguredCheck() throws NodeValidationException {
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
+
+        final BootstrapContext zen2Context = new BootstrapContext(Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+
+        // not always enforced
+        BootstrapChecks.check(zen2Context, false, checks);
+
+        // not enforced for non-zen2 discovery
+        BootstrapChecks.check(new BootstrapContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
+            randomFrom(ZEN_DISCOVERY_TYPE, "single-node", randomAlphaOfLength(5))).build(), MetaData.EMPTY_META_DATA), true, checks);
+
+        final NodeValidationException e = expectThrows(NodeValidationException.class,
+            () -> BootstrapChecks.check(zen2Context, true, checks));
+        assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use; at least one " +
+            "of [discovery.zen.ping.unicast.hosts, discovery.zen.hosts_provider, cluster.initial_master_nodes] must be configured")));
+
+        CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
+        {
+            final BootstrapContext context = new BootstrapContext(b
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+            BootstrapChecks.check(context, true, checks);
+        };
+
+        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 0));
+        ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
+    }
 }

@@ -8,7 +8,7 @@
       "alert_index": ".monitoring-alerts-6",
       "cluster_uuid": "${monitoring.watch.cluster_uuid}",
       "type": "monitoring",
-      "version_created": 7000001,
+      "version_created": 7000099,
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -134,7 +134,7 @@
   },
   "transform": {
     "script": {
-      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.default_admin_email : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def alertMessage = null;if (ctx.vars.fails_check) { alertMessage = 'Update your license.';} if (ctx.vars.not_resolved) { ctx.payload = ctx.payload.alert.hits.hits[0]._source;ctx.payload.metadata = ctx.metadata.xpack;if (ctx.vars.fails_check == false) { ctx.payload.resolved_timestamp = ctx.execution_time;} } else { ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster\\'s license is going to expire in {{#relativeTime}}metadata.time{{/relativeTime}} at {{#absoluteTime}}metadata.time{{/absoluteTime}}.', 'message': alertMessage, 'metadata': ctx.metadata.xpack ];} if (ctx.vars.fails_check) { ctx.payload.metadata.time = ctx.vars.expiry.toString();} ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0 && ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack != null) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.default_admin_email : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def alertMessage = null;if (ctx.vars.fails_check) { alertMessage = 'Update your license.';} if (ctx.vars.not_resolved) { ctx.payload = ctx.payload.alert.hits.hits[0]._source;ctx.payload.metadata = ctx.metadata.xpack;if (ctx.vars.fails_check == false) { ctx.payload.resolved_timestamp = ctx.execution_time;} } else { ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster\\'s license is going to expire in {{#relativeTime}}metadata.time{{/relativeTime}} at {{#absoluteTime}}metadata.time{{/absoluteTime}}.', 'message': alertMessage, 'metadata': ctx.metadata.xpack ];} if (ctx.vars.fails_check) { ctx.payload.metadata.time = ctx.vars.expiry.toString();} ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
     }
   },
   "actions": {

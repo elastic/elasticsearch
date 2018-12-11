@@ -181,6 +181,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         out.writeOptionalString(this.rewrite);
     }
 
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -325,9 +326,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
         String rewrite = this.rewrite;
-        if (rewrite == null && context.isFilter()) {
-            rewrite = QueryParsers.CONSTANT_SCORE.getPreferredName();
-        }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);

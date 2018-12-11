@@ -20,14 +20,15 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -37,13 +38,9 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -58,12 +55,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for discovery during disruptions.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIsolatedUnicastNodes() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[]{0});
+        internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4);
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
 
@@ -76,10 +74,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
+        clearTemporalResponses();
 
         // Simulate a network issue between the unicast target node and the rest of the cluster
         NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(unicastTargetSide, restOfClusterSide),
@@ -102,7 +97,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The rejoining node should take this master node and connect.
      */
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[]{0});
+        internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node={}", masterNode);
@@ -113,10 +109,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
+        clearTemporalResponses();
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
         NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(masterNode, isolatedNode),
@@ -140,15 +133,11 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        List<String> nodes = startCluster(2, 1);
-
-        String masterNode = internalCluster().getMasterName();
-        String nonMasterNode;
-        if (masterNode.equals(nodes.get(0))) {
-            nonMasterNode = nodes.get(1);
-        } else {
-            nonMasterNode = nodes.get(0);
-        }
+        // TODO: enable this for Zen2 once lag-detection is implemented
+        String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        String nonMasterNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -168,30 +157,24 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         TransportService localTransportService =
                 internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME,
+                PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME,
+                PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
-        nonMasterTransportService.addDelegate(masterTranspotService, new MockTransportService.DelegateTransport(nonMasterTransportService
-                .original()) {
-            @Override
-            protected void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
-                    countDownLatch.countDown();
-                }
-                super.sendRequest(connection, requestId, action, request, options);
+        nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME) ||
+                action.equals(JoinHelper.JOIN_ACTION_NAME)) {
+                countDownLatch.countDown();
             }
-
-            @Override
-            public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                return super.openConnection(node, profile);
-            }
-
+            connection.sendRequest(requestId, action, request, options);
         });
+
+        nonMasterTransportService.addConnectBehavior(masterTransportService, Transport::openConnection);
 
         countDownLatch.await();
 
@@ -207,7 +190,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testClusterFormingWithASlowNode() throws Exception {
-        configureCluster(3, null, 2);
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
@@ -223,7 +205,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testElectMasterWithLatestVersion() throws Exception {
-        configureCluster(3, null, 2);
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
         ServiceDisruptionScheme isolateAllNodes =
@@ -239,9 +220,13 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
         final String preferredMasterName = internalCluster().getMasterName();
         final DiscoveryNode preferredMaster = internalCluster().clusterService(preferredMasterName).localNode();
-        for (String node : nodes) {
-            DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
-            assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
+        final Discovery discovery = internalCluster().getInstance(Discovery.class);
+        // only Zen1 guarantees that node with lowest id is elected
+        if (discovery instanceof ZenDiscovery) {
+            for (String node : nodes) {
+                DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
+                assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
+            }
         }
 
         logger.info("--> preferred master is {}", preferredMaster);

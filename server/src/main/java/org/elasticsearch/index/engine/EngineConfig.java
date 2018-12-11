@@ -34,15 +34,14 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -75,11 +74,11 @@ public final class EngineConfig {
     private final List<ReferenceManager.RefreshListener> internalRefreshListener;
     @Nullable
     private final Sort indexSort;
-    private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier primaryTermSupplier;
+    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -125,8 +124,8 @@ public final class EngineConfig {
                         TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) {
+                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
+                        LongSupplier primaryTermSupplier, TombstoneDocSupplier tombstoneDocSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -160,10 +159,10 @@ public final class EngineConfig {
         this.externalRefreshListener = externalRefreshListener;
         this.internalRefreshListener = internalRefreshListener;
         this.indexSort = indexSort;
-        this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
+        this.tombstoneDocSupplier = tombstoneDocSupplier;
     }
 
     /**
@@ -320,18 +319,6 @@ public final class EngineConfig {
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
 
-    @FunctionalInterface
-    public interface TranslogRecoveryRunner {
-        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
-    }
-
-    /**
-     * Returns a runner that implements the translog recovery from the given snapshot
-     */
-    public TranslogRecoveryRunner getTranslogRecoveryRunner() {
-        return translogRecoveryRunner;
-    }
-
     /**
      * The refresh listeners to add to Lucene for externally visible refreshes
      */
@@ -372,5 +359,26 @@ public final class EngineConfig {
      */
     public LongSupplier getPrimaryTermSupplier() {
         return primaryTermSupplier;
+    }
+
+    /**
+     * A supplier supplies tombstone documents which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     */
+    public interface TombstoneDocSupplier {
+        /**
+         * Creates a tombstone document for a delete operation.
+         */
+        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+
+        /**
+         * Creates a tombstone document for a noop operation.
+         * @param reason the reason of an a noop
+         */
+        ParsedDocument newNoopTombstoneDoc(String reason);
+    }
+
+    public TombstoneDocSupplier getTombstoneDocSupplier() {
+        return tombstoneDocSupplier;
     }
 }

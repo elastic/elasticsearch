@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.security.audit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.http.message.BasicHeader;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -28,8 +27,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -111,10 +110,12 @@ public class IndexAuditIT extends ESIntegTestCase {
     }
 
     public void testIndexAuditTrailWorking() throws Exception {
-        Response response = getRestClient().performRequest("GET", "/",
-                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()))));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray())));
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final boolean found = awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("principal", USER));
 
@@ -132,7 +133,7 @@ public class IndexAuditIT extends ESIntegTestCase {
         awaitIndexTemplateCreation();
 
         // delete the template
-        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
+        AcknowledgedResponse deleteResponse = client().admin().indices()
                 .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
         assertThat(deleteResponse.isAcknowledged(), is(true));
         awaitIndexTemplateCreation();
@@ -188,7 +189,7 @@ public class IndexAuditIT extends ESIntegTestCase {
             client().admin().indices().prepareRefresh(".security_audit_log*").get();
             logger.info("refreshed audit indices");
             return client().prepareSearch(".security_audit_log*").setQuery(query)
-                .get().getHits().getTotalHits() > 0;
+                .get().getHits().getTotalHits().value > 0;
         }, 60L, TimeUnit.SECONDS);
     }
 

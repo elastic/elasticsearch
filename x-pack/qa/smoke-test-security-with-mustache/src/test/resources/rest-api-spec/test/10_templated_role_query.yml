@@ -8,7 +8,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "inline_template_user"
         body:  >
             {
@@ -16,7 +16,7 @@ setup:
               "roles" : [ "inline_template_role" ]
             }
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "stored_template_user"
         body:  >
             {
@@ -25,7 +25,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "terms_template_user"
         body:  >
             {
@@ -37,7 +37,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "inline_template_role"
         body:  >
             {
@@ -57,7 +57,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "terms_template_role"
         body:  >
             {
@@ -75,7 +75,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "stored_template_role"
         body:  >
             {
@@ -132,27 +132,27 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "inline_template_user"
         ignore: 404
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "stored_template_user"
         ignore: 404
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "terms_template_user"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "inline_template_role"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "stored_template_role"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "terms_template_role"
         ignore: 404
 ---
@@ -161,6 +161,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -172,6 +173,7 @@ teardown:
       headers:
         Authorization: "Basic c3RvcmVkX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
@@ -183,6 +185,7 @@ teardown:
       headers:
         Authorization: "Basic dGVybXNfdGVtcGxhdGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
+        rest_total_hits_as_int: true
         index: foobar
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}

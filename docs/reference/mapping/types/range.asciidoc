@@ -87,7 +87,10 @@ The result produced by the above query.
     "failed": 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {
@@ -147,7 +150,10 @@ This query produces a similar result:
     "failed": 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {

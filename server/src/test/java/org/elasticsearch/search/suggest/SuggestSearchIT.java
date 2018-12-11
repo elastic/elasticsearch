@@ -687,7 +687,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -748,7 +748,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -972,11 +972,8 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 25480, "title");  // Just to prove that we've run through a ton of options
 
         suggest.size(1);
-        long start = System.currentTimeMillis();
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", suggest);
-        long total = System.currentTimeMillis() - start;
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
-        // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
     }
 
     public void testSuggestWithFieldAlias() throws Exception {
@@ -1168,7 +1165,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject());
 
-        PhraseSuggestionBuilder in = suggest.collateQuery(filterStr);
+        suggest.collateQuery(filterStr);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post filter error has been swallowed");
@@ -1186,7 +1183,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject());
 
 
-        PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateQuery(collateWithParams);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Malformed query (lack of additional params) should fail");
@@ -1233,7 +1229,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             suggestBuilder.addSuggestion(suggestion.getKey(), suggestion.getValue());
         }
         builder.suggest(suggestBuilder);
-        SearchResponse actionGet = builder.execute().actionGet();
+        SearchResponse actionGet = builder.get();
         assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
         return actionGet.getSuggest();
     }

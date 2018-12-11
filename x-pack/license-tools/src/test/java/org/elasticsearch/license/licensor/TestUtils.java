@@ -6,9 +6,9 @@
 package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,7 +18,6 @@ import org.elasticsearch.license.DateUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,11 +35,9 @@ public class TestUtils {
     public static final String PUBLIC_KEY_RESOURCE = "/public.key";
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
-    private static final FormatDateTimeFormatter formatDateTimeFormatter =
+    private static final DateFormatter formatDateTimeFormatter =
             Joda.forPattern("yyyy-MM-dd");
-    private static final DateMathParser dateMathParser =
-            new DateMathParser(formatDateTimeFormatter);
-    private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dumpLicense(License license) throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -53,7 +50,7 @@ public class TestUtils {
     }
 
     public static String dateMathString(String time, final long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, () -> now));
+        return formatDateTimeFormatter.formatMillis(dateMathParser.parse(time, () -> now));
     }
 
     public static long dateMath(String time, final long now) {

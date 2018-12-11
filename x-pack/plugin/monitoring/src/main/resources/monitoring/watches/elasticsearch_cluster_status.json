@@ -7,7 +7,7 @@
       "link": "elasticsearch/indices",
       "severity": 2100,
       "type": "monitoring",
-      "version_created": 7000001,
+      "version_created": 7000099,
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -145,7 +145,7 @@
   },
   "transform": {
     "script": {
-      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.default_admin_email : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def state = ctx.payload.check.hits.hits[0]._source.cluster_state.status;if (ctx.vars.not_resolved){ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check == false) {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = ['timestamp': ctx.execution_time, 'metadata': ctx.metadata.xpack];}if (ctx.vars.fails_check) {ctx.payload.prefix = 'Elasticsearch cluster status is ' + state + '.';if (state == 'red') {ctx.payload.message = 'Allocate missing primary shards and replica shards.';ctx.payload.metadata.severity = 2100;} else {ctx.payload.message = 'Allocate missing replica shards.';ctx.payload.metadata.severity = 1100;}}ctx.vars.state = state.toUpperCase();ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0 && ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack != null) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.default_admin_email : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def state = ctx.payload.check.hits.hits[0]._source.cluster_state.status;if (ctx.vars.not_resolved){ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check == false) {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = ['timestamp': ctx.execution_time, 'metadata': ctx.metadata.xpack];}if (ctx.vars.fails_check) {ctx.payload.prefix = 'Elasticsearch cluster status is ' + state + '.';if (state == 'red') {ctx.payload.message = 'Allocate missing primary shards and replica shards.';ctx.payload.metadata.severity = 2100;} else {ctx.payload.message = 'Allocate missing replica shards.';ctx.payload.metadata.severity = 1100;}}ctx.vars.state = state.toUpperCase();ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
     }
   },
   "actions": {

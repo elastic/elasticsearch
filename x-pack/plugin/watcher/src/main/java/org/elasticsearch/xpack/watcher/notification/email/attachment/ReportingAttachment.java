@@ -10,7 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,14 +26,14 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
 
     private final boolean inline;
     private final String id;
-    private final HttpAuth auth;
+    private final BasicAuth auth;
     private final String url;
     private final TimeValue interval;
     private final Integer retries;
     private final HttpProxy proxy;
 
     ReportingAttachment(String id, String url, boolean inline, @Nullable TimeValue interval, @Nullable Integer retries,
-                        @Nullable HttpAuth auth, @Nullable HttpProxy proxy) {
+                        @Nullable BasicAuth auth, @Nullable HttpProxy proxy) {
         this.id = id;
         this.url = url;
         this.retries = retries;
@@ -61,7 +61,7 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
         return inline;
     }
 
-    public HttpAuth auth() {
+    public BasicAuth auth() {
         return auth;
     }
 
@@ -100,7 +100,7 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
 
         if (auth != null) {
             builder.startObject(AUTH.getPreferredName());
-            builder.field(auth.type(), auth, params);
+            builder.field(BasicAuth.TYPE, auth, params);
             builder.endObject();
         }
 

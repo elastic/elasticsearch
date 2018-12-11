@@ -3,10 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -14,9 +16,9 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Collections;
 import java.util.Date;
@@ -24,6 +26,12 @@ import java.util.Date;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class TransportStartDatafeedActionTests extends ESTestCase {
 
@@ -82,6 +90,35 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
                 .build();
 
         TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
+    }
+
+    public void testDeprecationsLogged() {
+        Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
+        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("start-data-feed-test", job1.getId());
+        DatafeedConfig config = spy(datafeedConfig.build());
+        doReturn(Collections.singletonList("Deprecated Agg")).when(config).getAggDeprecations();
+        doReturn(Collections.singletonList("Deprecated Query")).when(config).getQueryDeprecations();
+
+        Auditor auditor = mock(Auditor.class);
+
+        TransportStartDatafeedAction.auditDeprecations(config, job1, auditor);
+
+        verify(auditor).warning(job1.getId(),
+            "datafeed [start-data-feed-test] configuration has deprecations. [Deprecated Agg, Deprecated Query]");
+    }
+
+    public void testNoDeprecationsLogged() {
+        Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
+        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("start-data-feed-test", job1.getId());
+        DatafeedConfig config = spy(datafeedConfig.build());
+        doReturn(Collections.emptyList()).when(config).getAggDeprecations();
+        doReturn(Collections.emptyList()).when(config).getQueryDeprecations();
+
+        Auditor auditor = mock(Auditor.class);
+
+        TransportStartDatafeedAction.auditDeprecations(config, job1, auditor);
+
+        verify(auditor, never()).warning(any(), any());
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,

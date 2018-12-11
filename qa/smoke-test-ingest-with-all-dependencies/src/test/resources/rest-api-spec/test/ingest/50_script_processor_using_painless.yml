@@ -103,7 +103,7 @@
               }
             ]
           }
-  - match: { error.header.processor_type: "script" }
+  - match: { error.processor_type: "script" }
   - match: { error.type: "script_exception" }
   - match: { error.reason: "compile error" }
 

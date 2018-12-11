@@ -55,22 +55,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * This class is used to generate the Java Cluster API documentation.
- * You need to wrap your code between two tags like:
- * // tag::example
- * // end::example
- *
- * Where example is your tag name.
- *
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[example]
- * --------------------------------------------------
- *
- * The column width of the code block is 84. If the code contains a line longer
- * than 84, the line will be cut and a horizontal scroll bar will be displayed.
- * (the code indentation of the tag is not included in the width)
+ * Documentation for Cluster APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -192,6 +178,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testClusterGetSettings() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -257,6 +244,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
         client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);

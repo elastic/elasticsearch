@@ -81,7 +81,10 @@ Possible response:
              "doc_count": 3,
              "top_sales_hits": {
                 "hits": {
-                   "total": 3,
+                   "total" : {
+                       "value": 3,
+                       "relation": "eq"
+                   },
                    "max_score": null,
                    "hits": [
                       {
@@ -106,7 +109,10 @@ Possible response:
              "doc_count": 3,
              "top_sales_hits": {
                 "hits": {
-                   "total": 3,
+                   "total" : {
+                       "value": 3,
+                       "relation": "eq"
+                   },
                    "max_score": null,
                    "hits": [
                       {
@@ -131,7 +137,10 @@ Possible response:
              "doc_count": 1,
              "top_sales_hits": {
                 "hits": {
-                   "total": 1,
+                   "total" : {
+                       "value": 1,
+                       "relation": "eq"
+                   },
                    "max_score": null,
                    "hits": [
                       {
@@ -319,8 +328,11 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
             "doc_count": 1,
             "by_nested": {
               "hits": {
-                "total": 1,
-                "max_score": 0.2876821,
+                "total" : {
+                   "value": 1,
+                   "relation": "eq"
+                },
+                "max_score": 0.3616575,
                 "hits": [
                   {
                     "_index": "sales",
@@ -330,7 +342,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                       "field": "comments",  <1>
                       "offset": 0 <2>
                     },
-                    "_score": 0.2876821,
+                    "_score": 0.3616575,
                     "_source": {
                       "comment": "This car could have better brakes", <3>
                       "username": "baddriver007"
@@ -369,7 +381,10 @@ the second slow of the `nested_child_field` field:
 --------------------------------------------------
 ...
 "hits": {
- "total": 2565,
+ "total" : {
+     "value": 2565,
+     "relation": "eq"
+ },
  "max_score": 1,
  "hits": [
    {

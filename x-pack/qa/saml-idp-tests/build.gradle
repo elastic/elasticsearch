@@ -6,7 +6,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile 'com.google.jimfs:jimfs:1.1'
@@ -27,6 +28,7 @@ if (project.rootProject.vagrantSupported) {
   integTest.finalizedBy idpFixtureProject.halt
 } else {
   integTest.enabled = false
+  testingConventions.enabled = false
 }
 
 integTestCluster {
@@ -34,19 +36,29 @@ integTestCluster {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.realms.file.type', 'file'
-  setting 'xpack.security.authc.realms.file.order', '0'
-  setting 'xpack.security.authc.realms.shibboleth.type', 'saml'
-  setting 'xpack.security.authc.realms.shibboleth.order', '1'
-  setting 'xpack.security.authc.realms.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.shibboleth.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.shibboleth.sp.entity_id', 'http://mock.http.elastic.local/'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  // SAML realm 1 (no authorization_realms)
+  setting 'xpack.security.authc.realms.saml.shibboleth.order', '1'
+  setting 'xpack.security.authc.realms.saml.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
   // The port in the ACS URL is fake - the test will bind the mock webserver
   // to a random port and then whenever it needs to connect to a URL on the
   // mock webserver it will replace 54321 with the real port
-  setting 'xpack.security.authc.realms.shibboleth.sp.acs', 'http://localhost:54321/saml/acs'
-  setting 'xpack.security.authc.realms.shibboleth.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+  setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
+  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+  // SAML realm 2 (uses authorization_realms)
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.type', 'saml'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
+  setting 'xpack.security.authc.realms.native.native.order', '3'
+
   setting 'xpack.ml.enabled', 'false'
 
   extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")

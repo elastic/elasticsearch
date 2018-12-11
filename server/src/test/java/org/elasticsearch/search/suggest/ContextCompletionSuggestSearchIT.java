@@ -207,7 +207,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
+                .contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder()
+                        .setCategory("cat0").build())));
 
         assertSuggestions("foo", prefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
     }
@@ -265,17 +266,18 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         // filter only on context cat
         CompletionSuggestionBuilder catFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        catFilterSuggest.contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
+        catFilterSuggest.contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder()
+                .setCategory("cat0").build())));
         assertSuggestions("foo", catFilterSuggest, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
 
         // filter only on context type
         CompletionSuggestionBuilder typeFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        typeFilterSuggest.contexts(Collections.singletonMap("type", Arrays.asList(CategoryQueryContext.builder().setCategory("type2").build(),
+        typeFilterSuggest.contexts(Collections.singletonMap("type", Arrays.asList(CategoryQueryContext.builder().setCategory("type2")
+                .build(),
                 CategoryQueryContext.builder().setCategory("type1").build())));
         assertSuggestions("foo", typeFilterSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
     }
 
-    @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")
     public void testMultiContextBoosting() throws Exception {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
@@ -328,7 +330,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             CategoryQueryContext.builder().setCategory("cat1").build())
         );
         multiContextBoostSuggest.contexts(contextMap);
-        assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
+        // the score of each suggestion is the maximum score among the matching contexts
+        assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion8", "suggestion5", "suggestion6", "suggestion4");
     }
 
     public void testSeveralContexts() throws Exception {
@@ -449,7 +452,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.2263, 4.543)).build())));
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder()
+                        .setGeoPoint(new GeoPoint(52.2263, 4.543)).build())));
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
@@ -487,21 +491,31 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
 
         CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(GeoPoint.fromGeohash(geohash)).build())));
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder()
+                        .setGeoPoint(GeoPoint.fromGeohash(geohash)).build())));
 
         assertSuggestions("foo", geoNeighbourPrefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
     public void testGeoField() throws Exception {
-//        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
-//        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(TYPE);
         mapping.startObject("properties");
+        mapping.startObject("location");
+        mapping.startObject("properties");
         mapping.startObject("pin");
         mapping.field("type", "geo_point");
+        // Enable store and disable indexing sometimes
+        if (randomBoolean()) {
+            mapping.field("store", "true");
+        }
+        if (randomBoolean()) {
+            mapping.field("index", "false");
+        }
+        mapping.endObject(); // pin
         mapping.endObject();
+        mapping.endObject(); // location
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
         mapping.field("analyzer", "simple");
@@ -510,7 +524,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.startObject();
         mapping.field("name", "st");
         mapping.field("type", "geo");
-        mapping.field("path", "pin");
+        mapping.field("path", "location.pin");
         mapping.field("precision", 5);
         mapping.endObject();
         mapping.endArray();
@@ -524,31 +538,38 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
+                .startObject("location")
                 .latlon("pin", 52.529172, 13.407333)
+                .endObject()
                 .startObject(FIELD)
                 .array("input", "Hotel Amsterdam in Berlin")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
+        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).get();
 
         XContentBuilder source2 = jsonBuilder()
                 .startObject()
+                .startObject("location")
                 .latlon("pin", 52.363389, 4.888695)
+                .endObject()
                 .startObject(FIELD)
                 .array("input", "Hotel Berlin in Amsterdam")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
+        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).get();
 
         refresh();
 
         String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10)
-                .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
-        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();
+                .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder()
+                        .setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
+        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context))
+                .get();
 
         assertEquals(searchResponse.getSuggest().size(), 1);
-        assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
+        assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest()
+                .getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
 
     public void testSkipDuplicatesWithContexts() throws Exception {
@@ -593,13 +614,14 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)
-        ).execute().actionGet();
+        ).get();
         CompletionSuggestSearchIT.assertSuggestions(searchResponse, suggestionName, suggestions);
     }
 
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
         createIndexAndMappingAndSettings(Settings.EMPTY, completionMappingBuilder);
     }
+
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")

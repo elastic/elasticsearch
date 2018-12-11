@@ -41,7 +41,7 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements XPackPlugi
             = new ConstructingObjectParser<>(NAME, a -> new RollupJob((RollupJobConfig) a[0], (Map<String, String>) a[1]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.PARSER.apply(p,c).build(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
     }
 

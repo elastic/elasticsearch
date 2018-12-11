@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
@@ -50,11 +49,11 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
-        assertThat(response.getHits().getTotalHits(), equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
@@ -65,7 +64,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -79,7 +78,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -95,7 +94,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
@@ -111,7 +110,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         Global global = response.getAggregations().get("global");
@@ -141,7 +140,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
                 .addAggregation(geoCentroid(aggName).field(MULTI_VALUED_FIELD_NAME))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(searchResponse);
 
         GeoCentroid geoCentroid = searchResponse.getAggregations().get(aggName);
@@ -157,7 +156,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
                 .addAggregation(geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
                 .subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         GeoHashGrid grid = response.getAggregations().get("geoGrid");

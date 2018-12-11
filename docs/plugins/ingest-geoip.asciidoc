@@ -57,11 +57,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/my_type/my_id?pipeline=geoip
+PUT my_index/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my_index/my_type/my_id
+GET my_index/_doc/my_id
 --------------------------------------------------
 // CONSOLE
 
@@ -72,7 +72,7 @@ Which returns:
 {
   "found": true,
   "_index": "my_index",
-  "_type": "my_type",
+  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_source": {
@@ -106,11 +106,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/my_type/my_id?pipeline=geoip
+PUT my_index/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my_index/my_type/my_id
+GET my_index/_doc/my_id
 --------------------------------------------------
 // CONSOLE
 
@@ -121,7 +121,7 @@ returns this:
 {
   "found": true,
   "_index": "my_index",
-  "_type": "my_type",
+  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_source": {
@@ -155,11 +155,13 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/my_type/my_id?pipeline=geoip
+
+PUT my_index/_doc/my_id?pipeline=geoip
 {
   "ip": "80.231.5.0"
 }
-GET my_index/my_type/my_id
+
+GET my_index/_doc/my_id
 --------------------------------------------------
 // CONSOLE
 
@@ -168,17 +170,130 @@ Which returns:
 [source,js]
 --------------------------------------------------
 {
-  "found": true,
-  "_index": "my_index",
-  "_type": "my_type",
-  "_id": "my_id",
-  "_version": 1,
-  "_source": {
-    "ip": "80.231.5.0"
+  "_index" : "my_index",
+  "_type" : "_doc",
+  "_id" : "my_id",
+  "_version" : 1,
+  "found" : true,
+  "_source" : {
+    "ip" : "80.231.5.0"
   }
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+[[ingest-geoip-mappings-note]]
+===== Recognizing Location as a Geopoint
+Although this plugin enriches your document with a `location` field containing
+the estimated latitude and longitude of the IP address, this field will not be
+indexed as a {ref}/geo-point.html[`geo_point`] type in Elasticsearch without explicitely defining it
+as such in the mapping.
+
+You can use the following mapping for the example index above:
+
+[source,js]
+--------------------------------------------------
+PUT my_ip_locations
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "geoip": {
+          "properties": {
+            "location": { "type": "geo_point" }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+////
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
+  "processors" : [
+    {
+      "geoip" : {
+        "field" : "ip"
+      }
+    }
+  ]
+}
+
+PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+
+GET /my_ip_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "1m",
+                    "geoip.location" : {
+                        "lon" : -97.822,
+                        "lat" : 37.751
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 3,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my_ip_locations",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "geoip" : {
+            "continent_name" : "North America",
+            "country_iso_code" : "US",
+            "location" : {
+              "lon" : -97.822,
+              "lat" : 37.751
+            }
+          },
+          "ip" : "8.8.8.8"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
+////
 
 [[ingest-geoip-settings]]
 ===== Node Settings

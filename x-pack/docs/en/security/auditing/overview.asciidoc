@@ -16,11 +16,14 @@ must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
 {Security} provides two ways to persist audit logs:
 
 * The <<audit-log-output, `logfile`>> output, which persists events to
-  a dedicated `<clustername>_access.log` file on the host's file system.
-* The <<audit-index, `index`>> output, which persists events to an Elasticsearch index.
-The audit index can reside on the same cluster, or a separate cluster.
+  a dedicated `<clustername>_audit.log` file on the host's file system.
+  For backwards compatibility reasons, a file named `<clustername>_access.log`
+  is also generated.
+* The <<audit-index, `index`>> output, which persists events to an Elasticsearch
+  index. The audit index can reside on the same cluster, or a separate cluster.
 
-By default, only the `logfile` output is used when enabling auditing.
+By default, only the `logfile` output is used when enabling auditing,
+implicitly outputing to both `<clustername>_audit.log` and `<clustername>_access.log`.
 To facilitate browsing and analyzing the events, you can also enable
 indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
 

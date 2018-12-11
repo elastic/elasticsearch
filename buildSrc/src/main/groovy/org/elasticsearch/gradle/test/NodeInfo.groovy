@@ -112,7 +112,7 @@ class NodeInfo {
     Version nodeVersion
 
     /** Holds node configuration for part of a test cluster. */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, Version nodeVersion, File sharedDir) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
         this.project = project
@@ -124,7 +124,7 @@ class NodeInfo {
         }
         baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
-        this.nodeVersion = nodeVersion
+        this.nodeVersion = Version.fromString(nodeVersion)
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         pathConf = pathConf(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
@@ -173,10 +173,12 @@ class NodeInfo {
         }
 
 
-        if (nodeVersion.before("6.2.0")) {
+        if (this.nodeVersion.before("6.2.0")) {
             javaVersion = 8
-        } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
+        } else if (this.nodeVersion.onOrAfter("6.2.0") && this.nodeVersion.before("6.3.0")) {
             javaVersion = 9
+        } else if (this.nodeVersion.onOrAfter("6.3.0") && this.nodeVersion.before("6.5.0")) {
+            javaVersion = 10
         }
 
         args.addAll("-E", "node.portsfile=true")
@@ -299,7 +301,7 @@ class NodeInfo {
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro, Version nodeVersion) {
+    static File homeDir(File baseDir, String distro, String nodeVersion) {
         String path
         switch (distro) {
             case 'integ-test-zip':
@@ -319,7 +321,7 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File pathConf(File baseDir, String distro, Version nodeVersion) {
+    static File pathConf(File baseDir, String distro, String nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
@@ -331,7 +333,7 @@ class NodeInfo {
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")
             default:
-                throw new InvalidUserDataException("Unkown distribution: ${distro}")
+                throw new InvalidUserDataException("Unknown distribution: ${distro}")
         }
     }
 }

@@ -44,6 +44,7 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -86,11 +87,12 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));  // this one
 
         // Corrupt the translog file(s)
-        corruptRandomTranslogFiles();
+        corruptRandomTranslogFile();
 
         // Restart the single node
         internalCluster().fullRestart();
-        client().admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout(new TimeValue(1000, TimeUnit.MILLISECONDS)).setWaitForEvents(Priority.LANGUID).get();
+        client().admin().cluster().prepareHealth().setWaitForYellowStatus().
+            setTimeout(new TimeValue(1000, TimeUnit.MILLISECONDS)).setWaitForEvents(Priority.LANGUID).get();
 
         try {
             client().prepareSearch("test").setQuery(matchAllQuery()).get();
@@ -102,7 +104,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
     }
 
 
-    private void corruptRandomTranslogFiles() throws IOException {
+    private void corruptRandomTranslogFile() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         final Index test = state.metaData().index("test").getIndex();
@@ -119,20 +121,25 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             String path = fsPath.getPath();
             String relativeDataLocationPath = "indices/" + test.getUUID() + "/" + Integer.toString(shardRouting.getId()) + "/translog";
             Path translogDir = PathUtils.get(path).resolve(relativeDataLocationPath);
-            translogDirs.add(translogDir);
+            if (Files.isDirectory(translogDir)) {
+                translogDirs.add(translogDir);
+            }
         }
-        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
+        Path translogDir = RandomPicks.randomFrom(random(), translogDirs);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogDir));
     }
 
     /** Disables translog flushing for the specified index */
     private static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Enables translog flushing for the specified index */
     private static void enableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 }

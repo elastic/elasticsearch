@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -32,7 +34,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: get-datafeed-stats-1
         body:  >
           {
@@ -54,7 +56,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: get-datafeed-stats-2
         body:  >
           {
@@ -74,7 +76,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: datafeed-1
         body: >
           {
@@ -86,7 +88,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: datafeed-2
         body: >
           {
@@ -100,14 +102,14 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: missing-datafeed
 
 ---
 "Test get datafeed stats with expression that does not match and allow_no_datafeeds":
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "missing-*"
         allow_no_datafeeds: true
   - match: { count: 0 }
@@ -118,7 +120,7 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "missing-*"
         allow_no_datafeeds: false
 
@@ -126,14 +128,14 @@ setup:
 "Test get single datafeed stats":
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: datafeed-1
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: datafeed-2
   - match: { datafeeds.0.datafeed_id: "datafeed-2"}
   - match: { datafeeds.0.state: "stopped"}
@@ -143,16 +145,16 @@ setup:
 "Test get stats for started datafeed":
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: get-datafeed-stats-1
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         "datafeed_id": "datafeed-1"
         "start": 0
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: datafeed-1
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "started"}
@@ -164,25 +166,25 @@ setup:
 "Test implicit get all datafeed stats given started datafeeds":
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: get-datafeed-stats-1
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         "datafeed_id": "datafeed-1"
         "start": 0
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: get-datafeed-stats-2
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         "datafeed_id": "datafeed-2"
         "start": 0
 
   - do:
-      xpack.ml.get_datafeed_stats: {}
+      ml.get_datafeed_stats: {}
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "started"}
@@ -193,7 +195,7 @@ setup:
 "Test explicit get all datafeed stats given stopped datafeeds":
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: _all
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
@@ -205,7 +207,7 @@ setup:
 "Test implicit get all datafeed stats given stopped datafeeds":
 
   - do:
-      xpack.ml.get_datafeed_stats: {}
+      ml.get_datafeed_stats: {}
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "stopped"}

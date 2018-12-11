@@ -68,7 +68,8 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardStats>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
+            indexShards.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(),
+                entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
         }
         return indexShards;
     }

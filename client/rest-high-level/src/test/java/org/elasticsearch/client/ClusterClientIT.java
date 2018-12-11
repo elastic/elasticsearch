@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -167,6 +168,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertNoIndices(response);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowClusterLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
@@ -174,6 +176,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.timeout("5s");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
+        logger.info("Shard stats\n{}", EntityUtils.toString(
+                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
         assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(0));
     }
@@ -186,6 +190,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level(ClusterHealthRequest.Level.INDICES);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
+        logger.info("Shard stats\n{}", EntityUtils.toString(
+                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
         assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(2));
         for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {

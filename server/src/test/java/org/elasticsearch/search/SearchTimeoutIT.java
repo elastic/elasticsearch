@@ -63,7 +63,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 .setQuery(scriptQuery(
                     new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                 .setAllowPartialSearchResults(true)
-                .execute().actionGet();
+                .get();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 
@@ -75,7 +75,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 .setQuery(scriptQuery(
                         new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
-                    .execute().actionGet()
+                    .get()
                 );
         assertTrue(ex.toString().contains("Time exceeded"));
     }

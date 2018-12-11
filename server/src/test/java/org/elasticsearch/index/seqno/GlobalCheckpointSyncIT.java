@@ -34,11 +34,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -85,23 +82,14 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                                     (MockTransportService) internalCluster().getInstance(TransportService.class, node.getName());
                             final MockTransportService receiverTransportService =
                                     (MockTransportService) internalCluster().getInstance(TransportService.class, other.getName());
-
-                            senderTransportService.addDelegate(receiverTransportService,
-                                    new MockTransportService.DelegateTransport(senderTransportService.original()) {
-                                        @Override
-                                        protected void sendRequest(
-                                                final Connection connection,
-                                                final long requestId,
-                                                final String action,
-                                                final TransportRequest request,
-                                                final TransportRequestOptions options) throws IOException {
-                                            if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
-                                                throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
-                                            } else {
-                                                super.sendRequest(connection, requestId, action, request, options);
-                                            }
-                                        }
-                                    });
+                            senderTransportService.addSendBehavior(receiverTransportService,
+                                (connection, requestId, action, request, options) -> {
+                                    if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
+                                        throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
+                                    } else {
+                                        connection.sendRequest(requestId, action, request, options);
+                                    }
+                                });
                         }
                     }
                 },

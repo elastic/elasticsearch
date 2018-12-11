@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,11 +29,13 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.SortBy;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -41,20 +44,27 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    public static final String NAME = "term";
+    @Deprecated
+    public static final int TYPE = 1;
 
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
-    public static final int TYPE = 1;
 
     private SortBy sort;
 
-    public TermSuggestion() {
-    }
+    public TermSuggestion() {}
 
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
         this.sort = sort;
+    }
+
+    public TermSuggestion(StreamInput in) throws IOException {
+        super(in);
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            sort = SortBy.readFromStream(in);
+        }
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -103,9 +113,12 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         return TYPE;
     }
 
-    @Override
-    protected String getType() {
-        return NAME;
+    public void setSort(SortBy sort) {
+        this.sort = sort;
+    }
+
+    public SortBy getSort() {
+        return sort;
     }
 
     @Override
@@ -121,15 +134,17 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     @Override
-    protected void innerReadFrom(StreamInput in) throws IOException {
-        super.innerReadFrom(in);
-        sort = SortBy.readFromStream(in);
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            sort.writeTo(out);
+        }
     }
 
     @Override
-    public void innerWriteTo(StreamOutput out) throws IOException {
-        super.innerWriteTo(out);
-        sort.writeTo(out);
+    public String getWriteableName() {
+        return TermSuggestionBuilder.SUGGESTION_NAME;
     }
 
     public static TermSuggestion fromXContent(XContentParser parser, String name) throws IOException {
@@ -144,21 +159,45 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         return new Entry();
     }
 
+    @Override
+    protected Entry newEntry(StreamInput in) throws IOException {
+        return new Entry(in);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return super.equals(other)
+            && Objects.equals(sort, ((TermSuggestion) other).sort);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sort);
+    }
+
     /**
      * Represents a part from the suggest text with suggested options.
      */
-    public static class Entry extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
+    public static class Entry extends Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);
         }
 
-        Entry() {
+        public Entry() {}
+
+        public Entry(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
         protected Option newOption() {
             return new Option();
+        }
+
+        @Override
+        protected Option newOption(StreamInput in) throws IOException {
+            return new Option(in);
         }
 
         private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
@@ -175,7 +214,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         /**
          * Contains the suggested text with its document frequency and score.
          */
-        public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
+        public static class Option extends Suggest.Suggestion.Entry.Option {
 
             public static final ParseField FREQ = new ParseField("freq");
 
@@ -184,6 +223,11 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             public Option(Text text, int freq, float score) {
                 super(text, score);
                 this.freq = freq;
+            }
+
+            public Option(StreamInput in) throws IOException {
+                super(in);
+                freq = in.readVInt();
             }
 
             @Override
@@ -208,20 +252,14 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
 
             @Override
-            public void readFrom(StreamInput in) throws IOException {
-                super.readFrom(in);
-                freq = in.readVInt();
-            }
-
-            @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
                 out.writeVInt(freq);
             }
 
             @Override
-            protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder = super.innerToXContent(builder, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder = super.toXContent(builder, params);
                 builder.field(FREQ.getPreferredName(), freq);
                 return builder;
             }

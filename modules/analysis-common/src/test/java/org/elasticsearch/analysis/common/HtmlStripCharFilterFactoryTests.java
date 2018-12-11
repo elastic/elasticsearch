@@ -60,7 +60,7 @@ public class HtmlStripCharFilterFactoryTests extends ESTestCase {
     public void testNoDeprecationWarningPre6_3() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_2_4))
+                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_2_4))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

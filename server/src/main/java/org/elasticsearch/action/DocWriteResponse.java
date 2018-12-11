@@ -156,7 +156,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     /**
      * The type of the document changed.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public String getType() {
         return this.type;
     }
@@ -296,9 +299,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
-        if (params.paramAsBoolean("include_type_name", true)) {
-            builder.field(_TYPE, type);
-        }
+        builder.field(_TYPE, type);
         builder.field(_ID, id)
                 .field(_VERSION, version)
                 .field(RESULT, getResult().getLowercase());

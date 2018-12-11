@@ -5,7 +5,8 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.vagrantsupport'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
@@ -26,6 +27,7 @@ if (project.rootProject.vagrantSupported) {
   test.finalizedBy idpFixtureProject.halt
 } else {
   test.enabled = false
+  testingConventions.enabled = false
 }
 
 namingConventions {

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher;
 
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -22,17 +24,16 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -63,13 +64,13 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
-public class WatcherService extends AbstractComponent {
+public class WatcherService {
 
     private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
+    private static final Logger logger = LogManager.getLogger(WatcherService.class);
 
     private final TriggerService triggerService;
     private final TriggeredWatchStore triggeredWatchStore;
@@ -84,7 +85,6 @@ public class WatcherService extends AbstractComponent {
 
     WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
                    ExecutionService executionService, WatchParser parser, Client client, ExecutorService executor) {
-        super(settings);
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executionService = executionService;
@@ -92,7 +92,7 @@ public class WatcherService extends AbstractComponent {
         this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
         this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.parser = parser;
-        this.client = client;
+        this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.executor = executor;
     }
 
@@ -183,6 +183,7 @@ public class WatcherService extends AbstractComponent {
         // by checking the cluster state version before and after loading the watches we can potentially just exit without applying the
         // changes
         processedClusterStateVersion.set(state.getVersion());
+
         triggerService.pauseExecution();
         int cancelledTaskCount = executionService.clearExecutionsAndQueue();
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
@@ -221,6 +222,7 @@ public class WatcherService extends AbstractComponent {
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
                 state.getVersion(), processedClusterStateVersion.get());
+            return false;
         }
 
         Collection<Watch> watches = loadWatches(state);
@@ -231,6 +233,8 @@ public class WatcherService extends AbstractComponent {
 
         // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
         // until the others are loaded
+        // also this is the place where we pause the trigger service execution and clear the current execution service, so that we make sure
+        // that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
             triggerService.start(watches);
@@ -269,7 +273,7 @@ public class WatcherService extends AbstractComponent {
 
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try {
             RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
                 .actionGet(TimeValue.timeValueSeconds(5));
             if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
@@ -301,7 +305,7 @@ public class WatcherService extends AbstractComponent {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits() == 0) {
+            if (response.getHits().getTotalHits().value == 0) {
                 return Collections.emptyList();
             }
 
@@ -353,11 +357,9 @@ public class WatcherService extends AbstractComponent {
             }
         } finally {
             if (response != null) {
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                    clearScrollRequest.addScrollId(response.getScrollId());
-                    client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
-                }
+                ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                clearScrollRequest.addScrollId(response.getScrollId());
+                client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
 

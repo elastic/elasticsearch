@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
@@ -63,11 +62,11 @@ public class ChainInputTests extends ESTestCase {
      */
     public void testThatExecutionWorks() throws Exception {
         Map<String, InputFactory> factories = new HashMap<>();
-        factories.put("simple", new SimpleInputFactory(Settings.EMPTY));
+        factories.put("simple", new SimpleInputFactory());
 
         // hackedy hack...
-        InputRegistry inputRegistry = new InputRegistry(Settings.EMPTY, factories);
-        ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
+        InputRegistry inputRegistry = new InputRegistry(factories);
+        ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
         XContentBuilder builder = jsonBuilder().startObject().startArray("inputs")
@@ -88,7 +87,7 @@ public class ChainInputTests extends ESTestCase {
 
         // now execute
         ExecutableChainInput executableChainInput = chainInputFactory.createExecutable(chainInput);
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         ChainInput.Result result = executableChainInput.execute(ctx, new Payload.Simple());
         Payload payload = result.payload();
         assertThat(payload.data(), hasKey("first"));
@@ -117,10 +116,10 @@ public class ChainInputTests extends ESTestCase {
 
         // parsing it back as well!
         Map<String, InputFactory> factories = new HashMap<>();
-        factories.put("simple", new SimpleInputFactory(Settings.EMPTY));
+        factories.put("simple", new SimpleInputFactory());
 
-        InputRegistry inputRegistry = new InputRegistry(Settings.EMPTY, factories);
-        ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
+        InputRegistry inputRegistry = new InputRegistry(factories);
+        ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
         XContentParser parser = createParser(builder);
@@ -148,7 +147,7 @@ public class ChainInputTests extends ESTestCase {
         watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(chainedInputBuilder)
-                .condition(new ScriptCondition(mockScript("ctx.payload.hits.total == 1")))
+                .condition(new ScriptCondition(mockScript("ctx.payload.hits.total.value == 1")))
                 .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched"))
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
 
@@ -177,10 +176,10 @@ public class ChainInputTests extends ESTestCase {
      */
     public void testParsingShouldBeStrictWhenClosingInputs() throws Exception {
         Map<String, InputFactory> factories = new HashMap<>();
-        factories.put("simple", new SimpleInputFactory(Settings.EMPTY));
+        factories.put("simple", new SimpleInputFactory());
 
-        InputRegistry inputRegistry = new InputRegistry(Settings.EMPTY, factories);
-        ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
+        InputRegistry inputRegistry = new InputRegistry(factories);
+        ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
         XContentBuilder builder = jsonBuilder().startObject().startArray("inputs").startObject()
@@ -206,10 +205,10 @@ public class ChainInputTests extends ESTestCase {
      */
     public void testParsingShouldBeStrictWhenStartingInputs() throws Exception {
         Map<String, InputFactory> factories = new HashMap<>();
-        factories.put("simple", new SimpleInputFactory(Settings.EMPTY));
+        factories.put("simple", new SimpleInputFactory());
 
-        InputRegistry inputRegistry = new InputRegistry(Settings.EMPTY, factories);
-        ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
+        InputRegistry inputRegistry = new InputRegistry(factories);
+        ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
         XContentBuilder builder = jsonBuilder().startObject().startArray("inputs")

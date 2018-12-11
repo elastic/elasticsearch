@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -89,6 +90,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             }
         };
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isAvailable()).thenReturn(true);
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
@@ -96,6 +99,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        Mockito.doAnswer(invocationOnMock -> {
+            assertThat(invocationOnMock.getArguments().length, equalTo(2));
+            assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
+            ((Runnable) invocationOnMock.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         store = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex);
     }
 
@@ -163,7 +172,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
-            new SearchHits(hits, hits.length, 0f), null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null));
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+        "_scrollId1", 1, 1, 0, 1, null, null));
 
         assertResult(sourcePrivileges, future);
     }
@@ -188,7 +199,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
-            new SearchHits(hits, hits.length, 0f), null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null));
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null));
 
         assertResult(sourcePrivileges, future);
     }

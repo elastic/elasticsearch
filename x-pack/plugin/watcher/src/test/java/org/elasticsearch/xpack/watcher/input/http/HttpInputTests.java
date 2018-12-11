@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
@@ -28,10 +28,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
@@ -73,8 +70,7 @@ public class HttpInputTests extends ESTestCase {
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
         templateEngine = mock(TextTemplateEngine.class);
-        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
-        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequestTemplate.Parser(registry));
+        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine);
     }
 
     public void testExecute() throws Exception {
@@ -117,11 +113,11 @@ public class HttpInputTests extends ESTestCase {
                 break;
         }
 
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), hasEntry("key", "value"));
@@ -134,13 +130,13 @@ public class HttpInputTests extends ESTestCase {
                 .method(HttpMethod.POST)
                 .body("_body");
         HttpInput httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.TEXT).build();
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data().get("_value").toString(), equalTo(notJson));
@@ -158,7 +154,7 @@ public class HttpInputTests extends ESTestCase {
                 randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map() : null;
         Map<String, TextTemplate> headers =
                 randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", new TextTemplate("d")).map() : null;
-        HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
+        BasicAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)
                 .method(httpMethod)
@@ -236,7 +232,7 @@ public class HttpInputTests extends ESTestCase {
 
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
         Map<String, String[]> responseHeaders = new HashMap<>();
         responseHeaders.put(headerName, new String[] { headerValue });
@@ -252,7 +248,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
 
         assertThat(result.type(), equalTo(HttpInput.TYPE));
@@ -268,7 +264,7 @@ public class HttpInputTests extends ESTestCase {
     public void testThatExpectedContentTypeOverridesReturnedContentType() throws Exception {
         HttpRequestTemplate template = HttpRequestTemplate.builder("http:://127.0.0.1:12345").build();
         HttpInput httpInput = new HttpInput(template, HttpContentType.TEXT, null);
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
         Map<String, String[]> headers = new HashMap<>(1);
         String contentType = randomFrom("application/json", "application/json; charset=UTF-8", "text/html", "application/yaml",
@@ -278,7 +274,7 @@ public class HttpInputTests extends ESTestCase {
         HttpResponse httpResponse = new HttpResponse(200, body, headers);
         when(httpClient.execute(any())).thenReturn(httpResponse);
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, Payload.EMPTY);
         assertThat(result.payload().data(), hasEntry("_value", body));
         assertThat(result.payload().data(), not(hasKey("foo")));
@@ -290,9 +286,9 @@ public class HttpInputTests extends ESTestCase {
 
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.statusCode, is(200));
         assertThat(result.payload().data(), hasKey("_status_code"));
@@ -307,9 +303,9 @@ public class HttpInputTests extends ESTestCase {
 
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.statusCode, is(200));
         assertThat(result.payload().data(), not(hasKey("_value")));
@@ -326,9 +322,9 @@ public class HttpInputTests extends ESTestCase {
 
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
 
         assertThat(result.getException(), is(notNullValue()));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -106,6 +106,8 @@ public class DoSection implements ExecutableSection {
             } else if (token.isValue()) {
                 if ("catch".equals(currentFieldName)) {
                     doSection.setCatch(parser.text());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unsupported field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("warnings".equals(currentFieldName)) {
@@ -180,8 +182,7 @@ public class DoSection implements ExecutableSection {
         return doSection;
     }
 
-
-    private static final Logger logger = Loggers.getLogger(DoSection.class);
+    private static final Logger logger = LogManager.getLogger(DoSection.class);
 
     private final XContentLocation location;
     private String catchParam;
@@ -204,7 +205,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    public void setApiCallSection(ApiCallSection apiCallSection) {
+    void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -212,7 +213,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    public List<String> getExpectedWarningHeaders() {
+    List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -220,7 +221,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 
@@ -292,7 +293,7 @@ public class DoSection implements ExecutableSection {
             if (matches) {
                 final String message = matcher.group(1);
                 // noinspection StatementWithEmptyBody
-                if (masterVersion.before(Version.V_7_0_0_alpha1)
+                if (masterVersion.before(Version.V_7_0_0)
                         && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
                         + "if you wish to continue using the default of [5] shards, "
                         + "you must manage this on the create index request or with an index template")) {
@@ -300,10 +301,14 @@ public class DoSection implements ExecutableSection {
                      * This warning header will come back in the vast majority of our tests that create an index when running against an
                      * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
-                } else {
-                    if (expected.remove(message) == false) {
-                        unexpected.add(header);
-                    }
+                } else // noinspection StatementWithEmptyBody
+                    if (message.startsWith("[types removal]")) {
+                    /*
+                     * We skip warnings related to types deprecation so that we can continue to run the many
+                     * mixed-version tests that used typed APIs.
+                     */
+                } else if (expected.remove(message) == false) {
+                    unexpected.add(header);
                 }
             } else {
                 unmatched.add(header);
@@ -391,7 +396,32 @@ public class DoSection implements ExecutableSection {
             if (token == XContentParser.Token.FIELD_NAME) {
                 key = parser.currentName();
             } else if (token.isValue()) {
-                NodeSelector newSelector = new HasAttributeNodeSelector(key, parser.text());
+                /*
+                 * HasAttributeNodeSelector selects nodes that do not have
+                 * attribute metadata set so it can be used against nodes that
+                 * have not yet been sniffed. In these tests we expect the node
+                 * metadata to be explicitly sniffed if we need it and we'd
+                 * like to hard fail if it is not so we wrap the selector so we
+                 * can assert that the data is sniffed.
+                 */
+                NodeSelector delegate = new HasAttributeNodeSelector(key, parser.text());
+                NodeSelector newSelector = new NodeSelector() {
+                    @Override
+                    public void select(Iterable<Node> nodes) {
+                        for (Node node : nodes) {
+                            if (node.getAttributes() == null) {
+                                throw new IllegalStateException("expected [attributes] metadata to be set but got "
+                                        + node);
+                            }
+                        }
+                        delegate.select(nodes);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return delegate.toString();
+                    }
+                };
                 result = result == NodeSelector.ANY ?
                     newSelector : new ComposeNodeSelector(result, newSelector);
             } else {

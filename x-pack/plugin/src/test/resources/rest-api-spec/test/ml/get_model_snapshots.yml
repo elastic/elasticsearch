@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: get-model-snapshots
         body:  >
           {
@@ -90,7 +92,7 @@ setup:
 ---
 "Test get model snapshots API with no params":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
 
   - match: { count: 2 }
@@ -100,7 +102,7 @@ setup:
 ---
 "Test get model snapshots API with _all":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
         snapshot_id: "_all"
 
@@ -111,7 +113,7 @@ setup:
 ---
 "Test get specific model snapshot":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
         snapshot_id: "2"
 
@@ -121,7 +123,7 @@ setup:
 ---
 "Test get model snapshots API with start/end":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
@@ -133,7 +135,7 @@ setup:
 ---
 "Test get model snapshots API with ascending":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
         desc: false
 
@@ -144,7 +146,7 @@ setup:
 ---
 "Test get model snapshots API with size":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
         size: 1
 
@@ -155,7 +157,7 @@ setup:
 ---
 "Test get model snapshots API with from":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "get-model-snapshots"
         from: 1
 
@@ -167,5 +169,5 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "non-existent-job"

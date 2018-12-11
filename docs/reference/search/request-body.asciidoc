@@ -31,7 +31,10 @@ And here is a sample response:
         "failed" : 0
     },
     "hits":{
-        "total" : 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.3862944,
         "hits" : [
             {
@@ -60,7 +63,9 @@ And here is a sample response:
 
     A search timeout, bounding the search request to be executed within the
     specified time value and bail with the hits accumulated up to that point
-    when expired. Defaults to no timeout. See <<time-units>>.
+    when expired. Search requests are canceled after the timeout is reached using
+    the <<global-search-cancellation>> mechanism.
+    Defaults to no timeout. See <<time-units>>.
 
 `from`::
 
@@ -90,7 +95,8 @@ And here is a sample response:
 
     Set to `false` to return an overall failure if the request would produce partial 
     results. Defaults to true, which will allow partial results in the case of timeouts
-    or partial failures.
+    or partial failures. This default can be controlled using the cluster-level setting
+    `search.default_allow_partial_results`.
 
 `terminate_after`::
 
@@ -159,8 +165,11 @@ be set to `true` in the response.
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.0,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": null,
     "hits": []
   }
 }

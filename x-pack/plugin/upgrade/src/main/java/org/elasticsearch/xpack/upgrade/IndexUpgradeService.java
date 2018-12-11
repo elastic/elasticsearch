@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -12,27 +14,26 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class IndexUpgradeService extends AbstractComponent {
+public class IndexUpgradeService {
+
+    private static final Logger logger = LogManager.getLogger(IndexUpgradeService.class);
 
     private final List<IndexUpgradeCheck> upgradeChecks;
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public IndexUpgradeService(Settings settings, List<IndexUpgradeCheck> upgradeChecks) {
-        super(settings);
+    public IndexUpgradeService(List<IndexUpgradeCheck> upgradeChecks) {
         this.upgradeChecks = upgradeChecks;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
     }
 
     /**
@@ -79,7 +80,7 @@ public class IndexUpgradeService extends AbstractComponent {
             }
         }
         // Catch all check for all indices that didn't match the specific checks
-        if (indexMetaData.getCreationVersion().before(Version.V_5_0_0)) {
+        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0)) {
             return UpgradeActionRequired.REINDEX;
         } else {
             return null;

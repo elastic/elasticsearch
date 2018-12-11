@@ -19,14 +19,16 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,13 +40,17 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
+import org.elasticsearch.discovery.zen.ZenDiscovery.ZenNodeRemovalClusterStateTaskExecutor;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -54,8 +60,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.core.IsInstanceOf;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -68,8 +75,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -83,11 +93,17 @@ import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAl
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class ZenDiscoveryUnitTests extends ESTestCase {
 
@@ -106,13 +122,16 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         currentState.version(2);
         newState.version(1);
-        assertTrue("should ignore, because new state's version is lower to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertTrue("should ignore, because new state's version is lower to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
         currentState.version(1);
         newState.version(1);
-        assertTrue("should ignore, because new state's version is equal to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertTrue("should ignore, because new state's version is equal to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
         currentState.version(1);
         newState.version(2);
-        assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because new state's version is higher to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b").add(new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
@@ -144,7 +163,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             currentState.version(1);
             newState.version(2);
         }
-        assertFalse("should not ignore, because current state doesn't have a master", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because current state doesn't have a master",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
     }
 
     public void testFilterNonMasterPingResponse() {
@@ -225,16 +245,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 DiscoveryNodes.builder(state.nodes()).add(otherNode).masterNodeId(masterNode.getId())
             ).build();
 
-            try {
-                // publishing a new cluster state
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
-                AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
-                expectedFDNodes = masterZen.getFaultDetectionNodes();
-                masterZen.publish(clusterChangedEvent, listener);
+            // publishing a new cluster state
+            ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+            AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
+            expectedFDNodes = masterZen.getFaultDetectionNodes();
+            AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
+            masterZen.publish(clusterChangedEvent, awaitingPublishListener, listener);
+            awaitingPublishListener.await();
+            if (awaitingPublishListener.getException() == null) {
+                // publication succeeded, wait for acks
                 listener.await(10, TimeUnit.SECONDS);
                 // publish was a success, update expected FD nodes based on new cluster state
                 expectedFDNodes = fdNodesForState(newState, masterNode);
-            } catch (Discovery.FailedToCommitClusterStateException e) {
+            } else {
                 // not successful, so expectedFDNodes above should remain what it was originally assigned
                 assertEquals(3, minMasterNodes); // ensure min master nodes is the higher value, otherwise we shouldn't fail
             }
@@ -278,22 +301,47 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 DiscoveryNodes.builder(discoveryState(masterMasterService).nodes()).masterNodeId(masterNode.getId())
             ).build();
 
-
-            try {
-                // publishing a new cluster state
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
-                AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
-                masterZen.publish(clusterChangedEvent, listener);
+            // publishing a new cluster state
+            ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+            AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
+            AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
+            masterZen.publish(clusterChangedEvent, awaitingPublishListener, listener);
+            awaitingPublishListener.await();
+            if (awaitingPublishListener.getException() == null) {
+                // publication succeeded, wait for acks
                 listener.await(1, TimeUnit.HOURS);
-                // publish was a success, check that queue as cleared
-                assertThat(masterZen.pendingClusterStates(), emptyArray());
-            } catch (Discovery.FailedToCommitClusterStateException e) {
-                // not successful, so the pending queue should be cleaned
-                assertThat(Arrays.toString(masterZen.pendingClusterStates()), masterZen.pendingClusterStates(), arrayWithSize(0));
             }
+            // queue should be cleared whether successful or not
+            assertThat(Arrays.toString(masterZen.pendingClusterStates()), masterZen.pendingClusterStates(), emptyArray());
         } finally {
             IOUtils.close(toClose);
             terminate(threadPool);
+        }
+    }
+
+    private class AwaitingPublishListener implements ActionListener<Void> {
+        private final CountDownLatch countDownLatch = new CountDownLatch(1);
+        private FailedToCommitClusterStateException exception;
+
+        @Override
+        public synchronized void onResponse(Void aVoid) {
+            assertThat(countDownLatch.getCount(), is(1L));
+            countDownLatch.countDown();
+        }
+
+        @Override
+        public synchronized void onFailure(Exception e) {
+            assertThat(e, IsInstanceOf.instanceOf(FailedToCommitClusterStateException.class));
+            exception = (FailedToCommitClusterStateException) e;
+            onResponse(null);
+        }
+
+        public void await() throws InterruptedException {
+            countDownLatch.await();
+        }
+
+        public synchronized FailedToCommitClusterStateException getException() {
+            return exception;
         }
     }
 
@@ -311,9 +359,11 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 listener.onSuccess(source);
             }
         };
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(), ESAllocationTestCase.createAllocationService(),
-            Collections.emptyList());
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
+            ESAllocationTestCase.createAllocationService(),
+            Collections.emptyList(), mock(GatewayMetaState.class));
         zenDiscovery.start();
         return zenDiscovery;
     }
@@ -341,8 +391,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 (() -> localNode, ZenDiscovery.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
-                .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
-                    : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+                .put(SETTING_VERSION_CREATED,
+                    incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                        : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
                 .state(IndexMetaData.State.OPEN)
@@ -384,11 +435,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                     @Override
                     public void sendResponse(TransportResponse response) throws IOException {
                         sendResponse.set(true);
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-
                     }
 
                     @Override
@@ -489,5 +535,60 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             .build();
 
         ZenDiscovery.validateIncomingState(logger, state, higherVersionState);
+    }
+
+    public void testNotEnoughMasterNodesAfterRemove() throws Exception {
+        final ElectMasterService electMasterService = mock(ElectMasterService.class);
+        when(electMasterService.hasEnoughMasterNodes(any(Iterable.class))).thenReturn(false);
+
+        final AllocationService allocationService = mock(AllocationService.class);
+
+        final AtomicBoolean rejoinCalled = new AtomicBoolean();
+        final Consumer<String> submitRejoin = source -> rejoinCalled.set(true);
+
+        final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
+        final ZenNodeRemovalClusterStateTaskExecutor executor =
+            new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, submitRejoin, logger) {
+                @Override
+                protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
+                    remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
+                    return remainingNodesClusterState.get();
+                }
+            };
+
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        final int nodes = randomIntBetween(2, 16);
+        final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = new ArrayList<>();
+        // to ensure there is at least one removal
+        boolean first = true;
+        for (int i = 0; i < nodes; i++) {
+            final DiscoveryNode node = node(i);
+            builder.add(node);
+            if (first || randomBoolean()) {
+                tasks.add(new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
+            }
+            first = false;
+        }
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result =
+            executor.execute(clusterState, tasks);
+        verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
+        verify(electMasterService).countMasterNodes(eq(remainingNodesClusterState.get().nodes()));
+        verify(electMasterService).minimumMasterNodes();
+        verifyNoMoreInteractions(electMasterService);
+
+        // ensure that we did not reroute
+        verifyNoMoreInteractions(allocationService);
+        assertTrue(rejoinCalled.get());
+        assertThat(result.resultingState, CoreMatchers.equalTo(clusterState));
+
+        for (final NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
+            assertNotNull(result.resultingState.nodes().get(task.node().getId()));
+        }
+    }
+
+    private DiscoveryNode node(final int id) {
+        return new DiscoveryNode(Integer.toString(id), buildNewFakeTransportAddress(), Version.CURRENT);
     }
 }

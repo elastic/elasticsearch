@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.MockTerminal;
@@ -13,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.BeforeClass;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -154,5 +156,14 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         for (String r : addedRoles) {
             assertThat("expected list to contain: " + r, roles.contains(r), is(true));
         }
+    }
+
+    public void testMissingPasswordParameter() {
+        ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
+
+        final OptionException ex = expectThrows(OptionException.class,
+            () -> muor.getParser().parse("-u", "elastic", "-U", "http://localhost:9200"));
+
+        assertThat(ex.getMessage(), containsString("password"));
     }
 }

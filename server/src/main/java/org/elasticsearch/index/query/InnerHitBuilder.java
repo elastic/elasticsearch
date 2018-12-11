@@ -150,13 +150,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      */
     public InnerHitBuilder(StreamInput in) throws IOException {
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readOptionalString();
-            in.readOptionalString();
-        }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            ignoreUnmapped = in.readBoolean();
-        }
+        ignoreUnmapped = in.readBoolean();
         from = in.readVInt();
         size = in.readVInt();
         explain = in.readBoolean();
@@ -191,14 +185,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            /**
-             * this is needed for BWC with nodes pre 5.5
-             */
-            in.readNamedWriteable(QueryBuilder.class);
-            boolean hasChildren = in.readBoolean();
-            assert hasChildren == false;
-        }
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
         }
@@ -206,9 +192,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            throw new IOException("Invalid output version, must >= " + Version.V_5_5_0.toString());
-        }
         out.writeOptionalString(name);
         out.writeBoolean(ignoreUnmapped);
         out.writeVInt(from);
@@ -250,84 +233,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalWriteable(innerCollapseBuilder);
         }
-    }
-
-    /**
-     * BWC serialization for nested {@link InnerHitBuilder}.
-     * Should only be used to send nested inner hits to nodes pre 5.5.
-     */
-    protected void writeToNestedBWC(StreamOutput out, QueryBuilder query, String nestedPath) throws IOException {
-        assert out.getVersion().before(Version.V_5_5_0) :
-            "invalid output version, must be < " + Version.V_5_5_0.toString();
-        writeToBWC(out, query, nestedPath, null);
-    }
-
-    /**
-     * BWC serialization for collapsing {@link InnerHitBuilder}.
-     * Should only be used to send collapsing inner hits to nodes pre 5.5.
-     */
-    public void writeToCollapseBWC(StreamOutput out) throws IOException {
-        assert out.getVersion().before(Version.V_5_5_0) :
-            "invalid output version, must be < " + Version.V_5_5_0.toString();
-        writeToBWC(out, new MatchAllQueryBuilder(), null, null);
-    }
-
-    /**
-     * BWC serialization for parent/child {@link InnerHitBuilder}.
-     * Should only be used to send hasParent or hasChild inner hits to nodes pre 5.5.
-     */
-    public void writeToParentChildBWC(StreamOutput out, QueryBuilder query, String parentChildPath) throws IOException {
-        assert(out.getVersion().before(Version.V_5_5_0)) :
-            "invalid output version, must be < " + Version.V_5_5_0.toString();
-        writeToBWC(out, query, null, parentChildPath);
-    }
-
-    private void writeToBWC(StreamOutput out,
-                            QueryBuilder query,
-                            String nestedPath,
-                            String parentChildPath) throws IOException {
-        out.writeOptionalString(name);
-        if (nestedPath != null) {
-            out.writeOptionalString(nestedPath);
-            out.writeOptionalString(null);
-        } else {
-            out.writeOptionalString(null);
-            out.writeOptionalString(parentChildPath);
-        }
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeBoolean(ignoreUnmapped);
-        }
-        out.writeVInt(from);
-        out.writeVInt(size);
-        out.writeBoolean(explain);
-        out.writeBoolean(version);
-        out.writeBoolean(trackScores);
-        out.writeOptionalWriteable(storedFieldsContext);
-        out.writeGenericValue(docValueFields == null
-                ? null
-                : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
-        boolean hasScriptFields = scriptFields != null;
-        out.writeBoolean(hasScriptFields);
-        if (hasScriptFields) {
-            out.writeVInt(scriptFields.size());
-            Iterator<ScriptField> iterator = scriptFields.stream()
-                .sorted(Comparator.comparing(ScriptField::fieldName)).iterator();
-            while (iterator.hasNext()) {
-                iterator.next().writeTo(out);
-            }
-        }
-        out.writeOptionalWriteable(fetchSourceContext);
-        boolean hasSorts = sorts != null;
-        out.writeBoolean(hasSorts);
-        if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeNamedWriteable(sort);
-            }
-        }
-        out.writeOptionalWriteable(highlightBuilder);
-        out.writeNamedWriteable(query);
-        out.writeBoolean(false);
     }
 
     public String getName() {
@@ -466,7 +371,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(field, null));
+        docValueFields.add(new FieldAndFormat(field, format));
         return this;
     }
 

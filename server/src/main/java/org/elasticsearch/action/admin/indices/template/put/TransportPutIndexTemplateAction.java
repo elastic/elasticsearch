@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,16 +39,18 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Put index template action.
  */
-public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
+public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, AcknowledgedResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutIndexTemplateAction(TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexScopedSettings) {
-        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                           IndexScopedSettings indexScopedSettings) {
+        super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, PutIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -59,8 +62,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected PutIndexTemplateResponse newResponse() {
-        return new PutIndexTemplateResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -69,7 +72,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) {
+    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
@@ -83,7 +87,6 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())
                 .aliases(request.aliases())
-                .customs(request.customs())
                 .create(request.create())
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
@@ -91,7 +94,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 new MetaDataIndexTemplateService.PutListener() {
                     @Override
                     public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
-                        listener.onResponse(new PutIndexTemplateResponse(response.acknowledged()));
+                        listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
                     }
 
                     @Override

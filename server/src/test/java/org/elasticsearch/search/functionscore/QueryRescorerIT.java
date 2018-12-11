@@ -79,7 +79,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // this
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i ++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).execute().actionGet();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).get();
         }
         refresh();
 
@@ -90,8 +90,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .setRescorer(new QueryRescorerBuilder(
                             functionScoreQuery(matchAllQuery(),
                                                     ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(CombineFunction.REPLACE))
-                                    .setQueryWeight(0.0f).setRescoreQueryWeight(1.0f), 1).setSize(randomIntBetween(2, 10)).execute()
-                    .actionGet();
+                                    .setQueryWeight(0.0f).setRescoreQueryWeight(1.0f), 1).setSize(randomIntBetween(2, 10)).get();
             assertSearchResponse(searchResponse);
             assertFirstHit(searchResponse, hasScore(100.f));
             int numDocsWith100AsAScore = 0;
@@ -115,7 +114,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
@@ -124,9 +123,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(
                         new QueryRescorerBuilder(matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f))
-                                .setRescoreQueryWeight(2), 5).execute().actionGet();
+                                .setRescoreQueryWeight(2), 5).get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
@@ -135,7 +134,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(3)), 5)
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, hasId("1"));
@@ -144,8 +143,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown")), 5).execute()
-                .actionGet();
+                .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown")), 5).get();
 
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
@@ -156,42 +154,37 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute()
-                .actionGet();
-        client().prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").execute().actionGet();
-        client().prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").get();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").get();
+        client().admin().indices().prepareRefresh("test").get();
+        client().prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").get();
+        client().prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").get();
+        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        client().prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").get();
+        client().admin().indices().prepareRefresh("test").get();
+        client().prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").get();
+        client().prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").get();
+        client().prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").get();
+        client().admin().indices().prepareRefresh("test").get();
+        client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").get();
+        client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").get();
+        client().admin().indices().prepareRefresh("test").get();
         SearchResponse searchResponse = client()
                 .prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 20).execute().actionGet();
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 20).get();
 
         assertThat(searchResponse.getHits().getHits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
@@ -206,7 +199,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setSize(5)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 20).execute().actionGet();
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 20).get();
 
         assertThat(searchResponse.getHits().getHits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
@@ -223,7 +216,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setSize(5)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 20).execute().actionGet();
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 20).get();
 
         assertThat(searchResponse.getHits().getHits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
@@ -234,31 +227,26 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescore window smaller than number of hits:
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute()
-                .actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").get();
+        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        client().admin().indices().prepareRefresh("test").get();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client()
                 .prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
                 .setFrom(0)
-            .setSize(5).execute().actionGet();
+            .setSize(5).get();
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
@@ -274,7 +262,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 2).execute().actionGet();
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 2).get();
         // Only top 2 hits were re-ordered:
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
@@ -291,7 +279,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 3).execute().actionGet();
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f), 3).get();
 
         // Only top 3 hits were re-ordered:
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
@@ -306,31 +294,26 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescorer that penalizes the scores:
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute()
-                .actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").get();
+        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        client().admin().indices().prepareRefresh("test").get();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client()
                 .prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
                 .setFrom(0)
-            .setSize(5).execute().actionGet();
+            .setSize(5).get();
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
@@ -346,7 +329,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                                .setQueryWeight(1.0f).setRescoreQueryWeight(-1f), 3).execute().actionGet();
+                                .setQueryWeight(1.0f).setRescoreQueryWeight(-1f), 3).get();
 
         // 6 and 1 got worse, and then the hit (2) outside the rescore window were sorted ahead:
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
@@ -378,7 +361,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
+        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
@@ -417,13 +400,13 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                     .setQueryWeight(1.0f)
                                     // no weight - so we basically use the same score as the actual query
                                     .setRescoreQueryWeight(0.0f), rescoreWindow)
-                    .execute().actionGet();
+                    .get();
 
             SearchResponse plain = client().prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR)).setFrom(0).setSize(resultSize)
-                    .execute().actionGet();
+                    .get();
 
             // check equivalence
             assertEquivalent(query, plain, rescored);
@@ -437,8 +420,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .setSize(resultSize)
                     .setRescorer(new QueryRescorerBuilder(constantScoreQuery(matchPhraseQuery("field1", "not in the index").slop(3)))
                                     .setQueryWeight(1.0f)
-                                    .setRescoreQueryWeight(1.0f), rescoreWindow).execute()
-                    .actionGet();
+                                    .setRescoreQueryWeight(1.0f), rescoreWindow).get();
             // check equivalence
             assertEquivalent(query, plain, rescored);
         }
@@ -452,12 +434,10 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
         );
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
-                .actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").get();
         client().prepareIndex("test", "type1", "3")
-                .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
-                .actionGet();
+                .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
         refresh();
 
         {
@@ -466,8 +446,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                     .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f))
-                                    .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f), 5).setExplain(true).execute()
-                    .actionGet();
+                                    .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f), 5).setExplain(true).get();
             assertHitCount(searchResponse, 3);
             assertFirstHit(searchResponse, hasId("1"));
             assertSecondHit(searchResponse, hasId("2"));
@@ -504,8 +483,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .prepareSearch()
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                    .setRescorer(innerRescoreQuery, 5).setExplain(true).execute()
-                    .actionGet();
+                    .setRescorer(innerRescoreQuery, 5).setExplain(true).get();
             assertHitCount(searchResponse, 3);
             assertFirstHit(searchResponse, hasId("1"));
             assertSecondHit(searchResponse, hasId("2"));
@@ -742,7 +720,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setTrackScores(true)
             .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50)
             .get();
-        assertThat(resp.getHits().totalHits, equalTo(5L));
+        assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
         assertThat(resp.getHits().getHits().length, equalTo(5));
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));

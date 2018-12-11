@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CustomRealmTests extends ESTestCase {
     public void testAuthenticate() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        CustomRealm realm = new CustomRealm(new RealmConfig(new RealmConfig.RealmIdentifier(CustomRealm.TYPE, "test"),
+                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, password);
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
@@ -36,8 +36,8 @@ public class CustomRealmTests extends ESTestCase {
 
     public void testAuthenticateBadUser() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        CustomRealm realm = new CustomRealm(new RealmConfig(new RealmConfig.RealmIdentifier(CustomRealm.TYPE, "test"),
+                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", password);
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();

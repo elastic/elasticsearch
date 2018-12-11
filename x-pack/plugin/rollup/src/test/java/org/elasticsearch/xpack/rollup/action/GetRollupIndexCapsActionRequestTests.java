@@ -60,7 +60,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractStreamableTest
                 String jobName = randomAlphaOfLength(10);
                 String indexName = Integer.toString(indexCounter);
                 indexCounter += 1;
-                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).setRollupIndex("foo").build());
+                jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName, "foo"));
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
@@ -89,10 +89,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractStreamableTest
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
-            jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName)
-                .setIndexPattern(indexName)
-                .setRollupIndex("rollup_" + indexName).build());
-
+            jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName, "rollup_" + indexName));
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
@@ -120,9 +117,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractStreamableTest
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
-            jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName)
-                .setIndexPattern("foo_" + indexName)
-                .setRollupIndex("rollup_" + indexName).build());
+            jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, "foo_" + indexName, "rollup_" + indexName));
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
@@ -151,9 +146,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractStreamableTest
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
-            jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName)
-                .setIndexPattern("foo_" + indexName)
-                .setRollupIndex("rollup_foo").build());
+            jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, "foo_" + indexName, "rollup_foo"));
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,

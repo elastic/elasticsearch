@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ class IndexerUtils {
      * @param isUpgradedDocID  `true` if this job is using the new ID scheme
      * @return             A list of rolled documents derived from the response
      */
-    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupJobStats stats,
+    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
                                              GroupConfig groupConfig, String jobId, boolean isUpgradedDocID) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
@@ -89,12 +89,12 @@ class IndexerUtils {
             if (k.endsWith("." + DateHistogramAggregationBuilder.NAME)) {
                 assert v != null;
                 doc.put(k + "." + RollupField.TIMESTAMP, v);
-                doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHisto().getInterval());
-                doc.put(k  + "." + DateHistogramGroupConfig.TIME_ZONE, groupConfig.getDateHisto().getTimeZone().toString());
+                doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHistogram().getInterval());
+                doc.put(k  + "." + DateHistogramGroupConfig.TIME_ZONE, groupConfig.getDateHistogram().getTimeZone());
                 idGenerator.add((Long)v);
             } else if (k.endsWith("." + HistogramAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
-                doc.put(k + "." + RollupField.INTERVAL, groupConfig.getHisto().getInterval());
+                doc.put(k + "." + RollupField.INTERVAL, groupConfig.getHistogram().getInterval());
                 if (v == null) {
                     idGenerator.addNull();
                 } else {

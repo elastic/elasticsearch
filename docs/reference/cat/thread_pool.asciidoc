@@ -15,13 +15,14 @@ Which looks like:
 [source,txt]
 --------------------------------------------------
 node-0 analyze             0 0 0
+...
 node-0 fetch_shard_started 0 0 0
 node-0 fetch_shard_store   0 0 0
 node-0 flush               0 0 0
 ...
 node-0 write               0 0 0
 --------------------------------------------------
-// TESTRESPONSE[s/\.\.\./(node-0 .+ 0 0 0\n)+/]
+// TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
 // TESTRESPONSE[s/\d+/\\d+/ _cat]
 // The substitutions do two things:
 // 1. Expect any number of extra thread pools. This allows us to only list a
@@ -45,6 +46,7 @@ The second column is the thread pool name
 --------------------------------------------------
 name
 analyze
+ccr (default distro only)
 fetch_shard_started
 fetch_shard_store
 flush
@@ -72,6 +74,7 @@ The next three columns show the active, queue, and rejected statistics for each 
 [source,txt]
 --------------------------------------------------
 active queue rejected
+     0     0        0
      0     0        0
      0     0        0
      0     0        0

@@ -9,7 +9,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,6 +65,7 @@ public class StringProcessor implements Processor {
             return new String(spaces);
         }),
         BIT_LENGTH((String s) -> UnicodeUtil.calcUTF16toUTF8Length(s, 0, s.length()) * 8),
+        OCTET_LENGTH((String s) -> UnicodeUtil.calcUTF16toUTF8Length(s, 0, s.length())),
         CHAR_LENGTH(String::length);
 
         private final Function<Object, Object> apply;
@@ -74,24 +75,7 @@ public class StringProcessor implements Processor {
         }
 
         StringOperation(NumericFunction<Object> apply) {
-            this.apply = l -> l == null ? null : apply.apply((l));
-        }
-        
-        StringOperation(Function<Object, Object> apply) {
-            this(apply, false);
-        }
-
-        /**
-         * Wrapper for nulls around the given function.
-         * If true, nulls are passed through, otherwise the function is short-circuited
-         * and null returned.
-         */
-        StringOperation(Function<Object, Object> apply, boolean nullAware) {
-            if (nullAware) {
-                this.apply = apply;
-            } else {
-                this.apply = l -> l == null ? null : apply.apply(l);
-            }
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         public final Object apply(Object l) {

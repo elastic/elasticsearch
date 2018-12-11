@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -172,25 +172,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verifyNoMoreInteractions(persister);
     }
 
-    public void testProcessResult_records_isPerPartitionNormalization() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-
-        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", bulkBuilder);
-        context.deleteInterimRequired = false;
-        AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123);
-        record1.setPartitionFieldValue("pValue");
-        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123);
-        record2.setPartitionFieldValue("pValue");
-        List<AnomalyRecord> records = Arrays.asList(record1, record2);
-        when(result.getRecords()).thenReturn(records);
-        processorUnderTest.processResult(context, result);
-
-        verify(bulkBuilder, times(1)).persistRecords(records);
-        verify(bulkBuilder, never()).executeRequest();
-        verifyNoMoreInteractions(persister);
-    }
 
     public void testProcessResult_influencers() {
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);

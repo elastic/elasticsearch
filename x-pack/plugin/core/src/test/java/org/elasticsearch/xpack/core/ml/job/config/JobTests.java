@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -103,7 +101,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNotNull(job.getDataDescription());
         assertNull(job.getDescription());
         assertNull(job.getFinishedTime());
-        assertNull(job.getLastDataTime());
         assertNull(job.getModelPlotConfig());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
@@ -479,19 +476,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
     }
 
-    public void testGetCompatibleJobTypes_givenVersionBefore_V_5_4() {
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_0_0).isEmpty(), is(true));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_0).isEmpty(), is(true));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_2).isEmpty(), is(true));
-    }
-
-    public void testGetCompatibleJobTypes_givenVersionAfter_V_5_4() {
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0).size(), equalTo(1));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0).size(), equalTo(1));
-    }
-
     public void testInvalidCreateTimeSettings() {
         Job.Builder builder = new Job.Builder("invalid-settings");
         builder.setModelSnapshotId("snapshot-foo");
@@ -499,12 +483,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         builder.setCreateTime(new Date());
         builder.setFinishedTime(new Date());
-        builder.setLastDataTime(new Date());
 
         Set<String> expected = new HashSet<>();
         expected.add(Job.CREATE_TIME.getPreferredName());
         expected.add(Job.FINISHED_TIME.getPreferredName());
-        expected.add(Job.LAST_DATA_TIME.getPreferredName());
         expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
 
         assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
@@ -581,6 +563,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(builder.build().earliestValidTimestamp(dataCounts), equalTo(123455789L));
     }
 
+    public void testCopyingJobDoesNotCauseStackOverflow() {
+        Job job = createRandomizedJob();
+        for (int i = 0; i < 100000; i++) {
+            job = new Job.Builder(job).build();
+        }
+    }
+
     public static Job.Builder buildJobBuilder(String id, Date date) {
         Job.Builder builder = new Job.Builder(id);
         builder.setCreateTime(date);
@@ -627,9 +616,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            builder.setLastDataTime(new Date(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             builder.setEstablishedModelMemory(randomNonNegativeLong());

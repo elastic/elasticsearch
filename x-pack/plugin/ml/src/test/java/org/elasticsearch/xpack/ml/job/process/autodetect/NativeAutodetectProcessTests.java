@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectStateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AutodetectControlMsgWriter;
 import org.junit.Assert;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -52,11 +53,13 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     public void testProcessStartTime() throws Exception {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
+        InputStream outputStream = mock(InputStream.class);
+        when(outputStream.read(new byte[512])).thenReturn(-1);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                mock(OutputStream.class), mock(InputStream.class), mock(OutputStream.class),
+                mock(OutputStream.class), outputStream, mock(OutputStream.class),
                 NUMBER_FIELDS, null,
-                new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
-            process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
+                new AutodetectResultsParser(), mock(Runnable.class))) {
+            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
 
             ZonedDateTime startTime = process.getProcessStartTime();
             Thread.sleep(500);
@@ -71,12 +74,14 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     public void testWriteRecord() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
+        InputStream outputStream = mock(InputStream.class);
+        when(outputStream.read(new byte[512])).thenReturn(-1);
         String[] record = {"r1", "r2", "r3", "r4", "r5"};
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
-                new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
-            process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
+                bos, outputStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
+                new AutodetectResultsParser(), mock(Runnable.class))) {
+            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
 
             process.writeRecord(record);
             process.flushStream();
@@ -104,41 +109,61 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     public void testFlush() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH + 1024);
+        InputStream outputStream = mock(InputStream.class);
+        when(outputStream.read(new byte[512])).thenReturn(-1);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH + 1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
-                new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
-            process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
+                bos, outputStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
+                new AutodetectResultsParser(), mock(Runnable.class))) {
+            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
 
             FlushJobParams params = FlushJobParams.builder().build();
             process.flushJob(params);
 
             ByteBuffer bb = ByteBuffer.wrap(bos.toByteArray());
-            assertThat(bb.remaining(), is(greaterThan(ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH)));
+            assertThat(bb.remaining(), is(greaterThan(AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH)));
         }
     }
 
     public void testWriteResetBucketsControlMessage() throws IOException {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("86400").build(), Optional.empty());
-        testWriteMessage(p -> p.writeResetBucketsControlMessage(params), ControlMsgToProcessWriter.RESET_BUCKETS_MESSAGE_CODE);
+        testWriteMessage(p -> p.writeResetBucketsControlMessage(params), AutodetectControlMsgWriter.RESET_BUCKETS_MESSAGE_CODE);
     }
 
     public void testWriteUpdateConfigMessage() throws IOException {
-        testWriteMessage(p -> p.writeUpdateModelPlotMessage(new ModelPlotConfig()), ControlMsgToProcessWriter.UPDATE_MESSAGE_CODE);
+        testWriteMessage(p -> p.writeUpdateModelPlotMessage(new ModelPlotConfig()), AutodetectControlMsgWriter.UPDATE_MESSAGE_CODE);
     }
 
     public void testPersistJob() throws IOException {
-        testWriteMessage(p -> p.persistJob(), ControlMsgToProcessWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
+        testWriteMessage(p -> p.persistState(), AutodetectControlMsgWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
     }
 
-    public void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {
+    public void testConsumeAndCloseOutputStream() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
+        OutputStream processInStream = mock(OutputStream.class);
+        String json = "some string of data";
+        ByteArrayInputStream processOutStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+
+        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
+            processInStream, processOutStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
+            new AutodetectResultsParser(), mock(Runnable.class))) {
+
+            process.consumeAndCloseOutputStream();
+            assertThat(processOutStream.available(), equalTo(0));
+        }
+    }
+
+    private void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {
+        InputStream logStream = mock(InputStream.class);
+        when(logStream.read(new byte[1024])).thenReturn(-1);
+        InputStream outputStream = mock(InputStream.class);
+        when(outputStream.read(new byte[512])).thenReturn(-1);
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
-                new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
-            process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
+                bos, outputStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
+                new AutodetectResultsParser(), mock(Runnable.class))) {
+            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
 
             writeFunction.accept(process);
             process.writeUpdateModelPlotMessage(new ModelPlotConfig());

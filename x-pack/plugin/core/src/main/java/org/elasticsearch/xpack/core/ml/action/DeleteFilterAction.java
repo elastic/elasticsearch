@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class DeleteFilterAction extends Action<DeleteFilterAction.Response> {
+public class DeleteFilterAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteFilterAction INSTANCE = new DeleteFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/delete";
@@ -30,8 +30,8 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Response> {
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -84,21 +84,11 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Response> {
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteFilterAction action) {
             super(client, action, new Request());
         }
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {}
-    }
-
 }
 

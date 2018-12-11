@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -246,6 +246,30 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Returns the setting value associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    String get(String setting, String defaultValue, boolean isList) {
+        Object value = settings.get(setting);
+        if (value != null) {
+            if (value instanceof List) {
+                if (isList == false) {
+                    throw new IllegalArgumentException(
+                        "Found list type value for setting [" + setting + "] but but did not expect a list for it."
+                    );
+                }
+            } else if (isList) {
+                throw new IllegalArgumentException(
+                    "Expected list type value for setting [" + setting + "] but found [" + value.getClass() + ']'
+                );
+            }
+            return toString(value);
+        } else {
+            return defaultValue;
+        }
+    }
+
+    /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -322,7 +346,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
     }
 
     /**
@@ -688,21 +712,21 @@ public final class Settings implements ToXContentFragment {
                     }
                 }
                 String key = keyBuilder.toString();
-                validateValue(key, list, builder, parser, allowNullValues);
+                validateValue(key, list, parser, allowNullValues);
                 builder.putList(key, list);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 String key = keyBuilder.toString();
-                validateValue(key, null, builder, parser, allowNullValues);
+                validateValue(key, null, parser, allowNullValues);
                 builder.putNull(key);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING
                 || parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 String key = keyBuilder.toString();
                 String value = parser.text();
-                validateValue(key, value, builder, parser, allowNullValues);
+                validateValue(key, value, parser, allowNullValues);
                 builder.put(key, value);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                 String key = keyBuilder.toString();
-                validateValue(key, parser.text(), builder, parser, allowNullValues);
+                validateValue(key, parser.text(), parser, allowNullValues);
                 builder.put(key, parser.booleanValue());
             } else {
                 XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
@@ -710,19 +734,7 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
-    private static void validateValue(String key, Object currentValue, Settings.Builder builder, XContentParser parser,
-                                      boolean allowNullValues) {
-        if (builder.map.containsKey(key)) {
-            throw new ElasticsearchParseException(
-                "duplicate settings key [{}] found at line number [{}], column number [{}], previous value [{}], current value [{}]",
-                key,
-                parser.getTokenLocation().lineNumber,
-                parser.getTokenLocation().columnNumber,
-                builder.map.get(key),
-                currentValue
-            );
-        }
-
+    private static void validateValue(String key, Object currentValue, XContentParser parser, boolean allowNullValues) {
         if (currentValue == null && allowNullValues == false) {
             throw new ElasticsearchParseException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",

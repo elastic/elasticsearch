@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -39,8 +40,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -89,8 +88,9 @@ public class ShardStateActionTests extends ESTestCase {
     private ClusterService clusterService;
 
     private static class TestShardStateAction extends ShardStateAction {
-        TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
-            super(settings, clusterService, transportService, allocationService, routingService, THREAD_POOL);
+        TestShardStateAction(ClusterService clusterService, TransportService transportService,
+                             AllocationService allocationService, RoutingService routingService) {
+            super(clusterService, transportService, allocationService, routingService, THREAD_POOL);
         }
 
         private Runnable onBeforeWaitForNewMasterAndRetry;
@@ -106,7 +106,8 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request, Listener listener, Predicate<ClusterState> changePredicate) {
+        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request,
+                                                Listener listener, Predicate<ClusterState> changePredicate) {
             onBeforeWaitForNewMasterAndRetry.run();
             super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
             onAfterWaitForNewMasterAndRetry.run();
@@ -124,11 +125,11 @@ public class ShardStateActionTests extends ESTestCase {
         super.setUp();
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
+        shardStateAction = new TestShardStateAction(clusterService, transportService, null, null);
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
         });
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {
@@ -243,7 +244,7 @@ public class ShardStateActionTests extends ESTestCase {
             if (randomBoolean()) {
                 transport.handleRemoteError(
                         requestId,
-                        randomFrom(new NotMasterException("simulated"), new Discovery.FailedToCommitClusterStateException("simulated")));
+                        randomFrom(new NotMasterException("simulated"), new FailedToCommitClusterStateException("simulated")));
             } else {
                 if (randomBoolean()) {
                     transport.handleLocalError(requestId, new NodeNotConnectedException(null, "simulated"));
@@ -359,20 +360,21 @@ public class ShardStateActionTests extends ESTestCase {
 
         long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
-        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(), primaryTerm + 1, randomBoolean(), "test",
-            getSimulatedFailure(), new ShardStateAction.Listener() {
-            @Override
-            public void onSuccess() {
-                failure.set(null);
-                latch.countDown();
-            }
+        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
+            primaryTerm + 1, randomBoolean(), "test", getSimulatedFailure(),
+            new ShardStateAction.Listener() {
+                @Override
+                public void onSuccess() {
+                    failure.set(null);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-                latch.countDown();
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                    latch.countDown();
+                }
+            });
 
         ShardStateAction.NoLongerPrimaryShardException catastrophicError =
                 new ShardStateAction.NoLongerPrimaryShardException(failedShard.shardId(), "dummy failure");
@@ -445,7 +447,8 @@ public class ShardStateActionTests extends ESTestCase {
                 for (int i = 0; i < iterationsPerThread; i++) {
                     ShardRouting failedShard = randomFrom(failedShards);
                     shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
-                        randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                        randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(),
+                        new ShardStateAction.Listener() {
                             @Override
                             public void onSuccess() {
                                 notifiedResponses.incrementAndGet();
@@ -523,7 +526,8 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(failedShardEntry.failure, nullValue());
             assertThat(failedShardEntry.markAsStale, equalTo(true));
         }
-        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L, reason, null, false), bwcVersion).streamInput()) {
+        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L,
+                reason, null, false), bwcVersion).streamInput()) {
             in.setVersion(bwcVersion);
             final StartedShardEntry startedShardEntry = new StartedShardEntry(in);
             assertThat(startedShardEntry.shardId, equalTo(shardId));

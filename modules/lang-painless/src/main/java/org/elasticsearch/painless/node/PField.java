@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a field load/store and defers to a child subnode.
@@ -65,31 +68,22 @@ public final class PField extends AStoreable {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            try {
-                sub = new PSubField(location,
-                        locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value));
-            } catch (IllegalArgumentException fieldIAE) {
+            PainlessField field = locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
+
+            if (field == null) {
                 PainlessMethod getter;
                 PainlessMethod setter;
 
-                try {
+                getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                        "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+
+                if (getter == null) {
                     getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
-                            "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
-                } catch (IllegalArgumentException getIAE) {
-                    try {
-                        getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
-                                "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
-                    } catch (IllegalArgumentException isIAE) {
-                        getter = null;
-                    }
+                            "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                try {
-                    setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
-                            "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
-                } catch (IllegalArgumentException setIAE) {
-                    setter = null;
-                }
+                setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                        "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
@@ -107,8 +101,11 @@ public final class PField extends AStoreable {
                 }
 
                 if (sub == null) {
-                    throw createError(fieldIAE);
+                    throw createError(new IllegalArgumentException(
+                            "field [" + typeToCanonicalTypeName(prefix.actual) + ", " + value + "] not found"));
                 }
+            } else {
+                sub = new PSubField(location, field);
             }
         }
 

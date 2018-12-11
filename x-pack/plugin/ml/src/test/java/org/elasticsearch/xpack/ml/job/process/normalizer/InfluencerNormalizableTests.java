@@ -44,6 +44,10 @@ public class InfluencerNormalizableTests extends ESTestCase {
         assertEquals("airline", new InfluencerNormalizable(influencer, INDEX_NAME).getPersonFieldName());
     }
 
+    public void testGetPersonFieldValue() {
+        assertEquals("AAL", new InfluencerNormalizable(influencer, INDEX_NAME).getPersonFieldValue());
+    }
+
     public void testGetFunctionName() {
         assertNull(new InfluencerNormalizable(influencer, INDEX_NAME).getFunctionName());
     }

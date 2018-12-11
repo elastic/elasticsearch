@@ -9,8 +9,8 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -21,28 +21,28 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
 
     private final ScriptTemplate script;
     private final Expression orderBy;
-    private final ProcessorDefinition processorDef;
+    private final Pipe pipe;
 
     ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
-            String functionId, ScriptTemplate script, Expression orderBy, ProcessorDefinition processorDef) {
+            String functionId, ScriptTemplate script, Expression orderBy, Pipe processorDef) {
         this(location, name, dataType, null, true, id, false, functionId, script, orderBy, processorDef);
     }
 
     public ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
             boolean nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
-            Expression orderBy, ProcessorDefinition processorDef) {
+            Expression orderBy, Pipe pipe) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
 
         this.script = script;
         this.orderBy = orderBy;
-        this.processorDef = processorDef;
+        this.pipe = pipe;
     }
 
     @Override
     protected NodeInfo<ScalarFunctionAttribute> info() {
         return NodeInfo.create(this, ScalarFunctionAttribute::new,
             name(), dataType(), qualifier(), nullable(), id(), synthetic(),
-            functionId(), script, orderBy, processorDef);
+            functionId(), script, orderBy, pipe);
     }
 
     public ScriptTemplate script() {
@@ -53,30 +53,37 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
         return orderBy;
     }
 
-    public ProcessorDefinition processorDef() {
-        return processorDef;
+    @Override
+    public Pipe asPipe() {
+        return pipe;
     }
 
     @Override
     protected Expression canonicalize() {
         return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false,
-                functionId(), script, orderBy, processorDef);
+                functionId(), script, orderBy, pipe);
     }
 
     @Override
     protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return new ScalarFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic,
-                functionId(), script, orderBy, processorDef);
+                functionId(), script, orderBy, pipe);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), orderBy);
+        return Objects.hash(super.hashCode(), script(), pipe, orderBy);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(orderBy, ((ScalarFunctionAttribute) obj).orderBy());
+        if (super.equals(obj)) {
+            ScalarFunctionAttribute other = (ScalarFunctionAttribute) obj;
+            return Objects.equals(script, other.script())
+                    && Objects.equals(pipe, other.asPipe())
+                    && Objects.equals(orderBy, other.orderBy());
+        }
+        return false;
     }
 
     @Override

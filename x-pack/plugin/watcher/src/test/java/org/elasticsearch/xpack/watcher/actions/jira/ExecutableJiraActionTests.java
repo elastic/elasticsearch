@@ -17,8 +17,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
@@ -93,11 +92,9 @@ public class ExecutableJiraActionTests extends ESTestCase {
         assertThat(request.port(), is(port));
         assertThat(request.path(), is(JiraAccount.DEFAULT_PATH));
 
-        HttpAuth httpAuth = request.auth();
-        assertThat(httpAuth.type(), is("basic"));
+        BasicAuth httpAuth = request.auth();
 
-        BasicAuth basicAuth = (BasicAuth) httpAuth;
-        assertThat(basicAuth.getUsername(), is(user));
+        assertThat(httpAuth.getUsername(), is(user));
     }
 
     public void testExecutionWithNoDefaults() throws Exception {
@@ -303,7 +300,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
     class UpperCaseTextTemplateEngine extends TextTemplateEngine {
 
         UpperCaseTextTemplateEngine() {
-            super(Settings.EMPTY, mock(ScriptService.class));
+            super(mock(ScriptService.class));
         }
 
         @Override

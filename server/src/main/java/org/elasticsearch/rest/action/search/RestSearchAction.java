@@ -19,12 +19,12 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -54,10 +55,22 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
-
+    /**
+     * Indicates whether hits.total should be rendered as an integer or an object
+     * in the rest search response.
+     */
+    public static final String TOTAL_HIT_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestSearchAction.class));
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HIT_AS_INT_PARAM));
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in search requests is deprecated.";
 
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
@@ -150,16 +163,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        String types = request.param("type");
-        if (types != null) {
-            if (includeTypeName == false) {
-                throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the search API with the " +
-                        "[{index}/_search] endpoint.");
-            }
-            DEPRECATION_LOGGER.deprecated("The {index}/{type}/_search endpoint is deprecated, use {index}/_search instead");
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
+            searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
-        searchRequest.types(Strings.splitStringByCommaToArray(types));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));

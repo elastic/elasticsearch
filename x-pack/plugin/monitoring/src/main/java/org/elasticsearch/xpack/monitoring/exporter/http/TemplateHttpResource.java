@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -28,7 +29,7 @@ import java.util.function.Supplier;
  */
 public class TemplateHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(TemplateHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(TemplateHttpResource.class);
 
     /**
      * The name of the template that is sent to the remote cluster.
@@ -61,21 +62,21 @@ public class TemplateHttpResource extends PublishableHttpResource {
      * @see MonitoringTemplateUtils#LAST_UPDATED_VERSION
      */
     @Override
-    protected CheckResponse doCheck(final RestClient client) {
-        return versionCheckForResource(client, logger,
-                                       "/_template", templateName, "monitoring template",
-                                       resourceOwnerName, "monitoring cluster",
-                                       XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
+    protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
+        versionCheckForResource(client, listener, logger,
+                                "/_template", templateName, "monitoring template",
+                                resourceOwnerName, "monitoring cluster",
+                                XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
     }
 
     /**
      * Publish the missing {@linkplain #templateName template}.
      */
     @Override
-    protected boolean doPublish(final RestClient client) {
-        return putResource(client, logger,
-                           "/_template", templateName, this::templateToHttpEntity, "monitoring template",
-                           resourceOwnerName, "monitoring cluster");
+    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+        putResource(client, listener, logger,
+                    "/_template", templateName, this::templateToHttpEntity, "monitoring template",
+                    resourceOwnerName, "monitoring cluster");
     }
 
     /**

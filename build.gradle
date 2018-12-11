@@ -16,24 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.gradle.api.tasks.options.Option
+import  org.gradle.util.GradleVersion
+import  org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.util.GradleVersion
-import org.gradle.util.DistributionLocator
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.ReplaceTokens
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.security.MessageDigest
+import java.util.function.Predicate
 
 plugins {
-    id 'com.gradle.build-scan' version '1.13.2'
+    id 'com.gradle.build-scan' version '2.0.2'
+    id 'base'
 }
 if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
     buildScan {
@@ -43,9 +44,9 @@ if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
 }
 
 // common maven publishing configuration
-subprojects {
+allprojects {
   group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch.toString()
+  version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
 
@@ -87,8 +88,15 @@ subprojects {
           }
         }
       }
+      repositories {
+        maven {
+          name = 'localTest'
+          url = "${rootProject.buildDir}/local-test-repo"
+        }
+      }
     }
   }
+
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
@@ -102,10 +110,6 @@ subprojects {
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
 VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion != VersionProperties.elasticsearch) {
-  throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
-          "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
-}
 
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')
@@ -139,26 +143,16 @@ task verifyVersions {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
     }
-    // Read the list from maven central
-    Node xml
+    // Read the list from maven central. 
+    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here 
+    // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-        xml = new XmlParser().parse(s)
-    }
-    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }.collect { Version.fromString(it) })
-
-    // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
-
-    /* Limit the listed versions to those that have been marked as released.
-     * Versions not marked as released don't get the same testing and we want
-     * to make sure that we flip all unreleased versions to released as soon
-     * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
-
-    // Finally, compare!
-    if (knownVersions.equals(actualVersions) == false) {
-      throw new GradleException("out-of-date released versions\nActual  :" + actualVersions + "\nExpected:" + knownVersions +
-        "\nUpdate Version.java. Note that Version.CURRENT doesn't count because it is not released.")
+      bwcVersions.compareToAuthoritative(
+              new XmlParser().parse(s)
+                      .versioning.versions.version
+                      .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+                      .collect { Version.fromString(it) }
+      )
     }
   }
 }
@@ -198,7 +192,7 @@ task branchConsistency {
   dependsOn verifyVersions, verifyBwcTestsEnabled
 }
 
-subprojects {
+allprojects {
   // ignore missing javadocs
   tasks.withType(Javadoc) { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -228,6 +222,7 @@ subprojects {
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
+    "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
@@ -249,20 +244,17 @@ subprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
-
-  bwcVersions.snapshotProjectNames.each { snapshotName ->
-    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
-    if (snapshot != null ) {
-      String snapshotProject = ":distribution:bwc:${snapshotName}"
-      project(snapshotProject).ext.bwcVersion = snapshot
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
-      if (snapshot.onOrAfter('6.3.0')) {
-        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
-        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
-        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
-      }
+  // substitute unreleased versions with projects that check out and build locally
+  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
+    Version unreleased = unreleasedVersion.version
+    String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${unreleased}"] = snapshotProject
+    if (unreleased.onOrAfter('6.3.0')) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
     }
   }
 
@@ -296,14 +288,14 @@ subprojects {
     // org.elasticsearch:elasticsearch must be the last one or all the links for the
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
-    if (project.plugins.hasPlugin(BuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
           return
         }
-        Project upstreamProject = dependencyToProject(dep)
+        Project upstreamProject = project.ext.dependencyToProject(dep)
         if (upstreamProject == null) {
           return
         }
@@ -314,13 +306,6 @@ subprojects {
            */
           project.evaluationDependsOn(upstreamProject.path)
           project.javadoc.source += upstreamProject.javadoc.source
-          /*
-           * Do not add those projects to the javadoc classpath because
-           * we are going to resolve them with their source instead.
-           */
-          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
-            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
-          }
           /*
            * Instead we need the upstream project's javadoc classpath so
            * we don't barf on the classes that it references.
@@ -337,16 +322,16 @@ subprojects {
       project.configurations.compile.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(hasShadow, c) })
+          .each({ c -> depJavadocClosure(false, c) })
       project.configurations.compileOnly.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(hasShadow, c) })
+          .each({ c -> depJavadocClosure(false, c) })
       if (hasShadow) {
-        project.configurations.shadow.dependencies
+        project.configurations.bundle.dependencies
             .findAll()
             .toSorted(sortClosure)
-            .each({ c -> depJavadocClosure(false, c) })
+            .each({ c -> depJavadocClosure(true, c) })
       }
     }
   }
@@ -510,30 +495,33 @@ allprojects {
   tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+
+  // work arround https://github.com/gradle/gradle/issues/6582 
+  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
+  tasks.matching { it.name == 'eclipseClasspath' }.all {
+    it.mustRunAfter { tasks.cleanEclipseClasspath }
+  }
+  tasks.matching { it.name == 'eclipseJdt' }.all {
+    it.mustRunAfter { tasks.cleanEclipseJdt }
+  }
+  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
 }
 
 allprojects {
   /*
    * IntelliJ and Eclipse don't know about the shadow plugin so when we're
-   * in "IntelliJ mode" or "Eclipse mode" add "runtime" dependencies
-   * eveywhere where we see a "shadow" dependency which will cause them to
-   * reference shadowed projects directly rather than rely on the shadowing
-   * to include them. This is the correct thing for it to do because it
-   * doesn't run the jar shadowing at all. This isn't needed for the project
+   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
+   * regular "compile" dependencies. This isn't needed for the project
    * itself because the IDE configuration is done by SourceSets but it is
    * *is* needed for projects that depends on the project doing the shadowing.
    * Without this they won't properly depend on the shadowed project.
    */
   if (isEclipse || isIdea) {
-	configurations.all { Configuration configuration ->
-	  dependencies.all { Dependency dep ->
-		if (dep instanceof ProjectDependency) {
-		  if (dep.getTargetConfiguration() == 'shadow') {
-			configuration.dependencies.add(project.dependencies.project(path: dep.dependencyProject.path, configuration: 'runtime'))
-		  }
-		}
-	  }
-	}
+    project.plugins.withType(ShadowPlugin).whenPluginAdded {
+      project.afterEvaluate {
+        project.configurations.compile.extendsFrom project.configurations.bundle
+      }
+    }
   }
 }
 
@@ -542,7 +530,7 @@ allprojects {
 class Run extends DefaultTask {
   boolean debug = false
 
-  @org.gradle.api.internal.tasks.options.Option(
+  @Option(
         option = "debug-jvm",
         description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
   )
@@ -574,76 +562,20 @@ wrapper {
     }
 }
 
-static void assertLinesInFile(final Path path, final List<String> expectedLines) {
-  final List<String> actualLines = Files.readAllLines(path)
-  int line = 0
-  for (final String expectedLine : expectedLines) {
-    final String actualLine = actualLines.get(line)
-    if (expectedLine != actualLine) {
-      throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
-    }
-    line++
-  }
-}
-
-/*
- * Check that all generated JARs have our NOTICE.txt and an appropriate
- * LICENSE.txt in them. We configurate this in gradle but we'd like to
- * be extra paranoid.
- */
-subprojects { project ->
-  project.tasks.withType(Jar).whenTaskAdded { jarTask ->
-    final Task extract = project.task("extract${jarTask.name.capitalize()}", type: LoggedExec) {
-      dependsOn jarTask
-      ext.destination = project.buildDir.toPath().resolve("jar-extracted/${jarTask.name}")
-      commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
-          'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
-      workingDir destination
-      onlyIf {jarTask.enabled}
-      doFirst {
-        project.delete(destination)
-        Files.createDirectories(destination)
-      }
-    }
-
-    final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
-      dependsOn extract
-      onlyIf {jarTask.enabled}
-      doLast {
-        final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
-        final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
-        assertLinesInFile(noticePath, noticeLines)
-      }
-    }
-    project.check.dependsOn checkNotice
-
-    final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
-      dependsOn extract
-      onlyIf {jarTask.enabled}
-      doLast {
-        final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
-        final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')
-        assertLinesInFile(licensePath, licenseLines)
-      }
-    }
-    project.check.dependsOn checkLicense
-  }
-}
-
-/* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
- * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
-    if (project.path.startsWith(':qa')) {
+    /*
+     * Remove assemble/dependenciesInfo on all qa projects because we don't
+     * need to publish artifacts for them.
+     */
+    if (project.name.equals('qa') || project.path.contains(':qa:')) {
       Task assemble = project.tasks.findByName('assemble')
       if (assemble) {
-        project.tasks.remove(assemble)
-        project.build.dependsOn.remove('assemble')
+        assemble.enabled = false
       }
       Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
       if (dependenciesInfo) {
-        project.tasks.remove(dependenciesInfo)
-        project.precommit.dependsOn.remove('dependenciesInfo')
+        dependenciesInfo.enabled = false
       }
     }
   }
@@ -688,3 +620,27 @@ if (System.properties.get("build.compare") != null) {
     }
   }
 }
+
+allprojects {
+  task resolveAllDependencies {
+    doLast {
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+    }
+  }
+}
+
+allprojects {
+  task checkPart1
+  task checkPart2 
+  tasks.matching { it.name == "check" }.all { check ->
+    if (check.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn check
+    } else {
+      checkPart1.dependsOn check
+    }
+  } 
+}
+
+
+
+

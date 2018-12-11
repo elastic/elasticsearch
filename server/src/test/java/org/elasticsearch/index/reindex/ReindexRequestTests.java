@@ -20,8 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.slice.SliceBuilder;
 
@@ -89,9 +87,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest newRequest() {
-        ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
-        reindex.getSearchRequest().indices("source");
-        reindex.getDestination().index("dest");
+        ReindexRequest reindex = new ReindexRequest();
+        reindex.setSourceIndices("source");
+        reindex.setDestIndex("dest");
         return reindex;
     }
 }

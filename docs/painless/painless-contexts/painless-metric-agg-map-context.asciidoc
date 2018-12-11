@@ -13,10 +13,9 @@ part of a full metric aggregation.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`params['_agg']` (`Map`)::
+`state` (`Map`)::
         `Map` used to add values for processing in a
-        <<painless-metric-agg-map-context, combine script>> or returned
-        directly.
+        <<painless-metric-agg-map-context, combine script>> or to be returned from the aggregation.
 
 `doc` (`Map`, read-only)::
         Contains the fields of the current document where each field is a
@@ -27,15 +26,16 @@ part of a full metric aggregation.
 
 *Side Effects*
 
-`params['_agg']` (`Map`)::
+`state` (`Map`)::
         Use this `Map` to add values for processing in a combine script.
         Additional values must be of the type `Map`, `List`, `String` or
-        primitive. If an initialization script is provided as part the
+        primitive. The same `state` `Map` is shared between all aggregated documents
+        on a given shard. If an initialization script is provided as part of the
         aggregation then values added from the initialization script are
-        available as well.  If no combine script is specified, values must be
-        directly stored in `_agg`. If no combine script and no
+        available.  If no combine script is specified, values must be
+        directly stored in `state` in a usable form. If no combine script and no
         <<painless-metric-agg-reduce-context, reduce script>> are specified, the
-        values are used as the result.
+        `state` values are used as the result.
 
 *Return*
 

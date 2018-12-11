@@ -19,9 +19,9 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -42,14 +41,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -152,14 +150,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            v) {
-            @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-                throws ConnectTransportException {
-                throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
-            }
-        };
+            v);
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier);
         closeables.push(handleA.transportService);
@@ -387,8 +378,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -429,8 +419,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -475,8 +464,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -522,8 +510,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -588,8 +575,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            v);
+            networkService);
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier, EnumSet.allOf(Role.class));
         closeables.push(handleA.transportService);
@@ -824,6 +810,8 @@ public class UnicastZenPingTests extends ESTestCase {
     }
 
     private static class TestUnicastZenPing extends UnicastZenPing {
+
+        private static final Logger logger = LogManager.getLogger(TestUnicastZenPing.class);
 
         TestUnicastZenPing(Settings settings, ThreadPool threadPool, NetworkHandle networkHandle,
                            PingContextProvider contextProvider) {

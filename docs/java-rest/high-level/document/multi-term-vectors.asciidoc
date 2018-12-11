@@ -1,0 +1,59 @@
+--
+:api: multi-term-vectors
+:request: MultiTermVectorsRequest
+:response: MultiTermVectorsResponse
+:tvrequest: TermVectorsRequest
+--
+
+[id="{upid}-{api}"]
+=== Multi Term Vectors API
+
+Multi Term Vectors API allows to get multiple term vectors at once.
+
+[id="{upid}-{api}-request"]
+==== Multi Term Vectors Request
+There are two ways to create a +{request}+.
+
+The first way is to create an empty +{request}+, and then add individual
+<<java-rest-high-document-term-vectors, term vectors requests>> to it.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Create an empty +{request}+.
+<2> Add the first +{tvrequest}+ to the +{request}+.
+<3> Add the second +{tvrequest}+ for an artificial doc to the +{request}+.
+
+
+The second way can be used when all term vectors requests share the same
+arguments, such as index and other settings. In this case, a template
++{tvrequest}+ can be created with all necessary settings set, and
+this template request can be passed to +{request}+ along with all
+documents' ids for which to execute these requests.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-template]
+--------------------------------------------------
+<1> Create a template +{tvrequest}+.
+<2> Pass documents' ids and the template to the +{request}+.
+
+
+include::../execution.asciidoc[]
+
+
+[id="{upid}-{api}-response"]
+==== Multi Term Vectors Response
+
++{response}+ allows to get the list of term vectors responses,
+each of which can be inspected as described in
+<<java-rest-high-document-term-vectors>>.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Get a list of `TermVectorsResponse`
+
+

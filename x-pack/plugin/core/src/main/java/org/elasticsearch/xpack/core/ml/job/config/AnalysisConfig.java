@@ -61,15 +61,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
     private static final ParseField DETECTORS = new ParseField("detectors");
     private static final ParseField INFLUENCERS = new ParseField("influencers");
-    private static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
-    private static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
     private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
-    private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
-
-    public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -95,10 +90,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
         parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
         parser.declareStringArray(Builder::setInfluencers, INFLUENCERS);
-        parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
-        parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
         parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
-        parser.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
 
         return parser;
     }
@@ -114,15 +106,11 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private final String summaryCountFieldName;
     private final List<Detector> detectors;
     private final List<String> influencers;
-    private final Boolean overlappingBuckets;
-    private final Long resultFinalizationWindow;
     private final Boolean multivariateByFields;
-    private final boolean usePerPartitionNormalization;
 
     private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
                            CategorizationAnalyzerConfig categorizationAnalyzerConfig, TimeValue latency, String summaryCountFieldName,
-                           List<Detector> detectors, List<String> influencers, Boolean overlappingBuckets, Long resultFinalizationWindow,
-                           Boolean multivariateByFields, boolean usePerPartitionNormalization) {
+                           List<Detector> detectors, List<String> influencers, Boolean multivariateByFields) {
         this.detectors = detectors;
         this.bucketSpan = bucketSpan;
         this.latency = latency;
@@ -131,10 +119,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         this.categorizationFilters = categorizationFilters == null ? null : Collections.unmodifiableList(categorizationFilters);
         this.summaryCountFieldName = summaryCountFieldName;
         this.influencers = Collections.unmodifiableList(influencers);
-        this.overlappingBuckets = overlappingBuckets;
-        this.resultFinalizationWindow = resultFinalizationWindow;
         this.multivariateByFields = multivariateByFields;
-        this.usePerPartitionNormalization = usePerPartitionNormalization;
     }
 
     public AnalysisConfig(StreamInput in) throws IOException {
@@ -150,8 +135,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         summaryCountFieldName = in.readOptionalString();
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
         influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
-        overlappingBuckets = in.readOptionalBoolean();
-        resultFinalizationWindow = in.readOptionalLong();
+
+        // BWC for result_finalization_window and overlapping_buckets
+        // TODO Remove in 7.0.0
+        if (in.getVersion().before(Version.V_6_6_0)) {
+            in.readOptionalBoolean();
+            in.readOptionalLong();
+        }
         multivariateByFields = in.readOptionalBoolean();
 
         // BWC for removed multiple_bucket_spans
@@ -165,7 +155,11 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             }
         }
 
-        usePerPartitionNormalization = in.readBoolean();
+        // BWC for removed per-partition normalization
+        // TODO Remove in 7.0.0
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            in.readBoolean();
+        }
     }
 
     @Override
@@ -185,8 +179,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
         out.writeStringList(influencers);
-        out.writeOptionalBoolean(overlappingBuckets);
-        out.writeOptionalLong(resultFinalizationWindow);
+
+        // BWC for result_finalization_window and overlapping_buckets
+        // TODO Remove in 7.0.0
+        if (out.getVersion().before(Version.V_6_6_0)) {
+            out.writeOptionalBoolean(null);
+            out.writeOptionalLong(null);
+        }
         out.writeOptionalBoolean(multivariateByFields);
 
         // BWC for removed multiple_bucket_spans
@@ -195,7 +194,11 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
 
-        out.writeBoolean(usePerPartitionNormalization);
+        // BWC for removed per-partition normalization
+        // TODO Remove in 7.0.0
+        if (out.getVersion().before(Version.V_6_5_0)) {
+            out.writeBoolean(false);
+        }
     }
 
     /**
@@ -287,20 +290,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 .flatMap(Set::stream).collect(Collectors.toSet());
     }
 
-    public Boolean getOverlappingBuckets() {
-        return overlappingBuckets;
-    }
-
-    public Long getResultFinalizationWindow() {
-        return resultFinalizationWindow;
-    }
-
     public Boolean getMultivariateByFields() {
         return multivariateByFields;
-    }
-
-    public boolean getUsePerPartitionNormalization() {
-        return usePerPartitionNormalization;
     }
 
     /**
@@ -394,17 +385,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
         builder.endArray();
         builder.field(INFLUENCERS.getPreferredName(), influencers);
-        if (overlappingBuckets != null) {
-            builder.field(OVERLAPPING_BUCKETS.getPreferredName(), overlappingBuckets);
-        }
-        if (resultFinalizationWindow != null) {
-            builder.field(RESULT_FINALIZATION_WINDOW.getPreferredName(), resultFinalizationWindow);
-        }
         if (multivariateByFields != null) {
             builder.field(MULTIVARIATE_BY_FIELDS.getPreferredName(), multivariateByFields);
-        }
-        if (usePerPartitionNormalization) {
-            builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
         }
         builder.endObject();
         return builder;
@@ -416,7 +398,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         AnalysisConfig that = (AnalysisConfig) o;
         return Objects.equals(latency, that.latency) &&
-                usePerPartitionNormalization == that.usePerPartitionNormalization &&
                 Objects.equals(bucketSpan, that.bucketSpan) &&
                 Objects.equals(categorizationFieldName, that.categorizationFieldName) &&
                 Objects.equals(categorizationFilters, that.categorizationFilters) &&
@@ -424,8 +405,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 Objects.equals(summaryCountFieldName, that.summaryCountFieldName) &&
                 Objects.equals(detectors, that.detectors) &&
                 Objects.equals(influencers, that.influencers) &&
-                Objects.equals(overlappingBuckets, that.overlappingBuckets) &&
-                Objects.equals(resultFinalizationWindow, that.resultFinalizationWindow) &&
                 Objects.equals(multivariateByFields, that.multivariateByFields);
     }
 
@@ -433,9 +412,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public int hashCode() {
         return Objects.hash(
                 bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, latency,
-                summaryCountFieldName, detectors, influencers, overlappingBuckets, resultFinalizationWindow,
-                multivariateByFields, usePerPartitionNormalization
-        );
+                summaryCountFieldName, detectors, influencers, multivariateByFields);
     }
 
     public static class Builder {
@@ -450,10 +427,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
         private String summaryCountFieldName;
         private List<String> influencers = new ArrayList<>();
-        private Boolean overlappingBuckets;
-        private Long resultFinalizationWindow;
         private Boolean multivariateByFields;
-        private boolean usePerPartitionNormalization = false;
 
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);
@@ -469,10 +443,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             this.categorizationAnalyzerConfig = analysisConfig.categorizationAnalyzerConfig;
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
             this.influencers = new ArrayList<>(analysisConfig.influencers);
-            this.overlappingBuckets = analysisConfig.overlappingBuckets;
-            this.resultFinalizationWindow = analysisConfig.resultFinalizationWindow;
             this.multivariateByFields = analysisConfig.multivariateByFields;
-            this.usePerPartitionNormalization = analysisConfig.usePerPartitionNormalization;
         }
 
         public void setDetectors(List<Detector> detectors) {
@@ -523,20 +494,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             this.influencers = ExceptionsHelper.requireNonNull(influencers, INFLUENCERS.getPreferredName());
         }
 
-        public void setOverlappingBuckets(Boolean overlappingBuckets) {
-            this.overlappingBuckets = overlappingBuckets;
-        }
-
-        public void setResultFinalizationWindow(Long resultFinalizationWindow) {
-            this.resultFinalizationWindow = resultFinalizationWindow;
-        }
-
         public void setMultivariateByFields(Boolean multivariateByFields) {
             this.multivariateByFields = multivariateByFields;
-        }
-
-        public void setUsePerPartitionNormalization(boolean usePerPartitionNormalization) {
-            this.usePerPartitionNormalization = usePerPartitionNormalization;
         }
 
         /**
@@ -546,7 +505,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
          * <li>Check that if non-null Latency is &lt;= MAX_LATENCY</li>
          * <li>Check there is at least one detector configured</li>
          * <li>Check all the detectors are configured correctly</li>
-         * <li>Check that OVERLAPPING_BUCKETS is set appropriately</li>
          * <li>Check that MULTIPLE_BUCKETSPANS are set appropriately</li>
          * <li>If Per Partition normalization is configured at least one detector
          * must have a partition field and no influences can be used</li>
@@ -565,22 +523,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet();
             verifyCategorizationAnalyzer();
             verifyCategorizationFilters();
-            checkFieldIsNotNegativeIfSpecified(RESULT_FINALIZATION_WINDOW.getPreferredName(), resultFinalizationWindow);
 
             verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet();
-
-            overlappingBuckets = verifyOverlappingBucketsConfig(overlappingBuckets, detectors);
-
-            if (usePerPartitionNormalization) {
-                checkDetectorsHavePartitionFields(detectors);
-                checkNoInfluencersAreSet(influencers);
-            }
 
             verifyNoInconsistentNestedFieldNames();
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
-                    latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
-                    resultFinalizationWindow, multivariateByFields, usePerPartitionNormalization);
+                    latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
         }
 
         private void verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet() {
@@ -588,13 +537,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                     detectors.stream().anyMatch(d -> DetectorFunction.METRIC.equals(d.getFunction()))) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, DetectorFunction.METRIC));
-            }
-        }
-
-        private static void checkFieldIsNotNegativeIfSpecified(String fieldName, Long value) {
-            if (value != null && value < 0) {
-                String msg = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, fieldName, 0, value);
-                throw ExceptionsHelper.badRequestException(msg);
             }
         }
 
@@ -704,23 +646,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             }
         }
 
-        private static void checkDetectorsHavePartitionFields(List<Detector> detectors) {
-            for (Detector detector : detectors) {
-                if (!Strings.isNullOrEmpty(detector.getPartitionFieldName())) {
-                    return;
-                }
-            }
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(
-                    Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD));
-        }
-
-        private static void checkNoInfluencersAreSet(List<String> influencers) {
-            if (!influencers.isEmpty()) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(
-                        Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS));
-            }
-        }
-
         private static boolean isValidRegex(String exp) {
             try {
                 Pattern.compile(exp);
@@ -728,26 +653,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             } catch (PatternSyntaxException e) {
                 return false;
             }
-        }
-
-        private static Boolean verifyOverlappingBucketsConfig(Boolean overlappingBuckets, List<Detector> detectors) {
-            // If any detector function is rare/freq_rare, mustn't use overlapping buckets
-            boolean mustNotUse = false;
-
-            List<DetectorFunction> illegalFunctions = new ArrayList<>();
-            for (Detector d : detectors) {
-                if (Detector.NO_OVERLAPPING_BUCKETS_FUNCTIONS.contains(d.getFunction())) {
-                    illegalFunctions.add(d.getFunction());
-                    mustNotUse = true;
-                }
-            }
-
-            if (Boolean.TRUE.equals(overlappingBuckets) && mustNotUse) {
-                throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_OVERLAPPING_BUCKETS_INCOMPATIBLE_FUNCTION, illegalFunctions.toString()));
-            }
-
-            return overlappingBuckets;
         }
     }
 }

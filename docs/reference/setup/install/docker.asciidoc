@@ -4,9 +4,9 @@
 {es} is also available as Docker images.
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
 
-A list of all published Docker images and tags can be found in
-https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
-on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
+A list of all published Docker images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source code is in
+https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 These images are free to use under the Elastic license. They contain open source 
 and free commercial features and access to paid commercial features.  
@@ -29,15 +29,13 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-For example, the Docker image can be retrieved with the following command:
-
 ["source","sh",subs="attributes"]
 --------------------------------------------
 docker pull {docker-repo}:{version}
 --------------------------------------------
 
 Alternatively, you can download other Docker images that contain only features 
-that are available under the Apache 2.0 license from 
+available under the Apache 2.0 license. To download the images, go to 
 https://www.docker.elastic.co[www.docker.elastic.co]. 
 
 endif::[]
@@ -95,11 +93,10 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 ["source","sh"]
 --------------------------------------------
-$ screen ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/tty
+$ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-Log in with 'root' and no password.
-Then configure the `sysctl` setting as you would for Linux:
+Just press enter and configure the `sysctl` setting as you would for Linux:
 
 ["source","sh"]
 --------------------------------------------

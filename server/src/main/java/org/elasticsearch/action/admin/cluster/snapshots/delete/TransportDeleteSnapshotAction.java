@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,14 +36,15 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for delete snapshot operation
  */
-public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, DeleteSnapshotResponse> {
+public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportDeleteSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteSnapshotAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteSnapshotRequest::new,indexNameExpressionResolver);
+        super(DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              DeleteSnapshotRequest::new,indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }
 
@@ -53,8 +54,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected DeleteSnapshotResponse newResponse() {
-        return new DeleteSnapshotResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -64,11 +65,12 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) {
+    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         snapshotsService.deleteSnapshot(request.repository(), request.snapshot(), new SnapshotsService.DeleteSnapshotListener() {
             @Override
             public void onResponse() {
-                listener.onResponse(new DeleteSnapshotResponse(true));
+                listener.onResponse(new AcknowledgedResponse(true));
             }
 
             @Override

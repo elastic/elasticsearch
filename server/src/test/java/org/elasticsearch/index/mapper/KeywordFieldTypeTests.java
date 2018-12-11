@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -28,9 +27,11 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
@@ -130,6 +131,23 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termsQuery(Arrays.asList("foo", "bar"), null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testExistsQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        ft.setHasDocValues(true);
+        ft.setOmitNorms(true);
+        assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+
+        ft.setHasDocValues(false);
+        ft.setOmitNorms(false);
+        assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+
+        ft.setHasDocValues(false);
+        ft.setOmitNorms(true);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
     }
 
     public void testRegexpQuery() {

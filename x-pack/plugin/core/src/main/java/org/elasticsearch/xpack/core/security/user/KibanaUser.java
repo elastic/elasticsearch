@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 /**

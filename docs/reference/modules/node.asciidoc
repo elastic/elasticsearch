@@ -93,7 +93,7 @@ To create a dedicated master-eligible node, set:
 node.master: true <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
@@ -165,7 +165,7 @@ PUT _cluster/settings
 }
 ----------------------------
 // CONSOLE
-// TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
+// TEST[skip:Test use Zen2 now so we can't test Zen1 behaviour here]
 
 TIP: An advantage of splitting the master and data roles between dedicated
 nodes is that you can have just three master-eligible nodes and set
@@ -192,7 +192,7 @@ To create a dedicated data node, set:
 node.master: false <1>
 node.data: true <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
@@ -220,7 +220,7 @@ To create a dedicated ingest node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
@@ -260,7 +260,7 @@ To create a dedicated coordinating node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).

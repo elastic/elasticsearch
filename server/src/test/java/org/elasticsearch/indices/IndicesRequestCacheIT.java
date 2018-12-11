@@ -20,21 +20,26 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -45,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TestLogging(value = "org.elasticsearch.indices.IndicesRequestCache:TRACE")
 public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     // One of the primary purposes of the query cache is to cache aggs results
@@ -107,41 +113,35 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 client.prepareIndex("index", "type", "8").setRouting("3").setSource("s", "2016-03-26"),
                 client.prepareIndex("index", "type", "9").setRouting("3").setSource("s", "2016-03-27"));
         ensureSearchable("index");
+        assertCacheState(client, "index", 0, 0);
 
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        refresh();
+        ensureSearchable("index");
+
+        assertCacheState(client, "index", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).setPreFilterShardSize(Integer.MAX_VALUE)
-            .get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(5L));
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).setPreFilterShardSize(Integer.MAX_VALUE).get();
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 5);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
             .setPreFilterShardSize(Integer.MAX_VALUE).get();
-        assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(3L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(7L));
+        ElasticsearchAssertions.assertAllSuccessful(r2);
+        assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 3, 7);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).setPreFilterShardSize(Integer.MAX_VALUE)
             .get();
-        assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(6L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(9L));
+        ElasticsearchAssertions.assertAllSuccessful(r3);
+        assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 6, 9);
     }
 
     public void testQueryRewriteMissingValues() throws Exception {
@@ -159,38 +159,33 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 client.prepareIndex("index", "type", "8").setSource("s", "2016-03-26"),
                 client.prepareIndex("index", "type", "9").setSource("s", "2016-03-27"));
         ensureSearchable("index");
+        assertCacheState(client, "index", 0, 0);
 
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        refresh();
+        ensureSearchable("index");
+
+        assertCacheState(client, "index", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(8L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
+        assertCacheState(client, "index", 0, 1);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
-        assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(8L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r2);
+        assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
+        assertCacheState(client, "index", 1, 1);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
-        assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(8L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(2L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r3);
+        assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
+        assertCacheState(client, "index", 2, 1);
     }
 
     public void testQueryRewriteDates() throws Exception {
@@ -208,41 +203,36 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 client.prepareIndex("index", "type", "8").setSource("d", "2014-08-01T00:00:00"),
                 client.prepareIndex("index", "type", "9").setSource("d", "2014-09-01T00:00:00"));
         ensureSearchable("index");
+        assertCacheState(client, "index", 0, 0);
 
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        refresh();
+        ensureSearchable("index");
+
+        assertCacheState(client, "index", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
                 .get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(9L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(9L));
+        assertCacheState(client, "index", 0, 1);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
                 .get();
-        assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(9L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r2);
+        assertThat(r2.getHits().getTotalHits().value, equalTo(9L));
+        assertCacheState(client, "index", 1, 1);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
                 .get();
-        assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(9L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(2L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r3);
+        assertThat(r3.getHits().getTotalHits().value, equalTo(9L));
+        assertCacheState(client, "index", 2, 1);
     }
 
     public void testQueryRewriteDatesWithNow() throws Exception {
@@ -266,98 +256,47 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 client.prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)),
                 client.prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
         ensureSearchable("index-1", "index-2", "index-3");
+        assertCacheState(client, "index-1", 0, 0);
+        assertCacheState(client, "index-2", 0, 0);
+        assertCacheState(client, "index-3", 0, 0);
 
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index-1", "index-2", "index-3").setFlush(true)
+                .get();
+        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        refresh();
+        ensureSearchable("index-1", "index-2", "index-3");
 
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        assertCacheState(client, "index-1", 0, 0);
+        assertCacheState(client, "index-2", 0, 0);
+        assertCacheState(client, "index-3", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(8L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
+        assertCacheState(client, "index-1", 0, 1);
+        assertCacheState(client, "index-2", 0, 1);
         // Because the query will INTERSECT with the 3rd index it will not be
         // rewritten and will still contain `now` so won't be recorded as a
         // cache miss or cache hit since queries containing now can't be cached
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        assertCacheState(client, "index-3", 0, 0);
 
         final SearchResponse r2 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
-        assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(8L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        ElasticsearchAssertions.assertAllSuccessful(r2);
+        assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
+        assertCacheState(client, "index-1", 1, 1);
+        assertCacheState(client, "index-2", 1, 1);
+        assertCacheState(client, "index-3", 0, 0);
 
         final SearchResponse r3 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
-        assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(8L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(2L));
-        assertThat(
-                client.admin().indices().prepareStats("index-1").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(2L));
-        assertThat(
-                client.admin().indices().prepareStats("index-2").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(1L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(
-                client.admin().indices().prepareStats("index-3").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        ElasticsearchAssertions.assertAllSuccessful(r3);
+        assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
+        assertCacheState(client, "index-1", 2, 1);
+        assertCacheState(client, "index-2", 2, 1);
+        assertCacheState(client, "index-3", 0, 0);
     }
 
     public void testCanCache() throws Exception {
@@ -378,74 +317,60 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 client.prepareIndex("index", "type", "8").setRouting("3").setSource("s", "2016-03-26"),
                 client.prepareIndex("index", "type", "9").setRouting("3").setSource("s", "2016-03-27"));
         ensureSearchable("index");
+        assertCacheState(client, "index", 0, 0);
 
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        refresh();
+        ensureSearchable("index");
+
+        assertCacheState(client, "index", 0, 0);
 
         // If size > 0 we should no cache by default
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 0);
 
         // If search type is DFS_QUERY_THEN_FETCH we should not cache
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
-        assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        ElasticsearchAssertions.assertAllSuccessful(r2);
+        assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 0);
 
         // If search type is DFS_QUERY_THEN_FETCH we should not cache even if
         // the cache flag is explicitly set on the request
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
-        assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        ElasticsearchAssertions.assertAllSuccessful(r3);
+        assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 0);
 
         // If the request has an non-filter aggregation containing now we should not cache
         final SearchResponse r5 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")).get();
-        assertSearchResponse(r5);
-        assertThat(r5.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(0L));
+        ElasticsearchAssertions.assertAllSuccessful(r5);
+        assertThat(r5.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 0);
 
         // If size > 1 and cache flag is set on the request we should cache
         final SearchResponse r6 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
-        assertSearchResponse(r6);
-        assertThat(r6.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(2L));
+        ElasticsearchAssertions.assertAllSuccessful(r6);
+        assertThat(r6.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 2);
 
         // If the request has a filter aggregation containing now we should cache since it gets rewritten
         final SearchResponse r4 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))).get();
-        assertSearchResponse(r4);
-        assertThat(r4.getHits().getTotalHits(), equalTo(7L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(4L));
+        ElasticsearchAssertions.assertAllSuccessful(r4);
+        assertThat(r4.getHits().getTotalHits().value, equalTo(7L));
+        assertCacheState(client, "index", 0, 4);
     }
 
     public void testCacheWithFilteredAlias() {
@@ -460,45 +385,42 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         client.prepareIndex("index", "type", "1").setRouting("1").setSource("created_at",
             DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
         refresh();
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
 
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(0L));
+        assertCacheState(client, "index", 0, 0);
 
         SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
+        assertCacheState(client, "index", 0, 1);
 
         r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(1L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
+        assertCacheState(client, "index", 1, 1);
 
         r1 = client.prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(2L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
+        assertCacheState(client, "index", 1, 2);
 
         r1 = client.prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
-        assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(2L));
-        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(2L));
+        ElasticsearchAssertions.assertAllSuccessful(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
+        assertCacheState(client, "index", 2, 2);
+    }
+
+    private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
+        RequestCacheStats requestCacheStats = client.admin().indices().prepareStats(index).setRequestCache(true).get().getTotal()
+                .getRequestCache();
+        // Check the hit count and miss count together so if they are not
+        // correct we can see both values
+        assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
+                Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions()));
     }
 
 }

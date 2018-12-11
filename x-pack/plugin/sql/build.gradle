@@ -19,7 +19,8 @@ archivesBaseName = 'x-pack-sql'
 integTest.enabled = false
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly(project(':modules:lang-painless')) {
         // exclude ASM to not affect featureAware task on Java 10+
         exclude group: "org.ow2.asm"
@@ -49,6 +50,16 @@ bundlePlugin {
         into 'bin'
     }
 }
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+    project.subprojects
+            .find { it.path == project.path + ":qa" }
+            .subprojects
+            .findAll { it.path.startsWith(project.path + ":qa") }
+            .each { check.dependsOn it.check }
+}
+
 
 /**********************************************
  *          SQL Parser regeneration           *

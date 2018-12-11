@@ -19,15 +19,18 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.NodeValidationException;
@@ -45,6 +48,12 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
@@ -89,7 +98,7 @@ final class BootstrapChecks {
         final BootstrapContext context,
         final boolean enforceLimits,
         final List<BootstrapCheck> checks) throws NodeValidationException {
-        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class));
+        check(context, enforceLimits, checks, LogManager.getLogger(BootstrapChecks.class));
     }
 
     /**
@@ -206,6 +215,7 @@ final class BootstrapChecks {
         checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
         checks.add(new AllPermissionCheck());
+        checks.add(new DiscoveryConfiguredCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -393,17 +403,22 @@ final class BootstrapChecks {
 
     static class MaxMapCountCheck implements BootstrapCheck {
 
-        private static final long LIMIT = 1 << 18;
+        static final long LIMIT = 1 << 18;
 
         @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
-               final String message = String.format(
-                        Locale.ROOT,
-                        "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
-                        getMaxMapCount(),
-                        LIMIT);
-               return BootstrapCheckResult.failure(message);
+        public BootstrapCheckResult check(final BootstrapContext context) {
+            // we only enforce the check if mmapfs is an allowed store type
+            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings)) {
+                if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
+                            getMaxMapCount(),
+                            LIMIT);
+                    return BootstrapCheckResult.failure(message);
+                } else {
+                    return BootstrapCheckResult.success();
+                }
             } else {
                 return BootstrapCheckResult.success();
             }
@@ -411,7 +426,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxMapCount() {
-            return getMaxMapCount(Loggers.getLogger(BootstrapChecks.class));
+            return getMaxMapCount(LogManager.getLogger(BootstrapChecks.class));
         }
 
         // visible for testing
@@ -707,4 +722,21 @@ final class BootstrapChecks {
 
     }
 
+    static class DiscoveryConfiguredCheck implements BootstrapCheck {
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            if (DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings)) == false) {
+                return BootstrapCheckResult.success();
+            }
+            if (ClusterBootstrapService.discoveryIsConfigured(context.settings)) {
+                return BootstrapCheckResult.success();
+            }
+
+            return BootstrapCheckResult.failure(String.format(
+                Locale.ROOT,
+                "the default discovery settings are unsuitable for production use; at least one of [%s] must be configured",
+                Stream.of(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, DISCOVERY_HOSTS_PROVIDER_SETTING, INITIAL_MASTER_NODES_SETTING)
+                    .map(Setting::getKey).collect(Collectors.joining(", "))));
+        }
+    }
 }

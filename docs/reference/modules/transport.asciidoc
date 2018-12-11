@@ -46,9 +46,9 @@ between all nodes. Defaults to `false`.
 
 |`transport.ping_schedule` | Schedule a regular application-level ping message
 to ensure that transport connections between nodes are kept alive. Defaults to
-`5s` in the transport client and `-1` (disabled) elsewhere. It is preferable to
-correctly configure TCP keep-alives instead of using this feature, because TCP
-keep-alives apply to all kinds of long-lived connection and not just to
+`5s` in the transport client and `-1` (disabled) elsewhere. It is preferable
+to correctly configure TCP keep-alives instead of using this feature, because
+TCP keep-alives apply to all kinds of long-lived connections and not just to
 transport connections.
 
 |=======================================================================

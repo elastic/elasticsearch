@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.ArithmeticFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -45,10 +45,11 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 
 import java.util.ArrayList;
@@ -60,23 +61,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
-    /**
-     * Verify a plan.
-     */
-    public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-
     /**
      * Valid functions.
      */
@@ -86,15 +77,20 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final IndexResolution indexResolution;
     /**
-     * Time zone in which we're executing this SQL. It is attached to functions
-     * that deal with date and time.
+     * Per-request specific settings needed in some of the functions (timezone, username and clustername),
+     * to which they are attached.
      */
-    private final TimeZone timeZone;
+    private final Configuration configuration;
+    /**
+     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
+     */
+    private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
-        this.timeZone = timeZone;
+        this.verifier = verifier;
     }
 
     @Override
@@ -112,10 +108,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        // TODO: this might be removed since the deduplication happens already in ResolveFunctions
-        Batch deduplication = new Batch("Deduplication",
-                new PruneDuplicateFunctions());
-
         return Arrays.asList(substitution, resolution);
     }
 
@@ -135,7 +127,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan);
         if (!failures.isEmpty()) {
             throw new VerificationException(failures);
         }
@@ -157,8 +149,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     //
     // Shared methods around the analyzer rules
     //
-
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
+        return resolveAgainstList(u, attrList, false);
+    }
+
+    private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
         List<Attribute> matches = new ArrayList<>();
 
         // first take into account the qualified version
@@ -185,7 +180,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return matches.get(0);
+            return handleSpecialFields(u, matches.get(0), allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
@@ -196,7 +191,32 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .collect(toList())
                 );
     }
-    
+
+    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
+        // if it's a object/compound type, keep it unresolved with a nice error message
+        if (named instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) named;
+
+            // incompatible mappings
+            if (fa.field() instanceof InvalidMappedField) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being "
+                        + ((InvalidMappedField) fa.field()).errorMessage());
+            }
+            // unsupported types
+            else if (DataTypes.isUnsupported(fa.dataType())) {
+                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+            }
+            // compound fields
+            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
+            }
+        }
+        return named;
+    }
+
     private static boolean hasStar(List<? extends Expression> exprs) {
         for (Expression expression : exprs) {
             if (expression instanceof UnresolvedStar) {
@@ -213,7 +233,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private static boolean containsAggregate(Expression exp) {
         return containsAggregate(singletonList(exp));
     }
-
 
     private static class CTESubstitution extends AnalyzeRule<With> {
 
@@ -352,21 +371,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     NamedExpression named = resolveAgainstList(u, childrenOutput);
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
-                        // if it's a object/compound type, keep it unresolved with a nice error message
-                        if (named instanceof FieldAttribute) {
-                            FieldAttribute fa = (FieldAttribute) named;
-                            if (DataTypes.isUnsupported(fa.dataType())) {
-                                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() +
-                                                "] as is unsupported");
-                            }
-                            else if (!fa.dataType().isPrimitive()) {
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
-                            }
-                        }
-
                         if (log.isTraceEnabled()) {
                             log.trace("Resolved {} to {}", u, named);
                         }
@@ -384,7 +388,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Attribute> output = child.output();
             for (NamedExpression ne : projections) {
                 if (ne instanceof UnresolvedStar) {
-                    result.addAll(expandStar((UnresolvedStar) ne, output));
+                    List<NamedExpression> expanded = expandStar((UnresolvedStar) ne, output);
+                    // the field exists, but cannot be expanded (no sub-fields)
+                    if (expanded.isEmpty()) {
+                        result.add(ne);
+                    } else {
+                        result.addAll(expanded);
+                    }
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
@@ -405,7 +415,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
-                Attribute q = resolveAgainstList(us.qualifier(), output);
+                Attribute q = resolveAgainstList(us.qualifier(), output, true);
+
+                // the wildcard couldn't be expanded because the field doesn't exist at all
+                // so, add to the list of expanded attributes its qualifier (the field without the wildcard)
+                // the qualifier will be unresolved and later used in the error message presented to the user
+                if (q == null) {
+                    return singletonList(us.qualifier());
+                }
+                // qualifier is unknown (e.g. unsupported type), bail out early
+                else if (q.resolved() == false) {
+                    return singletonList(q);
+                }
 
                 // now use the resolved 'qualifier' to match
                 for (Attribute attr : output) {
@@ -491,7 +512,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (ordinal != null) {
                         changed = true;
                         if (ordinal > 0 && ordinal <= max) {
-                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction()));
+                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction(),
+                                    order.nullsPosition()));
                         }
                         else {
                             throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);
@@ -548,7 +570,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Integer findOrdinal(Expression expression) {
             if (expression instanceof Literal) {
                 Literal l = (Literal) expression;
-                if (l.dataType().isInteger) {
+                if (l.dataType().isInteger()) {
                     Object v = l.value();
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());
@@ -775,9 +797,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf;
                     }
 
-                    String normalizedName = functionRegistry.concreteFunctionName(name);
+                    String functionName = functionRegistry.resolveAlias(name);
 
-                    List<Function> list = getList(seen, normalizedName);
+                    List<Function> list = getList(seen, functionName);
                     // first try to resolve from seen functions
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
@@ -788,12 +810,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
 
                     // not seen before, use the registry
-                    if (!functionRegistry.functionExists(name)) {
-                        return uf.missing(normalizedName, functionRegistry.listFunctions());
+                    if (!functionRegistry.functionExists(functionName)) {
+                        return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    FunctionDefinition def = functionRegistry.resolveFunction(normalizedName);
-                    Function f = uf.buildResolved(timeZone, def);
+                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                    Function f = uf.buildResolved(configuration, def);
 
                     list.add(f);
                     return f;
@@ -1011,8 +1033,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // BinaryOperations are ignored as they are pushed down to ES
             // and casting (and thus Aliasing when folding) gets in the way
 
-            if (e instanceof ArithmeticFunction) {
-                ArithmeticFunction f = (ArithmeticFunction) e;
+            if (e instanceof ArithmeticOperation) {
+                ArithmeticOperation f = (ArithmeticOperation) e;
                 left = f.left();
                 right = f.right();
             }

@@ -260,7 +260,11 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
             }
         } else {
-            GeoUtils.normalizePoint(point);
+            if (isNormalizable(point.lat()) && isNormalizable(point.lon())) {
+                GeoUtils.normalizePoint(point);
+            } else {
+                throw new ElasticsearchParseException("cannot normalize the point - not a number");
+            }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE) {
             context.doc().add(new LatLonPoint(fieldType().name(), point.lat(), point.lon()));
@@ -284,7 +288,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
 
         GeoPoint sparse = context.parseExternalValue(GeoPoint.class);
@@ -306,12 +310,11 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                     // its an array of other possible values
                     if (token == XContentParser.Token.VALUE_NUMBER) {
                         double lon = context.parser().doubleValue();
-                        token = context.parser().nextToken();
+                        context.parser().nextToken();
                         double lat = context.parser().doubleValue();
                         token = context.parser().nextToken();
-                        Double alt = Double.NaN;
                         if (token == XContentParser.Token.VALUE_NUMBER) {
-                            alt = GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
+                            GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
                         } else if (token != XContentParser.Token.END_ARRAY) {
                             throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", CONTENT_TYPE);
                         }
@@ -339,7 +342,6 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         context.path().remove();
-        return null;
     }
 
     /**
@@ -387,5 +389,9 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     public Explicit<Boolean> ignoreZValue() {
         return ignoreZValue;
+    }
+
+    private boolean isNormalizable(double coord) {
+        return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
     }
 }

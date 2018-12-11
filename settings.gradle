@@ -20,14 +20,15 @@ List projects = [
   'distribution:archives:zip',
   'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:docker',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-rpm',
   'distribution:packages:rpm',
-  'distribution:bwc:next-minor-snapshot',
-  'distribution:bwc:staged-minor-snapshot',
-  'distribution:bwc:next-bugfix-snapshot',
-  'distribution:bwc:maintenance-bugfix-snapshot',
+  'distribution:bwc:bugfix',
+  'distribution:bwc:maintenance',
+  'distribution:bwc:minor',
+  'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
@@ -78,12 +79,18 @@ addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
-boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+List startTasks = gradle.startParameter.taskNames
+boolean isEclipse =
+    System.getProperty("eclipse.launcher") != null ||    // Detects gradle launched from the Eclipse IDE
+    System.getProperty("eclipse.application") != null || // Detects gradle launched from the Eclipse compiler server
+    startTasks.contains("eclipse") ||                    // Detects gradle launched from the command line to do Eclipse stuff
+    startTasks.contains("cleanEclipse");
 if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
   // for server-src and server-tests
   projects << 'server-tests'
   projects << 'libs:core-tests'
+  projects << 'libs:dissect-tests'
   projects << 'libs:nio-tests'
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
@@ -103,6 +110,10 @@ if (isEclipse) {
   project(":libs:core").buildFileName = 'eclipse-build.gradle'
   project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
   project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:dissect").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/main')
+  project(":libs:dissect").buildFileName = 'eclipse-build.gradle'
+  project(":libs:dissect-tests").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/test')
+  project(":libs:dissect-tests").buildFileName = 'eclipse-build.gradle'
   project(":libs:nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
   project(":libs:nio").buildFileName = 'eclipse-build.gradle'
   project(":libs:nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')
@@ -128,8 +139,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
-
-// enable in preparation for Gradle 5.0
-enableFeaturePreview('STABLE_PUBLISHING')
 
 project(":libs:cli").name = 'elasticsearch-cli'

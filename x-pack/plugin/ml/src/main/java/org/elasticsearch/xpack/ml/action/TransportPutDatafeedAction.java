@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -32,6 +33,9 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -41,6 +45,9 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
@@ -54,8 +61,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                       ClusterService clusterService, ThreadPool threadPool, Client client,
                                       XPackLicenseState licenseState, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutDatafeedAction.NAME, transportService, clusterService, threadPool,
-                actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
+        super(PutDatafeedAction.NAME, transportService, clusterService, threadPool,
+            actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -77,24 +84,49 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
-        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
-            final String username = securityContext.getUser().principal();
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, request, r, listener),
-                    listener::onFailure);
+        if (licenseState.isAuthAllowed()) {
 
-            HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+            final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
+
+            final String username = securityContext.getUser().principal();
+            final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
             privRequest.username(username);
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-            // We just check for permission to use the search action.  In reality we'll also
-            // use the scroll action, but that's considered an implementation detail.
-            privRequest.indexPrivileges(RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(request.getDatafeed().getIndices().toArray(new String[0]))
-                    .privileges(SearchAction.NAME)
-                    .build());
-            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
-            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+            final RoleDescriptor.IndicesPrivileges.Builder indicesPrivilegesBuilder = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indices);
+
+            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                r -> handlePrivsResponse(username, request, r, listener),
+                listener::onFailure);
+
+            ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
+                response -> {
+                    if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                    } else {
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                    }
+                    privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                },
+                e -> {
+                    if (e instanceof IndexNotFoundException) {
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            );
+
+            executeAsyncWithOrigin(client,
+                ML_ORIGIN,
+                GetRollupIndexCapsAction.INSTANCE,
+                new GetRollupIndexCapsAction.Request(indices),
+                getRollupIndexCapsActionHandler);
         } else {
             putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
         }
@@ -115,8 +147,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             builder.endObject();
 
             listener.onFailure(Exceptions.authorizationError("Cannot create datafeed [{}]" +
-                            " because user {} lacks permissions on the indices to be" +
-                            " searched: {}",
+                            " because user {} lacks permissions on the indices: {}",
                     request.getDatafeed().getId(), username, Strings.toString(builder)));
         }
     }
@@ -124,6 +155,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private void putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers,
                              ActionListener<PutDatafeedAction.Response> listener) {
 
+        DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations());
         clusterService.submitStateUpdateTask(
                 "put-datafeed-" + request.getDatafeed().getId(),
                 new AckedClusterStateUpdateTask<PutDatafeedAction.Response>(request, listener) {

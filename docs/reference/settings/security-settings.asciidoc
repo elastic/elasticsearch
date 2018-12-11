@@ -5,8 +5,9 @@
 <titleabbrev>Security settings</titleabbrev>
 ++++
 
-By default, {security} is disabled when you have a basic or trial license. To
-enable {security}, use the `xpack.security.enabled` setting.
+By default, the {es} {security-features} are disabled when you have a basic or
+trial license. To enable {security-features}, use the `xpack.security.enabled`
+setting.
 
 You configure `xpack.security` settings  to
 <<anonymous-access-settings, enable anonymous access>>
@@ -25,13 +26,15 @@ For more information about creating and updating the {es} keystore, see
 [[general-security-settings]]
 ==== General security settings
 `xpack.security.enabled`::
-Set to `true` to enable {security} on the node. +
+Set to `true` to enable {es} {security-features} on the node. +
 +
 --
 If set to `false`, which is the default value for basic and trial licenses,
-{security} is disabled. It also affects all {kib} instances that connect to this
-{es} instance; you do not need to disable {security} in those `kibana.yml` files.
-For more information about disabling {security} in specific {kib} instances, see  {kibana-ref}/security-settings-kb.html[{kib} security settings].
+{security-features} are disabled. It also affects all {kib} instances that
+connect to this {es} instance; you do not need to disable {security-features} in
+those `kibana.yml` files. For more information about disabling {security-features}
+in specific {kib} instances, see
+{kibana-ref}/security-settings-kb.html[{kib} security settings].
 
 TIP: If you have gold or higher licenses, the default value is `true`; we 
 recommend that you explicitly add this setting to avoid confusion.  
@@ -42,9 +45,13 @@ recommend that you explicitly add this setting to avoid confusion.
 A comma-separated list of settings that are omitted from the results of the
 <<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
 multiple settings in the list.  For example, the following value hides all the
-settings for the ad1 realm: `xpack.security.authc.realms.ad1.*`. The API already
-omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
-sensitive nature of the information.
+settings for the ad1 active_directory realm:
+`xpack.security.authc.realms.active_directory.ad1.*`.
+The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
+the sensitive nature of the information.
+
+`xpack.security.fips_mode.enabled`::
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [float]
 [[password-security-settings]]
@@ -53,10 +60,17 @@ sensitive nature of the information.
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
 
 [float]
+[[password-hashing-settings]]
+==== Password hashing settings
+`xpack.security.authc.password_hashing.algorithm`::
+Specifies the hashing algorithm that is used for secure user credential storage. 
+See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+
+[float]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see {xpack-ref}/anonymous-access.html[
+`elasticsearch.yml`.  For more information, see {stack-ov}/anonymous-access.html[
 Enabling anonymous access].
 
 `xpack.security.authc.anonymous.username`::
@@ -69,9 +83,36 @@ The roles to associate with the anonymous user. Required.
 When `true`, an HTTP 403 response is returned if the anonymous user
 does not have the appropriate permissions for the requested action. The
 user is not prompted to provide credentials to access the requested
-resource. When set to `false`, a HTTP 401 is returned and the user
+resource. When set to `false`, an HTTP 401 response is returned and the user
 can provide credentials with the appropriate permissions to gain
 access. Defaults to `true`.
+
+[float]
+[[security-automata-settings]]
+==== Automata Settings
+In places where {security} accepts wildcard patterns (e.g. index patterns in
+roles, group matches in the role mapping API), each pattern is compiled into
+an Automaton. The follow settings are available to control this behaviour.
+
+`xpack.security.automata.max_determinized_states`::
+The upper limit on how many automaton states may be created by a single pattern.
+This protects against too-difficult (e.g. exponentially hard) patterns.
+Defaults to `100,000`.
+
+`xpack.security.automata.cache.enabled`::
+Whether to cache the compiled automata. Compiling automata can be CPU intensive
+and may slowdown some operations. The cache reduces the frequency with which
+automata need to be compiled.
+Defaults to `true`.
+
+`xpack.security.automata.cache.size`::
+The maximum number of items to retain in the automata cache.
+Defaults to `10,000`.
+
+`xpack.security.automata.cache.ttl`::
+The length of time to retain in an item in the automata cache (based on most
+recent usage).
+Defaults to `48h` (48 hours).
 
 [float]
 [[field-document-security-settings]]
@@ -79,7 +120,7 @@ access. Defaults to `true`.
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see
-{xpack-ref}/field-and-document-access-control.html[Setting up document and field
+{stack-ov}/field-and-document-access-control.html[Setting up document and field
 level security].
 
 `xpack.security.dls_fls.enabled`::
@@ -112,25 +153,22 @@ namespace in `elasticsearch.yml`. For example:
 ----------------------------------------
 xpack.security.authc.realms:
 
-    realm1:
-        type: native
+    native.realm1:
         order: 0
         ...
 
-    realm2:
-        type: ldap
+    ldap.realm2:
         order: 1
         ...
 
-    realm3:
-        type: active_directory
+    active_directory.realm3:
         order: 2
         ...
     ...
 ----------------------------------------
 
 The valid settings vary depending on the realm type. For more
-information, see {xpack-ref}/setting-up-authentication.html[Setting up authentication].
+information, see {stack-ov}/setting-up-authentication.html[Setting up authentication].
 
 [float]
 [[ref-realm-settings]]
@@ -164,10 +202,14 @@ the standard {es} <<time-units,time units>>. Defaults to `20m`.
 cache at any given time. Defaults to 100,000.
 
 `cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
-in-memory cached user credentials. For possible values, see 
-{xpack-ref}/controlling-user-cache.html[Cache hash algorithms]. Defaults to 
-`ssha256`.
+in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
+Defaults to `ssha256`.
 
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {stack-ov}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 [[ref-users-settings]]
 
@@ -190,8 +232,13 @@ Defaults to 100,000.
 
 `cache.hash_algo`::
 (Expert Setting) The hashing algorithm that is used for the in-memory cached
-user credentials. See the {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for
-all possible values. Defaults to `ssha256`.
+user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
+
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {stack-ov}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 [[ref-ldap-settings]]
 [float]
@@ -238,7 +285,14 @@ The DN template that replaces the user name with the string `{0}`.
 This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
-the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the LDAP realm does not perform role mapping and
+instead loads the user from the listed realms. The referenced realms are
+consulted in the order that they are defined in this list.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -255,7 +309,7 @@ to `memberOf`.
 Specifies a container DN to search for users. Required
 to operated in user search mode. If `user_dn_templates` is specified, this 
 setting is not valid. For more information on
-the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
 
 `user_search.scope`::
 The scope of the user search. Valid values are `sub_tree`, `one_level` or
@@ -327,12 +381,12 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 `unmapped_groups_as_roles`::
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
-not referenced in a 
-{xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+referenced in a
+{stack-ov}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
 role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
-The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[
+The <<security-files,location>> for the {stack-ov}/mapping-roles.html#mapping-roles[
 YAML role mapping configuration file]. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
@@ -386,8 +440,9 @@ The path to the Java Keystore file that contains a private key and certificate.
 `ssl.key` and `ssl.keystore.path` may not be used at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the keystore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.keystore.password`::
 The password to the keystore.
@@ -412,8 +467,9 @@ The password to the truststore.
 The password to the truststore.
 
 `ssl.truststore.type`::
-The format of the keystore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the keystore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
@@ -444,8 +500,13 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values. Defaults to `ssha256`.
+in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
+
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {stack-ov}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 [[ref-ad-settings]]
 [float]
@@ -473,7 +534,7 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the the `url` and `user_search_dn` 
+The domain name of Active Directory. If the `url` and the `user_search_dn`
 settings are not specified, the cluster can derive those values from this 
 setting. Required.
 
@@ -499,7 +560,7 @@ is not referenced in any role-mapping files. API-based role mappings are not
 considered. Defaults to `false`.
 
 `files.role_mapping`::
-The {xpack-ref}/security-files.html[location] for the YAML
+The <<security-files,location>> for the YAML
 role mapping configuration file. Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `user_search.base_dn`::
@@ -636,8 +697,9 @@ The path to the Java Keystore file that contains a private key and certificate.
 `ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the keystore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -651,8 +713,9 @@ The path to the Java Keystore file that contains the certificates to trust.
 same time.
 
 `ssl.truststore.type`::
-The format of the truststore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the truststore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
@@ -684,7 +747,13 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for
-the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
+
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {stack-ov}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 `follow_referrals`::
 If set to `true` {security} follows referrals returned by the LDAP server. 
@@ -723,9 +792,15 @@ The path of a truststore to use. Defaults to the trusted certificates configured
 for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
-Specifies the {xpack-ref}/security-files.html[location] of the
-{xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
+Specifies the <<security-files,location>> of the
+{stack-ov}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the PKI realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -850,10 +925,25 @@ Defaults to `false`.
 Specifies whether to populate the {es} user's metadata with the values that are 
 provided by the SAML attributes. Defaults to `true`.
 
+`authorization_realms`::
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the SAML realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
+
+`req_authn_context_class_ref`::
+A comma separated list of Authentication Context Class Reference values to be
+included in the Requested Authentication Context when requesting the IdP to
+authenticate the current user. The Authentication Context of the corresponding
+authentication response should contain at least one of the requested values.
++
+For more information, see
+{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
 
 [float]
 [[ref-saml-signing-settings]]
@@ -1028,7 +1118,7 @@ Must be either a Java Keystore (jks) or a PKCS#12 file.
 same time.
 
 `ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be either `jks` or 
+The type of the truststore (`ssl.truststore.path`). Must be either `jks` or
 `PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting 
 defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
@@ -1055,6 +1145,39 @@ Specifies the supported protocols for TLS/SSL.
 `ssl.cipher_suites`::
 Specifies the
 cipher suites that should be supported.
+
+[float]
+[[ref-kerberos-settings]]
+===== Kerberos realm settings
+
+For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings:
+
+`keytab.path`:: Specifies the path to the Kerberos keytab file that contains the 
+service principal used by this {es} node. This must be a location within the
+{es} configuration directory and the file must have read permissions. Required.
+
+`remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
+Principal names in Kerberos have the form `user/instance@REALM`. If this option 
+is `true`, the realm part (`@REALM`) will not be included in the username.
+Defaults to `false`.
+
+`krb.debug`:: Set to `true` to enable debug logs for the Java login module that
+provides support for Kerberos authentication. Defaults to `false`.
+
+`cache.ttl`:: The time-to-live for cached user entries. A user is cached for
+this period of time. Specify the time period using the standard {es}
+<<time-units,time units>>. Defaults to `20m`.
+
+`cache.max_users`:: The maximum number of user entries that can live in the
+cache at any given time. Defaults to 100,000.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the Kerberos realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
 
 [float]
 [[load-balancing]]
@@ -1087,14 +1210,19 @@ through the list of URLs will continue until a successful connection is made.
 ==== Default TLS/SSL settings
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
-{xpack-ref}/encrypting-communications.html[Encrypting communications]. These settings will be used
+{stack-ov}/encrypting-communications.html[Encrypting communications]. These settings will be used
 for all of {xpack} unless they have been overridden by more specific
 settings such as those for HTTP or Transport.
 
 `xpack.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`.
+`TLSv1`. 
++
+--
+NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
+or `SSLv3`. See <<fips-140-compliance>>.
+--
 
 `xpack.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
@@ -1193,6 +1321,9 @@ Password to the truststore.
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use Java 
+keystore files. See <<fips-140-compliance>>. 
+
 [float]
 ===== PKCS#12 files
 
@@ -1231,6 +1362,9 @@ Password to the truststore.
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use PKCS#12 
+keystore files. See <<fips-140-compliance>>. 
+
 [[pkcs12-truststore-note]]
 [NOTE]
 Storing trusted certificates in a PKCS#12 file, although supported, is
@@ -1243,6 +1377,33 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 `2.16.840.1.113894.746875.1.1: <Unsupported tag 6>` in the
 `openssl pkcs12 -info` output, or `trustedCertEntry` in the
 `keytool -list` output.
+
+[float]
+===== PKCS#11 tokens
+
+When using a PKCS#11 cryptographic token, which contains the
+private key, certificate, and certificates that should be trusted, use
+the following settings:
+
+`xpack.ssl.keystore.type`::
+Set this to `PKCS11`.
+
+`xpack.ssl.truststore.type`::
+Set this to `PKCS11`.
+
+
+[[pkcs11-truststore-note]]
+[NOTE]
+When configuring the PKCS#11 token that your JVM is configured to use as
+a keystore or a truststore for Elasticsearch, the PIN for the token can be
+configured by setting the appropriate value to `xpack.ssl.truststore.password`
+or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} will
+fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
+if that is set.
+Since there can only be one PKCS#11 token configured, only one keystore and
+truststore will be usable for configuration in {es}. This in turn means
+that only one certificate can be used for TLS both in the transport and the
+http layer.
 
 [[http-tls-ssl-settings]]
 :ssl-prefix:             xpack.security.http
@@ -1289,7 +1450,7 @@ See also <<remote-audit-settings>>.
 [float]
 [[ip-filtering-settings]]
 ==== IP filtering settings
-You can configure the following settings for {xpack-ref}/ip-filtering.html[IP filtering].
+You can configure the following settings for {stack-ov}/ip-filtering.html[IP filtering].
 
 `xpack.security.transport.filter.allow`::
 List of IP addresses to allow.
@@ -1308,3 +1469,5 @@ List of IP addresses to allow for this profile.
 
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 List of IP addresses to deny for this profile.
+
+include::security-hash-settings.asciidoc[]

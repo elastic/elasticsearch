@@ -59,7 +59,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         WatchParser watchParser = mock(WatchParser.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        action = new TransportAckWatchAction(Settings.EMPTY, transportService, new ActionFilters(Collections.emptySet()),
+        action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
             Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
     }
 

@@ -31,7 +31,7 @@ import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -93,7 +93,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-pipeline-request-masterTimeout
 
             // tag::put-pipeline-execute
-            WritePipelineResponse response = client.ingest().putPipeline(request, RequestOptions.DEFAULT); // <1>
+            AcknowledgedResponse response = client.ingest().putPipeline(request, RequestOptions.DEFAULT); // <1>
             // end::put-pipeline-execute
 
             // tag::put-pipeline-response
@@ -117,10 +117,10 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             );
 
             // tag::put-pipeline-execute-listener
-            ActionListener<WritePipelineResponse> listener =
-                new ActionListener<WritePipelineResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(WritePipelineResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         // <1>
                     }
 
@@ -143,6 +143,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGetPipeline() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -236,7 +237,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-pipeline-request-masterTimeout
 
             // tag::delete-pipeline-execute
-            WritePipelineResponse response = client.ingest().deletePipeline(request, RequestOptions.DEFAULT); // <1>
+            AcknowledgedResponse response = client.ingest().deletePipeline(request, RequestOptions.DEFAULT); // <1>
             // end::delete-pipeline-execute
 
             // tag::delete-pipeline-response
@@ -257,10 +258,10 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id");
 
             // tag::delete-pipeline-execute-listener
-            ActionListener<WritePipelineResponse> listener =
-                new ActionListener<WritePipelineResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(WritePipelineResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         // <1>
                     }
 

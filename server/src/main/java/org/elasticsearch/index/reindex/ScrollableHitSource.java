@@ -284,6 +284,11 @@ public abstract class ScrollableHitSource {
         @Nullable
         private final String nodeId;
 
+        public static final String INDEX_FIELD = "index";
+        public static final String SHARD_FIELD = "shard";
+        public static final String NODE_FIELD = "node";
+        public static final String REASON_FIELD = "reason";
+
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
             this.index = index;
             this.shardId = shardId;
@@ -337,15 +342,15 @@ public abstract class ScrollableHitSource {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (index != null) {
-                builder.field("index", index);
+                builder.field(INDEX_FIELD, index);
             }
             if (shardId != null) {
-                builder.field("shard", shardId);
+                builder.field(SHARD_FIELD, shardId);
             }
             if (nodeId != null) {
-                builder.field("node", nodeId);
+                builder.field(NODE_FIELD, nodeId);
             }
-            builder.field("reason");
+            builder.field(REASON_FIELD);
             {
                 builder.startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, reason);

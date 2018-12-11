@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -32,13 +32,15 @@ import java.util.stream.Collectors;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore usersStore;
     private final ReservedRealm reservedRealm;
 
     @Inject
     public TransportGetUsersAction(Settings settings, ActionFilters actionFilters,
                                    NativeUsersStore usersStore, TransportService transportService, ReservedRealm reservedRealm) {
-        super(settings, GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
+        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
+        this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
     }

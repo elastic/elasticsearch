@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,15 @@ import static java.util.Collections.emptyMap;
 public final class InternalAggregations extends Aggregations implements Streamable {
 
     public static final InternalAggregations EMPTY = new InternalAggregations();
+    private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
+        if (agg1.isMapped() == agg2.isMapped()) {
+            return 0;
+        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+            return -1;
+        } else {
+            return 1;
+        }
+    };
 
     private InternalAggregations() {
     }
@@ -73,6 +83,9 @@ public final class InternalAggregations extends Aggregations implements Streamab
         List<InternalAggregation> reducedAggregations = new ArrayList<>();
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
             List<InternalAggregation> aggregations = entry.getValue();
+            // Sort aggregations so that unmapped aggs come last in the list
+            // If all aggs are unmapped, the agg that leads the reduction will just return itself
+            aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             reducedAggregations.add(first.reduce(aggregations, context));
         }

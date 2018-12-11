@@ -28,6 +28,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
@@ -80,7 +81,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testLocationInfoTest() throws IOException, UserException {
         setupLogging("location_info");
 
-        final Logger testLogger = ESLoggerFactory.getLogger("test");
+        final Logger testLogger = LogManager.getLogger("test");
 
         testLogger.error("This is an error message");
         testLogger.warn("This is a warning message");
@@ -106,7 +107,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLogger() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
 
         final int deprecatedIterations = randomIntBetween(0, 256);
         for (int i = 0; i < deprecatedIterations; i++) {
@@ -133,7 +134,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
 
         final int numberOfThreads = randomIntBetween(2, 4);
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
@@ -212,7 +213,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
 
         final int iterations = randomIntBetween(1, 16);
 
@@ -284,12 +285,12 @@ public class EvilLoggerTests extends ESTestCase {
     public void testFindAppender() throws IOException, UserException {
         setupLogging("find_appender");
 
-        final Logger hasConsoleAppender = ESLoggerFactory.getLogger("has_console_appender");
+        final Logger hasConsoleAppender = LogManager.getLogger("has_console_appender");
 
         final Appender testLoggerConsoleAppender = Loggers.findAppender(hasConsoleAppender, ConsoleAppender.class);
         assertNotNull(testLoggerConsoleAppender);
         assertThat(testLoggerConsoleAppender.getName(), equalTo("console"));
-        final Logger hasCountingNoOpAppender = ESLoggerFactory.getLogger("has_counting_no_op_appender");
+        final Logger hasCountingNoOpAppender = LogManager.getLogger("has_counting_no_op_appender");
         assertNull(Loggers.findAppender(hasCountingNoOpAppender, ConsoleAppender.class));
         final Appender countingNoOpAppender = Loggers.findAppender(hasCountingNoOpAppender, CountingNoOpAppender.class);
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
@@ -298,8 +299,8 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
-        final Logger logger = Loggers.getLogger("prefix", prefix);
+        final String prefix = randomAlphaOfLength(16);
+        final Logger logger = new PrefixLogger(LogManager.getLogger("prefix_test"), prefix);
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
@@ -319,13 +320,8 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            if (prefix == null) {
-                assertThat("Contents of [" + path + "] are wrong",
-                        events.get(i), startsWith("[" + getTestName() + "] test"));
-            } else {
-                assertThat("Contents of [" + path + "] are wrong",
-                        events.get(i), startsWith("[" + getTestName() + "][" + prefix + "] test"));
-            }
+            assertThat("Contents of [" + path + "] are wrong",
+                    events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
         }
     }
 
@@ -334,8 +330,8 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
-            Loggers.getLogger("prefix" + i, "prefix" + i); // this has the side effect of caching a marker with this prefix
-
+            // this has the side effect of caching a marker with this prefix
+            new PrefixLogger(LogManager.getLogger("logger" + i), "prefix" + i);
         }
 
         System.gc(); // this will free the weakly referenced keys in the marker cache
@@ -343,27 +339,22 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     public void testProperties() throws IOException, UserException {
-        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAlphaOfLength(16));
-        if (randomBoolean()) {
-            builder.put("node.name", randomAlphaOfLength(16));
-        }
-        final Settings settings = builder.build();
+        final Settings settings = Settings.builder()
+                .put("cluster.name", randomAlphaOfLength(16))
+                .put("node.name", randomAlphaOfLength(16))
+                .build();
         setupLogging("minimal", settings);
 
         assertNotNull(System.getProperty("es.logs.base_path"));
 
         assertThat(System.getProperty("es.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
-        } else {
-            assertNull(System.getProperty("es.logs.node_name"));
-        }
+        assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32546")
-    public void testNoNodeNameWarning() throws IOException, UserException {
+    public void testNoNodeNameInPatternWarning() throws IOException, UserException {
+        String nodeName = randomAlphaOfLength(16);
+        LogConfigurator.setNodeName(nodeName);
         setupLogging("no_node_name");
-
         final String path =
             System.getProperty("es.logs.base_path") +
                 System.getProperty("file.separator") +
@@ -372,11 +363,15 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(events.size(), equalTo(2));
         final String location = "org.elasticsearch.common.logging.LogConfigurator";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.WARN, location, "\\[null\\] Some logging configurations have %marker but don't "
-                + "have %node_name. We will automatically add %node_name to the pattern to ease the migration for users "
-                + "who customize log4j2.properties but will stop this behavior in 7.0. You should manually replace "
-                + "`%node_name` with `\\[%node_name\\]%marker ` in these locations:");
-        assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
+        assertLogLine(events.get(0), Level.WARN, location, "\\[" + nodeName + "\\] Some logging configurations have "
+                + "%marker but don't have %node_name. We will automatically add %node_name to the pattern to ease the "
+                + "migration for users who customize log4j2.properties but will stop this behavior in 7.0. You should "
+                + "manually replace `%node_name` with `\\[%node_name\\]%marker ` in these locations:");
+        if (Constants.WINDOWS) {
+            assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
+        } else {
+            assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
+        }
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

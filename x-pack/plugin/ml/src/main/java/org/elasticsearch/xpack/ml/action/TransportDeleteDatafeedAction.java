@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -18,7 +19,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -26,23 +28,21 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<DeleteDatafeedAction.Request, DeleteDatafeedAction.Response> {
+public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<DeleteDatafeedAction.Request, AcknowledgedResponse> {
 
     private Client client;
     private PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportDeleteDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteDatafeedAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, PersistentTasksService persistentTasksService) {
-        super(settings, DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteDatafeedAction.Request::new);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -54,13 +54,13 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected DeleteDatafeedAction.Response newResponse() {
-        return new DeleteDatafeedAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<DeleteDatafeedAction.Response> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (request.isForce()) {
             forceDeleteDatafeed(request, state, listener);
         } else {
@@ -69,7 +69,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     }
 
     private void forceDeleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state,
-                                     ActionListener<DeleteDatafeedAction.Response> listener) {
+                                     ActionListener<AcknowledgedResponse> listener) {
         ActionListener<Boolean> finalListener = ActionListener.wrap(
                 response -> deleteDatafeedFromMetadata(request, listener),
                 listener::onFailure
@@ -110,13 +110,13 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
         }
     }
 
-    private void deleteDatafeedFromMetadata(DeleteDatafeedAction.Request request, ActionListener<DeleteDatafeedAction.Response> listener) {
+    private void deleteDatafeedFromMetadata(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-datafeed-" + request.getDatafeedId(),
-                new AckedClusterStateUpdateTask<DeleteDatafeedAction.Response>(request, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
                     @Override
-                    protected DeleteDatafeedAction.Response newResponse(boolean acknowledged) {
-                        return new DeleteDatafeedAction.Response(acknowledged);
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                        return new AcknowledgedResponse(acknowledged);
                     }
 
                     @Override

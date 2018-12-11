@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.internal.provider.Providers
 
@@ -30,22 +28,37 @@ apply plugin: 'com.github.johnrengelman.shadow'
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
-//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
-Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, Providers.FALSE)
-test.dependsOn(copyRestSpec)
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
+}
+
+configurations {
+  restSpec
+}
+
+idea {
+  module {
+   if (scopes.TEST != null) {
+     scopes.TEST.plus.add(project.configurations.restSpec)
+   }
+  }
+}
 
 dependencies {
   /*
    * Everything in the "shadow" configuration is *not* copied into the
    * shadowJar.
    */
-  shadow "org.elasticsearch:elasticsearch:${version}"
-  shadow "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  shadow "org.elasticsearch.plugin:parent-join-client:${version}"
-  shadow "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-  shadow "org.elasticsearch.plugin:rank-eval-client:${version}"
-  shadow "org.elasticsearch.plugin:lang-mustache-client:${version}"
-  compile project(':x-pack:protocol')
+  compile "org.elasticsearch:elasticsearch:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
+  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
@@ -54,6 +67,16 @@ dependencies {
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
+
+  restSpec "org.elasticsearch:rest-api-spec:${version}"
+}
+
+//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
+processTestResources {
+  dependsOn jar // so that configurations resolve
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
 }
 
 dependencyLicenses {
@@ -67,10 +90,41 @@ dependencyLicenses {
 forbiddenApisMain {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
-  signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
-  signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+  addSignatureFiles 'http-signatures'
+  signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
+}
+File nodeCert = file("./testnode.crt")
+File nodeTrustStore = file("./testnode.jks")
+
+integTestRunner {
+  systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
+  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
 }
 
 integTestCluster {
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
+  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
+  setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
+  keystoreSetting 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
+  setupCommand 'setupDummyUser',
+          'bin/elasticsearch-users',
+          'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
+          '-p', System.getProperty('tests.rest.cluster.password', 'test-password'),
+          '-r', 'superuser'
+  extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile nodeTrustStore.name, nodeTrustStore
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: System.getProperty('tests.rest.cluster.username', 'test_user'),
+            password: System.getProperty('tests.rest.cluster.password', 'test-password'),
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
 }

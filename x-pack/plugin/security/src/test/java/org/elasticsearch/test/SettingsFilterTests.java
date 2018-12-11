@@ -14,13 +14,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.hamcrest.Matcher;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,37 +40,35 @@ public class SettingsFilterTests extends ESTestCase {
     public void testFiltering() throws Exception {
         final boolean useLegacyLdapBindPassword = randomBoolean();
 
-        configureUnfilteredSetting("xpack.security.authc.realms.file.type", "file");
+        configureUnfilteredSetting("xpack.security.authc.realms.file.file1.enabled", "true");
 
         // ldap realm filtering
-        configureUnfilteredSetting("xpack.security.authc.realms.ldap1.type", "ldap");
-        configureUnfilteredSetting("xpack.security.authc.realms.ldap1.enabled", "false");
-        configureUnfilteredSetting("xpack.security.authc.realms.ldap1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.ldap1.hostname_verification", Boolean.toString(randomBoolean()));
-        configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_dn", randomAlphaOfLength(5));
+        configureUnfilteredSetting("xpack.security.authc.realms.ldap.ldap1.enabled", "false");
+        configureUnfilteredSetting("xpack.security.authc.realms.ldap.ldap1.url", "ldap://host.domain");
+        configureFilteredSetting("xpack.security.authc.realms.ldap.ldap1.hostname_verification", Boolean.toString(randomBoolean()));
+        configureFilteredSetting("xpack.security.authc.realms.ldap.ldap1.bind_dn", randomAlphaOfLength(5));
         if (useLegacyLdapBindPassword) {
-            configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_password", randomAlphaOfLength(5));
+            configureFilteredSetting("xpack.security.authc.realms.ldap.ldap1.bind_password", randomAlphaOfLength(5));
         } else {
-            configureSecureSetting("xpack.security.authc.realms.ldap1.secure_bind_password", randomAlphaOfLengthBetween(3, 8));
+            configureSecureSetting("xpack.security.authc.realms.ldap.ldap1.secure_bind_password", randomAlphaOfLengthBetween(3, 8));
         }
 
         // active directory filtering
-        configureUnfilteredSetting("xpack.security.authc.realms.ad1.type", "active_directory");
-        configureUnfilteredSetting("xpack.security.authc.realms.ad1.enabled", "false");
-        configureUnfilteredSetting("xpack.security.authc.realms.ad1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.ad1.hostname_verification", Boolean.toString(randomBoolean()));
+        configureUnfilteredSetting("xpack.security.authc.realms.active_directory.ad1.enabled", "false");
+        configureUnfilteredSetting("xpack.security.authc.realms.active_directory.ad1.url", "ldap://host.domain");
+        configureFilteredSetting("xpack.security.authc.realms.active_directory.ad1.hostname_verification",
+                Boolean.toString(randomBoolean()));
 
         // pki filtering
-        configureUnfilteredSetting("xpack.security.authc.realms.pki1.type", "pki");
-        configureUnfilteredSetting("xpack.security.authc.realms.pki1.order", "0");
+        configureUnfilteredSetting("xpack.security.authc.realms.pki.pki1.order", "0");
         if (inFipsJvm() == false) {
-            configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.path",
+            configureFilteredSetting("xpack.security.authc.realms.pki.pki1.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks").toString());
             configureFilteredSetting("xpack.ssl.keystore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
         }
-        configureSecureSetting("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only");
-        configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.algorithm", "SunX509");
+        configureSecureSetting("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only");
+        configureFilteredSetting("xpack.security.authc.realms.pki.pki1.truststore.algorithm", "SunX509");
 
 
         configureFilteredSetting("xpack.ssl.cipher_suites",
@@ -121,7 +122,7 @@ public class SettingsFilterTests extends ESTestCase {
         List<String> settingsFilterList = new ArrayList<>();
         settingsFilterList.addAll(securityPlugin.getSettingsFilter());
         // custom settings, potentially added by a plugin
-        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList);
+        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList, Collections.emptySet());
 
         Injector injector = Guice.createInjector(settingsModule);
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);
@@ -132,7 +133,9 @@ public class SettingsFilterTests extends ESTestCase {
         }
 
         if (useLegacyLdapBindPassword) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD
+                    .apply(LdapRealmSettings.LDAP_TYPE)
+                    .getConcreteSettingForNamespace("ldap1")});
         }
     }
 

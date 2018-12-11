@@ -10,6 +10,8 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
@@ -31,8 +33,9 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,8 +45,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
@@ -58,28 +60,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class HttpClient extends AbstractComponent implements Closeable {
+public class HttpClient implements Closeable {
 
     private static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
     // picking a reasonable high value here to allow for setups with lots of watch executions or many http inputs/actions
     // this is also used as the value per route, if you are connecting to the same endpoint a lot, which is likely, when
     // you are querying a remote Elasticsearch cluster
     private static final int MAX_CONNECTIONS = 500;
+    private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
-    private final HttpAuthRegistry httpAuthRegistry;
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
+    private final CryptoService cryptoService;
 
-    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, SSLService sslService) {
-        super(settings);
-        this.httpAuthRegistry = httpAuthRegistry;
+    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
-        this.settingsProxy = getProxyFromSettings();
+        this.settingsProxy = getProxyFromSettings(settings);
+        this.cryptoService = cryptoService;
 
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
@@ -139,9 +141,10 @@ public class HttpClient extends AbstractComponent implements Closeable {
         HttpClientContext localContext = HttpClientContext.create();
         // auth
         if (request.auth() != null) {
-            ApplicableHttpAuth applicableAuth = httpAuthRegistry.createApplicable(request.auth);
             CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            applicableAuth.apply(credentialsProvider, new AuthScope(request.host, request.port));
+            Credentials credentials = new UsernamePasswordCredentials(request.auth().username,
+                new String(request.auth().password.text(cryptoService)));
+            credentialsProvider.setCredentials(new AuthScope(request.host, request.port), credentials);
             localContext.setCredentialsProvider(credentialsProvider);
 
             // preemptive auth, no need to wait for a 401 first
@@ -222,11 +225,11 @@ public class HttpClient extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Creates a HTTP proxy from the system wide settings
+     * Creates an HTTP proxy from the system wide settings
      *
-     * @return A http proxy instance, if no settings are configured this will be a HttpProxy.NO_PROXY instance
+     * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings() {
+    private HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;

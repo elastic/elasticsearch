@@ -6,16 +6,14 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -29,16 +27,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -46,12 +44,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -81,9 +79,9 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
-public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener {
+public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
-    private static final Logger logger = Loggers.getLogger(LocalExporter.class);
+    private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
     public static final String TYPE = "local";
 
@@ -109,9 +107,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
+        // if additional listeners are added here, adjust LocalExporterTests#testLocalExporterRemovesListenersOnClose accordingly
         clusterService.addListener(this);
         cleanerService.add(this);
-        licenseState.addListener(this::licenseChanged);
+        licenseState.addListener(this);
     }
 
     @Override
@@ -124,7 +123,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     /**
      * When the license changes, we need to ensure that Watcher is setup properly.
      */
-    private void licenseChanged() {
+    @Override
+    public void licenseStateChanged() {
         watcherSetup.set(false);
     }
 
@@ -141,11 +141,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     @Override
-    public LocalBulk openBulk() {
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         if (state.get() != State.RUNNING) {
-            return null;
+            listener.onResponse(null);
+        } else {
+            listener.onResponse(resolveBulk(clusterService.state(), false));
         }
-        return resolveBulk(clusterService.state(), false);
     }
 
     @Override
@@ -155,19 +156,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             // we also remove the listener in resolveBulk after we get to RUNNING, but it's okay to double-remove
             clusterService.removeListener(this);
             cleanerService.remove(this);
-            licenseState.removeListener(this::licenseChanged);
+            licenseState.removeListener(this);
         }
     }
 
     LocalBulk resolveBulk(ClusterState clusterState, boolean clusterStateChange) {
         if (clusterService.localNode() == null || clusterState == null) {
-            return null;
-        }
-
-        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we think may not have .monitoring-es-
-            // indices but they may not have been restored from the cluster state on disk
-            logger.debug("waiting until gateway has recovered from disk");
             return null;
         }
 
@@ -385,7 +379,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * }
      * </code></pre>
      */
-    private void putIngestPipeline(final String pipelineId, final ActionListener<WritePipelineResponse> listener) {
+    private void putIngestPipeline(final String pipelineId, final ActionListener<AcknowledgedResponse> listener) {
         final String pipelineName = pipelineName(pipelineId);
         final BytesReference pipeline = BytesReference.bytes(loadPipeline(pipelineId, XContentType.JSON));
         final PutPipelineRequest request = new PutPipelineRequest(pipelineName, pipeline, XContentType.JSON);
@@ -403,7 +397,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     // FIXME this should use the IndexTemplateMetaDataUpgrader
-    private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
+    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
@@ -548,9 +542,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
         final DeleteIndexRequest request = new DeleteIndexRequest(indices.toArray(new String[indices.size()]));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request,
-                new ActionListener<DeleteIndexResponse>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteIndexResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         if (response.isAcknowledged()) {
                             logger.debug("{} indices deleted", indices.size());
                         } else {

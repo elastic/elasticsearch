@@ -4,11 +4,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
 
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 archivesBaseName = 'x-pack-core'
 
@@ -27,18 +27,21 @@ dependencyLicenses {
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
-    compile project(':x-pack:protocol')
-    shadow "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-    shadow "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-    shadow "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-    shadow "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
-    shadow "commons-logging:commons-logging:${versions.commonslogging}"
-    shadow "commons-codec:commons-codec:${versions.commonscodec}"
+    compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "commons-codec:commons-codec:${versions.commonscodec}"
 
     // security deps
-    shadow 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    shadow project(path: ':modules:transport-netty4', configuration: 'runtime')
+    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
+    compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    compile(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
+        // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
+        exclude group: "org.elasticsearch", module: "elasticsearch-core"
+    }
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -47,6 +50,7 @@ dependencies {
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+    testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
 }
 
 ext.expansions = [
@@ -108,8 +112,7 @@ test {
 // TODO: don't publish test artifacts just to run messy tests, fix the tests!
 // https://github.com/elastic/x-plugins/issues/724
 configurations {
-    testArtifacts.extendsFrom(testRuntime, shadow)
-    testArtifacts.exclude(group: project(':x-pack:protocol').group, module: project(':x-pack:protocol').name)
+    testArtifacts.extendsFrom testRuntime
 }
 task testJar(type: Jar) {
     appendix 'test'
@@ -134,5 +137,10 @@ thirdPartyAudit.excludes = [
 
 // xpack modules are installed in real clusters as the meta plugin, so
 // installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests and there are no integ tests in xpack core module
+// so we disable integ tests
 integTest.enabled = false
+
+// There are some integ tests that don't require a cluster, we still want to run those
+task internalClusterTest(type: RandomizedTestingTask) {
+    include "**/*IT.class"
+}

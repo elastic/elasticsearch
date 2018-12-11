@@ -6,10 +6,15 @@
 .Synopsis
 [source, sql]
 ----
-SHOW TABLES [ LIKE? pattern<1>? ]?
+SHOW TABLES [ table identifier<1> | [ LIKE pattern<2> ] ]?
 ----
 
-<1> SQL match pattern
+<1> single table identifier or double quoted es multi index
+<2> SQL LIKE pattern
+
+See <<sql-index-patterns, index patterns>> for more information about
+patterns.
+
 
 .Description
 
@@ -20,7 +25,15 @@ List the tables available to the current user and their type.
 include-tagged::{sql-specs}/docs.csv-spec[showTables]
 ----
 
-The `LIKE` clause can be used to restrict the list of names to the given pattern.
+Match multiple indices by using {es} <<multi-index,multi index syntax>>
+notation:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[showTablesEsMultiIndex]
+----
+
+One can also use the `LIKE` clause to restrict the list of names to the given pattern.
 
 The pattern can be an exact match:
 ["source","sql",subs="attributes,callouts,macros"]

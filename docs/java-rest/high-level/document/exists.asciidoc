@@ -1,12 +1,18 @@
-[[java-rest-high-document-exists]]
+--
+:api: exists
+:request: GetRequest
+:response: boolean
+--
+
+[id="{upid}-{api}"]
 === Exists API
 
 The exists API returns `true` if a document exists, and `false` otherwise.
 
-[[java-rest-high-document-exists-request]]
+[id="{upid}-{api}-request"]
 ==== Exists Request
 
-It uses `GetRequest` just like the <<java-rest-high-document-get>>.
+It uses +{request}+ just like the <<java-rest-high-document-get>>.
 All of its <<java-rest-high-document-get-request-optional-arguments, optional arguments>>
 are supported. Since `exists()` only returns `true` or `false`, we recommend
 turning off fetching `_source` and any stored fields so the request is
@@ -14,47 +20,18 @@ slightly lighter:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Index
-<2> Type
-<3> Document id
-<4> Disable fetching `_source`.
-<5> Disable fetching stored fields.
+<2> Document id
+<3> Disable fetching `_source`.
+<4> Disable fetching stored fields.
 
-[[java-rest-high-document-exists-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute]
---------------------------------------------------
 
-[[java-rest-high-document-exists-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of exists request requires both the `GetRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute-async]
---------------------------------------------------
-<1> The `GetRequest` to execute and the `ActionListener` to use when
-the execution completes.
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `GetResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
+==== Source exists request
+A variant of the exists request is `existsSource` method which has the additional check
+that the document in question has stored the `source`. If the mapping for the index has opted
+to remove support for storing JSON source in documents then this method will return false
+for documents in this index.

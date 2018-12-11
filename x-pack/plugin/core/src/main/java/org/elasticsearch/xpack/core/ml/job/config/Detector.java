@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,7 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -186,25 +185,6 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that must not be used with overlapping buckets
-     */
-    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
-
-    /**
-     * The set of functions that should not be used with overlapping buckets
-     * as they gain no benefit but have overhead
-     */
-    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
-    );
-
-    /**
      * Functions that do not support rule conditions:
      * <ul>
      * <li>lat_long - because it is a multivariate feature
@@ -248,12 +228,7 @@ public class Detector implements ToXContentObject, Writeable {
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
         rules = Collections.unmodifiableList(in.readList(DetectionRule::new));
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            detectorIndex = in.readInt();
-        } else {
-            // negative means unknown, and is expected for 5.4 jobs
-            detectorIndex = -1;
-        }
+        detectorIndex = in.readInt();
     }
 
     @Override
@@ -276,9 +251,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeList(Collections.emptyList());
         }
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeInt(detectorIndex);
-        }
+        out.writeInt(detectorIndex);
     }
 
     @Override
@@ -393,7 +366,7 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     /**
-     * Excludes frequently-occuring metrics from the analysis;
+     * Excludes frequently-occurring metrics from the analysis;
      * can apply to 'by' field, 'over' field, or both
      *
      * @return the value that the user set

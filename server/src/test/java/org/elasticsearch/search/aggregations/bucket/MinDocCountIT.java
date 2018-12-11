@@ -81,19 +81,19 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("doc['d'].values", vars -> {
+            scripts.put("doc['d']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles value = (ScriptDocValues.Doubles) doc.get("d");
                 return value.getValues();
             });
 
-            scripts.put("doc['l'].values", vars -> {
+            scripts.put("doc['l']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("l");
                 return value.getValues();
             });
 
-            scripts.put("doc['s'].values", vars -> {
+            scripts.put("doc['s']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get("s");
                 return value.getValues();
@@ -154,7 +154,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
                 return builder.script(new org.elasticsearch.script.Script(ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
+                    CustomScriptPlugin.NAME, "doc['" + field + "']", Collections.emptyMap()));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);
@@ -318,7 +318,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .order(order)
                         .size(cardinality + randomInt(10))
                         .minDocCount(0))
-                .execute().actionGet();
+                .get();
         assertAllSuccessful(allTermsResponse);
 
         final Terms allTerms = allTermsResponse.getAggregations().get("terms");
@@ -381,7 +381,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0))
-                .execute().actionGet();
+                .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
 
@@ -390,7 +390,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                     .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
-                    .execute().actionGet();
+                    .get();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }
     }

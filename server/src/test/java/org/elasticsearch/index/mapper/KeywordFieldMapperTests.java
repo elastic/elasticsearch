@@ -321,11 +321,16 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEnableNorms() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("norms", true).endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "keyword")
+                    .field("doc_values", false)
+                    .field("norms", true)
+                .endObject()
+            .endObject()
+        .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -336,8 +341,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertFalse(fields[0].fieldType().omitNorms());
+
+        IndexableField[] fieldNamesFields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(0, fieldNamesFields.length);
     }
 
     public void testNormalizer() throws IOException {

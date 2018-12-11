@@ -34,13 +34,13 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.28.Final"
-    compile "io.netty:netty-codec:4.1.28.Final"
-    compile "io.netty:netty-codec-http:4.1.28.Final"
-    compile "io.netty:netty-common:4.1.28.Final"
-    compile "io.netty:netty-handler:4.1.28.Final"
-    compile "io.netty:netty-resolver:4.1.28.Final"
-    compile "io.netty:netty-transport:4.1.28.Final"
+    compile "io.netty:netty-buffer:${versions.netty}"
+    compile "io.netty:netty-codec:${versions.netty}"
+    compile "io.netty:netty-codec-http:${versions.netty}"
+    compile "io.netty:netty-common:${versions.netty}"
+    compile "io.netty:netty-handler:${versions.netty}"
+    compile "io.netty:netty-resolver:${versions.netty}"
+    compile "io.netty:netty-transport:${versions.netty}"
 }
 
 dependencyLicenses {
@@ -83,7 +83,6 @@ thirdPartyAudit.excludes = [
         'io.netty.internal.tcnative.SSLContext',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-        'org.bouncycastle.asn1.x500.X500Name',
         'org.bouncycastle.cert.X509v3CertificateBuilder',
         'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
         'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
@@ -110,8 +109,11 @@ thirdPartyAudit.excludes = [
         'org.jboss.marshalling.Unmarshaller',
 
         // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+        'org.slf4j.helpers.FormattingTuple',
+        'org.slf4j.helpers.MessageFormatter',
         'org.slf4j.Logger',
         'org.slf4j.LoggerFactory',
+        'org.slf4j.spi.LocationAwareLogger',
 
         'com.google.protobuf.ExtensionRegistryLite',
         'com.google.protobuf.MessageLiteOrBuilder',
@@ -133,7 +135,7 @@ thirdPartyAudit.excludes = [
         'net.jpountz.lz4.LZ4FastDecompressor',
         'net.jpountz.xxhash.StreamingXXHash32',
         'net.jpountz.xxhash.XXHashFactory',
-        'io.netty.internal.tcnative.CertificateRequestedCallback',
+        'io.netty.internal.tcnative.CertificateCallback',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
         'io.netty.internal.tcnative.SniHostNameMatcher',
@@ -146,6 +148,7 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.PlatformDependent0$1',
         'io.netty.util.internal.PlatformDependent0$2',
         'io.netty.util.internal.PlatformDependent0$3',
+        'io.netty.util.internal.PlatformDependent0$5',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
@@ -163,3 +166,11 @@ thirdPartyAudit.excludes = [
         'org.conscrypt.Conscrypt',
         'org.conscrypt.HandshakeListener'
 ]
+
+if (project.inFipsJvm == false) {
+    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+    // a FIPS JVM with BouncyCastleFIPS Provider
+    thirdPartyAudit.excludes += [
+            'org.bouncycastle.asn1.x500.X500Name'
+    ]
+}

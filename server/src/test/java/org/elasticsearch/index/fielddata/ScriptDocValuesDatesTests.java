@@ -21,112 +21,73 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
-import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
 
-    public void testJavaTime() throws IOException {
-        assertDateDocValues(true);
-    }
-
-    public void testJodaTimeBwc() throws IOException {
-        assertDateDocValues(false, "The joda time api for doc values is deprecated." +
-            " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values");
-    }
-
-    public void assertDateDocValues(boolean useJavaTime, String... expectedWarnings) throws IOException {
-        final Function<Long, Object> datetimeCtor;
-        if (useJavaTime) {
-            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC);
-        } else {
-            datetimeCtor = millis -> new DateTime(millis, DateTimeZone.UTC);
-        }
-        long[][] values = new long[between(3, 10)][];
-        Object[][] expectedDates = new Object[values.length][];
-        for (int d = 0; d < values.length; d++) {
-            values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
-            expectedDates[d] = new Object[values[d].length];
-            for (int i = 0; i < values[d].length; i++) {
-                values[d][i] = randomNonNegativeLong();
-                expectedDates[d][i] = datetimeCtor.apply(values[d][i]);
-            }
-        }
-
+    public void testGetValues() {
+        Set<String> keys = new HashSet<>();
         Set<String> warnings = new HashSet<>();
-        Dates dates = wrap(values, deprecationMessage -> {
+
+        Dates dates = biconsumerWrap((deprecationKey, deprecationMessage) -> {
+            keys.add(deprecationKey);
             warnings.add(deprecationMessage);
-            /* Create a temporary directory to prove we are running with the
-             * server's permissions. */
+
+            // Create a temporary directory to prove we are running with the server's permissions.
             createTempDir();
-        }, useJavaTime);
-        // each call to get or getValue will be run with limited permissions, just as they are in scripts
+        });
+
+        /*
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
+         */
         PermissionCollection noPermissions = new Permissions();
         AccessControlContext noPermissionsAcc = new AccessControlContext(
             new ProtectionDomain[] {
                 new ProtectionDomain(null, noPermissions)
             }
         );
-
-        for (int round = 0; round < 10; round++) {
-            int d = between(0, values.length - 1);
-            dates.setNextDocId(d);
-            if (expectedDates[d].length > 0) {
-                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
-                assertEquals(expectedDates[d][0] , dateValue);
-            } else {
-                Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
+            public Void run() {
+                dates.getValues();
+                return null;
             }
+        }, noPermissionsAcc);
 
-            assertEquals(values[d].length, dates.size());
-            for (int i = 0; i < values[d].length; i++) {
-                final int ndx = i;
-                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) () -> dates.get(ndx), noPermissionsAcc);
-                assertEquals(expectedDates[d][i], dateValue);
-            }
-        }
+        assertThat(warnings, contains(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+           + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, contains("ScriptDocValues#getValues"));
 
-        assertThat(warnings, containsInAnyOrder(expectedWarnings));
+
     }
 
-    private Dates wrap(long[][] values, Consumer<String> deprecationHandler, boolean useJavaTime) {
+    private Dates biconsumerWrap(BiConsumer<String, String> deprecationHandler) {
         return new Dates(new AbstractSortedNumericDocValues() {
-            long[] current;
-            int i;
-
             @Override
             public boolean advanceExact(int doc) {
-                current = values[doc];
-                i = 0;
-                return current.length > 0;
+                return true;
             }
             @Override
             public int docValueCount() {
-                return current.length;
+                return 0;
             }
             @Override
             public long nextValue() {
-                return current[i++];
+                return 0L;
             }
-        }, deprecationHandler, useJavaTime);
+        }, deprecationHandler);
     }
 }

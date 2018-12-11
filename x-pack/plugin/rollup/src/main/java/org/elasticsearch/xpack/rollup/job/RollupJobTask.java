@@ -17,7 +17,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -25,13 +24,13 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.job.IndexerState;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -56,8 +55,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final SchedulerEngine schedulerEngine;
         private final ThreadPool threadPool;
 
-        public RollupJobPersistentTasksExecutor(Settings settings, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
-            super(settings, RollupField.TASK_NAME, Rollup.TASK_THREAD_POOL_NAME);
+        public RollupJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
+            super(RollupField.TASK_NAME, Rollup.TASK_THREAD_POOL_NAME);
             this.client = client;
             this.schedulerEngine = schedulerEngine;
             this.threadPool = threadPool;
@@ -218,7 +217,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
      * Gets the stats for this task.
      * @return The stats of this task
      */
-    public RollupJobStats getStats() {
+    public RollupIndexerJobStats getStats() {
         return indexer.getStats();
     }
 
@@ -262,7 +261,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         updatePersistentTaskState(state,
                 ActionListener.wrap(
                         (task) -> {
-                            logger.debug("Succesfully updated state for rollup job [" + job.getConfig().getId() + "] to ["
+                            logger.debug("Successfully updated state for rollup job [" + job.getConfig().getId() + "] to ["
                                     + state.getIndexerState() + "][" + state.getPosition() + "]");
                             listener.onResponse(new StartRollupJobAction.Response(true));
                         },
@@ -308,7 +307,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 updatePersistentTaskState(state,
                         ActionListener.wrap(
                                 (task) -> {
-                                    logger.debug("Succesfully updated state for rollup job [" + job.getConfig().getId()
+                                    logger.debug("Successfully updated state for rollup job [" + job.getConfig().getId()
                                             + "] to [" + state.getIndexerState() + "]");
                                     listener.onResponse(new StopRollupJobAction.Response(true));
                                 },
@@ -349,7 +348,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
      * shut down from the inside.
      */
     @Override
-    protected synchronized void onCancelled() {
+    public synchronized void onCancelled() {
         logger.info("Received cancellation request for Rollup job [" + job.getConfig().getId() + "], state: [" + indexer.getState() + "]");
         if (indexer.abort()) {
             // there is no background job running, we can shutdown safely

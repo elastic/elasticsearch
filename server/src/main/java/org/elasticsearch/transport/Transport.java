@@ -20,11 +20,12 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -54,20 +55,11 @@ public interface Transport extends LifecycleComponent {
      * Returns the registered request handler registry for the given action or <code>null</code> if it's not registered
      * @param action the action to look up
      */
-    RequestHandlerRegistry getRequestHandler(String action);
+    RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action);
 
-    /**
-     * Adds a new event listener
-     * @param listener the listener to add
-     */
-    void addConnectionListener(TransportConnectionListener listener);
+    void addMessageListener(TransportMessageListener listener);
 
-    /**
-     * Removes an event listener
-     * @param listener the listener to remove
-     * @return <code>true</code> iff the listener was removed otherwise <code>false</code>
-     */
-    boolean removeConnectionListener(TransportConnectionListener listener);
+    boolean removeMessageListener(TransportMessageListener listener);
 
     /**
      * The address the transport is bound on.
@@ -86,23 +78,6 @@ public interface Transport extends LifecycleComponent {
     TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
-     * Returns {@code true} if the node is connected.
-     */
-    boolean nodeConnected(DiscoveryNode node);
-
-    /**
-     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
-     * Once a successful is established, it can be validated before being exposed.
-     */
-    void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                       CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException;
-
-    /**
-     * Disconnected from the given node, if not connected, will do nothing.
-     */
-    void disconnectFromNode(DiscoveryNode node);
-
-    /**
      * Returns a list of all local adresses for this transport
      */
     List<String> getLocalAddresses();
@@ -112,23 +87,12 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * Returns a connection for the given node if the node is connected.
-     * Connections returned from this method must not be closed. The lifecycle of this connection is maintained by the Transport
-     * implementation.
-     *
-     * @throws NodeNotConnectedException if the node is not connected
-     * @see #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)
+     * Opens a new connection to the given node. When the connection is fully connected, the listener is
+     * called. A {@link Releasable} is returned representing the pending connection. If the caller of this
+     * method decides to move on before the listener is called with the completed connection, they should
+     * release the pending connection to prevent hanging connections.
      */
-    Connection getConnection(DiscoveryNode node);
-
-    /**
-     * Opens a new connection to the given node and returns it. In contrast to
-     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)} the returned connection is not managed by
-     * the transport implementation. This connection must be closed once it's not needed anymore.
-     * This connection type can be used to execute a handshake between two nodes before the node will be published via
-     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)}.
-     */
-    Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
+    Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
     TransportStats getStats();
 
@@ -155,6 +119,17 @@ public interface Transport extends LifecycleComponent {
             IOException, TransportException;
 
         /**
+         * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
+         * connection is closed. No implementations currently throw an exception during close, so
+         * {@link ActionListener#onFailure(Exception)} will not be called.
+         *
+         * @param listener to be called
+         */
+        void addCloseListener(ActionListener<Void> listener);
+
+        boolean isClosed();
+
+        /**
          * Returns the version of the node this connection was established with.
          */
         default Version getVersion() {
@@ -168,10 +143,13 @@ public interface Transport extends LifecycleComponent {
         default Object getCacheKey() {
             return this;
         }
+
+        @Override
+        void close();
     }
 
     /**
-     * This class represents a response context that encapsulates the actual response handler, the action and the conneciton it was
+     * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
      * executed on.
      */
     final class ResponseContext<T extends TransportResponse> {
@@ -205,7 +183,7 @@ public interface Transport extends LifecycleComponent {
      * This class is a registry that allows
      */
     final class ResponseHandlers {
-        private final ConcurrentMapLong<ResponseContext> handlers = ConcurrentCollections
+        private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
             .newConcurrentMapLongWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
@@ -229,7 +207,7 @@ public interface Transport extends LifecycleComponent {
          * @return the new request ID
          * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
          */
-        public long add(ResponseContext holder) {
+        public long add(ResponseContext<? extends TransportResponse> holder) {
             long requestId = newRequestId();
             ResponseContext existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
@@ -247,10 +225,10 @@ public interface Transport extends LifecycleComponent {
         /**
          * Removes and returns all {@link ResponseContext} instances that match the predicate
          */
-        public List<ResponseContext> prune(Predicate<ResponseContext> predicate) {
-            final List<ResponseContext> holders = new ArrayList<>();
-            for (Map.Entry<Long, ResponseContext> entry : handlers.entrySet()) {
-                ResponseContext holder = entry.getValue();
+        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext> predicate) {
+            final List<ResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
+            for (Map.Entry<Long, ResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
+                ResponseContext<? extends TransportResponse> holder = entry.getValue();
                 if (predicate.test(holder)) {
                     ResponseContext remove = handlers.remove(entry.getKey());
                     if (remove != null) {
@@ -266,8 +244,9 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler onResponseReceived(final long requestId, TransportConnectionListener listener) {
-            ResponseContext context = handlers.remove(requestId);
+        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(final long requestId,
+                                                                                        final TransportMessageListener listener) {
+            ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {
                 return null;

@@ -120,11 +120,7 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
         } else {
             index = in.readString();
         }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            shard = in.readInt();
-        } else {
-            shard = RANDOM_SHARD;
-        }
+        shard = in.readInt();
         valid = in.readBoolean();
         explanation = in.readOptionalString();
         error = in.readOptionalString();
@@ -137,9 +133,7 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
         } else {
             out.writeString(index);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeInt(shard);
-        }
+        out.writeInt(shard);
         out.writeBoolean(valid);
         out.writeOptionalString(explanation);
         out.writeOptionalString(error);

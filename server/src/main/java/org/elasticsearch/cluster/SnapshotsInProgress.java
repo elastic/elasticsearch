@@ -48,12 +48,6 @@ import java.util.Map;
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
 
-    // denotes an undefined repository state id, which will happen when receiving a cluster state with
-    // a snapshot in progress from a pre 5.2.x node
-    public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
-    // the version where repository state ids were introduced
-    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0;
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -432,10 +426,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
                 }
             }
-            long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
-            if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
-                repositoryStateId = in.readLong();
-            }
+            long repositoryStateId = in.readLong();
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -471,9 +462,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     out.writeByte(shardEntry.value.state().value());
                 }
             }
-            if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
-                out.writeLong(entry.repositoryStateId);
-            }
+            out.writeLong(entry.repositoryStateId);
         }
     }
 

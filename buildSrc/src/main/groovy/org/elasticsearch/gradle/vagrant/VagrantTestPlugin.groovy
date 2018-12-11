@@ -31,7 +31,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'opensuse-42',
             'sles-12',
             'ubuntu-1404',
-            'ubuntu-1604'
+            'ubuntu-1604',
+            'ubuntu-1804'
     ])
 
     /** All Windows boxes that we test, which may or may not be supplied **/
@@ -158,8 +159,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void configurePackagingArchiveRepositories(Project project) {
         RepositoryHandler repos = project.repositories
 
-        // Try maven central first, it'll have releases before 5.0.0
-        repos.mavenCentral()
+        repos.jcenter() // will have releases before 5.0.0
 
         /* Setup a repository that tries to download from
           https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]
@@ -277,9 +277,13 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
+            String version = project.extensions.esvagrant.upgradeFromVersion
+            if (project.bwcVersions.unreleased.contains(project.extensions.esvagrant.upgradeFromVersion)) {
+                version += "-SNAPSHOT"
+            }
             dependsOn copyPackagingArchives
             file "${archivesDir}/upgrade_from_version"
-            contents project.extensions.esvagrant.upgradeFromVersion.toString()
+            contents version
         }
 
         Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile', FileContentsTask) {
@@ -460,9 +464,9 @@ class VagrantTestPlugin implements Plugin<Project> {
              * execution.
              */
             final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
-            final boolean vagrantDestroy
+            boolean vagrantDestroy
             if ("true".equals(vagrantDestroyProperty)) {
-                vagrantDestroy = true;
+                vagrantDestroy = true
             } else if ("false".equals(vagrantDestroyProperty)) {
                 vagrantDestroy = false
             } else {
@@ -526,7 +530,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                     project.gradle.removeListener(batsPackagingReproListener)
                 }
                 if (project.extensions.esvagrant.boxes.contains(box)) {
-                    packagingTest.dependsOn(batsPackagingTest)
+                    // these tests are temporarily disabled for suse boxes while we debug an issue
+                    // https://github.com/elastic/elasticsearch/issues/30295
+                    if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                        packagingTest.dependsOn(batsPackagingTest)
+                    }
                 }
             }
 
@@ -565,7 +573,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                 project.gradle.removeListener(javaPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(javaPackagingTest)
+                // these tests are temporarily disabled for suse boxes while we debug an issue
+                // https://github.com/elastic/elasticsearch/issues/30295
+                if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                    packagingTest.dependsOn(javaPackagingTest)
+                }
             }
 
             /*

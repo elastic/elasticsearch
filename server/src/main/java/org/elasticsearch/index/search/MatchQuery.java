@@ -48,10 +48,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -61,7 +61,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
-public class    MatchQuery {
+public class MatchQuery {
 
     public enum Type implements Writeable {
         /**
@@ -253,22 +253,17 @@ public class    MatchQuery {
         }
         final String field = fieldType.name();
 
+        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
+        assert analyzer != null;
+
         /*
-         * If the user forced an analyzer we really don't care if they are
-         * searching a type that wants term queries to be used with query string
-         * because the QueryBuilder will take care of it. If they haven't forced
-         * an analyzer then types like NumberFieldType that want terms with
-         * query string will blow up because their analyzer isn't capable of
-         * passing through QueryBuilder.
+         * If a keyword analyzer is used, we know that further analysis isn't
+         * needed and can immediately return a term query.
          */
-        boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType.tokenized() == false && noForcedAnalyzer &&
-                fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+        if (analyzer == Lucene.KEYWORD_ANALYZER) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
-        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
-        assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
         if (hasPositions(fieldType)) {
@@ -359,8 +354,7 @@ public class    MatchQuery {
                     return blendPhraseQuery((PhraseQuery) query, mapper);
                 }
                 return query;
-            }
-            catch (IllegalArgumentException | IllegalStateException e) {
+            } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
@@ -373,8 +367,7 @@ public class    MatchQuery {
             try {
                 checkForPositions(field);
                 return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
-            }
-            catch (IllegalArgumentException | IllegalStateException e) {
+            } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
@@ -392,6 +385,7 @@ public class    MatchQuery {
          * Checks if graph analysis should be enabled for the field depending
          * on the provided {@link Analyzer}
          */
+        @Override
         protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
                                          String queryText, boolean quoted, int phraseSlop) {
             assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
@@ -464,9 +458,9 @@ public class    MatchQuery {
             } else if (query instanceof SpanNearQuery) {
                 SpanNearQuery spanNearQuery = (SpanNearQuery) query;
                 SpanQuery[] clauses = spanNearQuery.getClauses();
-                if (clauses[clauses.length-1] instanceof SpanTermQuery) {
-                    clauses[clauses.length-1] = new SpanMultiTermQueryWrapper<>(
-                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length-1]).getTerm())
+                if (clauses[clauses.length - 1] instanceof SpanTermQuery) {
+                    clauses[clauses.length - 1] = new SpanMultiTermQueryWrapper<>(
+                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length - 1]).getTerm())
                     );
                 }
                 SpanNearQuery newQuery = new SpanNearQuery(clauses, spanNearQuery.getSlop(), spanNearQuery.isInOrder());

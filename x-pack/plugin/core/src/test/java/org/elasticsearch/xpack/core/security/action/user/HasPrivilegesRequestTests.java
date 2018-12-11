@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -28,9 +29,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class HasPrivilegesRequestTests extends ESTestCase {
 
-    public void testSerializationV7() throws IOException {
+    public void testSerializationV64OrLater() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final HasPrivilegesRequest copy = serializeAndDeserialize(original, Version.V_7_0_0_alpha1);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+        final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));

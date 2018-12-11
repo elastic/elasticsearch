@@ -23,15 +23,20 @@ POST _search
         "all_of" : {
           "ordered" : true,
           "intervals" : [
-            "match" : {
-              "query" : "my favourite food",
-              "query" : "phrase"
+            {
+              "match" : {
+                "query" : "my favourite food",
+                "max_gaps" : 0,
+                "ordered" : true
+              }
             },
-            "or" : {
-              "intervals" : [
-                "match" : { "query" : "hot water" },
-                "match" : { "query" : "cold porridge" }
-              ]
+            {
+              "or" : {
+                "intervals" : [
+                  { "match" : { "query" : "hot water" } },
+                  { "match" : { "query" : "cold porridge" } }
+                ]
+              }
             }
           ],
         },
@@ -64,12 +69,13 @@ appear further apart than this will not match. If unspecified, or set to -1,
 then there is no width restriction on the match.  If set to 0 then the terms
 must appear next to each other.
 `ordered`::
-Whether or not the terms must appear in their specified order
+Whether or not the terms must appear in their specified order.  Defaults to
+`false`
 `analyzer`::
 Which analyzer should be used to analyze terms in the `query`.  By
 default, the search analyzer of the top-level field will be used.
 `filter`::
-An <<interval_filter,interval filter>>
+An optional <<interval_filter,interval filter>>
 
 [[intervals-all_of]]
 ==== `all_of`
@@ -89,7 +95,7 @@ matches produced by the rules must all appear immediately next to each other.
 Whether the intervals produced by the rules should appear in the order in
 which they are specified.  Defaults to `false`
 `filter`::
-An <<interval_filter,interval filter>>
+An optional <<interval_filter,interval filter>>
 
 [[intervals-any_of]]
 ==== `any_of` source
@@ -100,7 +106,7 @@ The `or` rule will match any of its nested sub-rules.
 `intervals`::
 An array of rules to match
 `filter`::
-An <<interval_filter,interval filter>>
+An optional <<interval_filter,interval filter>>
 
 [[interval_filter]]
 ==== filters

@@ -1,10 +1,12 @@
 {
-  "xpack.ssl.certificates": {
+  "ssl.certificates": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/ssl/certificates",
-      "paths": [ "/_xpack/ssl/certificates" ],
+      "path": "/_ssl/certificates",
+      "paths": [
+        "/_ssl/certificates"
+      ],
       "parts": {},
       "params": {}
     },

@@ -7,7 +7,7 @@ Disables users in the native realm.
 
 ==== Request
 
-`PUT /_xpack/security/user/<username>/_disable` 
+`PUT /_security/user/<username>/_disable` 
 
 
 ==== Description
@@ -37,7 +37,7 @@ The following example disables the user `jacknich`:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/user/jacknich/_disable
+PUT /_security/user/jacknich/_disable
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:jacknich_user]

@@ -1,19 +1,16 @@
 {
-  "xpack.security.delete_privileges": {
-    "documentation": "TODO",
-    "methods": [ "DELETE" ],
+  "security.put_role_mapping": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html",
+    "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/privilege/{application}/{name}",
-      "paths": [ "/_xpack/security/privilege/{application}/{name}" ],
+      "path": "/_security/role_mapping/{name}",
+      "paths": [
+        "/_security/role_mapping/{name}"
+      ],
       "parts": {
-        "application": {
-          "type" : "string",
-          "description" : "Application name",
-          "required" : true
-        },
         "name": {
           "type" : "string",
-          "description" : "Privilege name",
+          "description" : "Role-mapping name",
           "required" : true
         }
       },
@@ -25,6 +22,9 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description" : "The role to add",
+      "required" : true
+    }
   }
 }

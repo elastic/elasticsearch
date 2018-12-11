@@ -63,7 +63,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(token);
         assertTokenWorks(token);
 
-        Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token1");
+        Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         indexRequest1.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
@@ -77,7 +77,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         token = (String) responseMap.get("access_token");
         assertNotNull(token);
         assertTokenWorks(token);
-        Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token2");
+        Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token2");
         indexRequest2.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
@@ -88,7 +88,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testTokenWorksInMixedOrUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed or upgraded cluster",
                 CLUSTER_TYPE == ClusterType.MIXED || CLUSTER_TYPE == ClusterType.UPGRADED);
-        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1"));
+        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1"));
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         assertTokenWorks((String) source.get("token"));
@@ -97,7 +97,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testMixedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
-        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2"));
+        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2"));
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String token = (String) source.get("token");
         assertTokenWorks(token);
@@ -146,7 +146,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2"));
+        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2"));
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String token = (String) source.get("token");
@@ -159,7 +159,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(invalidationResponse);
         assertTokenDoesNotWork(token);
 
-        getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1"));
+        getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1"));
         source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String workingToken = (String) source.get("token");
         assertTokenWorks(workingToken);

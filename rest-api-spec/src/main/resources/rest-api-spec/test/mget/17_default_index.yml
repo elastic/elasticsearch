@@ -1,5 +1,5 @@
 ---
-"Basic multi-get":
+"Default index/type":
   - skip:
       version: " - 6.99.99"
       reason: types are required in requests before 7.0.0
@@ -15,15 +15,13 @@
           body:   { foo: bar }
 
   - do:
-      indices.refresh: {}
-
-  - do:
       mget:
+        index:  test_1
         body:
           docs:
-            - { _index: test_2, _id: 1}
-            - { _index: test_1, _id: 2}
-            - { _index: test_1, _id: 1}
+            - { _index: test_2,              _id: 1}
+            - {                              _id: 2}
+            - {                              _id: 1}
 
   - is_false: docs.0.found
   - match:  { docs.0._index:     test_2      }

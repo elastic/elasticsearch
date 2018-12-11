@@ -41,7 +41,7 @@ public class ReleasableBytesStreamOutputTests extends ESTestCase {
 
     private ReleasableBytesStreamOutput getRandomReleasableBytesStreamOutput(
                                                 MockBigArrays mockBigArrays) throws IOException {
-        ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(mockBigArrays);
+        ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(mockBigArrays, randomBoolean());
         if (randomBoolean()) {
             for (int i = 0; i < scaledRandomIntBetween(1, 32); i++) {
                 output.write(randomByte());

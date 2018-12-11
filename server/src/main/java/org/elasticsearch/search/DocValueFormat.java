@@ -53,29 +53,41 @@ public interface DocValueFormat extends NamedWriteable {
     /** Format a long value. This is used by terms and histogram aggregations
      *  to format keys for fields that use longs as a doc value representation
      *  such as the {@code long} and {@code date} fields. */
-    Object format(long value);
+    default Object format(long value) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Format a double value. This is used by terms and stats aggregations
      *  to format keys for fields that use numbers as a doc value representation
      *  such as the {@code long}, {@code double} or {@code date} fields. */
-    Object format(double value);
+    default Object format(double value) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Format a binary value. This is used by terms aggregations to format
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
-    Object format(BytesRef value);
+    default Object format(BytesRef value) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Parse a value that was formatted with {@link #format(long)} back to the
      *  original long value. */
-    long parseLong(String value, boolean roundUp, LongSupplier now);
+    default long parseLong(String value, boolean roundUp, LongSupplier now) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Parse a value that was formatted with {@link #format(double)} back to
      *  the original double value. */
-    double parseDouble(String value, boolean roundUp, LongSupplier now);
+    default double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    BytesRef parseBytesRef(String value);
+    default BytesRef parseBytesRef(String value) {
+        throw new UnsupportedOperationException();
+    }
 
     DocValueFormat RAW = new DocValueFormat() {
 
@@ -85,7 +97,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -133,17 +145,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
-
-        @Override
-        public Object format(long value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Object format(double value) {
-            throw new UnsupportedOperationException();
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -151,16 +153,6 @@ public interface DocValueFormat extends NamedWriteable {
             return Base64.getEncoder()
                     .withoutPadding()
                     .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
-        }
-
-        @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -220,11 +212,6 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
             return parser.parse(value, now, roundUp, timeZone).toEpochMilli();
         }
@@ -232,11 +219,6 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -248,7 +230,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -260,26 +242,6 @@ public interface DocValueFormat extends NamedWriteable {
         public String format(double value) {
             return format((long) value);
         }
-
-        @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
-        }
     };
 
     DocValueFormat BOOLEAN = new DocValueFormat() {
@@ -290,22 +252,17 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
         public Boolean format(long value) {
-            return java.lang.Boolean.valueOf(value != 0);
+            return value != 0;
         }
 
         @Override
         public Boolean format(double value) {
-            return java.lang.Boolean.valueOf(value != 0);
-        }
-
-        @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
+            return value != 0;
         }
 
         @Override
@@ -323,11 +280,6 @@ public interface DocValueFormat extends NamedWriteable {
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
-        }
     };
 
     DocValueFormat IP = new DocValueFormat() {
@@ -338,17 +290,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
-
-        @Override
-        public String format(long value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String format(double value) {
-            throw new UnsupportedOperationException();
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -356,16 +298,6 @@ public interface DocValueFormat extends NamedWriteable {
             byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
             InetAddress inet = InetAddressPoint.decode(bytes);
             return NetworkAddress.format(inet);
-        }
-
-        @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -408,7 +340,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(double value) {
-            /**
+            /*
              * Explicitly check for NaN, since it formats to "�" or "NaN" depending on JDK version.
              *
              * Decimal formatter uses the JRE's default symbol list (via Locale.ROOT above).  In JDK8,
@@ -425,11 +357,6 @@ public interface DocValueFormat extends NamedWriteable {
                 return String.valueOf(Double.NaN);
             }
             return format.format(value);
-        }
-
-        @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -462,11 +389,6 @@ public interface DocValueFormat extends NamedWriteable {
                 throw new RuntimeException(e);
             }
             return n.doubleValue();
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

@@ -54,7 +54,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
@@ -187,17 +186,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
-            }
-
-            @Override
-            public String format(long value) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String format(double value) {
-                throw new UnsupportedOperationException();
+            public void writeTo(StreamOutput out) {
             }
 
             @Override
@@ -206,16 +195,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 char[] encoded = new char[encodedLength];
                 IndexableBinaryStringTools.encode(value.bytes, value.offset, value.length, encoded, 0, encodedLength);
                 return new String(encoded, 0, encodedLength);
-            }
-
-            @Override
-            public long parseLong(String value, boolean roundUp, LongSupplier now) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-                throw new UnsupportedOperationException();
             }
 
             @Override

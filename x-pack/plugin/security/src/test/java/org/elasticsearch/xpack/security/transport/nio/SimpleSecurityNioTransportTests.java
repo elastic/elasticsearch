@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -34,9 +33,8 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
         Settings settings1 = Settings.builder()
                 .put(settings)
                 .put("xpack.security.transport.ssl.enabled", true).build();
-        Transport transport = new SecurityNioTransport(settings1, version, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
-            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService(), null,
-            createSSLService(settings1)) {
+        Transport transport = new SecurityNioTransport(settings1, version, threadPool, networkService, new MockPageCacheRecycler(settings),
+            namedWriteableRegistry, new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,

@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -386,7 +387,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             }
 
             RestoreInProgress.Entry restore = new RestoreInProgress.Entry(snapshot, RestoreInProgress.State.INIT,
-                new ArrayList<>(snapshotIndices), restoreShards.build());
+                new ArrayList<>(snapshotIndices), restoreShards.build(), UUIDs.randomBase64UUID());
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress(restore));
         }
 

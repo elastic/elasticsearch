@@ -123,7 +123,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                         new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
                         RestoreInProgress.State.STARTED,
                         Collections.singletonList("index_name"),
-                        ImmutableOpenMap.of()
+                        ImmutableOpenMap.of(),
+                        UUIDs.randomBase64UUID()
                     )
                 ));
         }

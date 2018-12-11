@@ -58,7 +58,6 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                             + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
                         return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
                     }
-                    break;
                 }
             }
         }

@@ -109,7 +109,9 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
                                 ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
                                 assert RestoreService.completed(shards) : "expected all restore entries to be completed";
-                                RestoreInfo ri = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(),
+                                RestoreInfo ri = new RestoreInfo(
+                                    prevEntry.uuid(),
+                                    prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),
                                     shards.size(),
                                     shards.size() - RestoreService.failedShards(shards));

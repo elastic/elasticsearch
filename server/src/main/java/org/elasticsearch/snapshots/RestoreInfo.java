@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +44,9 @@ import java.util.Objects;
  */
 public class RestoreInfo implements ToXContentObject, Streamable {
 
+    @Nullable
+    private String uuid;
+
     private String name;
 
     private List<String> indices;
@@ -54,7 +59,8 @@ public class RestoreInfo implements ToXContentObject, Streamable {
 
     }
 
-    public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
+    public RestoreInfo(String uuid,  String name, List<String> indices, int totalShards, int successfulShards) {
+        this.uuid = uuid;
         this.name = name;
         this.indices = indices;
         this.totalShards = totalShards;
@@ -68,6 +74,10 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      */
     public String name() {
         return name;
+    }
+
+    public String id() {
+        return uuid;
     }
 
     /**
@@ -116,6 +126,7 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     }
 
     static final class Fields {
+        static final String UUID = "uuid";
         static final String SNAPSHOT = "snapshot";
         static final String INDICES = "indices";
         static final String SHARDS = "shards";
@@ -127,6 +138,7 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(Fields.UUID, uuid);
         builder.field(Fields.SNAPSHOT, name);
         builder.startArray(Fields.INDICES);
         for (String index : indices) {
@@ -153,6 +165,7 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         PARSER.declareString((r, n) -> r.name = n, new ParseField(Fields.SNAPSHOT));
         PARSER.declareStringArray((r, i) -> r.indices = i, new ParseField(Fields.INDICES));
         PARSER.declareField(shardsParser::parse, new ParseField(Fields.SHARDS), ObjectParser.ValueType.OBJECT);
+        PARSER.declareString((r, n) -> r.uuid = n, new ParseField(Fields.UUID));
     }
 
     public static RestoreInfo fromXContent(XContentParser parser) throws IOException {
@@ -170,6 +183,9 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         indices = Collections.unmodifiableList(indicesListBuilder);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            uuid = in.readString();
+        }
     }
 
     @Override
@@ -181,18 +197,9 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         }
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-    }
-
-    /**
-     * Reads restore info from {@link StreamInput}
-     *
-     * @param in stream input
-     * @return restore info
-     */
-    public static RestoreInfo readRestoreInfo(StreamInput in) throws IOException {
-        RestoreInfo snapshotInfo = new RestoreInfo();
-        snapshotInfo.readFrom(in);
-        return snapshotInfo;
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeString(uuid);
+        }
     }
 
     /**

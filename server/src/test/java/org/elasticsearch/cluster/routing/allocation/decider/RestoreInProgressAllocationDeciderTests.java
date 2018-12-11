@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -139,7 +140,8 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         Snapshot snapshot = recoverySource.snapshot();
         RestoreInProgress.State restoreState = RestoreInProgress.State.STARTED;
-        RestoreInProgress.Entry restore = new RestoreInProgress.Entry(snapshot, restoreState, singletonList("test"), shards.build());
+        RestoreInProgress.Entry restore =
+            new RestoreInProgress.Entry(snapshot, restoreState, singletonList("test"), shards.build(), UUIDs.randomBase64UUID());
 
         clusterState = ClusterState.builder(clusterState)
             .putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restore))

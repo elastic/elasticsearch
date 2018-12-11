@@ -331,7 +331,11 @@ public class RestoreService implements ClusterStateApplier {
                         }
 
                         shards = shardsBuilder.build();
-                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshot, overallState(RestoreInProgress.State.INIT, shards), Collections.unmodifiableList(new ArrayList<>(indices.keySet())), shards);
+                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(
+                            snapshot, overallState(RestoreInProgress.State.INIT, shards),
+                            Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
+                            shards, UUIDs.randomBase64UUID()
+                        );
                         final List<RestoreInProgress.Entry> newEntries;
                         if (restoreInProgress != null) {
                             newEntries = new ArrayList<>(restoreInProgress.entries());
@@ -372,7 +376,10 @@ public class RestoreService implements ClusterStateApplier {
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        restoreInfo = new RestoreInfo(snapshotId.getName(),
+                        // TODO: Correct UUID?
+                        restoreInfo = new RestoreInfo(
+                                                      UUIDs.randomBase64UUID(),
+                                                      snapshotId.getName(),
                                                       Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
                                                       shards.size(),
                                                       shards.size() - failedShards(shards));
@@ -522,7 +529,7 @@ public class RestoreService implements ClusterStateApplier {
             }
             if (shardsBuilder != null) {
                 ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
-                entries.add(new RestoreInProgress.Entry(entry.snapshot(), overallState(RestoreInProgress.State.STARTED, shards), entry.indices(), shards));
+                entries.add(new RestoreInProgress.Entry(entry.snapshot(), overallState(RestoreInProgress.State.STARTED, shards), entry.indices(), shards, entry.uuid()));
             } else {
                 entries.add(entry);
             }
@@ -626,7 +633,7 @@ public class RestoreService implements ClusterStateApplier {
                 for (RestoreInProgress.Entry entry : oldRestore.entries()) {
                     Snapshot snapshot = entry.snapshot();
                     Updates updates = shardChanges.get(snapshot);
-                    if (updates != null && updates.shards.isEmpty() == false) {
+                    if (updates != null && updates.shards.isEmpty() == false && completed(entry.shards()) == false) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
                         for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.shards.entrySet()) {
                             shardsBuilder.put(shard.getKey(), shard.getValue());
@@ -634,7 +641,7 @@ public class RestoreService implements ClusterStateApplier {
 
                         ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
-                        entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards));
+                        entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards, entry.uuid()));
                     } else {
                         entries.add(entry);
                     }

@@ -41,7 +41,6 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -187,13 +186,9 @@ public interface DocValueFormat extends NamedWriteable {
         public DateTime(StreamInput in) throws IOException {
             this.formatter = DateFormatters.forPattern(in.readString());
             this.parser = formatter.toDateMathParser();
-            // calling ZoneId.of("UTC) will produce "UTC" as timezone in the formatter
-            // calling ZoneOffset.UTC will produce "Z" as timezone in the formatter
-            // as returning a date having UTC is always returning Z as timezone in all
-            // versions, this is a hack around the java time behaviour
             String zoneId = in.readString();
             if (in.getVersion().before(Version.V_7_0_0)) {
-                this.timeZone = zoneId.equals("UTC") ? ZoneOffset.UTC : DateUtils.of(zoneId);
+                this.timeZone = DateUtils.of(zoneId);
             } else {
                 this.timeZone = ZoneId.of(zoneId);
             }
@@ -208,7 +203,6 @@ public interface DocValueFormat extends NamedWriteable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
             if (out.getVersion().before(Version.V_7_0_0)) {
-                // joda does not understand "Z" for utc, so we must special case
                 out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
             } else {
                 out.writeString(timeZone.getId());

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
@@ -189,7 +190,7 @@ public abstract class Rounding implements Writeable {
 
         TimeUnitRounding(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
-            timeZone = ZoneId.of(in.readString());
+            timeZone = DateUtils.of(in.readString());
             unitRoundsToMidnight = unit.getField().getBaseUnit().getDuration().toMillis() > 60L * 60L * 1000L;
         }
 
@@ -371,9 +372,7 @@ public abstract class Rounding implements Writeable {
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeString(timeZone.getId());
             } else {
-                // stay joda compatible
-                String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId();
-                out.writeString(tz);
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
             }
         }
 
@@ -423,7 +422,7 @@ public abstract class Rounding implements Writeable {
 
         TimeIntervalRounding(StreamInput in) throws IOException {
             interval = in.readVLong();
-            timeZone = ZoneId.of(in.readString());
+            timeZone = DateUtils.of(in.readString());
         }
 
         @Override
@@ -499,9 +498,7 @@ public abstract class Rounding implements Writeable {
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeString(timeZone.getId());
             } else {
-                // stay joda compatible
-                String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId();
-                out.writeString(tz);
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
             }
         }
 

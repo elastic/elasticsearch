@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -65,7 +66,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
         nettyTransport = new Netty4Transport(settings, Version.CURRENT, threadPool, networkService, bigArrays,
             new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();

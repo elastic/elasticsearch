@@ -21,14 +21,12 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
@@ -80,16 +78,16 @@ public class MockBigArrays extends BigArrays {
 
     private final Random random;
     private final PageCacheRecycler recycler;
-    private final CircuitBreakerService breakerService;
+    private final CircuitBreaker circuitBreaker;
 
-    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
-        this(recycler, breakerService, false);
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreaker circuitBreaker) {
+        this(recycler, circuitBreaker, false);
     }
 
-    private MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
-        super(recycler, breakerService.getBreaker(CircuitBreaker.REQUEST), checkBreaker);
+    private MockBigArrays(PageCacheRecycler recycler, CircuitBreaker circuitBreaker, boolean checkBreaker) {
+        super(recycler, circuitBreaker, checkBreaker);
         this.recycler = recycler;
-        this.breakerService = breakerService;
+        this.circuitBreaker = circuitBreaker;
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
@@ -102,7 +100,7 @@ public class MockBigArrays extends BigArrays {
 
     @Override
     public BigArrays withCircuitBreaking() {
-        return new MockBigArrays(this.recycler, this.breakerService, true);
+        return new MockBigArrays(this.recycler, this.circuitBreaker, true);
     }
 
     @Override

@@ -19,6 +19,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -118,7 +119,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     private TcpTransport startTransport(Settings settings, ThreadPool threadPool) {
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
         TcpTransport transport = new Netty4Transport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
             bigArrays, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         transport.start();

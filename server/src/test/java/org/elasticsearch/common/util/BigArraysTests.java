@@ -22,11 +22,11 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class BigArraysTests extends ESTestCase {
 
     private BigArrays randombigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
     }
 
     private BigArrays bigArrays;

@@ -20,20 +20,20 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class LongObjectHashMapTests extends ESSingleNodeTestCase {
 
-    private BigArrays randombigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    private BigArrays randomBigArrays() {
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
     }
 
     public void testDuel() {
         final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
         final LongObjectPagedHashMap<Object> map2 =
-            new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randombigArrays());
+            new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randomBigArrays());
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {

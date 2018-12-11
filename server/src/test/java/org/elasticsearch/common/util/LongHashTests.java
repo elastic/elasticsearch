@@ -22,8 +22,8 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;
@@ -36,7 +36,7 @@ public class LongHashTests extends ESSingleNodeTestCase {
     LongHash hash;
 
     private BigArrays randombigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
     }
 
     private void newHash() {

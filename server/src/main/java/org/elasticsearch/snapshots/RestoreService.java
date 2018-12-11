@@ -378,8 +378,7 @@ public class RestoreService implements ClusterStateApplier {
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        restoreInfo = new RestoreInfo(
-                                                      snapshotId.getName(),
+                        restoreInfo = new RestoreInfo(snapshotId.getName(),
                                                       Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
                                                       shards.size(),
                                                       shards.size() - failedShards(shards));

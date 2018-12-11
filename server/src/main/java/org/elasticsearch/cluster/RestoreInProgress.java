@@ -447,8 +447,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(entries.size());
-        for (ObjectCursor<Entry> entryValue : entries.values()) {
-            Entry entry = entryValue.value;
+        for (ObjectCursor<Entry> v : entries.values()) {
+            Entry entry = v.value;
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
@@ -472,7 +472,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("snapshots");
-        for (final ObjectCursor<Entry> entry : entries.values()) {
+        for (ObjectCursor<Entry> entry : entries.values()) {
             toXContent(entry.value, builder, params);
         }
         builder.endArray();

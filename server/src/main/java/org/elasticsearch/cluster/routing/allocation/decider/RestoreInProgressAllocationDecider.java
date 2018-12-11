@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.snapshots.Snapshot;
 
 /**
  * This {@link AllocationDecider} prevents shards that have failed to be
@@ -47,7 +46,6 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
         }
 
         RecoverySource.SnapshotRecoverySource source = (RecoverySource.SnapshotRecoverySource) recoverySource;
-        final Snapshot snapshot = source.snapshot();
         final RestoreInProgress restoresInProgress = allocation.custom(RestoreInProgress.TYPE);
 
         if (restoresInProgress != null) {
@@ -63,7 +61,8 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
         }
         return allocation.decision(Decision.NO, NAME, "shard has failed to be restored from the snapshot [%s] because of [%s] - " +
             "manually close or delete the index [%s] in order to retry to restore the snapshot again or use the reroute API to force the " +
-            "allocation of an empty primary shard", snapshot, shardRouting.unassignedInfo().getDetails(), shardRouting.getIndexName());
+            "allocation of an empty primary shard",
+            source.snapshot(), shardRouting.unassignedInfo().getDetails(), shardRouting.getIndexName());
     }
 
     @Override

@@ -19,49 +19,49 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.rest.action.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
+import org.junit.Before;
 
-import java.util.Collections;
+import java.io.IOException;
 
-import static org.mockito.Mockito.mock;
+public class RestTermVectorsActionTests extends RestActionTestCase {
 
-public class RestTermVectorsActionTests extends ESTestCase {
-    private RestController controller;
-
-    public void setUp() throws Exception {
-        super.setUp();
-        controller = new RestController(Collections.emptySet(), null,
-            mock(NodeClient.class),
-            new NoneCircuitBreakerService(),
-            new UsageService());
-        new RestTermVectorsAction(Settings.EMPTY, controller);
+    @Before
+    public void setUpAction() {
+        new RestTermVectorsAction(Settings.EMPTY, controller());
     }
 
-    public void testDeprecatedEndpoint() {
+    public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.POST)
-            .withPath("/some_index/some_type/some_id/_termvector")
+            .withPath("/some_index/some_type/some_id/_termvectors")
             .build();
 
-        performRequest(request);
-        assertWarnings("[POST /{index}/{type}/{id}/_termvector] is deprecated! Use" +
-            " [POST /{index}/{type}/{id}/_termvectors] instead.");
+        dispatchRequest(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
-    private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
+     public void testTypeInBody() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .field("_type", "some_type")
+            .field("_id", 1)
+        .endObject();
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(Method.GET)
+            .withPath("/some_index/_termvectors/some_id")
+            .withContent(BytesReference.bytes(content), XContentType.JSON)
+            .build();
+
+        dispatchRequest(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

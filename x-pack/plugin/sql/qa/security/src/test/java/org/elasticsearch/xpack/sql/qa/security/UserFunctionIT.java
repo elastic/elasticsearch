@@ -59,11 +59,9 @@ public class UserFunctionIT extends ESRestTestCase {
     private void setUpUsers() throws IOException {
         int usersCount = name.getMethodName().startsWith("testSingle") ? 1 : randomIntBetween(5,  15);
         users = new ArrayList<String>(usersCount);
-        
-        for(int i = 0; i < usersCount; i++) {
-            String randomUserName = randomAlphaOfLengthBetween(1, 15);
-            users.add(randomUserName);
-            createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        users.addAll(randomUnique(() -> randomAlphaOfLengthBetween(1, 15), usersCount));
+        for (String user : users) {
+            createUser(user, MINIMAL_ACCESS_ROLE);
         }
     }
 
@@ -157,7 +155,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private void createUser(String name, String role) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject(); {
             user.field("password", "testpass");
@@ -169,7 +167,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private void deleteUser(String name) throws IOException {
-        Request request = new Request("DELETE", "/_xpack/security/user/" + name);
+        Request request = new Request("DELETE", "/_security/user/" + name);
         client().performRequest(request);
     }
     

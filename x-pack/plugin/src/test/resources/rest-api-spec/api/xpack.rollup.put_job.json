@@ -4,7 +4,7 @@
     "methods": [ "PUT" ],
     "url": {
       "path": "/_xpack/rollup/job/{id}",
-      "paths": [ "/_xpack/rollup/job/{id}" ],
+      "paths": [ "/_xpack/rollup/job/{id}", "/_rollup/job/{id}" ],
       "parts": {
         "id": {
           "type": "string",

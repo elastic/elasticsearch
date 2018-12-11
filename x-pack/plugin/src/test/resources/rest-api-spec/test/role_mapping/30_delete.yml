@@ -10,13 +10,13 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_role_mapping:
+      security.delete_role_mapping:
         name: "test_delete"
         ignore: 404
 ---
 "Test delete role_mapping api":
   - do:
-      xpack.security.put_role_mapping:
+      security.put_role_mapping:
         name: "test_delete"
         body:  >
             {
@@ -28,18 +28,18 @@ teardown:
 
   # Get by name
   - do:
-      xpack.security.get_role_mapping:
+      security.get_role_mapping:
         name: "test_delete"
   - match: { test_delete.enabled: true }
 
   # Delete it
   - do:
-      xpack.security.delete_role_mapping:
+      security.delete_role_mapping:
         name: "test_delete"
   - match: { found: true }
 
  # Get by name
   - do:
-      xpack.security.get_role_mapping:
+      security.get_role_mapping:
         name: "test_delete"
       catch: missing

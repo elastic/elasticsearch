@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -48,7 +49,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -59,9 +60,12 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchHitTests extends ESTestCase {
+public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
+    public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
+        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+    }
 
-    public static SearchHit createTestItem(boolean withOptionalInnerHits) {
+    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean withShardTarget) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
         Text type = new Text(randomAlphaOfLengthBetween(5, 10));
@@ -71,7 +75,7 @@ public class SearchHitTests extends ESTestCase {
         }
         Map<String, DocumentField> fields = new HashMap<>();
         if (randomBoolean()) {
-            fields = GetResultTests.randomDocumentFields(XContentType.JSON).v1();
+            fields = GetResultTests.randomDocumentFields(xContentType).v2();
         }
         SearchHit hit = new SearchHit(internalId, uid, type, nestedIdentity, fields);
         if (frequently()) {
@@ -82,7 +86,7 @@ public class SearchHitTests extends ESTestCase {
             }
         }
         if (frequently()) {
-            hit.sourceRef(RandomObjects.randomSource(random()));
+            hit.sourceRef(RandomObjects.randomSource(random(), xContentType));
         }
         if (randomBoolean()) {
             hit.version(randomLong());
@@ -112,13 +116,16 @@ public class SearchHitTests extends ESTestCase {
         }
         if (withOptionalInnerHits) {
             int innerHitsSize = randomIntBetween(0, 3);
-            Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
-            for (int i = 0; i < innerHitsSize; i++) {
-                innerHits.put(randomAlphaOfLength(5), SearchHitsTests.createTestItem());
+            if (innerHitsSize > 0) {
+                Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
+                for (int i = 0; i < innerHitsSize; i++) {
+                    innerHits.put(randomAlphaOfLength(5),
+                        SearchHitsTests.createTestItem(xContentType, false, withShardTarget));
+                }
+                hit.setInnerHits(innerHits);
             }
-            hit.setInnerHits(innerHits);
         }
-        if (randomBoolean()) {
+        if (withShardTarget && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
@@ -127,10 +134,20 @@ public class SearchHitTests extends ESTestCase {
         return hit;
     }
 
+    @Override
+    protected SearchHit createBlankInstance() {
+        return new SearchHit();
+    }
+
+    @Override
+    protected SearchHit createTestInstance() {
+        return createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean());
+    }
+
     public void testFromXContent() throws IOException {
-        SearchHit searchHit = createTestItem(true);
-        boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
+        SearchHit searchHit = createTestItem(xContentType, true, false);
+        boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         SearchHit parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -152,8 +169,8 @@ public class SearchHitTests extends ESTestCase {
      * which are already tested elsewhere.
      */
     public void testFromXContentLenientParsing() throws IOException {
-        SearchHit searchHit = createTestItem(true);
         XContentType xContentType = randomFrom(XContentType.values());
+        SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
                 || path.contains("inner_hits"));
@@ -204,7 +221,7 @@ public class SearchHitTests extends ESTestCase {
         innerHit1.shard(target);
         SearchHit innerInnerHit2 = new SearchHit(0, "_id", new Text("_type"), null);
         innerInnerHit2.shard(target);
-        innerHits.put("1", new SearchHits(new SearchHit[]{innerInnerHit2}, 1, 1f));
+        innerHits.put("1", new SearchHits(new SearchHit[]{innerInnerHit2}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHit1.setInnerHits(innerHits);
         SearchHit innerHit2 = new SearchHit(0, "_id", new Text("_type"), null);
         innerHit2.shard(target);
@@ -213,15 +230,15 @@ public class SearchHitTests extends ESTestCase {
 
         innerHits = new HashMap<>();
         SearchHit hit1 = new SearchHit(0, "_id", new Text("_type"), null);
-        innerHits.put("1", new SearchHits(new SearchHit[]{innerHit1, innerHit2}, 1, 1f));
-        innerHits.put("2", new SearchHits(new SearchHit[]{innerHit3}, 1, 1f));
+        innerHits.put("1", new SearchHits(new SearchHit[]{innerHit1, innerHit2}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHits.put("2", new SearchHits(new SearchHit[]{innerHit3}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         hit1.shard(target);
         hit1.setInnerHits(innerHits);
 
         SearchHit hit2 = new SearchHit(0, "_id", new Text("_type"), null);
         hit2.shard(target);
 
-        SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, 2, 1f);
+        SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
 
 
         BytesStreamOutput output = new BytesStreamOutput();
@@ -333,7 +350,7 @@ public class SearchHitTests extends ESTestCase {
         }
     }
 
-    private static Explanation createExplanation(int depth) {
+    static Explanation createExplanation(int depth) {
         String description = randomAlphaOfLengthBetween(5, 20);
         float value = randomFloat();
         List<Explanation> details = new ArrayList<>();

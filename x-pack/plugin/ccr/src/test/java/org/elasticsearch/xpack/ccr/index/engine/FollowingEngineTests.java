@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -280,7 +280,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
-        store.createEmpty();
+        store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
         final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
@@ -485,7 +485,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetaData leaderIndexMetaData = IndexMetaData.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetaData, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
-            leaderStore.createEmpty();
+            leaderStore.createEmpty(leaderIndexMetaData.getCreationVersion().luceneVersion);
             EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore, logger, xContentRegistry());
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
@@ -567,12 +567,12 @@ public class FollowingEngineTests extends ESTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-        final CheckedFunction<String, ParsedDocument, IOException> nestedDocFactory = EngineTestCase.nestedParsedDocFactory();
+        final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
         int numOps = between(10, 100);
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
             String docId = Integer.toString(between(1, 100));
-            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFactory.apply(docId);
+            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFunc.apply(docId, randomInt(3));
             if (randomBoolean()) {
                 operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), -1, true));

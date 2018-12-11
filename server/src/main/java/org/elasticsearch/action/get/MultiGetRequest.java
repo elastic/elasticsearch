@@ -89,10 +89,18 @@ public class MultiGetRequest extends ActionRequest
          * @param index The index name
          * @param type  The type (can be null)
          * @param id    The id
+         *
+         * @deprecated Types are in the process of being removed, use {@link Item(String, String) instead}.
          */
+        @Deprecated
         public Item(String index, @Nullable String type, String id) {
             this.index = index;
             this.type = type;
+            this.id = id;
+        }
+
+        public Item(String index, String id) {
+            this.index = index;
             this.id = id;
         }
 
@@ -117,11 +125,6 @@ public class MultiGetRequest extends ActionRequest
 
         public String type() {
             return this.type;
-        }
-
-        public Item type(String type) {
-            this.type = type;
-            return this;
         }
 
         public String id() {
@@ -285,8 +288,18 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed, use
+     * {@link MultiGetRequest#add(String, String)} instead.
+     */
+    @Deprecated
     public MultiGetRequest add(String index, @Nullable String type, String id) {
         items.add(new Item(index, type, id));
+        return this;
+    }
+
+    public MultiGetRequest add(String index, String id) {
+        items.add(new Item(index, id));
         return this;
     }
 

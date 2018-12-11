@@ -64,7 +64,7 @@ public class RestGetAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String type = request.param("type");
         if (!type.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetRequest getRequest = new GetRequest(request.param("index"), type, request.param("id"));

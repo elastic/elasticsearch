@@ -21,6 +21,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
@@ -49,7 +50,7 @@ public class TestUtils {
     }
 
     public static String dateMathString(String time, final long now) {
-        return dateFormatter.format(dateMathParser.parse(time, () -> now));
+        return dateFormatter.format(dateMathParser.parse(time, () -> now).atZone(ZoneOffset.UTC));
     }
 
     public static long dateMath(String time, final long now) {

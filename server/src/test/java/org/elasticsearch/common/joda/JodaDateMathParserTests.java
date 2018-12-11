@@ -21,6 +21,8 @@ package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -33,8 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JodaDateMathParserTests extends ESTestCase {
 
-    FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
-    JodaDateMathParser parser = new JodaDateMathParser(formatter);
+    DateFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
+    DateMathParser parser = formatter.toDateMathParser();
 
     void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
@@ -158,8 +160,8 @@ public class JodaDateMathParserTests extends ESTestCase {
 
     public void testRoundingPreservesEpochAsBaseDate() {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
-        FormatDateTimeFormatter formatter = Joda.forPattern("HH:mm:ss");
-        JodaDateMathParser parser = new JodaDateMathParser(formatter);
+        DateFormatter formatter = Joda.forPattern("HH:mm:ss");
+        DateMathParser parser = formatter.toDateMathParser();
         assertEquals(
                 this.formatter.parseMillis("1970-01-01T04:52:20.000Z"),
                 parser.parse("04:52:20", () -> 0, false, (ZoneId) null));
@@ -183,8 +185,8 @@ public class JodaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, DateTimeZone.forID("CET"));
 
         // implicit rounding with explicit timezone in the date format
-        FormatDateTimeFormatter formatter = Joda.forPattern("YYYY-MM-ddZ");
-        JodaDateMathParser parser = new JodaDateMathParser(formatter);
+        DateFormatter formatter = Joda.forPattern("YYYY-MM-ddZ");
+        DateMathParser parser = formatter.toDateMathParser();
         long time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
         time = parser.parse("2011-10-09+01:00", () -> 0, true, (ZoneId) null);

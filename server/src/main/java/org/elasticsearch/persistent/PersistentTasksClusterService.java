@@ -272,6 +272,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 periodicRechecker.cancel();
                 logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
                 reassignPersistentTasks();
+            } else if (periodicRechecker.isScheduled() == false &&
+                isAnyTaskUnassigned(event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE))) {
+                // If a task is unassigned but would still be unassigned following this cluster state event then schedule a
+                // recheck just in case it would be assignable after a change in some condition external to the cluster state
+                periodicRechecker.rescheduleIfNecessary();
             }
         }
     }

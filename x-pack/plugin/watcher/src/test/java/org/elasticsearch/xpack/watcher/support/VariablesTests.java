@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;

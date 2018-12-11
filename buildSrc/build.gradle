@@ -98,6 +98,7 @@ dependencies {
   }
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
+  minimumRuntimeCompile gradleApi()
 }
 jar {
   from sourceSets.minimumRuntime.output

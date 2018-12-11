@@ -43,6 +43,9 @@ a number of clients that have been contributed by the community for various lang
 [[clojure]]
 == Clojure
 
+* https://github.com/mpenet/spandex[Spandex]: 
+  Clojure client built on new/recent official Client
+  
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 

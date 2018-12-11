@@ -208,16 +208,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, PageCacheRecycler recycler,
-                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                        NetworkService networkService) {
+    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool,
+                        PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
+                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         super(settings);
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
-        this.bigArrays = new BigArrays(recycler, circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS), false);
-        this.pageCacheRecycler = recycler;
+        this.bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS), false);
+        this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);

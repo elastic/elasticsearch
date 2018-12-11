@@ -345,7 +345,7 @@ public class BigArraysTests extends ESTestCase {
                 assertEquals(maxSize, e.getByteLimit());
                 assertThat(e.getBytesWanted(), greaterThanOrEqualTo(size));
             }
-            assertEquals(0, bigArraysHelper.bigArrays.breakerService().getUsed());
+            assertEquals(0, bigArraysHelper.bigArrays.circuitBreaker().getUsed());
         }
     }
 

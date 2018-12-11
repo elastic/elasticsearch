@@ -426,7 +426,7 @@ public class BigArrays {
         return this.circuitBreakingInstance;
     }
 
-    public CircuitBreaker breakerService() {
+    public CircuitBreaker circuitBreaker() {
         return circuitBreaker;
     }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.sql.Types;
 import java.util.Arrays;
@@ -14,7 +15,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class CliFormatterTests extends ESTestCase {
-    private final SqlQueryResponse firstResponse = new SqlQueryResponse("",
+    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", Mode.PLAIN,
             Arrays.asList(
                     new ColumnInfo("", "foo", "string", Types.VARCHAR, 0),
                     new ColumnInfo("", "bar", "long", Types.BIGINT, 15),

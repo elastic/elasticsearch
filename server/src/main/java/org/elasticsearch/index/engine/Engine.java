@@ -722,7 +722,8 @@ public abstract class Engine implements Closeable {
     public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
+     * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
     public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;

@@ -1,10 +1,11 @@
 [[modules-discovery]]
 == Discovery and cluster formation
 
-The discovery and cluster formation module is responsible for discovering nodes,
-electing a master, and publishing the cluster state. It is integrated with other
-modules, for example, all communication between nodes is done using the
-<<modules-transport,transport>> module.
+The discovery and cluster formation module is responsible for discovering
+nodes, electing a master, forming a cluster, and publishing the cluster state
+each time it changes. It is integrated with other modules, for example, all
+communication between nodes is done using the <<modules-transport,transport>>
+module.
 
 It is separated into several sections, which are explained below:
 

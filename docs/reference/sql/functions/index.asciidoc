@@ -3,6 +3,8 @@
 [[sql-functions]]
 == Functions and Operators
 
+experimental[]
+
 {es-sql} provides a comprehensive set of built-in operators and functions:
 
 * <<sql-operators, Operators>>

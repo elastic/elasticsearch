@@ -3,6 +3,8 @@
 [[sql-jdbc]]
 == SQL JDBC
 
+experimental[]
+
 {es}'s SQL jdbc driver is a rich, fully featured JDBC driver for {es}.
 It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database,
 pure Java driver that converts JDBC calls to {es-sql}.

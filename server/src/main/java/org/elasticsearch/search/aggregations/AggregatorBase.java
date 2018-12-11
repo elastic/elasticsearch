@@ -72,7 +72,8 @@ public abstract class AggregatorBase extends Aggregator {
         this.parent = parent;
         this.context = context;
         this.circuitBreaker = context.bigArrays().circuitBreaker();
-        assert CircuitBreaker.REQUEST.equals(circuitBreaker.getName()) : "Must be the " + CircuitBreaker.REQUEST + " circuit breaker";
+        assert CircuitBreaker.REQUEST.equals(circuitBreaker.getName()) : "Instead of " + CircuitBreaker.REQUEST +
+            " circuit breaker, found: " + circuitBreaker.getName();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this);
         context.addReleasable(this, Lifetime.PHASE);

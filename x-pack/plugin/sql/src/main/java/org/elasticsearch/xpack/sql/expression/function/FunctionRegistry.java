@@ -96,18 +96,16 @@ import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
@@ -118,14 +116,6 @@ import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
 public class FunctionRegistry {
-
-    private static final Set<String> EXCLUDE_FROM_NAME_NORMALIZATION = new HashSet<>();
-
-    static {
-        EXCLUDE_FROM_NAME_NORMALIZATION.add(IfNull.class.getSimpleName());
-        EXCLUDE_FROM_NAME_NORMALIZATION.add(NullIf.class.getSimpleName());
-    }
-
 
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
@@ -149,101 +139,101 @@ public class FunctionRegistry {
 
     private void defineDefaultFunctions() {
         // Aggregate functions
-        addToMap(def(Avg.class, Avg::new),
-                def(Count.class, Count::new),
-                def(Max.class, Max::new),
-                def(Min.class, Min::new),
-                def(Sum.class, Sum::new));
+        addToMap(def(Avg.class, Avg::new, "AVG"),
+                def(Count.class, Count::new, "COUNT"),
+                def(Max.class, Max::new, "MAX"),
+                def(Min.class, Min::new, "MIN"),
+                def(Sum.class, Sum::new, "SUM"));
         // Statistics
-        addToMap(def(StddevPop.class, StddevPop::new),
-                def(VarPop.class, VarPop::new),
-                def(Percentile.class, Percentile::new),
-                def(PercentileRank.class, PercentileRank::new),
-                def(SumOfSquares.class, SumOfSquares::new),
-                def(Skewness.class, Skewness::new),
-                def(Kurtosis.class, Kurtosis::new));
+        addToMap(def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
+                def(VarPop.class, VarPop::new,"VAR_POP"),
+                def(Percentile.class, Percentile::new, "PERCENTILE"),
+                def(PercentileRank.class, PercentileRank::new, "PERCENTILE_RANK"),
+                def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
+                def(Skewness.class, Skewness::new, "SKEWNESS"),
+                def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
         // Scalar functions
         // conditional
-        addToMap(def(Coalesce.class, Coalesce::new),
-                 def(IfNull.class, IfNull::new, "ISNULL", "NVL"),
-                 def(NullIf.class, NullIf::new),
-                 def(Greatest.class, Greatest::new),
-                 def(Least.class, Least::new));
+        addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
+                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
+                 def(NullIf.class, NullIf::new, "NULLIF"),
+                 def(Greatest.class, Greatest::new, "GREATEST"),
+                 def(Least.class, Least::new, "LEAST"));
         // Date
-        addToMap(def(DayName.class, DayName::new, "DAYNAME"),
-                def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
-                def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
-                def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
-                def(HourOfDay.class, HourOfDay::new, "HOUR"),
-                def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISODAYOFWEEK", "ISODOW", "IDOW"),
-                def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),
-                def(MinuteOfDay.class, MinuteOfDay::new),
-                def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-                def(MonthName.class, MonthName::new, "MONTHNAME"),
-                def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
-                def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
-                def(Quarter.class, Quarter::new),
-                def(Year.class, Year::new),
-                def(WeekOfYear.class, WeekOfYear::new, "WEEK"));
+        addToMap(def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
+                def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
+                def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
+                def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
+                def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
+                def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
+                def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),
+                def(MinuteOfDay.class, MinuteOfDay::new, "MINUTE_OF_DAY"),
+                def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE_OF_HOUR", "MINUTE"),
+                def(MonthName.class, MonthName::new, "MONTH_NAME", "MONTHNAME"),
+                def(MonthOfYear.class, MonthOfYear::new, "MONTH_OF_YEAR", "MONTH"),
+                def(SecondOfMinute.class, SecondOfMinute::new, "SECOND_OF_MINUTE", "SECOND"),
+                def(Quarter.class, Quarter::new, "QUARTER"),
+                def(Year.class, Year::new, "YEAR"),
+                def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK"));
         // Math
-        addToMap(def(Abs.class, Abs::new),
-                def(ACos.class, ACos::new),
-                def(ASin.class, ASin::new),
-                def(ATan.class, ATan::new),
-                def(ATan2.class, ATan2::new),
-                def(Cbrt.class, Cbrt::new),
-                def(Ceil.class, Ceil::new, "CEILING"),
-                def(Cos.class, Cos::new),
-                def(Cosh.class, Cosh::new),
-                def(Cot.class, Cot::new),
-                def(Degrees.class, Degrees::new),
-                def(E.class, E::new),
-                def(Exp.class, Exp::new),
-                def(Expm1.class, Expm1::new),
-                def(Floor.class, Floor::new),
-                def(Log.class, Log::new),
-                def(Log10.class, Log10::new),
+        addToMap(def(Abs.class, Abs::new, "ABS"),
+                def(ACos.class, ACos::new, "ACOS"),
+                def(ASin.class, ASin::new, "ASIN"),
+                def(ATan.class, ATan::new, "ATAN"),
+                def(ATan2.class, ATan2::new, "ATAN2"),
+                def(Cbrt.class, Cbrt::new, "CBRT"),
+                def(Ceil.class, Ceil::new, "CEIL", "CEILING"),
+                def(Cos.class, Cos::new, "COS"),
+                def(Cosh.class, Cosh::new, "COSH"),
+                def(Cot.class, Cot::new, "COT"),
+                def(Degrees.class, Degrees::new, "DEGREES"),
+                def(E.class, E::new, "E"),
+                def(Exp.class, Exp::new, "EXP"),
+                def(Expm1.class, Expm1::new, "EXPM1"),
+                def(Floor.class, Floor::new, "FLOOR"),
+                def(Log.class, Log::new, "LOG"),
+                def(Log10.class, Log10::new, "LOG10"),
                 // SQL and ODBC require MOD as a _function_
-                def(Mod.class, Mod::new),
-                def(Pi.class, Pi::new),
-                def(Power.class, Power::new),
-                def(Radians.class, Radians::new),
-                def(Random.class, Random::new, "RAND"),
-                def(Round.class, Round::new),
-                def(Sign.class, Sign::new, "SIGNUM"),
-                def(Sin.class, Sin::new),
-                def(Sinh.class, Sinh::new),
-                def(Sqrt.class, Sqrt::new),
-                def(Tan.class, Tan::new),
-                def(Truncate.class, Truncate::new));
+                def(Mod.class, Mod::new, "MOD"),
+                def(Pi.class, Pi::new, "PI"),
+                def(Power.class, Power::new, "POWER"),
+                def(Radians.class, Radians::new, "RADIANS"),
+                def(Random.class, Random::new, "RANDOM", "RAND"),
+                def(Round.class, Round::new, "ROUND"),
+                def(Sign.class, Sign::new, "SIGN", "SIGNUM"),
+                def(Sin.class, Sin::new, "SIN"),
+                def(Sinh.class, Sinh::new, "SINH"),
+                def(Sqrt.class, Sqrt::new, "SQRT"),
+                def(Tan.class, Tan::new, "TAN"),
+                def(Truncate.class, Truncate::new, "TRUNCATE"));
         // String
-        addToMap(def(Ascii.class, Ascii::new),
-                def(BitLength.class, BitLength::new),
-                def(Char.class, Char::new),
-                def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
-                def(Concat.class, Concat::new),
-                def(Insert.class, Insert::new),
-                def(LCase.class, LCase::new),
-                def(Left.class, Left::new),
-                def(Length.class, Length::new),
-                def(Locate.class, Locate::new),
-                def(LTrim.class, LTrim::new),
-                def(OctetLength.class, OctetLength::new),
-                def(Position.class, Position::new),
-                def(Repeat.class, Repeat::new),
-                def(Replace.class, Replace::new),
-                def(Right.class, Right::new),
-                def(RTrim.class, RTrim::new),
-                def(Space.class, Space::new),
-                def(Substring.class, Substring::new),
-                def(UCase.class, UCase::new));
+        addToMap(def(Ascii.class, Ascii::new, "ASCII"),
+                def(BitLength.class, BitLength::new, "BIT_LENGTH"),
+                def(Char.class, Char::new, "CHAR"),
+                def(CharLength.class, CharLength::new, "CHAR_LENGTH", "CHARACTER_LENGTH"),
+                def(Concat.class, Concat::new, "CONCAT"),
+                def(Insert.class, Insert::new, "INSERT"),
+                def(LCase.class, LCase::new, "LCASE"),
+                def(Left.class, Left::new, "LEFT"),
+                def(Length.class, Length::new, "LENGTH"),
+                def(Locate.class, Locate::new, "LOCATE"),
+                def(LTrim.class, LTrim::new, "LTRIM"),
+                def(OctetLength.class, OctetLength::new, "OCTET_LENGTH"),
+                def(Position.class, Position::new, "POSITION"),
+                def(Repeat.class, Repeat::new, "REPEAT"),
+                def(Replace.class, Replace::new, "REPLACE"),
+                def(Right.class, Right::new, "RIGHT"),
+                def(RTrim.class, RTrim::new, "RTRIM"),
+                def(Space.class, Space::new, "SPACE"),
+                def(Substring.class, Substring::new, "SUBSTRING"),
+                def(UCase.class, UCase::new, "UCASE"));
         // DataType conversion
-        addToMap(def(Cast.class, Cast::new, "CONVERT"));
+        addToMap(def(Cast.class, Cast::new, "CAST", "CONVERT"));
         // Scalar "meta" functions
-        addToMap(def(Database.class, Database::new),
-                def(User.class, User::new));
+        addToMap(def(Database.class, Database::new, "DATABASE"),
+                def(User.class, User::new, "USER"));
         // Special
-        addToMap(def(Score.class, Score::new));
+        addToMap(def(Score.class, Score::new, "SCORE"));
     }
 
     void addToMap(FunctionDefinition...functions) {
@@ -297,7 +287,7 @@ public class FunctionRegistry {
 
     public Collection<FunctionDefinition> listFunctions(String pattern) {
         // It is worth double checking if we need this copy. These are immutable anyway.
-        Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
+        Pattern p = Strings.hasText(pattern) ? Pattern.compile(pattern.toUpperCase(Locale.ROOT)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
@@ -310,7 +300,7 @@ public class FunctionRegistry {
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            java.util.function.Function<Location, T> ctorRef, String... aliases) {
+            java.util.function.Function<Location, T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new IllegalArgumentException("expects no arguments");
@@ -320,7 +310,7 @@ public class FunctionRegistry {
             }
             return ctorRef.apply(location);
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     /**
@@ -330,7 +320,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            ConfigurationAwareFunctionBuilder<T> ctorRef, String... aliases) {
+            ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new IllegalArgumentException("expects no arguments");
@@ -340,7 +330,7 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, cfg);
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
     
     interface ConfigurationAwareFunctionBuilder<T> {
@@ -353,7 +343,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            BiFunction<Location, Expression, T> ctorRef, String... aliases) {
+            BiFunction<Location, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
@@ -363,7 +353,7 @@ public class FunctionRegistry {
             }
             return ctorRef.apply(location, children.get(0));
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     /**
@@ -372,14 +362,14 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            MultiFunctionBuilder<T> ctorRef, String... aliases) {
+            MultiFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(location, children);
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     interface MultiFunctionBuilder<T> {
@@ -392,14 +382,14 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... aliases) {
+            DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
             }
             return ctorRef.build(location, children.get(0), distinct);
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     interface DistinctAwareUnaryFunctionBuilder<T> {
@@ -412,7 +402,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            DatetimeUnaryFunctionBuilder<T> ctorRef, String... aliases) {
+            DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
@@ -422,7 +412,7 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), cfg.timeZone());
         };
-        return def(function, builder, true, aliases);
+        return def(function, builder, true, names);
     }
 
     interface DatetimeUnaryFunctionBuilder<T> {
@@ -435,7 +425,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            BinaryFunctionBuilder<T> ctorRef, String... aliases) {
+            BinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
@@ -449,17 +439,24 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     interface BinaryFunctionBuilder<T> {
         T build(Location location, Expression lhs, Expression rhs);
     }
 
+    /**
+     * Main method to register a function/
+     * @param names Must always have at least one entry which is the method's primary name
+     *
+     */
     @SuppressWarnings("overloads")
     private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
-            boolean datetime, String... aliases) {
-        String primaryName = normalize(function.getSimpleName());
+                                          boolean datetime, String... names) {
+        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
+        String primaryName = names[0];
+        List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
                 return builder.build(uf.location(), uf.children(), distinct, cfg);
@@ -468,7 +465,7 @@ public class FunctionRegistry {
                         uf.location().getLineNumber(), uf.location().getColumnNumber());
             }
         };
-        return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, datetime, realBuilder);
+        return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
     private interface FunctionBuilder {
@@ -477,7 +474,7 @@ public class FunctionRegistry {
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            ThreeParametersFunctionBuilder<T> ctorRef, String... aliases) {
+            ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             boolean isLocateFunction = function.isAssignableFrom(Locate.class);
             if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
@@ -490,7 +487,7 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     interface ThreeParametersFunctionBuilder<T> {
@@ -499,7 +496,7 @@ public class FunctionRegistry {
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            FourParametersFunctionBuilder<T> ctorRef, String... aliases) {
+            FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (children.size() != 4) {
                 throw new IllegalArgumentException("expects exactly four arguments");
@@ -509,7 +506,7 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), children.get(1), children.get(2), children.get(3));
         };
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     interface FourParametersFunctionBuilder<T> {
@@ -525,22 +522,13 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     private static <T extends Function> FunctionDefinition def(Class<T> function,
                                                                CastFunctionBuilder<T> ctorRef,
-                                                               String... aliases) {
+                                                               String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) ->
             ctorRef.build(location, children.get(0), children.get(0).dataType());
-        return def(function, builder, false, aliases);
+        return def(function, builder, false, names);
     }
 
     private interface CastFunctionBuilder<T> {
         T build(Location location, Expression expression, DataType dataType);
-    }
-
-    private static String normalize(String name) {
-        if (EXCLUDE_FROM_NAME_NORMALIZATION.contains(name)) {
-            return name.toUpperCase(Locale.ROOT);
-        }
-
-        // translate CamelCase to CAMEL_CASE
-        return StringUtils.camelCaseToUnderscore(name);
     }
 }

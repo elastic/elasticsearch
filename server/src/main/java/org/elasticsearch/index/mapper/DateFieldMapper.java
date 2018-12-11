@@ -36,9 +36,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -65,7 +65,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
-    public static final FormatDateTimeFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
             "strict_date_optional_time||epoch_millis", Locale.ROOT);
 
     public static class Defaults {
@@ -109,7 +109,7 @@ public class DateFieldMapper extends FieldMapper {
             return dateTimeFormatterSet;
         }
 
-        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+        public Builder dateTimeFormatter(DateFormatter dateTimeFormatter) {
             fieldType().setDateTimeFormatter(dateTimeFormatter);
             dateTimeFormatterSet = true;
             return this;
@@ -122,7 +122,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            FormatDateTimeFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
+            DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
             if (!locale.equals(dateTimeFormatter.locale())) {
                 fieldType().setDateTimeFormatter(dateTimeFormatter.withLocale(locale));
             }
@@ -173,7 +173,7 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     public static final class DateFieldType extends MappedFieldType {
-        protected FormatDateTimeFormatter dateTimeFormatter;
+        protected DateFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
         DateFieldType() {
@@ -224,11 +224,11 @@ public class DateFieldMapper extends FieldMapper {
             }
         }
 
-        public FormatDateTimeFormatter dateTimeFormatter() {
+        public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
 
-        public void setDateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+        public void setDateTimeFormatter(DateFormatter dateTimeFormatter) {
             checkIfFrozen();
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -379,7 +379,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
-            FormatDateTimeFormatter dateTimeFormatter = this.dateTimeFormatter;
+            DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
                 dateTimeFormatter = Joda.forPattern(format);
             }

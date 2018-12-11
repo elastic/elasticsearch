@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
     private static final String INDEX_NAME = "index";
-    private static final String TYPE_NAME = "type";
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
@@ -144,9 +143,9 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME, TYPE_NAME, Integer.toString(i))
+            processor.add(new IndexRequest(INDEX_NAME, "_doc", Integer.toString(i))
                 .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
-            multiGetRequest.add(INDEX_NAME, TYPE_NAME, Integer.toString(i));
+            multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
         return multiGetRequest;
     }

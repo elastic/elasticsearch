@@ -63,7 +63,7 @@ If you specify multiple filters, all conditions must be satisfied for shards to
 be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
 you could specify:
 +
- [source,js]
+[source,js]
 ------------------------
 PUT test/_settings
 {

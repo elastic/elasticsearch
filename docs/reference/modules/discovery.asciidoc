@@ -21,7 +21,7 @@ It is separated into several sections, which are explained below:
     configured via the `cluster.initial_master_nodes` setting.
 *   It is recommended to have a small and fixed number of master-eligible nodes
     in a cluster, and to scale the cluster up and down by adding and removing
-    non-master-eligible nodes only. However there are situations in which it may
+    master-ineligible nodes only. However there are situations in which it may
     be desirable to add or remove some master-eligible nodes to or from a
     cluster. A section on <<modules-discovery-adding-removing-nodes,adding and
     removing nodes>> describes how Elasticsearch supports dynamically adding and
@@ -309,7 +309,7 @@ electing a new master or committing a new cluster state.
 
 It is recommended to have a small and fixed number of master-eligible nodes in a
 cluster, and to scale the cluster up and down by adding and removing
-non-master-eligible nodes only. However there are situations in which it may be
+master-ineligible nodes only. However there are situations in which it may be
 desirable to add or remove some master-eligible nodes to or from a cluster.
 
 If you wish to add some master-eligible nodes to your cluster, simply configure

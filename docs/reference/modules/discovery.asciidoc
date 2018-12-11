@@ -566,6 +566,14 @@ have failed. The following settings control the behaviour of fault detection.
     node considers the elected master to be faulty and attempts to find or elect
     a new master. Defaults to `3`.
 
+If the elected master detects that a follower has disconnected then this is
+treated as an immediate failure, bypassing the timeouts and retries listed
+above, and the master attempts to remove the node from the cluster.  Similarly,
+if a follower detects that the elected master has disconnected then this is
+treated as an immediate failure, bypassing the timeouts and retries listed
+above, and the follower restarts its discovery phase to try and find or elect a
+new master.
+
 [float]
 [[modules-discovery-quorums]]
 === Quorum-based decision making

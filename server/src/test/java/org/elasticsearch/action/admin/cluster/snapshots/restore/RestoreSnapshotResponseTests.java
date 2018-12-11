@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -39,7 +38,7 @@ public class RestoreSnapshotResponseTests extends AbstractXContentTestCase<Resto
             indices.add("test1");
             int totalShards = randomIntBetween(1, 1000);
             int successfulShards = randomIntBetween(0, totalShards);
-            return new RestoreSnapshotResponse(new RestoreInfo(UUIDs.randomBase64UUID(), name, indices, totalShards, successfulShards));
+            return new RestoreSnapshotResponse(new RestoreInfo(name, indices, totalShards, successfulShards));
         } else {
             return new RestoreSnapshotResponse(null);
         }

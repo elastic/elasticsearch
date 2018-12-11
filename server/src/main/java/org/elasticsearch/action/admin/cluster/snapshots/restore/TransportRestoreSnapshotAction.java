@@ -111,7 +111,6 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
                                 assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
                                 assert RestoreService.completed(shards) : "expected all restore entries to be completed";
                                 RestoreInfo ri = new RestoreInfo(
-                                    uuid,
                                     prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),
                                     shards.size(),

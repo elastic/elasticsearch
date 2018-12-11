@@ -175,7 +175,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                                 clusterService.removeListener(this);
                                 ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 RestoreInfo ri = new RestoreInfo(
-                                    uuid,
                                     prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),
                                     shards.size(),

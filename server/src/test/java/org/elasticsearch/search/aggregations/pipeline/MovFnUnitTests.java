@@ -37,6 +37,8 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -46,8 +48,10 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -158,5 +162,35 @@ public class MovFnUnitTests extends AggregatorTestCase {
 
     private static long asLong(String dateTime) {
         return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+    }
+    
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        aggBuilders.add(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));
+
+        final MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1);
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
+
+    /**
+     * The validation should throw an IllegalArgumentException, since parent
+     * aggregation is not a type of HistogramAggregatorFactory,
+     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
+     */
+    public void testValidateException() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        aggBuilders.add(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));
+        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+
+        final MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1);
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
+        assertEquals("moving_fn aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
     }
 }

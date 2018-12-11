@@ -669,7 +669,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "create",
             "get_source",
             "indices.delete_alias",
-            "indices.exists_template",
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",

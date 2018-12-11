@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -39,7 +37,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -90,9 +87,9 @@ public class ExtendedBoundsTests extends ESTestCase {
      */
     public static ExtendedBounds unparsed(ExtendedBounds template) {
         // It'd probably be better to randomize the formatter
-        FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
-        String minAsStr = template.getMin() == null ? null : formatter.printer().print(new Instant(template.getMin()));
-        String maxAsStr = template.getMax() == null ? null : formatter.printer().print(new Instant(template.getMax()));
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
+        String minAsStr = template.getMin() == null ? null : formatter.formatMillis(template.getMin());
+        String maxAsStr = template.getMax() == null ? null : formatter.formatMillis(template.getMax());
         return new ExtendedBounds(minAsStr, maxAsStr);
     }
 

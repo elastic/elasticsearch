@@ -49,7 +49,6 @@ import static org.junit.Assert.assertThat;
 
 public class TestUtils {
 
-
     private static final DateFormatter formatDateTimeFormatter = DateFormatters.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 

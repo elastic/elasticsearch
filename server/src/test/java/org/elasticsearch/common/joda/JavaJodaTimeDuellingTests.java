@@ -499,11 +499,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         DateFormatter javaFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaDate = javaFormatter.parse(dateInput);
 
-        FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
-        DateTime dateTime = jodaFormatter.parser().parseDateTime(dateInput);
+        JodaDateFormatter jodaFormatter = Joda.forPattern(format);
+        DateTime dateTime = jodaFormatter.parseJoda(dateInput);
 
         String javaDateString = javaFormatter.withZone(ZoneOffset.ofHours(-1)).format(javaDate);
-        String jodaDateString = jodaFormatter.printer().withZone(DateTimeZone.forOffsetHours(-1)).print(dateTime);
+        String jodaDateString = jodaFormatter.printer.withZone(DateTimeZone.forOffsetHours(-1)).print(dateTime);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
             format, jodaDateString, javaDateString);
         assertThat(message, javaDateString, is(jodaDateString));
@@ -527,7 +527,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSameDate(String input, String format) {
-        FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
@@ -546,7 +546,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
-        FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }

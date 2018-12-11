@@ -40,9 +40,9 @@ import java.util.function.LongSupplier;
  */
 public class JodaDateMathParser implements DateMathParser {
 
-    private final FormatDateTimeFormatter dateTimeFormatter;
+    private final JodaDateFormatter dateTimeFormatter;
 
-    JodaDateMathParser(FormatDateTimeFormatter dateTimeFormatter) {
+    public JodaDateMathParser(JodaDateFormatter dateTimeFormatter) {
         Objects.requireNonNull(dateTimeFormatter);
         this.dateTimeFormatter = dateTimeFormatter;
     }
@@ -190,7 +190,7 @@ public class JodaDateMathParser implements DateMathParser {
     }
 
     private long parseDateTime(String value, DateTimeZone timeZone, boolean roundUpIfNoTime) {
-        DateTimeFormatter parser = dateTimeFormatter.parser();
+        DateTimeFormatter parser = dateTimeFormatter.parser;
         if (timeZone != null) {
             parser = parser.withZone(timeZone);
         }

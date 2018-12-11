@@ -79,7 +79,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
                         .endObject() // "rules"
                         .endObject());
 
-        final Request request = new Request("POST", "/_xpack/security/role_mapping/kerberosrolemapping");
+        final Request request = new Request("POST", "/_security/role_mapping/kerberosrolemapping");
         request.setJsonEntity(json);
         final Response response = adminClient().performRequest(request);
         assertOK(response);
@@ -117,7 +117,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     private void executeRequestAndVerifyResponse(final String userPrincipalName,
             final SpnegoHttpClientConfigCallbackHandler callbackHandler) throws PrivilegedActionException, IOException {
-        final Request request = new Request("GET", "/_xpack/security/_authenticate");
+        final Request request = new Request("GET", "/_security/_authenticate");
         try (RestClient restClient = buildRestClientForKerberos(callbackHandler)) {
             final AccessControlContext accessControlContext = AccessController.getContext();
             final LoginContext lc = callbackHandler.login();

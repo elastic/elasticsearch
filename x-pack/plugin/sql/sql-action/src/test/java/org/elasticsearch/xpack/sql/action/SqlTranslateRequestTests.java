@@ -63,7 +63,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest doParseInstance(XContentParser parser) {
-        return SqlTranslateRequest.fromXContent(parser, testMode);
+        return SqlTranslateRequest.fromXContent(parser);
     }
 
     @Override

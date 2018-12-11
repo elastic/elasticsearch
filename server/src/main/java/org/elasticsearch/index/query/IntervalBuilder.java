@@ -138,8 +138,7 @@ public class IntervalBuilder {
         if (maxGaps == -1) {
             return inner;
         }
-        // norelease
-        return Intervals.maxwidth(maxGaps, inner);  // TODO Change this to maxgaps when lucene snapshot upgraded
+        return Intervals.maxgaps(maxGaps, inner);
     }
 
     protected List<IntervalsSource> analyzeTerms(TokenStream ts) throws IOException {
@@ -233,6 +232,11 @@ public class IntervalBuilder {
                 @Override
                 public int end() {
                     return NO_MORE_INTERVALS;
+                }
+
+                @Override
+                public int gaps() {
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override

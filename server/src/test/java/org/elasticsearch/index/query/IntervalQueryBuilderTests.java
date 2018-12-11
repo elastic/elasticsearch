@@ -116,7 +116,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxwidth(40, Intervals.unordered(Intervals.term("hello"), Intervals.term("world"))));
+            Intervals.maxgaps(40, Intervals.unordered(Intervals.term("hello"), Intervals.term("world"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
@@ -141,7 +141,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxwidth(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))));
+            Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
@@ -157,7 +157,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.containing(Intervals.maxwidth(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
+            Intervals.containing(Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
                                  Intervals.term("blah")));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
@@ -211,7 +211,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new BoostQuery(new IntervalQuery(STRING_FIELD_NAME,
             Intervals.containedBy(
-                    Intervals.maxwidth(30, Intervals.ordered(
+                    Intervals.maxgaps(30, Intervals.ordered(
                         Intervals.term("one"),
                         Intervals.unordered(Intervals.term("two"), Intervals.term("three")))),
                     Intervals.term("SENTENCE"))), 1.5f);
@@ -238,7 +238,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.notContainedBy(
-                Intervals.maxwidth(30, Intervals.ordered(
+                Intervals.maxgaps(30, Intervals.ordered(
                     Intervals.term("atmosphere"),
                     Intervals.or(Intervals.term("cold"), Intervals.term("outside"))
                 )),

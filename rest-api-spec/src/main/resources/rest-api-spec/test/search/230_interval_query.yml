@@ -34,12 +34,11 @@ setup:
           body:
             query:
               intervals:
-                field: text
-                source:
+                text:
                   match:
-                    text: "cold outside"
-                    type: ordered
-  - match: { hits.total: 2 }
+                    query: "cold outside"
+                    ordered: true
+  - match: { hits.total.value: 2 }
 
 ---
 "Test default unordered matching":
@@ -49,11 +48,10 @@ setup:
           body:
             query:
               intervals:
-                field: text
-                source:
+                text:
                   match:
-                    text: "cold outside"
-  - match: { hits.total: 3 }
+                    query: "cold outside"
+  - match: { hits.total.value: 3 }
 
 ---
 "Test explicit unordered matching":
@@ -63,12 +61,11 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
+              text:
                 match:
-                  text: "cold outside"
-                  type: "unordered"
-  - match: { hits.total: 3 }
+                  query: "cold outside"
+                  ordered: false
+  - match: { hits.total.value: 3 }
 
 ---
 "Test phrase matching":
@@ -78,43 +75,41 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
+              text:
                 match:
-                  text: "cold outside"
-                  type: "phrase"
-  - match: { hits.total: 1 }
+                  query: "cold outside"
+                  ordered: true
+                  max_gaps: 0
+  - match: { hits.total.value: 1 }
 
 ---
-"Test unordered max_width matching":
+"Test unordered max_gaps matching":
   - do:
       search:
         index: test
         body:
           query:
             intervals:
-              field: text
-              source:
+              text:
                 match:
-                  text: "cold outside"
-                  max_width: 3
-  - match: { hits.total: 2 }
+                  query: "cold outside"
+                  max_gaps: 1
+  - match: { hits.total.value: 2 }
 
 ---
-"Test ordered max_width matching":
+"Test ordered max_gaps matching":
   - do:
       search:
         index: test
         body:
           query:
             intervals:
-              field: text
-              source:
+              text:
                 match:
-                  text: "cold outside"
-                  max_width: 2
-                  type: ordered
-  - match: { hits.total: 1 }
+                  query: "cold outside"
+                  max_gaps: 0
+                  ordered: true
+  - match: { hits.total.value: 1 }
 
 ---
 "Test ordered combination with disjunction":
@@ -124,40 +119,38 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                combine:
-                  sources:
-                    - or:
-                        sources:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
                           - match:
-                              text: "cold"
+                              query: "cold"
                           - match:
-                              text: "outside"
+                              query: "outside"
                     - match:
-                        text: "atmosphere"
-                  type: ordered
-  - match: { hits.total: 1 }
+                        query: "atmosphere"
+                  ordered: true
+  - match: { hits.total.value: 1 }
 
 ---
-"Test ordered combination with max_width":
+"Test ordered combination with max_gaps":
   - do:
       search:
         index: test
         body:
           query:
             intervals:
-              field: text
-              source:
-                combine:
-                  sources:
+              text:
+                all_of:
+                  intervals:
                     - match:
-                        text: "cold"
+                        query: "cold"
                     - match:
-                        text: "outside"
-                  max_width: 2
-                  type: ordered
-  - match: { hits.total: 1 }
+                        query: "outside"
+                  max_gaps: 0
+                  ordered: true
+  - match: { hits.total.value: 1 }
 
 ---
 "Test ordered combination":
@@ -167,16 +160,15 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                combine:
-                  sources:
+              text:
+                all_of:
+                  intervals:
                     - match:
-                        text: "cold"
+                        query: "cold"
                     - match:
-                        text: "outside"
-                  type: ordered
-  - match: { hits.total: 2 }
+                        query: "outside"
+                  ordered: true
+  - match: { hits.total.value: 2 }
 
 ---
 "Test unordered combination":
@@ -186,17 +178,16 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                combine:
-                  sources:
+              text:
+                all_of:
+                  intervals:
                     - match:
-                        text: "cold"
+                        query: "cold"
                     - match:
-                        text: "outside"
-                  max_width: 3
-                  type: unordered
-  - match: { hits.total: 2 }
+                        query: "outside"
+                  max_gaps: 1
+                  ordered: false
+  - match: { hits.total.value: 2 }
 
 ---
 "Test block combination":
@@ -206,16 +197,16 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                combine:
-                  sources:
+              text:
+                all_of:
+                  intervals:
                     - match:
-                        text: "cold"
+                        query: "cold"
                     - match:
-                        text: "outside"
-                  type: block
-  - match: { hits.total: 1 }
+                        query: "outside"
+                  ordered: true
+                  max_gaps: 0
+  - match: { hits.total.value: 1 }
 
 
 ---
@@ -226,22 +217,19 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                relate:
-                  source:
-                    combine:
-                      sources:
-                        - match:
-                            text: "cold"
-                        - match:
-                            text: "outside"
-                      type: unordered
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: false
                   filter:
-                    match:
-                        text: "is"
-                  relation: containing
-  - match: { hits.total: 1 }
+                    containing:
+                      match:
+                        query: "is"
+  - match: { hits.total.value: 1 }
 
 
 ---
@@ -252,22 +240,19 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                relate:
-                  source:
-                    combine:
-                      sources:
-                        - match:
-                            text: "cold"
-                        - match:
-                            text: "outside"
-                      type: unordered
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: false
                   filter:
-                    match:
-                      text: "is"
-                  relation: not_containing
-  - match: { hits.total: 2 }
+                    not_containing:
+                      match:
+                        query: "is"
+  - match: { hits.total.value: 2 }
 
 ---
 "Test contained_by":
@@ -277,22 +262,19 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                relate:
-                  source:
-                    match:
-                      text: "is"
+              text:
+                match:
+                  query: "is"
                   filter:
-                    combine:
-                      sources:
-                        - match:
-                            text: "cold"
-                        - match:
-                            text: "outside"
-                      type: unordered
-                  relation: contained_by
-  - match: { hits.total: 1 }
+                    contained_by:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                        ordered: false
+  - match: { hits.total.value: 1 }
 
 ---
 "Test not_contained_by":
@@ -302,22 +284,18 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                relate:
-                  source:
-                    match:
-                      text: "it"
+              text:
+                match:
+                  query: "it"
                   filter:
-                    combine:
-                      sources:
-                        - match:
-                            text: "cold"
-                        - match:
-                            text: "outside"
-                      type: unordered
-                  relation: not_contained_by
-  - match: { hits.total: 1 }
+                    not_contained_by:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+  - match: { hits.total.value: 1 }
 
 ---
 "Test not_overlapping":
@@ -327,26 +305,23 @@ setup:
         body:
           query:
             intervals:
-              field: text
-              source:
-                relate:
-                  source:
-                    combine:
-                      sources:
-                        - match:
-                            text: "cold"
-                        - match:
-                            text: "outside"
-                      type: ordered
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: true
                   filter:
-                    combine:
-                      sources:
-                        - match:
-                            text: "baby"
-                        - match:
-                            text: "there"
-                      type: unordered
-                  relation: not_overlapping
-  - match: { hits.total: 1 }
+                    not_overlapping:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "baby"
+                          - match:
+                              query: "there"
+                        ordered: false
+  - match: { hits.total.value: 1 }
 
 

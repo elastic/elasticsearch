@@ -1322,17 +1322,16 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .setSource("description", "it's cold outside, there's no kind of atmosphere"));
 
         String json = "{ \"intervals\" : " +
-            "{ \"field\" : \"description\", " +
-            "  \"source\" : { " +
-            "       \"combine\" : {" +
-            "           \"type\" : \"ordered\"," +
-            "           \"sources\" : [" +
-            "               { \"or\" : {" +
+            "{ \"description\": { " +
+            "       \"all_of\" : {" +
+            "           \"ordered\" : \"true\"," +
+            "           \"intervals\" : [" +
+            "               { \"any_of\" : {" +
             "                   \"sources\" : [" +
-            "                       { \"match\" : { \"text\" : \"cold\" } }," +
-            "                       { \"match\" : { \"text\" : \"outside\" } } ] } }," +
-            "               { \"match\" : { \"text\" : \"atmosphere\" } } ]," +
-            "           \"max_width\" : 30 } } } }";
+            "                       { \"match\" : { \"query\" : \"cold\" } }," +
+            "                       { \"match\" : { \"query\" : \"outside\" } } ] } }," +
+            "               { \"match\" : { \"query\" : \"atmosphere\" } } ]," +
+            "           \"gaps\" : 30 } } } }";
         SearchResponse response = client().prepareSearch("test").setQuery(wrapperQuery(json)).get();
         assertHitCount(response, 1L);
     }

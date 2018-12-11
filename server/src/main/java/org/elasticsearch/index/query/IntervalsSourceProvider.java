@@ -51,8 +51,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Built-in sources include {@link Match}, which analyzes a text string and converts it
  * to a proximity source (phrase, ordered or unordered depending on how
  * strict the matching should be); {@link Combine}, which allows proximity queries
- * between different sub-sources; and {@link Filter}, which allows sources to be filtered
- * by their relation to other sources.
+ * between different sub-sources; and {@link Disjunction}.
  */
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentFragment {
 
@@ -377,7 +376,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return new Combine(subSources, ordered, maxGaps, filter);
             });
         static {
-            PARSER.declareBoolean(constructorArg(), new ParseField("ordered"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
             PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.parseInnerIntervals(p),
                 new ParseField("intervals"));
             PARSER.declareInt(optionalConstructorArg(), new ParseField("max_gaps"));

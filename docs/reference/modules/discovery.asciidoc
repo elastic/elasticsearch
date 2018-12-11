@@ -458,7 +458,7 @@ For the cluster to be fully operational, it must have an active master.  The
 `discovery.zen.no_master_block` settings controls what operations should be
 rejected when there is no active master.
 
-The `discovery.zen.no_master_block` setting has two valid options:
+The `discovery.zen.no_master_block` setting has two valid values:
 
 [horizontal]
 `all`:: All operations on the node--i.e. both read & writes--will be rejected.
@@ -469,9 +469,9 @@ succeed, based on the last known cluster configuration.  This may result in
 partial reads of stale data as this node may be isolated from the rest of the
 cluster.
 
-The `discovery.zen.no_master_block` setting doesn't apply to nodes-based apis
-(for example cluster stats, node info and node stats apis).  Requests to these
-apis will not be blocked and can run on any available node.
+The `discovery.zen.no_master_block` setting doesn't apply to nodes-based APIs
+(for example cluster stats, node info, and node stats APIs). Requests to these
+APIs will not be blocked and can run on any available node.
 
 [float]
 [[master-election]]
@@ -584,7 +584,9 @@ those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
-as required, as described in more detail below.
+as required, as described in more detail in the
+<<modules-discovery-adding-removing-nodes,section on adding and removing
+nodes>>.
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
 tolerance by updating the cluster's _voting configuration_, which is the set of
@@ -608,7 +610,7 @@ can take a short time to complete. It is important to wait for this adjustment
 to complete before removing more nodes from the cluster.
 
 [float]
-==== Getting the initial quorum
+==== Setting the initial quorum
 
 When a brand-new cluster starts up for the first time, one of the tasks it must
 perform is to elect its first master node, for which it needs to know the set of

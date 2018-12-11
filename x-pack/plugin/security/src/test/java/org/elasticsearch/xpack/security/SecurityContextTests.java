@@ -84,7 +84,9 @@ public class SecurityContextTests extends ESTestCase {
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);
-        assertEquals(AuthenticationType.REALM, securityContext.getAuthentication().getAuthenticationType());
+        if (original != null) {
+            assertEquals(AuthenticationType.REALM, securityContext.getAuthentication().getAuthenticationType());
+        }
         StoredContext originalContext = contextAtomicReference.get();
         assertNotNull(originalContext);
         originalContext.restore();

@@ -889,7 +889,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), true, null, null);
+        User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), null, null);
         PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());

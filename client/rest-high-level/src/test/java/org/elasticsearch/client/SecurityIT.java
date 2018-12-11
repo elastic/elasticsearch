@@ -83,7 +83,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
             new GetUsersRequest(putUserRequest.getUser().getUsername());
         final GetUsersResponse getUsersResponse =
             execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
-        assertThat(getUsersResponse.getUsers().get(0), is(putUserRequest.getUser()));
+        assertThat(Arrays.asList(getUsersResponse.getUsers()).get(0), is(putUserRequest.getUser()));
 
         // delete user
         final DeleteUserRequest deleteUserRequest =
@@ -113,7 +113,6 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final List<String> roles = Arrays.asList(generateRandomStringArray(3, 3, false, true));
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
-        final boolean enabled = randomBoolean();
         final Map<String, Object> metadata;
         metadata = new HashMap<>();
         if (randomBoolean()) {
@@ -126,7 +125,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         } else {
             metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
         }
-        return new User(username, roles, metadata, enabled, fullName, email);
+        return new User(username, roles, metadata, fullName, email);
     }
 
     private static PutUserRequest randomPutUserRequest(boolean enabled) {

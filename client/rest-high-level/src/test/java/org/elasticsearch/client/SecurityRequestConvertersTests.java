@@ -69,7 +69,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
                 metadata.put(String.valueOf(i), randomAlphaOfLengthBetween(1, 12));
             }
         }
-        final User user = new User(username, roles, metadata, true, fullName, email);
+        final User user = new User(username, roles, metadata, fullName, email);
 
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);

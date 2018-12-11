@@ -30,8 +30,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -63,57 +66,64 @@ public class GetUsersResponseTests extends ESTestCase {
                 }
             }, json)));
         assertThat(response.getUsers().size(), equalTo(1));
-        final User user = response.getUsers().get(0);
+        final User user = response.getUsers().iterator().next();
         assertThat(user.getUsername(), equalTo("jacknich"));
         assertThat(user.getRoles().size(), equalTo(2));
         assertThat(user.getFullName(), equalTo("Jack Nicholson"));
         assertThat(user.getEmail(), equalTo("jacknich@example.com"));
-        assertTrue(user.getEnabled());
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 7);
         assertThat(metadata, equalTo(user.getMetadata()));
     }
 
     public void testEqualsHashCode() {
-        final List<User> users = new ArrayList<>();
+        final Set<User> users = new HashSet<>();
+        final Set<User> enabledUsers = new HashSet<>();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 1);
         final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
-            metadata, true, "Test User 1", null);
+            metadata, "Test User 1", null);
         users.add(user1);
+        enabledUsers.add(user1);
         Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("intelligence", 9);
         metadata2.put("specialty", "geo");
         final User user2 = new User("testUser2", Arrays.asList(new String[] {"admin"}),
-            metadata, true, "Test User 2", "testuser2@example.com");
+            metadata, "Test User 2", "testuser2@example.com");
         users.add(user2);
-        final GetUsersResponse getUsersResponse = new GetUsersResponse(users);
+        enabledUsers.add(user2);
+        final GetUsersResponse getUsersResponse = new GetUsersResponse(users, enabledUsers);
         assertNotNull(getUsersResponse);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
-            return new GetUsersResponse(original.getUsers());
+            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
         });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
-            return new GetUsersResponse(original.getUsers());
+            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
         }, GetUsersResponseTests::mutateTestItem);
     }
 
     private static GetUsersResponse mutateTestItem(GetUsersResponse original) {
         if (randomBoolean()) {
-            final List<User> users = new ArrayList<>();
+            final Set<User> users = new HashSet<>();
+            final Set<User> enabledUsers = new HashSet<>();
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("intelligence", 1);
             final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
-                metadata, true, "Test User 1", null);
+                metadata, "Test User 1", null);
             users.add(user1);
-            return new GetUsersResponse(users);
+            enabledUsers.add(user1);
+            return new GetUsersResponse(users, enabledUsers);
         }
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 5);  // change intelligence
         final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
-            metadata, true, "Test User 1", null);
-        List<User> newUsers = original.getUsers().stream().collect(Collectors.toList());
-        newUsers.remove(0);
+            metadata, "Test User 1", null);
+        Set<User> newUsers = original.getUsers().stream().collect(Collectors.toSet());
+        Set<User> enabledUsers = original.getEnabledUsers().stream().collect(Collectors.toSet());
+        newUsers.clear();
+        enabledUsers.clear();
         newUsers.add(user1);
-        return new GetUsersResponse(newUsers);
+        enabledUsers.add(user1);
+        return new GetUsersResponse(newUsers, enabledUsers);
     }
 }

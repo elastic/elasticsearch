@@ -40,39 +40,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class User {
 
-    public static final ParseField USERNAME = new ParseField("username");
-    public static final ParseField ROLES = new ParseField("roles");
-    public static final ParseField FULL_NAME = new ParseField("full_name");
-    public static final ParseField EMAIL = new ParseField("email");
-    public static final ParseField METADATA = new ParseField("metadata");
-    public static final ParseField ENABLED = new ParseField("enabled");
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<User, String> PARSER = new ConstructingObjectParser<>("user_info",
-        (constructorObjects) -> {
-            int i = 0;
-            final String username = (String) constructorObjects[i++];
-            final Collection<String> roles = (Collection<String>) constructorObjects[i++];
-            final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
-            final Boolean enabled = (Boolean) constructorObjects[i++];
-            final String fullName = (String) constructorObjects[i++];
-            final String email = (String) constructorObjects[i++];
-            return new User(username, roles, metadata, enabled, fullName, email);
-        });
-
-    static {
-        PARSER.declareString(constructorArg(), USERNAME);
-        PARSER.declareStringArray(constructorArg(), ROLES);
-        PARSER.declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
-        PARSER.declareBoolean(constructorArg(), ENABLED);
-        PARSER.declareStringOrNull(optionalConstructorArg(), FULL_NAME);
-        PARSER.declareStringOrNull(optionalConstructorArg(), EMAIL);
-    }
-
     private final String username;
     private final Set<String> roles;
     private final Map<String, Object> metadata;
-    private final boolean enabled;
     @Nullable private final String fullName;
     @Nullable private final String email;
 
@@ -85,14 +55,13 @@ public final class User {
      * @param fullName the full name of the user that may be used for display purposes
      * @param email the email address of the user
      */
-    public User(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled, @Nullable String fullName,
+    public User(String username, Collection<String> roles, Map<String, Object> metadata, @Nullable String fullName,
             @Nullable String email) {
         this.username = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
         this.roles = Collections.unmodifiableSet(new HashSet<>(
                 Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
         this.metadata = Collections
                 .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
-        this.enabled = enabled.booleanValue();
         this.fullName = fullName;
         this.email = email;
     }
@@ -104,7 +73,7 @@ public final class User {
      * @param roles the roles that this user is assigned
      */
     public User(String username, Collection<String> roles) {
-        this(username, roles, Collections.emptyMap(), true, null, null);
+        this(username, roles, Collections.emptyMap(), null, null);
     }
 
     /**
@@ -131,11 +100,6 @@ public final class User {
         return metadata;
     }
 
-    /** @return Whether or not this user is enabled */
-    public boolean getEnabled() {
-        return enabled;
-    }
-
     /**
      * @return  The full name of this user. May be {@code null}.
      */
@@ -156,7 +120,6 @@ public final class User {
         sb.append("User[username=").append(username);
         sb.append(",roles=[").append(Strings.collectionToCommaDelimitedString(roles)).append("]");
         sb.append(",metadata=").append(metadata);
-        sb.append(",enabled=").append(enabled);
         sb.append(",fullName=").append(fullName);
         sb.append(",email=").append(email);
         sb.append("]");
@@ -171,14 +134,13 @@ public final class User {
         return Objects.equals(username, that.username)
                 && Objects.equals(roles, that.roles)
                 && Objects.equals(metadata, that.metadata)
-                && enabled == that.enabled
                 && Objects.equals(fullName, that.fullName)
                 && Objects.equals(email, that.email);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(username, roles, metadata, enabled, fullName, email);
+        return Objects.hash(username, roles, metadata, fullName, email);
     }
 
 }

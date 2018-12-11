@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -96,8 +95,7 @@ public class ApiKeyService {
     private final Hasher hasher;
     private final boolean enabled;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client,
-                         SecurityIndexManager securityIndex, ClusterService clusterService) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -221,25 +219,13 @@ public class ApiKeyService {
      * retrieval of role descriptors that are associated with the api key and triggers the building
      * of the {@link Role} to authorize the request.
      */
-    public void getRoleForApiKey(Authentication authentication, ThreadContext threadContext, CompositeRolesStore rolesStore,
-                                 FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> listener) {
+    public void getRoleForApiKey(Authentication authentication, CompositeRolesStore rolesStore, ActionListener<Role> listener) {
         if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
 
         final Map<String, Object> metadata = authentication.getMetadata();
         final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
-        final String contextKeyId = threadContext.getTransient(API_KEY_ID_KEY);
-        if (apiKeyId.equals(contextKeyId)) {
-            final Role preBuiltRole = threadContext.getTransient(API_KEY_ROLE_KEY);
-            if (preBuiltRole != null) {
-                listener.onResponse(preBuiltRole);
-                return;
-            }
-        } else if (contextKeyId != null) {
-            throw new IllegalStateException("authentication api key id [" + apiKeyId + "] does not match context value [" +
-                contextKeyId + "]");
-        }
 
         final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
         final List<RoleDescriptor> roleDescriptorList = roleDescriptors.entrySet().stream()
@@ -258,11 +244,7 @@ public class ApiKeyService {
                 }
             }).collect(Collectors.toList());
 
-        rolesStore.buildRoleFromDescriptors(roleDescriptorList, fieldPermissionsCache, ActionListener.wrap(role -> {
-            threadContext.putTransient(API_KEY_ID_KEY, apiKeyId);
-            threadContext.putTransient(API_KEY_ROLE_KEY, role);
-            listener.onResponse(role);
-        }, listener::onFailure));
+        rolesStore.buildAndCacheRoleFromDescriptors(roleDescriptorList, apiKeyId, listener);
 
     }
 

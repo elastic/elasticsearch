@@ -45,6 +45,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
         final PeersRequest initialPeersRequest = new PeersRequest(createNode(randomAlphaOfLength(10)),
             Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList()));
 
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersRequest,
                 (CopyFunction<PeersRequest>) publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
             in -> {
@@ -69,6 +70,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
                 initialTerm);
         }
 
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersResponse,
                 (CopyFunction<PeersResponse>) publishResponse -> copyWriteable(publishResponse, writableRegistry(), PeersResponse::new),
             in -> {

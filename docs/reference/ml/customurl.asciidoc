@@ -92,7 +92,7 @@ For example, the following API updates a job to add a custom URL that uses
 
 [source,js]
 ----------------------------------
-POST _xpack/ml/anomaly_detectors/sample_job/_update
+POST _ml/anomaly_detectors/sample_job/_update
 {
   "custom_settings": {
         "custom_urls": [

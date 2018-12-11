@@ -908,7 +908,12 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+                searchRequest,
+                r -> RequestConverters.search(r, "_search"),
+                options,
+                SearchResponse::fromXContent,
+                emptySet());
     }
 
     /**
@@ -919,7 +924,12 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
-        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(
+                searchRequest,
+                r -> RequestConverters.search(r, "_search"),
+                options,
+                SearchResponse::fromXContent,
+                listener,
                 emptySet());
     }
 

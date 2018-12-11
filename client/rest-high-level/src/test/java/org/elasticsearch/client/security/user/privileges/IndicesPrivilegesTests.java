@@ -19,12 +19,18 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPrivileges> {
 
@@ -41,6 +47,35 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
             }
         }
         return indicesPrivilegesBuilder.build();
+    }
+
+    public void testToXContentWithNullFieldSecurity() {
+        final IndicesPrivileges privileges = IndicesPrivileges.builder().indices("abc").privileges("all").build();
+        final String json = Strings.toString(privileges);
+        assertThat(json, not(containsString("field_security")));
+    }
+
+    public void testToXContentWithEmptyFieldSecurity() {
+        final IndicesPrivileges privileges = IndicesPrivileges.builder()
+            .indices("abc")
+            .privileges("all")
+            .grantedFields(Collections.emptyList())
+            .deniedFields(Collections.emptyList())
+            .build();
+        final String json = Strings.toString(privileges);
+        assertThat(json, containsString("field_security"));
+        assertThat(json, containsString("\"field_security\":{\"grant\":[],\"except\":[]}"));
+    }
+
+    public void testToXContentWithDeniedFieldsOnly() {
+        final IndicesPrivileges privileges = IndicesPrivileges.builder()
+            .indices("abc")
+            .privileges("all")
+            .deniedFields("secret.*")
+            .build();
+        final String json = Strings.toString(privileges);
+        assertThat(json, containsString("field_security"));
+        assertThat(json, containsString("\"field_security\":{\"grant\":[\"*\"],\"except\":[\"secret.*\"]}"));
     }
 
     @Override

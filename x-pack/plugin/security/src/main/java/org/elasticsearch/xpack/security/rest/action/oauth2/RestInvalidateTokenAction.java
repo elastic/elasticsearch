@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestInvalidateTokenAction.class));
     static final ConstructingObjectParser<Tuple<String, String>, Void> PARSER =
             new ConstructingObjectParser<>("invalidate_token", a -> new Tuple<>((String) a[0], (String) a[1]));
     static {
@@ -43,12 +46,15 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
     public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
-        controller.registerHandler(DELETE, "/_xpack/security/oauth2/token", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            DELETE, "/_security/oauth2/token", this,
+            DELETE, "/_xpack/security/oauth2/token", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_invalidate_token_action";
+        return "security_invalidate_token_action";
     }
 
     @Override

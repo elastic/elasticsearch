@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,17 +39,23 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     private final Hasher passwordHasher;
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutUserAction.class));
 
     public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-        controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/{username}", this,
+            POST, "/_xpack/security/user/{username}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_security/user/{username}", this,
+            PUT, "/_xpack/security/user/{username}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_put_user_action";
+        return "security_put_user_action";
     }
 
     @Override

@@ -127,7 +127,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING =
         listSetting("transport.tracer.include", emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
     public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
-        listSetting("transport.tracer.exclude", Arrays.asList("internal:discovery/zen/fd*", TransportLivenessAction.NAME),
+        listSetting("transport.tracer.exclude",
+            Arrays.asList("internal:discovery/zen/fd*", "internal:coordination/fault_detection/*", TransportLivenessAction.NAME),
             Function.identity(), Property.Dynamic, Property.NodeScope);
 
     private final Logger tracerLog;

@@ -163,15 +163,25 @@ that uses the GCE API find a list of seed nodes.
 [float]
 ==== Discovery settings
 
-Discovery operates in two phases: First, each node "probes" the addresses of all
-known nodes by connecting to each address and attempting to identify the node to
-which it is connected. Secondly it shares with the remote node a list of all of
-its peers and the remote node responds with _its_ peers in turn. The node then
-probes all the new nodes about which it just discovered, requests their peers,
-and so on, until it has discovered an elected master node or enough other
-masterless nodes that it can perform an election. If neither of these occur
-quickly enough then it tries again. This process is controlled by the following
-settings.
+Discovery operates in two phases: First, each node probes the addresses of all
+known master-eligible nodes by connecting to each address and attempting to
+identify the node to which it is connected. Secondly it shares with the remote
+node a list of all of its known master-eligible peers and the remote node
+responds with _its_ peers in turn. The node then probes all the new nodes about
+which it just discovered, requests their peers, and so on, until it has
+discovered an elected master node or enough other masterless master-eligible
+nodes that it can perform an election. If neither of these occur quickly enough
+then it tries again. This process is controlled by the following settings.
+
+`discovery.find_peers_interval`::
+
+    Sets how long a node will wait before attempting another discovery round.
+    Defaults to `1s`.
+
+`discovery.request_peers_timeout`::
+
+    Sets how long a node will wait after asking its peers again before
+    considering the request to have failed. Defaults to `3s`.
 
 `discovery.probe.connect_timeout`::
 
@@ -183,14 +193,14 @@ settings.
     Sets how long to wait when attempting to identify the remote node via a
     handshake. Defaults to `1s`.
 
-`discovery.find_peers_interval`::
+`discovery.cluster_formation_warning_timeout`::
 
-    Sets how long a node will wait before attempting another discovery round.
+    Sets how long a node will try to form a cluster before logging a warning
+    that the cluster did not form. Defaults to `10s`.
 
-`discovery.request_peers_timeout`::
-
-    Sets how long a node will wait after asking its peers again before
-    considering the request to have failed.
+If a cluster has not formed after `discovery.cluster_formation_warning_timeout`
+has elapsed then the node will log a warning message starting with `master not
+discovered` which describes the current state of the discovery module.
 
 [float]
 [[modules-discovery-bootstrap-cluster]]

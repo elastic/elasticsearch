@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -461,7 +460,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     public Map<String, Supplier<Transport>> getTransports(
             final Settings settings,
             final ThreadPool threadPool,
-            final BigArrays bigArrays,
             final PageCacheRecycler pageCacheRecycler,
             final CircuitBreakerService circuitBreakerService,
             final NamedWriteableRegistry namedWriteableRegistry,
@@ -477,7 +475,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             throw new RuntimeException(e);
         }
         return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, Version.CURRENT, threadPool,
-                networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sslService));
+                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService));
     }
 
 }

@@ -402,8 +402,8 @@ public final class SearchPhaseController {
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest) {
-        return reducedQueryPhase(queryResults, isScrollRequest, true);
+    public ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
+        return reducedQueryPhase(queryResults, true, true);
     }
 
     /**

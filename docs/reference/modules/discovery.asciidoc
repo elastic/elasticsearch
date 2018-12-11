@@ -425,15 +425,15 @@ cluster state. The master node processes one cluster state update at a time,
 applies the required changes and publishes the updated cluster state to all the
 other nodes in the cluster. Each node receives the publish message, acknowledges
 it, but does *not* yet apply it. If the master does not receive acknowledgement
-from enough nodes within a certain time (controlled by the
-`cluster.publish.timeout` setting and defaults to 30 seconds) the cluster state
-change is rejected.
+from enough master-eligible nodes within a certain time (controlled by the
+`cluster.publish.timeout` setting which defaults to 30 seconds) the cluster
+state change is rejected.
 
-Once enough nodes have responded, the cluster state is committed and a message
-will be sent to all the nodes. The nodes then proceed to apply the new cluster
-state to their internal state. The master node waits for all nodes to respond,
-up to a timeout, before going ahead processing the next updates in the queue.
-The `cluster.publish.timeout` is set by default to 30 seconds and is measured
+Once enough nodes have responded, the cluster state is committed and a commit
+message is sent to all the nodes. The nodes then proceed to apply the new
+cluster state to their internal state. The master node waits for all nodes to
+respond, or until `cluster.publish.timeout` has elapsed, before starting to
+process the next update in the queue. The `cluster.publish.timeout` is measured
 from the moment the publishing started.
 
 TODO add lag detection

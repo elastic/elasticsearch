@@ -248,8 +248,7 @@ public class MlConfigMigrator {
         }
 
         MlMetadata.Builder builder = new MlMetadata.Builder();
-        builder.setLastMemoryRefreshVersion(mlMetadata.getLastMemoryRefreshVersion())
-                .putJobs(currentJobs.values())
+        builder.putJobs(currentJobs.values())
                 .putDatafeeds(currentDatafeeds.values());
 
         return new RemovalResult(builder.build(), removedJobIds, removedDatafeedIds);

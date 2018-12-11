@@ -178,16 +178,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         if (memoryTracker.isRecentlyRefreshed() == false) {
 
-            boolean scheduledRefresh = memoryTracker.asyncRefresh(ActionListener.wrap(
-                acknowledged -> {
-                    if (acknowledged) {
-                        logger.trace("Job memory requirement refresh request completed successfully");
-                    } else {
-                        logger.warn("Job memory requirement refresh request completed but did not set time in cluster state");
-                    }
-                },
-                e -> logger.error("Failed to refresh job memory requirements", e)
-            ));
+            boolean scheduledRefresh = memoryTracker.asyncRefresh();
             if (scheduledRefresh) {
                 String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
                 logger.debug(reason);

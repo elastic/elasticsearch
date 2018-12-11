@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.coordination.ClusterAlreadyBootstrappedException;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
@@ -89,18 +89,28 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         listenableFuture.addListener(listener, directExecutor, threadPool.getThreadContext());
         // TODO make it so that listenableFuture copes with multiple completions, and then remove listenerNotified
 
-        final Consumer<Iterable<DiscoveryNode>> respondIfRequestSatisfied = new Consumer<Iterable<DiscoveryNode>>() {
+        final ActionListener<Iterable<DiscoveryNode>> respondIfRequestSatisfied = new ActionListener<Iterable<DiscoveryNode>>() {
             @Override
-            public void accept(Iterable<DiscoveryNode> nodes) {
+            public void onResponse(Iterable<DiscoveryNode> nodes) {
                 final Set<DiscoveryNode> nodesSet = new LinkedHashSet<>();
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
                 logger.trace("discovered {}", nodesSet);
                 try {
-                    if (checkWaitRequirements(request, nodesSet) && listenerNotified.compareAndSet(false, true)) {
-                        listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
+                    if (checkWaitRequirements(request, nodesSet)) {
+                        final GetDiscoveredNodesResponse response = new GetDiscoveredNodesResponse(nodesSet);
+                        if (listenerNotified.compareAndSet(false, true)) {
+                            listenableFuture.onResponse(response);
+                        }
                     }
                 } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (listenerNotified.compareAndSet(false, true)) {
                     listenableFuture.onFailure(e);
                 }
             }
@@ -113,15 +123,18 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
 
         final Releasable releasable = coordinator.withDiscoveryListener(respondIfRequestSatisfied);
         listenableFuture.addListener(ActionListener.wrap(releasable::close), directExecutor, threadPool.getThreadContext());
-        respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
+
+        if (coordinator.isInitialConfigurationSet()) {
+            respondIfRequestSatisfied.onFailure(new ClusterAlreadyBootstrappedException());
+        } else {
+            respondIfRequestSatisfied.onResponse(coordinator.getFoundPeers());
+        }
 
         if (request.getTimeout() != null) {
             threadPool.schedule(request.getTimeout(), Names.SAME, new Runnable() {
                 @Override
                 public void run() {
-                    if (listenerNotified.compareAndSet(false, true)) {
-                        listenableFuture.onFailure(new ElasticsearchTimeoutException("timed out while waiting for " + request));
-                    }
+                    respondIfRequestSatisfied.onFailure(new ElasticsearchTimeoutException("timed out while waiting for " + request));
                 }
 
                 @Override

@@ -54,7 +54,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
@@ -62,6 +61,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -811,6 +812,35 @@ public final class IndicesClient {
                                  ActionListener<GetIndexTemplatesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest, IndicesRequestConverters::getTemplates,
             options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Uses the Index Templates API to determine if index templates exist
+     *
+     * @param indexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return true if any index templates in the request exist, false otherwise
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public boolean existsTemplate(IndexTemplatesExistRequest indexTemplatesRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(indexTemplatesRequest, IndicesRequestConverters::templatesExist, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Uses the Index Templates API to determine if index templates exist
+     *
+     * @param indexTemplatesExistRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     *                 if any index templates in the request exist, false otherwise
+     */
+    public void existsTemplateAsync(IndexTemplatesExistRequest indexTemplatesExistRequest,
+                                    RequestOptions options,
+                                    ActionListener<Boolean> listener) {
+
+        restHighLevelClient.performRequestAsync(indexTemplatesExistRequest, IndicesRequestConverters::templatesExist, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
     /**

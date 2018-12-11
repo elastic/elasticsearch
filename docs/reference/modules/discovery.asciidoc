@@ -8,58 +8,58 @@ modules, for example, all communication between nodes is done using the
 
 It is separated into several sections, which are explained below:
 
-*   <<modules-discovery-hosts-providers,Discovery>> is the process where nodes find
-    each other when starting up, or when losing a master.
-*   <<modules-discovery-bootstrap-cluster>> is a configuration step that's required
-    when an Elasticsearch starts up for the very first time.
-    In <<dev-vs-prod-mode,development mode>>, with no discovery settings configured,
-    this step is automatically performed by the nodes themselves. As this
-    auto-bootstrapping is <<modules-discovery-quorums,inherently unsafe>>, running
-    a node in <<dev-vs-prod-mode,production mode>> requires an explicit cluster
-    bootstrapping step.
-*   It is recommended to have a small and fixed number of master-eligible nodes in
-    a cluster, and to scale the cluster up and down by adding and removing
-    non-master-eligible nodes only. However there are situations in which it may be
-    desirable to add or remove some master-eligible nodes to or from a cluster.
-    A section on <<modules-discovery-adding-removing-nodes,adding and removing nodes>>
-    describes how Elasticsearch supports dynamically adding and removing
-    master-eligible nodes where, under certain conditions, special care must be taken.
+*   <<modules-discovery-hosts-providers,Discovery>> is the process where nodes
+    find each other when starting up, or when losing a master.
+*   <<modules-discovery-bootstrap-cluster>> is a configuration step that's
+    required when an Elasticsearch starts up for the very first time.  In
+    <<dev-vs-prod-mode,development mode>>, with no discovery settings
+    configured, this step is automatically performed by the nodes themselves. As
+    this auto-bootstrapping is <<modules-discovery-quorums,inherently unsafe>>,
+    running a node in <<dev-vs-prod-mode,production mode>> requires an explicit
+    cluster bootstrapping step.
+*   It is recommended to have a small and fixed number of master-eligible nodes
+    in a cluster, and to scale the cluster up and down by adding and removing
+    non-master-eligible nodes only. However there are situations in which it may
+    be desirable to add or remove some master-eligible nodes to or from a
+    cluster.  A section on <<modules-discovery-adding-removing-nodes,adding and
+    removing nodes>> describes how Elasticsearch supports dynamically adding and
+    removing master-eligible nodes where, under certain conditions, special care
+    must be taken.
 *   <<cluster-state-publishing,Cluster state publishing>> covers how a master
     publishes cluster states to the other nodes in the cluster.
-*   <<no-master-block>> describes what operations should be rejected when there is
-    no active master.
+*   <<no-master-block>> describes what operations should be rejected when there
+    is no active master.
 *   <<master-election>> and <<fault-detection>> sections cover advanced settings
     to influence the election and fault detection processes.
-*   <<modules-discovery-quorums,Quorum-based decision making>> explains the design
-    behind the master election and auto-reconfiguration logic.
-
+*   <<modules-discovery-quorums,Quorum-based decision making>> explains the
+    design behind the master election and auto-reconfiguration logic.
 
 [float]
 [[modules-discovery-hosts-providers]]
 === Discovery
 
-The cluster formation module uses a list of _seed_ nodes in order to start
-off the discovery process. At startup, or when disconnected from a master,
+The cluster formation module uses a list of _seed_ nodes in order to start off
+the discovery process. At startup, or when disconnected from a master,
 Elasticsearch tries to connect to each seed node in its list, and holds a
 gossip-like conversation with them to find other nodes and to build a complete
-picture of the master-eligible nodes in the cluster. By default the cluster formation
-module offers two hosts providers to configure the list of seed nodes:
+picture of the master-eligible nodes in the cluster. By default the cluster
+formation module offers two hosts providers to configure the list of seed nodes:
 a _settings-based_ and a _file-based_ hosts provider, but can be extended to
-support cloud environments and other forms of host providers via plugins.
-Host providers are configured using the `discovery.zen.hosts_provider` setting,
-which defaults to the _settings-based_ hosts provider. Multiple hosts providers
-can be specified as a list.
+support cloud environments and other forms of host providers via plugins.  Host
+providers are configured using the `discovery.zen.hosts_provider` setting, which
+defaults to the _settings-based_ hosts provider. Multiple hosts providers can be
+specified as a list.
 
 [float]
 [[settings-based-hosts-provider]]
 ===== Settings-based hosts provider
 
-The settings-based hosts provider use a node setting to configure a static
-list of hosts to use as seed nodes. These hosts can be specified as hostnames
-or IP addresses; hosts specified as hostnames are resolved to IP addresses
-during each round of pinging. Note that if you are in an environment where
-DNS resolutions vary with time, you might need to adjust your
-<<networkaddress-cache-ttl,JVM security settings>>.
+The settings-based hosts provider use a node setting to configure a static list
+of hosts to use as seed nodes. These hosts can be specified as hostnames or IP
+addresses; hosts specified as hostnames are resolved to IP addresses during each
+round of pinging. Note that if you are in an environment where DNS resolutions
+vary with time, you might need to adjust your <<networkaddress-cache-ttl,JVM
+security settings>>.
 
 The list of hosts is set using the `discovery.zen.ping.unicast.hosts` static
 setting.  This is either an array of hosts or a comma-delimited string. Each
@@ -68,8 +68,8 @@ the setting `transport.profiles.default.port` falling back to
 `transport.tcp.port` if not set). Note that IPv6 hosts must be bracketed. The
 default for this setting is `127.0.0.1, [::1]`
 
-Additionally, the `discovery.zen.ping.unicast.hosts.resolve_timeout` configures the
-amount of time to wait for DNS lookups on each round of pinging. This is
+Additionally, the `discovery.zen.ping.unicast.hosts.resolve_timeout` configures
+the amount of time to wait for DNS lookups on each round of pinging. This is
 specified as a <<time-units, time unit>> and defaults to 5s.
 
 Unicast discovery uses the <<modules-transport,transport>> module to perform the
@@ -94,16 +94,16 @@ discovery.zen.hosts_provider: file
 ----------------------------------------------------------------
 
 Then create a file at `$ES_PATH_CONF/unicast_hosts.txt` in the format described
-below. Any time a change is made to the `unicast_hosts.txt` file the new
-changes will be picked up by Elasticsearch and the new hosts list will be used.
+below. Any time a change is made to the `unicast_hosts.txt` file the new changes
+will be picked up by Elasticsearch and the new hosts list will be used.
 
 Note that the file-based discovery plugin augments the unicast hosts list in
 `elasticsearch.yml`: if there are valid unicast host entries in
 `discovery.zen.ping.unicast.hosts` then they will be used in addition to those
 supplied in `unicast_hosts.txt`.
 
-The `discovery.zen.ping.unicast.hosts.resolve_timeout` setting also applies to DNS
-lookups for nodes specified by address via file-based discovery. This is
+The `discovery.zen.ping.unicast.hosts.resolve_timeout` setting also applies to
+DNS lookups for nodes specified by address via file-based discovery. This is
 specified as a <<time-units, time unit>> and defaults to 5s.
 
 The format of the file is to specify one node entry per line.  Each node entry
@@ -138,14 +138,15 @@ line).
 ===== EC2 hosts provider
 
 The {plugins}/discovery-ec2.html[EC2 discovery plugin] adds a hosts provider
-that uses the https://github.com/aws/aws-sdk-java[AWS API] to find a list of seed nodes.
+that uses the https://github.com/aws/aws-sdk-java[AWS API] to find a list of
+seed nodes.
 
 [float]
 [[azure-classic-hosts-provider]]
 ===== Azure Classic hosts provider
 
-The {plugins}/discovery-azure-classic.html[Azure Classic discovery plugin] adds a hosts provider
-that uses the Azure Classic API find a list of seed nodes.
+The {plugins}/discovery-azure-classic.html[Azure Classic discovery plugin] adds
+a hosts provider that uses the Azure Classic API find a list of seed nodes.
 
 [float]
 [[gce-hosts-provider]]
@@ -157,15 +158,15 @@ that uses the GCE API find a list of seed nodes.
 [float]
 ==== Discovery settings
 
-Discovery operates in two phases: First, each node "probes" the addresses of
-all known nodes by connecting to each address and attempting to identify the
-node to which it is connected. Secondly it shares with the remote node a list
-of all of its peers and the remote node responds with _its_ peers in turn. The
-node then probes all the new nodes about which it just discovered, requests
-their peers, and so on, until it has discovered an elected master node or
-enough other masterless nodes that it can perform an election. If neither of
-these occur quickly enough then it tries again. This process is controlled by
-the following settings.
+Discovery operates in two phases: First, each node "probes" the addresses of all
+known nodes by connecting to each address and attempting to identify the node to
+which it is connected. Secondly it shares with the remote node a list of all of
+its peers and the remote node responds with _its_ peers in turn. The node then
+probes all the new nodes about which it just discovered, requests their peers,
+and so on, until it has discovered an elected master node or enough other
+masterless nodes that it can perform an election. If neither of these occur
+quickly enough then it tries again. This process is controlled by the following
+settings.
 
 `discovery.probe.connect_timeout`::
 
@@ -186,23 +187,22 @@ the following settings.
     Sets how long a node will wait after asking its peers again before
     considering the request to have failed.
 
-
 [float]
 [[modules-discovery-bootstrap-cluster]]
 === Bootstrapping a cluster
 
-Starting an Elasticsearch cluster for the very first time requires a
-cluster bootstrapping step.
+Starting an Elasticsearch cluster for the very first time requires a cluster
+bootstrapping step.
 
-The simplest way to bootstrap a cluster is by specifying the node names
-or transport addresses of at least a non-empty subset of the master-eligible nodes
-before start-up. The node setting `cluster.initial_master_nodes`, which
-takes a list of node names or transport addresses, can be either specified
-on the command line when starting up the nodes, or be added to the node
-configuration file `elasticsearch.yml`.
+The simplest way to bootstrap a cluster is by specifying the node names or
+transport addresses of at least a non-empty subset of the master-eligible nodes
+before start-up. The node setting `cluster.initial_master_nodes`, which takes a
+list of node names or transport addresses, can be either specified on the
+command line when starting up the nodes, or be added to the node configuration
+file `elasticsearch.yml`.
 
-For a cluster with 3 master-eligible nodes (named master-a, master-b, and master-c)
-the configuration will look as follows:
+For a cluster with 3 master-eligible nodes (named master-a, master-b, and
+master-c) the configuration will look as follows:
 
 [source,yaml]
 --------------------------------------------------
@@ -214,39 +214,37 @@ cluster.initial_master_nodes:
 
 TODO provide another example with ip addresses (+ possibly port)
 
-Note that if you have not explicitly configured a node name, this
-name defaults to the host name, so using the host names will work as well.
-While it is sufficient to set this on a single master-eligible node
-in the cluster, and only mention a single master-eligible node, using
-multiple nodes for bootstrapping allows the bootstrap process to go
-through even if not all nodes are available. In any case, when
-specifying the list of initial master nodes, **it is vitally important**
-to configure each node with exactly the same list of nodes, to prevent
-two independent clusters from forming. Typically you will set this
-on the nodes that are mentioned in the list of initial master nodes.
+Note that if you have not explicitly configured a node name, this name defaults
+to the host name, so using the host names will work as well.  While it is
+sufficient to set this on a single master-eligible node in the cluster, and only
+mention a single master-eligible node, using multiple nodes for bootstrapping
+allows the bootstrap process to go through even if not all nodes are available.
+In any case, when specifying the list of initial master nodes, **it is vitally
+important** to configure each node with exactly the same list of nodes, to
+prevent two independent clusters from forming. Typically you will set this on
+the nodes that are mentioned in the list of initial master nodes.
 
 WARNING: You must put exactly the same set of initial master nodes in each
- configuration file in order to be sure that only a single cluster forms during
- bootstrapping and therefore to avoid the risk of data loss.
+  configuration file in order to be sure that only a single cluster forms during
+  bootstrapping and therefore to avoid the risk of data loss.
 
-
-It is also possible to set the initial set of master nodes on the
-command-line used to start Elasticsearch:
+It is also possible to set the initial set of master nodes on the command-line
+used to start Elasticsearch:
 
 [source,bash]
 --------------------------------------------------
 $ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
 
-Just as with the config file, this additional command-line parameter
-can be removed once a cluster has successfully formed.
+Just as with the config file, this additional command-line parameter can be
+removed once a cluster has successfully formed.
 
 [float]
 ==== Choosing a cluster name
-The `cluster.name` allows to create separated clusters from one another.
-The default value for the cluster name is `elasticsearch`, though it is
-recommended to change this to reflect the logical group name of the
-cluster running.
+
+The `cluster.name` allows to create separated clusters from one another.  The
+default value for the cluster name is `elasticsearch`, though it is recommended
+to change this to reflect the logical group name of the cluster running.
 
 [float]
 ==== Auto-bootstrapping in development mode
@@ -266,15 +264,14 @@ tolerance by updating the cluster's _voting configuration_, which is the set of
 master-eligible nodes whose responses are counted when making decisions such as
 electing a new master or committing a new cluster state.
 
-It is recommended to have a small and fixed number of master-eligible nodes in
-a cluster, and to scale the cluster up and down by adding and removing
+It is recommended to have a small and fixed number of master-eligible nodes in a
+cluster, and to scale the cluster up and down by adding and removing
 non-master-eligible nodes only. However there are situations in which it may be
 desirable to add or remove some master-eligible nodes to or from a cluster.
 
 If you wish to add some master-eligible nodes to your cluster, simply configure
-the new nodes to find the existing cluster and start them up. Elasticsearch
-will add the new nodes to the voting configuration if it is appropriate to do
-so.
+the new nodes to find the existing cluster and start them up. Elasticsearch will
+add the new nodes to the voting configuration if it is appropriate to do so.
 
 When removing master-eligible nodes, it is important not to remove too many all
 at the same time. For instance, if there are currently seven master-eligible
@@ -290,16 +287,16 @@ the auto-reconfiguration to take effect after each removal.
 If there are only two master-eligible nodes then neither node can be safely
 removed since both are required to reliably make progress, so you must first
 inform Elasticsearch that one of the nodes should not be part of the voting
-configuration, and that the voting power should instead be given to other
-nodes, allowing the excluded node to be taken offline without preventing the
-other node from making progress. A node which is added to a voting
-configuration exclusion list still works normally, but Elasticsearch will try
-and remove it from the voting configuration so its vote is no longer required,
-and will never automatically move such a node back into the voting
-configuration after it has been removed. Once a node has been successfully
-reconfigured out of the voting configuration, it is safe to shut it down
-without affecting the cluster's availability. A node can be added to the voting
-configuration exclusion list using the following API:
+configuration, and that the voting power should instead be given to other nodes,
+allowing the excluded node to be taken offline without preventing the other node
+from making progress. A node which is added to a voting configuration exclusion
+list still works normally, but Elasticsearch will try and remove it from the
+voting configuration so its vote is no longer required, and will never
+automatically move such a node back into the voting configuration after it has
+been removed. Once a node has been successfully reconfigured out of the voting
+configuration, it is safe to shut it down without affecting the cluster's
+availability. A node can be added to the voting configuration exclusion list
+using the following API:
 
 [source,js]
 --------------------------------------------------
@@ -319,15 +316,15 @@ voting configuration exclusions API fails then the call can safely be retried.
 A successful response guarantees that the node has been removed from the voting
 configuration and will not be reinstated.
 
-Although the voting configuration exclusions API is most useful for
-down-scaling a two-node to a one-node cluster, it is also possible to use it to
-remove multiple nodes from larger clusters all at the same time. Adding
-multiple nodes to the exclusions list has the system try to auto-reconfigure
-all of these nodes out of the voting configuration, allowing them to be safely
-shut down while keeping the cluster available. In the example described above,
-shrinking a seven-master-node cluster down to only have three master nodes, you
-could add four nodes to the exclusions list, wait for confirmation, and then
-shut them down simultaneously.
+Although the voting configuration exclusions API is most useful for down-scaling
+a two-node to a one-node cluster, it is also possible to use it to remove
+multiple nodes from larger clusters all at the same time. Adding multiple nodes
+to the exclusions list has the system try to auto-reconfigure all of these nodes
+out of the voting configuration, allowing them to be safely shut down while
+keeping the cluster available. In the example described above, shrinking a
+seven-master-node cluster down to only have three master nodes, you could add
+four nodes to the exclusions list, wait for confirmation, and then shut them
+down simultaneously.
 
 Adding an exclusion for a node creates an entry for that node in the voting
 configuration exclusions list, which has the system automatically try to
@@ -348,11 +345,11 @@ This list is limited in size by the following setting:
     Sets a limits on the number of voting configuration exclusions at any one
     time.  Defaults to `10`.
 
-Since voting configuration exclusions are persistent and limited in number,
-they must be cleaned up. Normally an exclusion is added when performing some
+Since voting configuration exclusions are persistent and limited in number, they
+must be cleaned up. Normally an exclusion is added when performing some
 maintenance on the cluster, and the exclusions should be cleaned up when the
-maintenance is complete. Clusters should have no voting configuration
-exclusions in normal operation.
+maintenance is complete. Clusters should have no voting configuration exclusions
+in normal operation.
 
 If a node is excluded from the voting configuration because it is to be shut
 down permanently then its exclusion can be removed once it has shut down and
@@ -361,9 +358,9 @@ created in error or were only required temporarily:
 
 [source,js]
 --------------------------------------------------
-# Wait for all the nodes with voting configuration exclusions to be removed
-# from the cluster and then remove all the exclusions, allowing any node to
-# return to the voting configuration in the future.
+# Wait for all the nodes with voting configuration exclusions to be removed from
+# the cluster and then remove all the exclusions, allowing any node to return to
+# the voting configuration in the future.
 DELETE /_cluster/voting_config_exclusions
 # Immediately remove all the voting configuration exclusions, allowing any node
 # to return to the voting configuration in the future.
@@ -380,34 +377,33 @@ cluster state. The master node processes one cluster state update at a time,
 applies the required changes and publishes the updated cluster state to all the
 other nodes in the cluster. Each node receives the publish message, acknowledges
 it, but does *not* yet apply it. If the master does not receive acknowledgement
-from enough nodes within a certain time
-(controlled by the `cluster.publish.timeout` setting and defaults to 30
-seconds) the cluster state change is rejected.
+from enough nodes within a certain time (controlled by the
+`cluster.publish.timeout` setting and defaults to 30 seconds) the cluster state
+change is rejected.
 
 Once enough nodes have responded, the cluster state is committed and a message
 will be sent to all the nodes. The nodes then proceed to apply the new cluster
 state to their internal state. The master node waits for all nodes to respond,
 up to a timeout, before going ahead processing the next updates in the queue.
-The `cluster.publish.timeout` is set by default to 30 seconds and is
-measured from the moment the publishing started.
+The `cluster.publish.timeout` is set by default to 30 seconds and is measured
+from the moment the publishing started.
 
 TODO add lag detection
 
-Note, Elasticsearch is a peer to peer based system, nodes communicate
-with one another directly if operations are delegated / broadcast. All
-the main APIs (index, delete, search) do not communicate with the master
-node. The responsibility of the master node is to maintain the global
-cluster state, and act if nodes join or leave the cluster by reassigning
-shards. Each time a cluster state is changed, the state is made known to
-the other nodes in the cluster (the manner depends on the actual
-discovery implementation).
+Note, Elasticsearch is a peer to peer based system, nodes communicate with one
+another directly if operations are delegated / broadcast. All the main APIs
+(index, delete, search) do not communicate with the master node. The
+responsibility of the master node is to maintain the global cluster state, and
+act if nodes join or leave the cluster by reassigning shards. Each time a
+cluster state is changed, the state is made known to the other nodes in the
+cluster (the manner depends on the actual discovery implementation).
 
 [float]
 [[no-master-block]]
 === No master block
 
-For the cluster to be fully operational, it must have an active master.
-The `discovery.zen.no_master_block` settings controls what operations should be
+For the cluster to be fully operational, it must have an active master.  The
+`discovery.zen.no_master_block` settings controls what operations should be
 rejected when there is no active master.
 
 The `discovery.zen.no_master_block` setting has two valid options:
@@ -459,16 +455,15 @@ scheduling of elections.
 
 `cluster.election.duration`::
 
-    Sets how long each election is allowed to take before a node considers it
-    to have failed and schedules a retry. This defaults to `500ms`.
-
+    Sets how long each election is allowed to take before a node considers it to
+    have failed and schedules a retry. This defaults to `500ms`.
 
 [float]
 ==== Joining an elected master
 
-During master election, or when joining an existing formed cluster, a node will send
-a join request to the master in order to be officially added to the cluster. This join
-process can be configured with the following settings.
+During master election, or when joining an existing formed cluster, a node will
+send a join request to the master in order to be officially added to the
+cluster. This join process can be configured with the following settings.
 
 `cluster.join.timeout`::
 
@@ -483,10 +478,9 @@ process can be configured with the following settings.
 An elected master periodically checks each of its followers in order to ensure
 that they are still connected and healthy, and in turn each follower
 periodically checks the health of the elected master. Elasticsearch allows for
-these checks occasionally to fail or timeout without taking any action, and
-will only consider a node to be truly faulty after a number of consecutive
-checks have failed. The following settings control the behaviour of fault
-detection.
+these checks occasionally to fail or timeout without taking any action, and will
+only consider a node to be truly faulty after a number of consecutive checks
+have failed. The following settings control the behaviour of fault detection.
 
 `cluster.fault_detection.follower_check.interval`::
 
@@ -516,9 +510,9 @@ detection.
 
 `cluster.fault_detection.leader_check.retry_count`::
 
-    Sets how many consecutive leader check failures must occur before a
-    follower node considers the elected master to be faulty and attempts to
-    find or elect a new master. Defaults to `3`.
+    Sets how many consecutive leader check failures must occur before a follower
+    node considers the elected master to be faulty and attempts to find or elect
+    a new master. Defaults to `3`.
 
 [float]
 [[modules-discovery-quorums]]
@@ -543,18 +537,18 @@ as required, as described in more detail below.
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
 tolerance by updating the cluster's _voting configuration_, which is the set of
 master-eligible nodes whose responses are counted when making decisions such as
-electing a new master or committing a new cluster state. A decision is only
-made once more than half of the nodes in the voting configuration have
-responded. Usually the voting configuration is the same as the set of all the
+electing a new master or committing a new cluster state. A decision is only made
+once more than half of the nodes in the voting configuration have responded.
+Usually the voting configuration is the same as the set of all the
 master-eligible nodes that are currently in the cluster, but there are some
 situations in which they may be different.
 
 To be sure that the cluster remains available you **must not stop half or more
 of the nodes in the voting configuration at the same time**. As long as more
-than half of the voting nodes are available the cluster can still work
-normally. This means that if there are three or four master-eligible nodes then
-the cluster can tolerate one of them being unavailable; if there are two or
-fewer master-eligible nodes then they must all remain available.
+than half of the voting nodes are available the cluster can still work normally.
+This means that if there are three or four master-eligible nodes then the
+cluster can tolerate one of them being unavailable; if there are two or fewer
+master-eligible nodes then they must all remain available.
 
 After a node has joined or left the cluster the elected master must issue a
 cluster-state update that adjusts the voting configuration to match, and this
@@ -565,16 +559,16 @@ to complete before removing more nodes from the cluster.
 ==== Getting the initial quorum
 
 When a brand-new cluster starts up for the first time, one of the tasks it must
-perform is to elect its first master node, for which it needs to know the set
-of master-eligible nodes whose votes should count in this first election. This
+perform is to elect its first master node, for which it needs to know the set of
+master-eligible nodes whose votes should count in this first election. This
 initial voting configuration is known as the _bootstrap configuration_.
 
 It is important that the bootstrap configuration identifies exactly which nodes
 should vote in the first election, and it is not sufficient to configure each
-node with an expectation of how many nodes there should be in the cluster. It
-is also important to note that the bootstrap configuration must come from
-outside the cluster: there is no safe way for the cluster to determine the
-bootstrap configuration correctly on its own.
+node with an expectation of how many nodes there should be in the cluster. It is
+also important to note that the bootstrap configuration must come from outside
+the cluster: there is no safe way for the cluster to determine the bootstrap
+configuration correctly on its own.
 
 If the bootstrap configuration is not set correctly then there is a risk when
 starting up a brand-new cluster is that you accidentally form two separate
@@ -591,31 +585,31 @@ that four nodes were erroneously started instead of three: in this case there
 are enough nodes to form two separate clusters. Of course if each node is
 started manually then it's unlikely that too many nodes are started, but it's
 certainly possible to get into this situation if using a more automated
-orchestrator, particularly if the orchestrator is not resilient to failures
-such as network partitions.
+orchestrator, particularly if the orchestrator is not resilient to failures such
+as network partitions.
 
 The <<modules-discovery-bootstrap-cluster,cluster bootstrapping process>> is
 only required the very first time a whole cluster starts up: new nodes joining
-an established cluster can safely obtain all the information they need from
-the elected master, and nodes that have previously been part of a cluster
-will have stored to disk all the information required when restarting.
+an established cluster can safely obtain all the information they need from the
+elected master, and nodes that have previously been part of a cluster will have
+stored to disk all the information required when restarting.
 
 [float]
 ==== Cluster maintenance, rolling restarts and migrations
 
 Many cluster maintenance tasks involve temporarily shutting down one or more
 nodes and then starting them back up again. By default Elasticsearch can remain
-available if one of its master-eligible nodes is taken offline, such as during
-a <<rolling-upgrades,rolling restart>>. Furthermore, if multiple nodes are
-stopped and then started again then it will automatically recover, such as
-during a <<restart-upgrade,full cluster restart>>. There is no need to take any
-further action with the APIs described here in these cases, because the set of
-master nodes is not changing permanently.
+available if one of its master-eligible nodes is taken offline, such as during a
+<<rolling-upgrades,rolling restart>>. Furthermore, if multiple nodes are stopped
+and then started again then it will automatically recover, such as during a
+<<restart-upgrade,full cluster restart>>. There is no need to take any further
+action with the APIs described here in these cases, because the set of master
+nodes is not changing permanently.
 
 It is also possible to perform a migration of a cluster onto entirely new nodes
 without taking the cluster offline, via a _rolling migration_. A rolling
-migration is similar to a rolling restart, in that it is performed one node at
-a time, and also requires no special handling for the master-eligible nodes as
+migration is similar to a rolling restart, in that it is performed one node at a
+time, and also requires no special handling for the master-eligible nodes as
 long as there are at least two of them available at all times.
 
 TODO the above is only true if the maintenance happens slowly enough, otherwise
@@ -638,34 +632,33 @@ GET /_cluster/state?filter_path=metadata.cluster_coordination.last_committed_con
 --------------------------------------------------
 // CONSOLE
 
-NOTE: The current voting configuration is not necessarily the same as the set
-of all available master-eligible nodes in the cluster. Altering the voting
-configuration itself involves taking a vote, so it takes some time to adjust
-the configuration as nodes join or leave the cluster. Also, there are
-situations where the most resilient configuration includes unavailable nodes,
-or does not include some available nodes, and in these situations the voting
-configuration will differ from the set of available master-eligible nodes in
-the cluster.
+NOTE: The current voting configuration is not necessarily the same as the set of
+all available master-eligible nodes in the cluster. Altering the voting
+configuration itself involves taking a vote, so it takes some time to adjust the
+configuration as nodes join or leave the cluster. Also, there are situations
+where the most resilient configuration includes unavailable nodes, or does not
+include some available nodes, and in these situations the voting configuration
+will differ from the set of available master-eligible nodes in the cluster.
 
 Larger voting configurations are usually more resilient, so Elasticsearch will
 normally prefer to add master-eligible nodes to the voting configuration once
 they have joined the cluster. Similarly, if a node in the voting configuration
-leaves the cluster and there is another master-eligible node in the cluster
-that is not in the voting configuration then it is preferable to swap these two
-nodes over, leaving the size of the voting configuration unchanged but
-increasing its resilience.
+leaves the cluster and there is another master-eligible node in the cluster that
+is not in the voting configuration then it is preferable to swap these two nodes
+over, leaving the size of the voting configuration unchanged but increasing its
+resilience.
 
 It is not so straightforward to automatically remove nodes from the voting
 configuration after they have left the cluster, and different strategies have
-different benefits and drawbacks, so the right choice depends on how the
-cluster will be used and is controlled by the following setting.
+different benefits and drawbacks, so the right choice depends on how the cluster
+will be used and is controlled by the following setting.
 
 `cluster.auto_shrink_voting_configuration`::
 
-    Defaults to `true`, meaning that the voting configuration will
-    automatically shrink, shedding departed nodes, as long as it still contains
-    at least 3 nodes.  If set to `false`, the voting configuration never
-    automatically shrinks; departed nodes must be removed manually using the
+    Defaults to `true`, meaning that the voting configuration will automatically
+    shrink, shedding departed nodes, as long as it still contains at least 3
+    nodes.  If set to `false`, the voting configuration never automatically
+    shrinks; departed nodes must be removed manually using the
     <<modules-discovery-adding-removing-nodes,voting configuration exclusions API>>.
 
 NOTE: If `cluster.auto_shrink_voting_configuration` is set to `true`, the
@@ -677,8 +670,8 @@ healthy.
 There are situations in which Elasticsearch might tolerate the loss of multiple
 nodes, but this is not guaranteed under all sequences of failures. If this
 setting is set to `false` then departed nodes must be removed from the voting
-configuration manually, using the vote withdrawal API described below, to achieve
-the desired level of resilience.
+configuration manually, using the vote withdrawal API described below, to
+achieve the desired level of resilience.
 
 Note that Elasticsearch will not suffer from a "split-brain" inconsistency
 however it is configured. This setting only affects its availability in the
@@ -699,12 +692,12 @@ side could make any progress in this situation.
 
 For instance if there are four master-eligible nodes in the cluster and the
 voting configuration contained all of them then any quorum-based decision would
-require votes from at least three of them, which means that the cluster can
-only tolerate the loss of a single master-eligible node. If this cluster were
-split into two equal halves then neither half would contain three
-master-eligible nodes so would not be able to make any progress. However if the
-voting configuration contains only three of the four master-eligible nodes then
-the cluster is still only fully tolerant to the loss of one node, but
-quorum-based decisions require votes from two of the three voting nodes. In the
-event of an even split, one half will contain two of the three voting nodes so
-will remain available.
+require votes from at least three of them, which means that the cluster can only
+tolerate the loss of a single master-eligible node. If this cluster were split
+into two equal halves then neither half would contain three master-eligible
+nodes so would not be able to make any progress. However if the voting
+configuration contains only three of the four master-eligible nodes then the
+cluster is still only fully tolerant to the loss of one node, but quorum-based
+decisions require votes from two of the three voting nodes. In the event of an
+even split, one half will contain two of the three voting nodes so will remain
+available.

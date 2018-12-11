@@ -118,20 +118,20 @@ public class AuthenticateResponseTests extends ESTestCase {
         switch (randomIntBetween(1, 8)) {
             case 1:
                 return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(),
-                    originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()),
-                    response.enabled(), response.getAuthenticationRealm(), response.getLookupRealm());
+                    originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
+                    response.getAuthenticationRealm(), response.getLookupRealm());
             case 2:
                 final Collection<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), wrongRoles, originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm());
+                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
+                    response.getLookupRealm());
             case 3:
                 final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.getMetadata());
                 wrongMetadata.put("wrong_string", randomAlphaOfLengthBetween(0, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), wrongMetadata,
-                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm());
+                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
+                    response.getLookupRealm());
             case 4:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName() + "wrong", originalUser.getEmail()), response.enabled(),
@@ -142,18 +142,16 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(), response.getLookupRealm());
             case 6:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), !response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm());
+                    originalUser.getFullName(), originalUser.getEmail()), !response.enabled(), response.getAuthenticationRealm(),
+                    response.getLookupRealm());
             case 7:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5),
-                    randomAlphaOfLength(5)));
+                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
+                    new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)));
             case 8:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
-                    response.getLookupRealm());
+                    new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), response.getLookupRealm());
         }
         throw new IllegalStateException("Bad random number");
     }

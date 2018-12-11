@@ -22,7 +22,6 @@ package org.elasticsearch.client.security.user.privileges;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;

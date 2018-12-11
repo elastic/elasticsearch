@@ -15,7 +15,7 @@ between phases.
 The `cluster.routing.allocation` settings are dynamic, enabling live indices to
 be moved from one set of nodes to another. Shards are only relocated if it is
 possible to do so without breaking another routing constraint, such as never
- allocating a primary and replica shard on the same node.
+allocating a primary and replica shard on the same node.
 
 For example, you could use a custom node attribute to indicate a node's
 performance characteristics and use shard allocation filtering to route shards
@@ -58,6 +58,21 @@ PUT test/_settings
 ------------------------
 // CONSOLE
 // TEST[s/^/PUT test\n/]
++
+If you specify multiple filters, all conditions must be satisfied for shards to
+be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
+you could specify:
++
+ [source,js]
+------------------------
+PUT test/_settings
+{
+  "index.routing.allocation.include.size": "big",
+  "index.routing.allocation.include.rack": "rack1"
+}
+------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 [float]
 [[index-allocation-settings]]
@@ -78,7 +93,7 @@ PUT test/_settings
     Assign the index to a node whose `{attribute}` has _none_ of the
     comma-separated values.
 
-The index routing settings support the following built-in attributes:
+The index allocation settings support the following built-in attributes:
 
 [horizontal]
 `_name`::       Match nodes by node name

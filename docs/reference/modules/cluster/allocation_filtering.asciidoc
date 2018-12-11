@@ -48,7 +48,7 @@ PUT _cluster/settings
     Do not allocate shards to a node whose `{attribute}` has _any_ of the
     comma-separated values.
 
-The cluster routing settings support the following built-in attributes:
+The cluster allocation settings support the following built-in attributes:
 
 [horizontal]
 `_name`::   Match nodes by node names

@@ -304,7 +304,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 if (leaderIndicesToFollow.isEmpty()) {
                     finalise(slot, new AutoFollowResult(autoFollowPatternName));
                 } else {
-                    List<Tuple<String, AutoFollowPattern>> patternsForTheSameLeaderCluster = autoFollowMetadata.getPatterns()
+                    List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster = autoFollowMetadata.getPatterns()
                         .entrySet().stream()
                         .filter(item -> autoFollowPatternName.equals(item.getKey()) == false)
                         .filter(item -> remoteCluster.equals(item.getValue().getRemoteCluster()))
@@ -313,7 +313,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameLeaderCluster, resultHandler);
+                        patternsForTheSameRemoteCluster, resultHandler);
                 }
                 i++;
             }
@@ -325,7 +325,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                                             AutoFollowPattern autoFollowPattern,
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
-                                            List<Tuple<String, AutoFollowPattern>> patternsForTheSameLeaderCluster,
+                                            List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
                                             Consumer<AutoFollowResult> resultHandler) {
 
             final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
@@ -334,7 +334,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 final Index indexToFollow = leaderIndicesToFollow.get(i);
                 final int slot = i;
 
-                List<String> otherMatchingPatterns = patternsForTheSameLeaderCluster.stream()
+                List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
                     .filter(otherPattern -> otherPattern.v2().match(indexToFollow.getName()))
                     .map(Tuple::v1)
                     .collect(Collectors.toList());

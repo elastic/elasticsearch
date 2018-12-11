@@ -143,7 +143,7 @@ different index by hand, but do not want to remove the index from {ilm}
 completely.
 
 IMPORTANT: If `index.lifecycle.indexing_complete` is set to `true` on an index,
-it will not be rolled over by {ilm}, but {ilm} will very that this index is no
+it will not be rolled over by {ilm}, but {ilm} will verify that this index is no
 longer the write index for the alias specified by
 `index.lifecycle.rollover_alias`. If that setting is missing, or if the index is
 still the write index for that alias, this index will be moved to the

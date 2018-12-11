@@ -76,7 +76,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -135,7 +134,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
-    private final Set<Consumer<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
+    private final Set<ActionListener<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
 
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
@@ -166,8 +165,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService, this::isBootstrapped,
-            joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
+            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
@@ -278,6 +277,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 preVoteCollector.update(getPreVoteResponse(), getLocalNode());
             } else {
                 becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
+            }
+
+            if (isInitialConfigurationSet()) {
+                for (final ActionListener<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                    discoveredNodesListener.onFailure(new ClusterAlreadyBootstrappedException());
+                }
             }
 
             return new PublishWithJoinResponse(publishResponse,
@@ -704,10 +709,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private boolean isBootstrapped() {
-        return getLastAcceptedState().getLastAcceptedConfiguration().isEmpty() == false;
-    }
-
     private void unsafelySetConfigurationForUpgrade(VotingConfiguration votingConfiguration) {
         assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this method once unsafe upgrades are no longer needed";
         synchronized (mutex) {
@@ -715,7 +716,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new IllegalStateException("Cannot overwrite configuration in mode " + mode);
             }
 
-            if (isBootstrapped()) {
+            if (isInitialConfigurationSet()) {
                 throw new IllegalStateException("Cannot overwrite configuration: configuration is already set to "
                     + getLastAcceptedState().getLastAcceptedConfiguration());
             }
@@ -1014,8 +1015,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }
 
-            for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
-                discoveredNodesListener.accept(foundPeers);
+            for (final ActionListener<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                discoveredNodesListener.onResponse(foundPeers);
             }
         }
     }
@@ -1051,7 +1052,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         });
     }
 
-    public Releasable withDiscoveryListener(Consumer<Iterable<DiscoveryNode>> listener) {
+    public Releasable withDiscoveryListener(ActionListener<Iterable<DiscoveryNode>> listener) {
         discoveredNodesListeners.add(listener);
         return () -> {
             boolean removed = discoveredNodesListeners.remove(listener);

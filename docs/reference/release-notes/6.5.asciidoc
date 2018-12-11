@@ -47,7 +47,41 @@
 [[release-notes-6.5.3]]
 == {es} version 6.5.3
 
-coming[6.5.3]
+Also see <<breaking-changes-6.5>>.
+
+[float]
+[[enhancement-6.5.3]]
+=== Enhancements
+
+Engine::
+* Always configure soft-deletes field of IndexWriterConfig {pull}36196[#36196] (issue: {issue}36141[#36141])
+
+[float]
+[[bug-6.5.3]]
+=== Bug fixes
+
+Audit::
+* Fix deprecation of audit log settings {pull}36175[#36175] (issue: {issue}36162[#36162])
+
+CCR::
+* AutoFollowCoordinator should tolerate that auto follow patterns may be removed {pull}35945[#35945] (issue: {issue}35937[#35937])
+
+Features/Monitoring::
+* Add missing error type mapping for apm-server {pull}36178[#36178] (issue: {issue}1614[#1614])
+
+Infra/Packaging::
+* Fix error message when package install fails due to missing Java {pull}36077[#36077] (issue: {issue}31845[#31845])
+
+Infra/Scripting::
+* Properly support no-offset date formatting {pull}36316[#36316] (issue: {issue}36306[#36306])
+* Fix serialization bug in painless execute api request {pull}36075[#36075] (issue: {issue}36050[#36050])
+
+Security::
+* Remove license state listeners on closables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
+
+Snapshot/Restore::
+* Improve Resilience SnapshotShardService {pull}36113[#36113] (issue: {issue}32265[#32265])
+
 
 [[release-notes-6.5.2]]
 == {es} version 6.5.2

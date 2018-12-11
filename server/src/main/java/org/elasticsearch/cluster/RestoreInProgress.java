@@ -134,7 +134,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
         /**
          * Returns restore uuid
-         * @return
+         * @return restore uuid
          */
         public String uuid() {
             return uuid;

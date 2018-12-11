@@ -289,6 +289,15 @@ short time after startup. Since nodes may not always reliably discover each
 other quickly enough this automatic bootstrapping is not always reliable and
 cannot be used in production deployments.
 
+If any of the following settings are configured then auto-bootstrapping will
+not take place, and you must configure `cluster.initial_master_nodes` as
+described in the <<modules-discovery-bootstrap-cluster,section on cluster
+bootstrapping>>:
+
+* `discovery.zen.hosts_provider`
+* `discovery.zen.ping.unicast.hosts`
+* `cluster.initial_master_nodes`
+
 [float]
 [[modules-discovery-adding-removing-nodes]]
 === Adding and removing nodes

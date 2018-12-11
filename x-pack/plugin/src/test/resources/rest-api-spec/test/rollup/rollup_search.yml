@@ -906,7 +906,10 @@ setup:
 
 ---
 "Obsolete Timezone":
-
+  - skip:
+        version: " - 6.5.99"
+        reason: "IANA TZ deprecations in 6.6"
+        features: "warnings"
   - do:
       indices.create:
         index: tz
@@ -923,6 +926,8 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      warnings:
+        - "Creating Rollup job [tz] with timezone [Canada/Mountain], but [Canada/Mountain] has been deprecated by the IANA.  Use [America/Edmonton] instead."
       xpack.rollup.put_job:
         id: tz
         body:  >

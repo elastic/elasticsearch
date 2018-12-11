@@ -35,7 +35,7 @@ import java.util.Arrays;
 /** Utility class to work with arrays. */
 public class BigArrays {
 
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, false);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, CircuitBreaker.REQUEST);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -369,18 +369,13 @@ public class BigArrays {
     private final BigArrays circuitBreakingInstance;
     private final String breakerName;
 
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
         // Checking the breaker is disabled if not specified
-        this(recycler, breakerService, false);
+        this(recycler, breakerService, breakerName, false);
     }
 
-    // public for tests
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
-        this(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
-    }
-
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName,
-                     boolean checkBreaker) {
+    protected BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName,
+                        boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
         this.breakerService = breakerService;
@@ -388,7 +383,7 @@ public class BigArrays {
         if (checkBreaker) {
             this.circuitBreakingInstance = this;
         } else {
-            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, true);
+            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, breakerName, true);
         }
     }
 

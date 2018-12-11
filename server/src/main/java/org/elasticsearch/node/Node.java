@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -929,7 +930,7 @@ public class Node implements Closeable {
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
     BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(pageCacheRecycler, circuitBreakerService);
+        return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
     }
 
     /**

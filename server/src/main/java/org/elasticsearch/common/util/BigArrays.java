@@ -22,19 +22,20 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
 public class BigArrays {
 
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, new NoopCircuitBreaker("noop"), false);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, false);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -363,24 +364,31 @@ public class BigArrays {
     }
 
     final PageCacheRecycler recycler;
+    private final CircuitBreakerService breakerService;
     private final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
-    private final CircuitBreaker circuitBreaker;
+    private final String breakerName;
 
-    public BigArrays(PageCacheRecycler recycler, CircuitBreaker circuitBreaker) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
         // Checking the breaker is disabled if not specified
-        this(recycler, circuitBreaker, false);
+        this(recycler, breakerService, false);
     }
 
     // public for tests
-    public BigArrays(PageCacheRecycler recycler, final CircuitBreaker circuitBreaker, boolean checkBreaker) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
+        this(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
+    }
+
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName,
+                     boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
-        this.circuitBreaker = circuitBreaker;
+        this.breakerService = breakerService;
+        this.breakerName = breakerName;
         if (checkBreaker) {
             this.circuitBreakingInstance = this;
         } else {
-            this.circuitBreakingInstance = new BigArrays(recycler, circuitBreaker, true);
+            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, true);
         }
     }
 
@@ -393,28 +401,31 @@ public class BigArrays {
      * we do not add the delta to the breaker if it trips.
      */
     void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
-        if (this.checkBreaker) {
-            // checking breaker means potentially tripping, but it doesn't
-            // have to if the delta is negative
-            if (delta > 0) {
-                try {
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(delta, "<reused_arrays>");
-                } catch (CircuitBreakingException e) {
-                    if (isDataAlreadyCreated) {
-                        // since we've already created the data, we need to
-                        // add it so closing the stream re-adjusts properly
-                        circuitBreaker.addWithoutBreaking(delta);
+        if (this.breakerService != null) {
+            CircuitBreaker breaker = this.breakerService.getBreaker(breakerName);
+            if (this.checkBreaker) {
+                // checking breaker means potentially tripping, but it doesn't
+                // have to if the delta is negative
+                if (delta > 0) {
+                    try {
+                        breaker.addEstimateBytesAndMaybeBreak(delta, "<reused_arrays>");
+                    } catch (CircuitBreakingException e) {
+                        if (isDataAlreadyCreated) {
+                            // since we've already created the data, we need to
+                            // add it so closing the stream re-adjusts properly
+                            breaker.addWithoutBreaking(delta);
+                        }
+                        // re-throw the original exception
+                        throw e;
                     }
-                    // re-throw the original exception
-                    throw e;
+                } else {
+                    breaker.addWithoutBreaking(delta);
                 }
             } else {
-                circuitBreaker.addWithoutBreaking(delta);
+                // even if we are not checking the breaker, we need to adjust
+                // its' totals, so add without breaking
+                breaker.addWithoutBreaking(delta);
             }
-        } else {
-            // even if we are not checking the breaker, we need to adjust
-            // its' totals, so add without breaking
-            circuitBreaker.addWithoutBreaking(delta);
         }
     }
 
@@ -426,8 +437,8 @@ public class BigArrays {
         return this.circuitBreakingInstance;
     }
 
-    public CircuitBreaker circuitBreaker() {
-        return circuitBreaker;
+    public CircuitBreakerService breakerService() {
+        return this.circuitBreakingInstance.breakerService;
     }
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {

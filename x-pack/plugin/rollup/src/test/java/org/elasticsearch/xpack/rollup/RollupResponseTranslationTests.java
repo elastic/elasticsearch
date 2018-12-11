@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -89,7 +89,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MultiSearchResponse.Item(null, new RuntimeException("foo")),
                 new MultiSearchResponse.Item(null, null)};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         Exception e = expectThrows(RuntimeException.class,
@@ -112,7 +112,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MultiSearchResponse.Item(null, new IndexNotFoundException("live missing")),
                 new MultiSearchResponse.Item(null, new RuntimeException("rollup failure"))};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         Exception e = expectThrows(RuntimeException.class,
@@ -126,7 +126,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
                 new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"))};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         Exception e = expectThrows(RuntimeException.class,
@@ -171,7 +171,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
                 new MultiSearchResponse.Item(responseWithout, null)};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
@@ -194,7 +194,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
                 new MultiSearchResponse.Item(responseWithout, null)};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
@@ -211,7 +211,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new MultiSearchResponse.Item(response, null),
                 new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"))};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         SearchResponse finalResponse = RollupResponseTranslator.combineResponses(msearch,
@@ -267,7 +267,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
 
@@ -281,7 +281,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testTranslateMissingRollup() {
         MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
 
@@ -311,7 +311,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         Exception e = expectThrows(RuntimeException.class,
@@ -340,7 +340,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         Exception e = expectThrows(RuntimeException.class,
@@ -394,7 +394,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
 
@@ -505,7 +505,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledItem, rolledItem};
 
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
         ClassCastException e = expectThrows(ClassCastException.class,
@@ -606,7 +606,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalAggregation unrolled = RollupResponseTranslator.unrollAgg(responses.get(1), null, null, 0);
 
         // Reduce the InternalDateHistogram response so we can fill buckets
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
 

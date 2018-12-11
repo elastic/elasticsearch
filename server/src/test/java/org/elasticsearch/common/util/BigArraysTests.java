@@ -22,11 +22,11 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class BigArraysTests extends ESTestCase {
 
     private BigArrays randombigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker("noop"));
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     private BigArrays bigArrays;
@@ -345,7 +345,7 @@ public class BigArraysTests extends ESTestCase {
                 assertEquals(maxSize, e.getByteLimit());
                 assertThat(e.getBytesWanted(), greaterThanOrEqualTo(size));
             }
-            assertEquals(0, bigArraysHelper.bigArrays.circuitBreaker().getUsed());
+            assertEquals(0, bigArraysHelper.bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed());
         }
     }
 
@@ -358,7 +358,7 @@ public class BigArraysTests extends ESTestCase {
                             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                             .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            BigArrays bigArrays = new BigArrays(null, hcbs.getBreaker(CircuitBreaker.REQUEST)).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(10, maxSize / 16);
             BigArray array = (BigArray) create.invoke(bigArrays, size);
@@ -422,7 +422,7 @@ public class BigArraysTests extends ESTestCase {
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        BigArrays bigArrays = new BigArrays(null, hcbs.getBreaker(CircuitBreaker.REQUEST));
+        BigArrays bigArrays = new BigArrays(null, hcbs, false);
         return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);
     }
 

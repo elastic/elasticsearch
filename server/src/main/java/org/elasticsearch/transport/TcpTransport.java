@@ -216,7 +216,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
-        this.bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS), false);
+        this.bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS,false);
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;

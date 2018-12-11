@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +110,7 @@ public class MockNode extends Node {
         if (getPluginsService().filterPlugins(NodeMocksPlugin.class).isEmpty()) {
             return super.createBigArrays(pageCacheRecycler, circuitBreakerService);
         }
-        return new MockBigArrays(pageCacheRecycler, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        return new MockBigArrays(pageCacheRecycler, circuitBreakerService);
     }
 
     @Override

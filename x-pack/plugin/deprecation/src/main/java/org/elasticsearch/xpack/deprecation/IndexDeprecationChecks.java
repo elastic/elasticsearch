@@ -127,10 +127,11 @@ public class IndexDeprecationChecks {
             TimeValue parsedValue = TimeValue.parseTimeValue(value, setting);
             if (parsedValue.getNanos() < 0) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "Negative values for index.unassigned.node_left.delayed_timeout are deprecated and should be set to 0",
+                    "Negative values for " + setting + " are deprecated and should be set to 0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                         "#_literal_index_unassigned_node_left_delayed_timeout_literal_may_no_longer_be_negative",
-                    "The index [" + indexMetaData.getIndex().getName() + "] is set to " + value);
+                    "The index [" + indexMetaData.getIndex().getName() + "] has [" + setting + "] set to [" + value +
+                        "], but negative values are not allowed");
             }
         }
         return null;

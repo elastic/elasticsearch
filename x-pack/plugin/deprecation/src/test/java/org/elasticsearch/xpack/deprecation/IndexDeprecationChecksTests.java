@@ -81,17 +81,19 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     public void testNodeLeftDelayedTimeCheck() {
         String negativeTimeValue = "-" + randomPositiveTimeValue();
         String indexName = randomAlphaOfLengthBetween(0, 10);
+        String setting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey();
 
         final IndexMetaData badIndex = IndexMetaData.builder(indexName)
-            .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), negativeTimeValue))
+            .settings(settings(Version.CURRENT).put(setting, negativeTimeValue))
             .numberOfShards(randomIntBetween(1, 100))
             .numberOfReplicas(randomIntBetween(1, 15))
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Negative values for index.unassigned.node_left.delayed_timeout are deprecated and should be set to 0",
+            "Negative values for " + setting + " are deprecated and should be set to 0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_literal_index_unassigned_node_left_delayed_timeout_literal_may_no_longer_be_negative",
-            "The index [" + indexName + "] is set to " + negativeTimeValue);
+            "The index [" + indexName + "] has [" + setting + "] set to [" + negativeTimeValue +
+                "], but negative values are not allowed");
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(badIndex));
         assertEquals(singletonList(expected), issues);

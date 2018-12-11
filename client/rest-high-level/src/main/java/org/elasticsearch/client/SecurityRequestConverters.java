@@ -237,7 +237,7 @@ final class SecurityRequestConverters {
 
     static Request putRole(final PutRoleRequest putRoleRequest) throws IOException {
         final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/role")
+            .addPathPartAsIs("_security/role")
             .addPathPart(putRoleRequest.getRole().getName())
             .build();
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);

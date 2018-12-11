@@ -436,15 +436,19 @@ respond, or until `cluster.publish.timeout` has elapsed, before starting to
 process the next update in the queue. The `cluster.publish.timeout` is measured
 from the moment the publishing started.
 
-TODO add lag detection
+If a node fails to apply a cluster state update within the
+`cluster.publish.timeout` timeout then its cluster state lags behind the most
+recently-published state from the master. The master waits for a further
+timeout, `cluster.follower_lag.timeout`, which defaults to 90 seconds, and if
+the node has still not successfully applied the cluster state update then it is
+removed from the cluster.
 
-Note, Elasticsearch is a peer to peer based system, nodes communicate with one
-another directly if operations are delegated / broadcast. All the main APIs
-(index, delete, search) do not communicate with the master node. The
-responsibility of the master node is to maintain the global cluster state, and
-act if nodes join or leave the cluster by reassigning shards. Each time a
-cluster state is changed, the state is made known to the other nodes in the
-cluster (the manner depends on the actual discovery implementation).
+NOTE: Elasticsearch is a peer to peer based system, in which nodes communicate
+with one another directly. The high-throughput APIs (index, delete, search) do
+not normally interact with the master node. The responsibility of the master
+node is to maintain the global cluster state, and act if nodes join or leave the
+cluster by reassigning shards. Each time the cluster state is changed, the new
+state is published to all nodes in the cluster as described above.
 
 [float]
 [[no-master-block]]

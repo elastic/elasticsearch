@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.SearchModule;
 
-import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -146,7 +145,7 @@ public final class QueryParserHelper {
                 } catch (QueryShardException | UnsupportedOperationException e) {
                     // field type is never searchable with term queries (eg. geo point): ignore
                     continue;
-                } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeParseException e) {
+                } catch (IllegalArgumentException | ElasticsearchParseException e) {
                     // other exceptions are parsing errors or not indexed fields: keep
                 }
             }

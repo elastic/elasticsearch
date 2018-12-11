@@ -719,7 +719,7 @@ final class DocumentParser {
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
                         dateTimeFormatter.parseMillis(text);
-                    } catch (DateTimeParseException e) {
+                    } catch (IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }

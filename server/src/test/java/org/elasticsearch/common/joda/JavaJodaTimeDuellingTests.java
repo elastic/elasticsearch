@@ -506,8 +506,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
         DateFormatter jodaFormatter = Joda.forPattern(format, Locale.ROOT);
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> jodaFormatter.parseJoda(input));
-        assertThat(e.getCause().getMessage(), containsString(expectedMessage));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
+        assertThat(e.getMessage(), containsString(expectedMessage));
     }
 
     private void assertJavaTimeParseException(String input, String format, String expectedMessage) {

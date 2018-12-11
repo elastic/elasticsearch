@@ -27,7 +27,6 @@ import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.time.ZoneId;
-import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -211,7 +210,7 @@ public class JodaDateMathParser implements DateMathParser {
                 throw new IllegalArgumentException("Unrecognized chars at the end of [" + value + "]: [" + value.substring(end) + "]");
             }
             return date.getMillis();
-        } catch (IllegalArgumentException | DateTimeParseException e) {
+        } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value,
                 dateTimeFormatter.pattern());
         }

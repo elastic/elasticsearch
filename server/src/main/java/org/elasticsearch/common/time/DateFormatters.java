@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
@@ -30,7 +31,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -1482,14 +1482,15 @@ public class DateFormatters {
 
         @Override
         public TemporalAccessor parse(String input) {
-            DateTimeParseException failure = null;
+            IllegalArgumentException failure = null;
             for (DateFormatter formatter : formatters) {
                 try {
                     return formatter.parse(input);
-                } catch (IllegalArgumentException | DateTimeParseException e) {
+                } catch (IllegalArgumentException e) {
                     if (failure == null) {
-                        failure = new DateTimeParseException("failed to parse date field [" + input + "] with format [" + pattern + "]",
-                            input, 0, e);
+                        // wrap so the entire multi format is in the message
+                        failure = new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + pattern + "]",
+                            e);
                     } else {
                         failure.addSuppressed(e);
                     }
@@ -1531,14 +1532,15 @@ public class DateFormatters {
         @Override
         public DateMathParser toDateMathParser() {
             return (text, now, roundUp, tz) -> {
-                DateTimeParseException failure = null;
+                ElasticsearchParseException failure = null;
                 for (DateMathParser parser : dateMathParsers) {
                     try {
                         return parser.parse(text, now, roundUp, tz);
-                    } catch (DateTimeParseException e) {
+                    } catch (ElasticsearchParseException e) {
                         if (failure == null) {
-                            failure = new DateTimeParseException("failed to parse date field [" + text + "] with format [" + pattern + "]",
-                                text, 0, e);
+                            // wrap so the entire multi format is in the message
+                            failure = new ElasticsearchParseException("failed to parse date field [" + text + "] with format ["
+                                + pattern + "]", e);
                         } else {
                             failure.addSuppressed(e);
                         }

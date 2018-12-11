@@ -93,12 +93,12 @@ public class JodaDateMathParser implements DateMathParser {
                 } else if (c == '-') {
                     sign = -1;
                 } else {
-                    throw new DateTimeParseException("operator not supported for date math [" + mathString + "]", mathString, 0);
+                    throw new ElasticsearchParseException("operator not supported for date math [{}]", mathString);
                 }
             }
 
             if (i >= mathString.length()) {
-                throw new DateTimeParseException("truncated date math [" + mathString + "]", mathString, 0);
+                throw new ElasticsearchParseException("truncated date math [{}]", mathString);
             }
 
             final int num;
@@ -110,14 +110,13 @@ public class JodaDateMathParser implements DateMathParser {
                     i++;
                 }
                 if (i >= mathString.length()) {
-                    throw new DateTimeParseException("truncated date math [" + mathString + "]", mathString, 0);
+                    throw new ElasticsearchParseException("truncated date math [{}]", mathString);
                 }
                 num = Integer.parseInt(mathString.substring(numFrom, i));
             }
             if (round) {
                 if (num != 1) {
-                    throw new DateTimeParseException("rounding `/` can only be used on single unit types [" + mathString + "]",
-                        mathString, 0);
+                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [{}]", mathString);
                 }
             }
             char unit = mathString.charAt(i++);
@@ -174,7 +173,7 @@ public class JodaDateMathParser implements DateMathParser {
                     }
                     break;
                 default:
-                    throw new DateTimeParseException("unit [" + unit + "] not supported for date math [" + mathString + "]", mathString, 0);
+                    throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
             if (propertyToRound != null) {
                 if (roundUp) {
@@ -212,9 +211,9 @@ public class JodaDateMathParser implements DateMathParser {
                 throw new IllegalArgumentException("Unrecognized chars at the end of [" + value + "]: [" + value.substring(end) + "]");
             }
             return date.getMillis();
-        } catch (IllegalArgumentException e) {
-            throw new DateTimeParseException("failed to parse date field [" + value + "] with format [" + dateTimeFormatter.pattern() + "]",
-                value, 0, e);
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value,
+                dateTimeFormatter.pattern());
         }
     }
 

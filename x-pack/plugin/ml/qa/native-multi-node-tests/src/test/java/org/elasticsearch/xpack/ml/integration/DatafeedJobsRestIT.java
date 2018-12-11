@@ -56,7 +56,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private void setupDataAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/role/test_data_access");
+        Request request = new Request("PUT", "/_security/role/test_data_access");
         request.setJsonEntity("{"
                 + "  \"indices\" : ["
                 + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"read\"] }"
@@ -66,7 +66,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private void setupFullAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/role/test_data_access");
+        Request request = new Request("PUT", "/_security/role/test_data_access");
         request.setJsonEntity("{"
             + "  \"indices\" : ["
             + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"all\"] }"
@@ -78,7 +78,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     private void setupUser(String user, List<String> roles) throws IOException {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
-        Request request = new Request("PUT", "/_xpack/security/user/" + user);
+        Request request = new Request("PUT", "/_security/user/" + user);
         request.setJsonEntity("{"
                 + "  \"password\" : \"" + password + "\","
                 + "  \"roles\" : [ " + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", ")) + " ]"

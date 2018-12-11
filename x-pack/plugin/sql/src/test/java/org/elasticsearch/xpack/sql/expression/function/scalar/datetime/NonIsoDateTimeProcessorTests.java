@@ -14,7 +14,7 @@ import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
-public class NonISsoDateTimeProcessorTests extends AbstractWireSerializingTestCase<NonIsoDateTimeProcessor> {
+public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCase<NonIsoDateTimeProcessor> {
     
     private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 

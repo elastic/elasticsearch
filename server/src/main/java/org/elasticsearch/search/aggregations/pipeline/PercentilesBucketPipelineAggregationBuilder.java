@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,26 +57,32 @@ public class PercentilesBucketPipelineAggregationBuilder
             throws IOException {
         super(in, NAME);
         percents = in.readDoubleArray();
-        keyed = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            keyed = in.readBoolean();
+        }
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
-        out.writeBoolean(keyed);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(keyed);
+        }
     }
 
     /**
      * Get the percentages to calculate percentiles for in this aggregation
      */
-    public double[] percents() {
+    public double[] getPercents() {
         return percents;
     }
 
     /**
      * Set the percentages to calculate percentiles for in this aggregation
      */
-    public PercentilesBucketPipelineAggregationBuilder percents(double[] percents) {
+    public PercentilesBucketPipelineAggregationBuilder setPercents(double[] percents) {
         if (percents == null) {
             throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
         }
@@ -92,7 +99,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     /**
      * Set whether the XContent should be keyed
      */
-    public PercentilesBucketPipelineAggregationBuilder keyed(boolean keyed) {
+    public PercentilesBucketPipelineAggregationBuilder setKeyed(boolean keyed) {
         this.keyed = keyed;
         return this;
     }
@@ -100,7 +107,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     /**
      * Get whether the XContent should be keyed
      */
-    public boolean keyed() {
+    public boolean getKeyed() {
         return keyed;
     }
 
@@ -142,11 +149,11 @@ public class PercentilesBucketPipelineAggregationBuilder
 
             double[] percents = (double[]) params.get(PERCENTS_FIELD.getPreferredName());
             if (percents != null) {
-                factory.percents(percents);
+                factory.setPercents(percents);
             }
             Boolean keyed = (Boolean) params.get(KEYED_FIELD.getPreferredName());
             if (keyed != null) {
-                factory.keyed(keyed);
+                factory.setKeyed(keyed);
             }
 
             return factory;

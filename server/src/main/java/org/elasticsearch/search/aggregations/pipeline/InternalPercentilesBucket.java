@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +40,7 @@ import java.util.Objects;
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
-    private final boolean keyed;
+    private boolean keyed = true;
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
@@ -71,7 +72,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
-        keyed = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            keyed = in.readBoolean();
+        }
+
         computeLookup();
     }
 
@@ -80,7 +85,10 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
-        out.writeBoolean(keyed);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(keyed);
+        }
     }
 
     @Override

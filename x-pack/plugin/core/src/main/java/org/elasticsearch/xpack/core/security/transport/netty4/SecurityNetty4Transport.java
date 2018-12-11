@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -61,11 +61,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final Version version,
             final ThreadPool threadPool,
             final NetworkService networkService,
-            final BigArrays bigArrays,
+            final PageCacheRecycler pageCacheRecycler,
             final NamedWriteableRegistry namedWriteableRegistry,
             final CircuitBreakerService circuitBreakerService,
             final SSLService sslService) {
-        super(settings, version, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {

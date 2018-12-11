@@ -138,4 +138,31 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
     }
 
+    public void testManageIlmPrivilege() {
+        {
+            Predicate<String> predicate = ClusterPrivilege.READ_ILM.predicate();
+            // check cluster actions
+            assertThat(predicate.test("cluster:admin/ilm/delete"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/put"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/start"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/stop"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/brand_new_api"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/get"), is(true));
+            assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
+            // check non-ilm action
+            assertThat(predicate.test("cluster:admin/whatever"), is(false));
+        }
+
+        {
+            Predicate<String> predicate = IndexPrivilege.VIEW_METADATA.predicate();
+            // check indices actions
+            assertThat(predicate.test("indices:admin/ilm/retry"), is(false));
+            assertThat(predicate.test("indices:admin/ilm/remove_policy"), is(false));
+            assertThat(predicate.test("indices:admin/ilm/brand_new_api"), is(false));
+            assertThat(predicate.test("indices:admin/ilm/explain"), is(true));
+            // check non-ilm action
+            assertThat(predicate.test("indices:admin/whatever"), is(false));
+        }
+    }
 }

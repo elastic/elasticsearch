@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.action.support.IndicesOptions;
@@ -17,11 +18,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
 public class RestGetRollupIndexCapsAction extends BaseRestHandler {
+
     public static final ParseField INDEX = new ParseField("index");
 
     public RestGetRollupIndexCapsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_xpack/rollup/data", this);
+        controller.registerHandler(RestRequest.Method.GET, "/{index}/_rollup/data", this);
     }
 
     @Override
@@ -37,4 +40,5 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
     public String getName() {
         return "rollup_get_caps_action";
     }
+
 }

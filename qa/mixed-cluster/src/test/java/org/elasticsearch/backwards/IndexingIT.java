@@ -45,7 +45,7 @@ public class IndexingIT extends ESRestTestCase {
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
-            Request request = new Request("PUT", index + "/test/" + id);
+            Request request = new Request("PUT", index + "/_doc/" + id);
             request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
             assertOK(client().performRequest(request));
         }
@@ -284,7 +284,7 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private void assertVersion(final String index, final int docId, final String preference, final int expectedVersion) throws IOException {
-        Request request = new Request("GET", index + "/test/" + docId);
+        Request request = new Request("GET", index + "/_doc/" + docId);
         request.addParameter("preference", preference);
         final Response response = client().performRequest(request);
         assertOK(response);

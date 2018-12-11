@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
 
 public class TimeValueScheduleTests extends ESTestCase {
+
+    private long start;
+    private TimeValue interval;
 
     public TimeValueSchedule createRandomInstance() {
         return new TimeValueSchedule(createRandomTimeValue());
@@ -22,7 +26,15 @@ public class TimeValueScheduleTests extends ESTestCase {
         return new TimeValue(randomLongBetween(1, 10000), randomFrom(TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS));
     }
 
-    public void testHascodeAndEquals() {
+    @Before
+    public void setUpStartAndInterval() {
+        // start with random epoch between 1/1/1970 and 31/12/2035 so that start is not
+        // so large such that (start + interval) > Long.MAX
+        start = randomLongBetween(0, 2082672000000L);
+        interval = createRandomTimeValue();
+    }
+
+    public void testHashcodeAndEquals() {
         for (int i = 0; i < 20; i++) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
                     instance -> new TimeValueSchedule(instance.getInterval()),
@@ -31,8 +43,6 @@ public class TimeValueScheduleTests extends ESTestCase {
     }
 
     public void testNextScheduledTimeFirstTriggerNotReached() {
-        long start = randomNonNegativeLong();
-        TimeValue interval = createRandomTimeValue();
         long triggerTime = start + interval.millis();
         long now = start + randomLongBetween(0, interval.millis() - 1);
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
@@ -40,8 +50,6 @@ public class TimeValueScheduleTests extends ESTestCase {
     }
 
     public void testNextScheduledTimeAtFirstInterval() {
-        long start = randomNonNegativeLong();
-        TimeValue interval = createRandomTimeValue();
         long triggerTime = start + 2 * interval.millis();
         long now = start + interval.millis();
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
@@ -49,16 +57,12 @@ public class TimeValueScheduleTests extends ESTestCase {
     }
 
     public void testNextScheduledTimeAtStartTime() {
-        long start = randomNonNegativeLong();
-        TimeValue interval = createRandomTimeValue();
         long triggerTime = start + interval.millis();
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
         assertEquals(triggerTime, schedule.nextScheduledTimeAfter(start, start));
     }
 
     public void testNextScheduledTimeAfterFirstTrigger() {
-        long start = randomNonNegativeLong();
-        TimeValue interval = createRandomTimeValue();
         long numberIntervalsPassed = randomLongBetween(0, 10000);
         long triggerTime = start + (numberIntervalsPassed + 1) * interval.millis();
         long now = start

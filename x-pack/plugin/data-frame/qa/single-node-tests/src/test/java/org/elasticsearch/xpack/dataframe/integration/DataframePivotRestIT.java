@@ -118,7 +118,8 @@ public class DataframePivotRestIT extends ESRestTestCase {
     public static void removeIndices() throws Exception {
         wipeDataFrameJobs();
         waitForPendingDataFrameTasks();
-        // we disabled wiping indices, but now its time to get rid of them, can not use cleanUpCluster as this method must be static
+        // we disabled wiping indices, but now its time to get rid of them
+        // note: can not use super.cleanUpCluster() as this method must be static
         wipeIndices();
     }
 

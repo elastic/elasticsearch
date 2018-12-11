@@ -36,5 +36,3 @@ task absurd(type: ThirdPartyAuditTask) {
     targetCompatibility = JavaVersion.VERSION_11
     signatureFile = file('third-party-audit-absurd.txt')
 }
-
-// ---------------- SETUP ----------------

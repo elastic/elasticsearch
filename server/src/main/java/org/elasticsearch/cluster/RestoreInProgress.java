@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.Version;
@@ -33,7 +34,6 @@ import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -51,7 +51,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     public static final String TYPE = "restore";
 
-    private final List<Entry> entries;
+    private final ImmutableOpenMap<String, Entry> entries;
 
     /**
      * Constructs new restore metadata
@@ -59,7 +59,15 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      * @param entries list of currently running restore processes
      */
     public RestoreInProgress(Entry... entries) {
-        this.entries = Arrays.asList(entries);
+        this.entries = collectEntryMap(entries);
+    }
+
+    private static ImmutableOpenMap<String, Entry> collectEntryMap(Entry ... entries) {
+        ImmutableOpenMap.Builder<String, Entry> entryBuilder = ImmutableOpenMap.builder();
+        for (final Entry entry : entries) {
+            entryBuilder.put(entry.uuid(), entry);
+        }
+        return entryBuilder.build();
     }
 
     /**
@@ -67,7 +75,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      *
      * @return list of currently running restore processes
      */
-    public List<Entry> entries() {
+    public ImmutableOpenMap<String, Entry> entries() {
         return this.entries;
     }
 
@@ -90,14 +98,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder("RestoreInProgress[");
-        for (int i = 0; i < entries.size(); i++) {
-            builder.append(entries.get(i).snapshot().getSnapshotId().getName());
-            if (i + 1 < entries.size()) {
-                builder.append(",");
-            }
-        }
-        return builder.append("]").toString();
+        return new StringBuilder("RestoreInProgress[").append(entries).append("]").toString();
     }
 
     /**
@@ -437,7 +438,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
             entries[i] = new Entry(snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build(), uuid);
         }
-        this.entries = Arrays.asList(entries);
+        this.entries = collectEntryMap(entries);
     }
 
     /**
@@ -446,7 +447,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(entries.size());
-        for (Entry entry : entries) {
+        for (ObjectCursor<Entry> entryValue : entries.values()) {
+            Entry entry = entryValue.value;
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
@@ -470,8 +472,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("snapshots");
-        for (Entry entry : entries) {
-            toXContent(entry, builder, params);
+        for (final ObjectCursor<Entry> entry : entries.values()) {
+            toXContent(entry.value, builder, params);
         }
         builder.endArray();
         return builder;

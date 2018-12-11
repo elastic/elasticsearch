@@ -499,6 +499,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
             for (RecoveryState recoveryState : recoveryStates) {
                 SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+                    ((SnapshotRecoverySource)recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
                     Version.CURRENT, INDEX_NAME);
                 assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA);

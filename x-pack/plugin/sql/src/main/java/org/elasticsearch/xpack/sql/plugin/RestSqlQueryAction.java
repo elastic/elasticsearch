@@ -54,7 +54,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
             throws IOException {
         SqlQueryRequest sqlRequest;
-        try (XContentParser parser = request.contentParser()) {
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
         

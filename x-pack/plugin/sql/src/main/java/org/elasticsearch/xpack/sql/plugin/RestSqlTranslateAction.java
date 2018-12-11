@@ -46,7 +46,7 @@ public class RestSqlTranslateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
             throws IOException {
         SqlTranslateRequest sqlRequest;
-        try (XContentParser parser = request.contentParser()) {
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlTranslateRequest.fromXContent(parser);
         }
         

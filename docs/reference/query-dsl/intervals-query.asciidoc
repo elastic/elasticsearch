@@ -1,4 +1,4 @@
-[[intervals-query]]
+[[query-dsl-intervals-query]]
 === Intervals query
 
 An `intervals` query allows fine-grained control over the order and proximity of
@@ -31,14 +31,14 @@ POST _search
               }
             },
             {
-              "or" : {
+              "any_of" : {
                 "intervals" : [
                   { "match" : { "query" : "hot water" } },
                   { "match" : { "query" : "cold porridge" } }
                 ]
               }
             }
-          ],
+          ]
         },
         "boost" : 2.0,
         "_name" : "favourite_food"

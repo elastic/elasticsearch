@@ -206,18 +206,23 @@ discovered` which describes the current state of the discovery module.
 [[modules-discovery-bootstrap-cluster]]
 === Bootstrapping a cluster
 
-Starting an Elasticsearch cluster for the very first time requires a cluster
-bootstrapping step.
+Starting an Elasticsearch cluster for the very first time requires the initial
+set of master-eligible nodes to be explicitly set on one or more of the
+master-eligible nodes in the cluster using this setting:
 
-The simplest way to bootstrap a cluster is by specifying the node names or
-transport addresses of at least a non-empty subset of the master-eligible nodes
-before start-up. The node setting `cluster.initial_master_nodes`, which takes a
-list of node names or transport addresses, can be either specified on the
-command line when starting up the nodes, or be added to the node configuration
-file `elasticsearch.yml`.
+`cluster.initial_master_nodes`::
 
-For a cluster with 3 master-eligible nodes (named master-a, master-b, and
-master-c) the configuration will look as follows:
+    Sets a list of the node names or transport addresses of the initial set of
+    master-eligible nodes in a brand-new cluster. By default this list is
+    empty, meaning that this node expects to join a cluster that has already
+    been bootstrapped.
+
+This setting can be given on the command line when starting up each node, or
+added to the `elasticsearch.yml` configuration file. Once the cluster has
+formed this setting is no longer required and should be removed.
+
+For a cluster with 3 master-eligible nodes (named `master-a`, `master-b` and
+`master-c`) the configuration will look as follows:
 
 [source,yaml]
 --------------------------------------------------
@@ -227,21 +232,18 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-TODO provide another example with ip addresses (+ possibly port)
+Alternatively the IP addresses or hostnames of the nodes can be used. If there
+is more than one Elasticsearch node with the same IP address or hostname then
+the transport ports must also be given
 
-Note that if you have not explicitly configured a node name, this name defaults
-to the host name, so using the host names will work as well.  While it is
-sufficient to set this on a single master-eligible node in the cluster, and only
-mention a single master-eligible node, using multiple nodes for bootstrapping
-allows the bootstrap process to go through even if not all nodes are available.
-In any case, when specifying the list of initial master nodes, **it is vitally
-important** to configure each node with exactly the same list of nodes, to
-prevent two independent clusters from forming. Typically you will set this on
-the nodes that are mentioned in the list of initial master nodes.
-
-WARNING: You must put exactly the same set of initial master nodes in each
-  configuration file in order to be sure that only a single cluster forms during
-  bootstrapping and therefore to avoid the risk of data loss.
+[source,yaml]
+--------------------------------------------------
+cluster.initial_master_nodes:
+  - 10.0.10.101
+  - 10.0.10.102:9300
+  - 10.0.10.102:9301
+  - master-node-hostname
+--------------------------------------------------
 
 It is also possible to set the initial set of master nodes on the command-line
 used to start Elasticsearch:
@@ -251,8 +253,22 @@ used to start Elasticsearch:
 $ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
 
-Just as with the config file, this additional command-line parameter can be
-removed once a cluster has successfully formed.
+It is technically sufficient to set this on a single master-eligible node in
+the cluster, and only to mention a single master-eligible node, but this does
+not allow for this single node to fail before the cluster has fully formed. It
+is therefore better to bootstrap using multiple master-eligible-nodes. In any
+case, when specifying the list of initial master nodes, **it is vitally
+important** to configure each node with exactly the same list of nodes, to
+prevent two independent clusters from forming. Typically you will set this on
+the nodes that are mentioned in the list of initial master nodes.
+
+NOTE: In alpha releases, all listed master-eligible nodes are required to be
+  discovered before bootstrapping can take place. This requirement will be
+  relaxed in production-ready releases.
+
+WARNING: You must put exactly the same set of initial master nodes in each
+  configuration file in order to be sure that only a single cluster forms during
+  bootstrapping and therefore to avoid the risk of data loss.
 
 [float]
 ==== Choosing a cluster name

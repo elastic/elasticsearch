@@ -116,7 +116,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                         .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                         .setPreference(preference)
                         .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo")))
-                        .execute().actionGet();
+                        .get();
                 assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()),
                         searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
                 final int hitCount = searchResponse.getHits().getHits().length;
@@ -262,7 +262,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setExplain(true)
                 .get();
         assertNoFailures(resp);
-        assertEquals(1, resp.getHits().getTotalHits());
+        assertEquals(1, resp.getHits().getTotalHits().value);
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
     }
@@ -275,13 +275,13 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
                 .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits());
+        assertEquals(0, resp.getHits().getTotalHits().value);
 
         resp = client().prepareSearch("test")
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
                 .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits());
+        assertEquals(0, resp.getHits().getTotalHits().value);
     }
 
     public void testScoreRange() throws Exception {
@@ -300,7 +300,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
                     .setSize(docCount)
-                    .execute().actionGet();
+                    .get();
 
             assertNoFailures(searchResponse);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -321,18 +321,18 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomInt()).setField(SeqNoFieldMapper.NAME)))
-                .execute().actionGet());
+                .get());
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomLong()).setField(SeqNoFieldMapper.NAME)))
-                .execute().actionGet());
+                .get());
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()
                         .seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)))
-                .execute().actionGet());
+                .get());
     }
 
     public void checkDistribution() throws Exception {
@@ -354,7 +354,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
-                    .execute().actionGet();
+                    .get();
 
             matrix[Integer.valueOf(searchResponse.getHits().getAt(0).getId())]++;
         }

@@ -1508,19 +1508,19 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
                 topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);
+                assertEquals(topHits.getHits().getTotalHits().value, 1L);
             }
         );
 
@@ -1538,13 +1538,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);
+                assertEquals(topHits.getHits().getTotalHits().value, 1L);
             }
         );
     }
@@ -1835,6 +1835,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(dateTime).getMillis();
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(dateTime).getMillis();
     }
 }

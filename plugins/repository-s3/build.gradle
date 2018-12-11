@@ -74,6 +74,7 @@ task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
+project.check.dependsOn(testRepositoryCreds)
 
 test {
   // these are tested explicitly in separate test tasks
@@ -106,19 +107,11 @@ String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3EC2Bucket && !s3EC2BasePath
-        && !s3ECSBucket && !s3ECSBasePath) {
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
   s3PermanentBasePath = 'integration_test'
-
-  s3EC2Bucket = 'ec2-bucket-test'
-  s3EC2BasePath = 'integration_test'
-
-  s3ECSBucket = 'ecs-bucket-test'
-  s3ECSBasePath = 'integration_test'
 
   useFixture = true
 
@@ -136,6 +129,16 @@ if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3T
 } else if (!s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
 }
+
+if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
+  s3EC2Bucket = 'ec2-bucket-test'
+  s3EC2BasePath = 'integration_test'
+  s3ECSBucket = 'ecs-bucket-test'
+  s3ECSBasePath = 'integration_test'
+} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
+}
+
 
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
 final String minioBinDir = "${buildDir}/minio/bin"

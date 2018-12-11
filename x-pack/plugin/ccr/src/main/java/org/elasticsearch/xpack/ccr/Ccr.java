@@ -10,7 +10,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -113,6 +112,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
+    private Client client;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -147,11 +147,12 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
+        this.client = client;
         if (enabled == false) {
             return emptyList();
         }
 
-        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, (NodeClient) client));
+        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, client));
 
         return Arrays.asList(
             ccrLicenseChecker,
@@ -276,7 +277,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, settings);
+        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings);
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 

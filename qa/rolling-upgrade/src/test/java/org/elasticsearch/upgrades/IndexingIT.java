@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -157,6 +158,7 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     private void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+        searchTestIndexRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":" + count + "}}",

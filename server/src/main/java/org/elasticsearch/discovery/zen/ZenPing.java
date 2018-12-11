@@ -46,6 +46,12 @@ public interface ZenPing extends Releasable {
 
     class PingResponse implements Writeable {
 
+        /**
+         * An ID of a ping response that was generated on behalf of another node. Needs to be less than all other ping IDs so that fake ping
+         * responses don't override real ones.
+         */
+        public static long FAKE_PING_ID = -1;
+
         private static final AtomicLong idGenerator = new AtomicLong();
 
         // an always increasing unique identifier for this ping response.
@@ -67,8 +73,20 @@ public interface ZenPing extends Releasable {
          * @param clusterStateVersion the current cluster state version of that node
          *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
-        PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
-            this.id = idGenerator.incrementAndGet();
+        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+            this(idGenerator.incrementAndGet(), node, master, clusterName, clusterStateVersion);
+        }
+
+        /**
+         * @param id                  the ping's ID
+         * @param node                the node which this ping describes
+         * @param master              the current master of the node
+         * @param clusterName         the cluster name of the node
+         * @param clusterStateVersion the current cluster state version of that node
+*                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
+         */
+        public PingResponse(long id, DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+            this.id = id;
             this.node = node;
             this.master = master;
             this.clusterName = clusterName;

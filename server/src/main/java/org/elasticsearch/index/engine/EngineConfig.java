@@ -109,7 +109,7 @@ public final class EngineConfig {
      * The default is <code>true</code>
      */
     public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
-        Property.IndexScope, Property.Dynamic);
+        Property.IndexScope, Property.Dynamic, Property.Deprecated);
 
     private final TranslogConfig translogConfig;
 

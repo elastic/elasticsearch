@@ -40,14 +40,18 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
         action = new RestUpdateByQueryAction(Settings.EMPTY, controller());
     }
 
-    public void testTypeInPath() {
+    public void testTypeInPath() throws IOException  {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_update_by_query")
             .build();
         dispatchRequest(request);
+
         // checks the type in the URL is propagated correctly to the request object
-        assertEquals("some_type", request.param("type"));
+        // only works after the request is dispatched, so its params are filled from url.
+        UpdateByQueryRequest ubqRequest = action.buildRequest(request);
+        assertArrayEquals(new String[]{"some_type"}, ubqRequest.getDocTypes());
+
         // RestUpdateByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request
         assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);

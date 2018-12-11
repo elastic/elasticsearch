@@ -82,7 +82,7 @@ public class DataframePivotRestIT extends ESRestTestCase {
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             bulk.append("{\"index\":{\"_index\":\"reviews\",\"_type\":\"_doc\"}}\n");
-            long user = Math.round(Math.pow(i * 31, distributionTable[i % distributionTable.length]) % 27);
+            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
             bulk.append("{\"user_id\":\"")
@@ -161,11 +161,11 @@ public class DataframePivotRestIT extends ESRestTestCase {
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
         // get and check some users
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.923728813);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.428571428);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.36);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.666666666);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 4.3);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
     private void waitForDataFrameGeneration(String jobId) throws Exception {
@@ -191,7 +191,7 @@ public class DataframePivotRestIT extends ESRestTestCase {
 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         double actual = (double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
-        assertEquals(actual, expected, 0.000001);
+        assertEquals(expected, actual, 0.000001);
     }
 
     private static void wipeDataFrameJobs() throws IOException, InterruptedException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -30,11 +31,11 @@ public class JodaTests extends ESTestCase {
 
 
     public void testBasicTTimePattern() {
-        FormatDateTimeFormatter formatter1 = Joda.forPattern("basic_t_time");
+        DateFormatter formatter1 = Joda.forPattern("basic_t_time");
         assertEquals(formatter1.pattern(), "basic_t_time");
         assertEquals(formatter1.zone(), ZoneOffset.UTC);
 
-        FormatDateTimeFormatter formatter2 = Joda.forPattern("basicTTime");
+        DateFormatter formatter2 = Joda.forPattern("basicTTime");
         assertEquals(formatter2.pattern(), "basicTTime");
         assertEquals(formatter2.zone(), ZoneOffset.UTC);
 

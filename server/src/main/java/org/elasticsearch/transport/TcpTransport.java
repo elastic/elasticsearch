@@ -59,6 +59,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -179,6 +180,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final Version version;
     protected final ThreadPool threadPool;
     protected final BigArrays bigArrays;
+    protected final PageCacheRecycler pageCacheRecycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
@@ -206,15 +208,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, BigArrays bigArrays,
-                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                        NetworkService networkService) {
+    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool,
+                        PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
+                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         super(settings);
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
-        this.bigArrays = bigArrays;
+        this.bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
+        this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);

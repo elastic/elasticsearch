@@ -19,7 +19,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +43,6 @@ import java.util.Objects;
  */
 public class RestoreInfo implements ToXContentObject, Streamable {
 
-    @Nullable
     private String uuid;
 
     private String name;

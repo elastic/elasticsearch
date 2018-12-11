@@ -219,6 +219,7 @@ public class RestoreService implements ClusterStateApplier {
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
             clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
+                String uuid = UUIDs.randomBase64UUID();
                 RestoreInfo restoreInfo = null;
 
                 @Override
@@ -334,7 +335,7 @@ public class RestoreService implements ClusterStateApplier {
                         RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(
                             snapshot, overallState(RestoreInProgress.State.INIT, shards),
                             Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
-                            shards, UUIDs.randomBase64UUID()
+                            shards, uuid
                         );
                         final List<RestoreInProgress.Entry> newEntries;
                         if (restoreInProgress != null) {
@@ -376,9 +377,8 @@ public class RestoreService implements ClusterStateApplier {
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        // TODO: Correct UUID?
                         restoreInfo = new RestoreInfo(
-                                                      UUIDs.randomBase64UUID(),
+                                                      uuid,
                                                       snapshotId.getName(),
                                                       Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
                                                       shards.size(),
@@ -501,7 +501,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new RestoreCompletionResponse(snapshot, restoreInfo));
+                    listener.onResponse(new RestoreCompletionResponse(uuid, snapshot, restoreInfo));
                 }
             });
 
@@ -542,12 +542,18 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     public static final class RestoreCompletionResponse {
+        private final String uuid;
         private final Snapshot snapshot;
         private final RestoreInfo restoreInfo;
 
-        private RestoreCompletionResponse(final Snapshot snapshot, final RestoreInfo restoreInfo) {
+        private RestoreCompletionResponse(final String uuid, final Snapshot snapshot, final RestoreInfo restoreInfo) {
+            this.uuid = uuid;
             this.snapshot = snapshot;
             this.restoreInfo = restoreInfo;
+        }
+
+        public String getUuid() {
+            return uuid;
         }
 
         public Snapshot getSnapshot() {
@@ -653,11 +659,11 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
-    public static RestoreInProgress.Entry restoreInProgress(ClusterState state, Snapshot snapshot) {
+    public static RestoreInProgress.Entry restoreInProgress(ClusterState state, String uuid) {
         final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
             for (RestoreInProgress.Entry e : restoreInProgress.entries()) {
-                if (e.snapshot().equals(snapshot)) {
+                if (e.uuid().equals(uuid)) {
                     return e;
                 }
             }
@@ -668,15 +674,15 @@ public class RestoreService implements ClusterStateApplier {
     static class CleanRestoreStateTaskExecutor implements ClusterStateTaskExecutor<CleanRestoreStateTaskExecutor.Task>, ClusterStateTaskListener {
 
         static class Task {
-            final Snapshot snapshot;
+            final String uuid;
 
-            Task(Snapshot snapshot) {
-                this.snapshot = snapshot;
+            Task(String uuid) {
+                this.uuid = uuid;
             }
 
             @Override
             public String toString() {
-                return "clean restore state for restoring snapshot " + snapshot;
+                return "clean restore state for restore " + uuid;
             }
         }
 
@@ -689,13 +695,13 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
             final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-            Set<Snapshot> completedSnapshots = tasks.stream().map(e -> e.snapshot).collect(Collectors.toSet());
+            Set<String> completedSnapshots = tasks.stream().map(e -> e.uuid).collect(Collectors.toSet());
             final List<RestoreInProgress.Entry> entries = new ArrayList<>();
             final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
             boolean changed = false;
             if (restoreInProgress != null) {
                 for (RestoreInProgress.Entry entry : restoreInProgress.entries()) {
-                    if (completedSnapshots.contains(entry.snapshot()) == false) {
+                    if (completedSnapshots.contains(entry.uuid()) == false) {
                         entries.add(entry);
                     } else {
                         changed = true;
@@ -734,7 +740,7 @@ public class RestoreService implements ClusterStateApplier {
                     assert completed(entry.shards()) : "state says completed but restore entries are not";
                     clusterService.submitStateUpdateTask(
                         "clean up snapshot restore state",
-                        new CleanRestoreStateTaskExecutor.Task(entry.snapshot()),
+                        new CleanRestoreStateTaskExecutor.Task(entry.uuid()),
                         ClusterStateTaskConfig.build(Priority.URGENT),
                         cleanRestoreStateTaskExecutor,
                         cleanRestoreStateTaskExecutor);

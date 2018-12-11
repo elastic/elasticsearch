@@ -369,6 +369,11 @@ seven-master-node cluster down to only have three master nodes, you could add
 four nodes to the exclusions list, wait for confirmation, and then shut them
 down simultaneously.
 
+NOTE: Voting exclusions are only required when removing at least half of the
+master-eligible nodes from a cluster in a short time period. They are not
+required when removing master-ineligible nodes, nor are they required when
+removing fewer than half of the master-eligible nodes.
+
 Adding an exclusion for a node creates an entry for that node in the voting
 configuration exclusions list, which has the system automatically try to
 reconfigure the voting configuration to remove that node and prevents it from

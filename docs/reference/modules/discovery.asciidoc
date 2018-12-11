@@ -273,9 +273,12 @@ WARNING: You must put exactly the same set of initial master nodes in each
 [float]
 ==== Choosing a cluster name
 
-The `cluster.name` allows to create separated clusters from one another.  The
-default value for the cluster name is `elasticsearch`, though it is recommended
-to change this to reflect the logical group name of the cluster running.
+The `cluster.name` allows you to create multiple clusters which are separated
+from each other.  Nodes verify that they agree on their cluster name when they
+first connect to each other, and if two nodes have different cluster names then
+they will not communicate meaningfully and will not belong to the same cluster.
+The default value for the cluster name is `elasticsearch`, but it is
+recommended to change this to reflect the logical name of the cluster.
 
 [float]
 ==== Auto-bootstrapping in development mode

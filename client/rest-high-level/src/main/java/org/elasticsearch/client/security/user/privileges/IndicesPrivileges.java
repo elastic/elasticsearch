@@ -141,7 +141,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
-        if (isUsingFieldLevelSecurity()) {
+        if (fieldSecurity != null) {
             builder.field(FIELD_PERMISSIONS.getPreferredName(), fieldSecurity, params);
         }
         if (isUsingDocumentLevelSecurity()) {

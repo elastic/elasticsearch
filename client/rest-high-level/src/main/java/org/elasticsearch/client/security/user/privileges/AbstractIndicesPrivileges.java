@@ -156,7 +156,10 @@ public abstract class AbstractIndicesPrivileges {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (grantedFields != null) {
+            if (grantedFields == null) {
+                // The role parser will reject a field_security object that doesn't have a "granted" field
+                builder.field(GRANT_FIELDS.getPreferredName(), Collections.singletonList("*"));
+            } else {
                 builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
             }
             if (deniedFields != null) {

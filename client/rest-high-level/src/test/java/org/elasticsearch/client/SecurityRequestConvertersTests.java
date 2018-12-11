@@ -390,7 +390,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final PutRoleRequest putRoleRequest = new PutRoleRequest(role, refreshPolicy);
         final Request request = SecurityRequestConverters.putRole(putRoleRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/role/" + roleName, request.getEndpoint());
+        assertEquals("/_security/role/" + roleName, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putRoleRequest, request.getEntity());
     }

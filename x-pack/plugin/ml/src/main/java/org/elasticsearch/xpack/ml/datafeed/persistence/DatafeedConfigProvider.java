@@ -87,6 +87,13 @@ public class DatafeedConfigProvider {
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
 
+    /**
+     * In most cases we expect 10s or 100s of datafeeds to be defined and
+     * a search for all datafeeds should return all.
+     * TODO this is a temporary fix
+     */
+    public int searchSize = 1000;
+
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.xContentRegistry = xContentRegistry;
@@ -408,7 +415,9 @@ public class DatafeedConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
 

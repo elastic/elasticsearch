@@ -79,14 +79,7 @@ class JavaDateFormatter implements DateFormatter {
             try {
                 return parsers[i].parse(input);
             } catch (DateTimeParseException e) {
-                String msg = "could not parse input [" + input + "] with date formatter [" + format + "]";
-                if (locale().equals(Locale.ROOT) == false) {
-                    msg += " and locale [" + locale() + "]";
-                }
-                if (e.getErrorIndex() > 0) {
-                    msg += "at position [" + e.getErrorIndex() + "]";
-                }
-                msg += ": " + e.getMessage();
+                String msg = createExceptionMessage(input, e);
                 if (failure == null) {
                     failure = new ElasticsearchParseException(msg);
                 }
@@ -96,6 +89,19 @@ class JavaDateFormatter implements DateFormatter {
 
         // ensure that all parsers exceptions are returned instead of only the last one
         throw failure;
+    }
+
+    private String createExceptionMessage(final String input ,final DateTimeParseException e) {
+        String msg = "could not parse input [" + input + "] with date formatter [" + format + "]";
+        if (locale().equals(Locale.ROOT) == false) {
+            msg += " and locale [" + locale() + "]";
+        }
+        if (e.getErrorIndex() > 0) {
+            msg += "at position [" + e.getErrorIndex() + "]";
+        }
+        msg += ": " + e.getMessage();
+
+        return msg;
     }
 
     @Override

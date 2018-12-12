@@ -98,8 +98,10 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
   Integer dateTimeChrono(Object, String, String)
   String  dayName(Object, String)
+  Integer dayOfWeek(Object, String)
   String  monthName(Object, String)
   Integer quarter(Object, String)
+  Integer weekOfYear(Object, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)

@@ -204,7 +204,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final TransportLogger transportLogger;
-    private final TcpTransportHandshaker handshaker;
+    private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
@@ -224,12 +224,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
-        this.handshaker = new TcpTransportHandshaker(version, threadPool,
+        this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
-                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
-                TransportStatus.setHandshake((byte) 0)),
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
+                TransportRequestOptions.EMPTY, v, TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
-                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
         this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
@@ -1287,7 +1287,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
-                handshaker.handleHandshake(version, features, channel, requestId);
+                handshaker.handleHandshake(version, features, channel, requestId, stream);
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {

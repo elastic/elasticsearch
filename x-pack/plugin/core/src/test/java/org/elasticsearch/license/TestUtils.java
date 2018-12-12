@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -48,7 +47,7 @@ import static org.junit.Assert.assertThat;
 
 public class TestUtils {
 
-    private static final DateFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private static final DateFormatter formatDateTimeFormatter = DateFormatter.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dateMathString(String time, final long now) {

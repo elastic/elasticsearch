@@ -6,7 +6,6 @@
 package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +35,7 @@ public class TestUtils {
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
     private static final DateFormatter formatDateTimeFormatter =
-            Joda.forPattern("yyyy-MM-dd");
+            DateFormatter.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dumpLicense(License license) throws Exception {

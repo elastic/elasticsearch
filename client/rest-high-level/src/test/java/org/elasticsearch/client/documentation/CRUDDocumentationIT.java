@@ -373,7 +373,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::update-response
             String index = updateResponse.getIndex();
-            String type = updateResponse.getType();
             String id = updateResponse.getId();
             long version = updateResponse.getVersion();
             if (updateResponse.getResult() == DocWriteResponse.Result.CREATED) {

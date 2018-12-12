@@ -40,5 +40,11 @@ public class RestUpdateActionTests extends RestActionTestCase {
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE);
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(Method.POST)
+            .withPath("/some_index/_update/some_id")
+            .build();
+        dispatchRequest(validRequest);
     }
 }

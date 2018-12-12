@@ -57,7 +57,7 @@ public final class TimeUtils {
 
         try {
             return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
-        } catch (ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException | IllegalArgumentException e) {
         }
         // Could not do the conversion
         return -1;

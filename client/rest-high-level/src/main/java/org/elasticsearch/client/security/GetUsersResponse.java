@@ -120,8 +120,8 @@ public class GetUsersResponse {
         protected User user;
         protected boolean enabled;
 
-        public ParsedUser(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled, @Nullable String fullName,
-                    @Nullable String email) {
+        public ParsedUser(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled,
+                          @Nullable String fullName, @Nullable String email) {
             String checkedUsername = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
             Collection<String> checkedRoles = Collections.unmodifiableSet(new HashSet<>(
                 Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));

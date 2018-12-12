@@ -195,7 +195,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    private final boolean compressResponses;
+    private final boolean compressAllResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -220,7 +220,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
+        this.compressAllResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
@@ -229,7 +229,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
                 TransportRequestOptions.EMPTY, v, false, TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
-                TransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, false, TransportStatus.setHandshake((byte) 0)));
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, false, TransportStatus.setHandshake((byte) 0)));
         this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
@@ -867,9 +867,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final TransportResponse response,
         final long requestId,
         final String action,
-        final TransportResponseOptions options,
         final boolean compress) throws IOException {
-        sendResponse(nodeVersion, features, channel, response, requestId, action, options, compress, (byte) 0);
+        sendResponse(nodeVersion, features, channel, response, requestId, action, compress, (byte) 0);
     }
 
     private void sendResponse(
@@ -879,10 +878,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final TransportResponse response,
         final long requestId,
         final String action,
-        TransportResponseOptions options,
         boolean compress,
         byte status) throws IOException {
-        boolean compressMessage = compress || compressResponses;
+        boolean compressMessage = compress || compressAllResponses;
 
         status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -897,10 +895,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             stream.setFeatures(features);
             BytesReference message = buildMessage(requestId, status, nodeVersion, response, stream);
 
-            final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
             ReleaseListener releaseListener = new ReleaseListener(stream,
-                () -> messageListener.onResponseSent(requestId, action, response, finalOptions));
+                () -> messageListener.onResponseSent(requestId, action, response));
             internalSendMessage(channel, message, releaseListener);
             addedReleaseListener = true;
         } finally {
@@ -1526,9 +1523,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {
+        public void onResponseSent(long requestId, String action, TransportResponse response) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response, finalOptions);
+                listener.onResponseSent(requestId, action, response);
             }
         }
 

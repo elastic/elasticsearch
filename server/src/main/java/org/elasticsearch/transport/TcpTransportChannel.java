@@ -61,8 +61,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            TransportResponseOptions options = TransportResponseOptions.EMPTY;
-            transport.sendResponse(version, features, channel, response, requestId, action, options, compressResponse);
+            transport.sendResponse(version, features, channel, response, requestId, action, compressResponse);
         } finally {
             release(false);
         }

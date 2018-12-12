@@ -379,6 +379,7 @@ POST /_cluster/voting_config_exclusions/node_name
 POST /_cluster/voting_config_exclusions/node_name?timeout=1m
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:this would break the test cluster if executed]
 
 The node that should be added to the exclusions list is specified using
 <<cluster-nodes,node filters>> in place of `node_name` here. If a call to the

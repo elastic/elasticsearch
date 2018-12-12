@@ -152,7 +152,7 @@ public class DataframePivotRestIT extends ESRestTestCase {
         Map<String, Object> startJobResponse = entityAsMap(client().performRequest(startJobRequest));
         assertThat(startJobResponse.get("started"), equalTo(Boolean.TRUE));
 
-        // wait unit the dataframe has been created and all data is available
+        // wait until the dataframe has been created and all data is available
         waitForDataFrameGeneration(jobId);
         refreshIndex(dataFrameIndex);
 

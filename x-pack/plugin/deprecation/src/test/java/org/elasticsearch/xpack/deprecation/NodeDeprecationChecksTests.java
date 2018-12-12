@@ -68,6 +68,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
     }
 
+    public void testIndexThreadPoolCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Index thread pool removed in favor of combined write thread pool",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#_index_thread_pool",
+            "nodes with index thread pool settings: [node_check]");
+        assertSettingsAndIssue("thread_pool.index.size", Integer.toString(randomIntBetween(1, 20000)), expected);
+        assertSettingsAndIssue("thread_pool.index.queue_size", Integer.toString(randomIntBetween(1, 20000)), expected);
+    }
+
     public void testTribeNodeCheck() {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,

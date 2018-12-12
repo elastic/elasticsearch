@@ -78,7 +78,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (scriptValues == null) {
             final MappedFieldType fieldType = mapperService.fullName(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " +
+                        Arrays.toString(types));
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc

@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 
@@ -29,7 +28,7 @@ public class RestStartRollupJobAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 POST, "/_rollup/job/{id}/_start", this,
-                POST, Rollup.BASE_PATH +  "job/{id}/_start", deprecationLogger);
+                POST, "/_xpack/rollup/job/{id}/_start", deprecationLogger);
     }
 
     @Override

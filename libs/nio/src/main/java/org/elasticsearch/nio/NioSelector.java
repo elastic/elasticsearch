@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
@@ -51,6 +52,7 @@ public class NioSelector implements Closeable {
     private final ConcurrentLinkedQueue<ChannelContext<?>> channelsToRegister = new ConcurrentLinkedQueue<>();
     private final EventHandler eventHandler;
     private final Selector selector;
+    private final ByteBuffer ioBuffer;
 
     private final ReentrantLock runLock = new ReentrantLock();
     private final CountDownLatch exitedLoop = new CountDownLatch(1);
@@ -65,6 +67,18 @@ public class NioSelector implements Closeable {
     public NioSelector(EventHandler eventHandler, Selector selector) {
         this.selector = selector;
         this.eventHandler = eventHandler;
+        this.ioBuffer = ByteBuffer.allocateDirect(1 << 16);
+    }
+
+    /**
+     * Returns a cached direct byte buffer for network operations. It is cleared on every get call.
+     *
+     * @return the byte buffer
+     */
+    public ByteBuffer getIoBuffer() {
+        assertOnSelectorThread();
+        ioBuffer.clear();
+        return ioBuffer;
     }
 
     public Selector rawSelector() {

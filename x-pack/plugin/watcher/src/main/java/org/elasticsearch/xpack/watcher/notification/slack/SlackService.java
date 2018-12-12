@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -32,8 +33,7 @@ public class SlackService extends NotificationService<SlackAccount> {
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE =
-            Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url",
-                    (key) -> SecureSetting.secureString(key, null));
+            Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url", (key) -> SecureSetting.secureString(key, null));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.slack.account.", "message_defaults",
@@ -44,12 +44,13 @@ public class SlackService extends NotificationService<SlackAccount> {
     private final HttpClient httpClient;
 
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("slack", clusterSettings, SlackService.getSettings());
+        super("slack", settings, clusterSettings, SlackService.getDynamicSettings(), SlackService.getSecureSettings());
         this.httpClient = httpClient;
+        // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
-        clusterSettings.addAffixUpdateConsumer(SETTING_URL_SECURE, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
+        // do an initial load
         reload(settings);
     }
 
@@ -58,7 +59,17 @@ public class SlackService extends NotificationService<SlackAccount> {
         return new SlackAccount(name, accountSettings, accountSettings, httpClient, logger);
     }
 
+    private static List<Setting<?>> getDynamicSettings() {
+        return Arrays.asList(SETTING_URL, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
+    }
+
+    private static List<Setting<?>> getSecureSettings() {
+        return Arrays.asList(SETTING_URL_SECURE);
+    }
+
     public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_URL, SETTING_URL_SECURE, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
+        allSettings.addAll(getSecureSettings());
+        return allSettings;
     }
 }

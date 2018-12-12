@@ -15,6 +15,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_scroll
         scroll: 1m
         body:
@@ -30,6 +31,7 @@
   - do:
       catch: missing
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id1
         
   - do:
@@ -54,6 +56,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_scroll
         scroll: 1m
         body:
@@ -70,6 +73,7 @@
   - do:
       catch: missing
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id1
 
   - do:
@@ -94,6 +98,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_scroll
         scroll: 1m
         body:
@@ -110,6 +115,7 @@
   - do:
       catch: missing
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id1
 
   - do:

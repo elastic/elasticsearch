@@ -7,7 +7,7 @@ This can give useful feedback whether a document matches or didn’t match a spe
 [[java-rest-high-explain-request]]
 ==== Explain Request
 
-An `ExplainRequest` expects an `index`, a `type` and an `id` to specify a certain document,
+An `ExplainRequest` expects an `index` and an `id` to specify a certain document,
 and a query represented by `QueryBuilder` to run against it (the way of <<java-rest-high-query-builders, building queries>>).
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -92,15 +92,14 @@ The `ExplainResponse` contains the following information:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-response]
 --------------------------------------------------
 <1> The index name of the explained document.
-<2> The type name of the explained document.
-<3> The id of the explained document.
-<4> Indicates whether or not the explained document exists.
-<5> Indicates whether or not there is a match between the explained document and
+<2> The id of the explained document.
+<3> Indicates whether or not the explained document exists.
+<4> Indicates whether or not there is a match between the explained document and
 the provided query (the `match` is retrieved from the lucene `Explanation` behind the scenes
 if the lucene `Explanation` models a match, it returns `true`, otherwise it returns `false`).
-<6> Indicates whether or not there exists a lucene `Explanation` for this request.
-<7> Get the lucene `Explanation` object if there exists.
-<8> Get the `GetResult` object if the `_source` or the stored fields are retrieved.
+<5> Indicates whether or not there exists a lucene `Explanation` for this request.
+<6> Get the lucene `Explanation` object if there exists.
+<7> Get the `GetResult` object if the `_source` or the stored fields are retrieved.
 
 The `GetResult` contains two maps internally to store the fetched `_source` and stored fields.
 You can use the following methods to get them:

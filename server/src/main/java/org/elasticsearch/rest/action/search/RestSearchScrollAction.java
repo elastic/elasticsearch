@@ -28,12 +28,16 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchScrollAction extends BaseRestHandler {
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HIT_AS_INT_PARAM);
+
     public RestSearchScrollAction(RestController controller) {
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);
@@ -66,5 +70,10 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }});
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

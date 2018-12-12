@@ -26,16 +26,19 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
@@ -192,5 +195,26 @@ public class VersionsTests extends ESTestCase {
         // core should be evicted from the map
         assertEquals(size, VersionsAndSeqNoResolver.lookupStates.size());
         dir.close();
+    }
+
+    public void testLuceneVersionOnUnknownVersions() {
+        List<Version> allVersions = VersionUtils.allVersions();
+
+        // should have the same Lucene version as the latest 6.x version
+        Version version = Version.fromString("6.88.50");
+        assertEquals(allVersions.get(Collections.binarySearch(allVersions, Version.V_7_0_0) - 1).luceneVersion,
+                version.luceneVersion);
+
+        // between two known versions, should use the lucene version of the previous version
+        version = Version.fromString("6.2.50");
+        assertEquals(VersionUtils.getPreviousVersion(Version.V_6_2_4).luceneVersion, version.luceneVersion);
+
+        // too old version, major should be the oldest supported lucene version minus 1
+        version = Version.fromString("5.2.1");
+        assertEquals(Version.V_6_0_0.luceneVersion.major - 1, version.luceneVersion.major);
+
+        // future version, should be the same version as today
+        version = Version.fromString("7.77.1");
+        assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
     }
 }

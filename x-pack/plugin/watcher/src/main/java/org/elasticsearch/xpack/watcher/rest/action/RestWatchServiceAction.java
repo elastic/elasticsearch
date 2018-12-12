@@ -3,8 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -16,14 +19,21 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestWatchServiceAction extends WatcherRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestWatchServiceAction.class));
+
     public RestWatchServiceAction(RestController controller) {
-        controller.registerHandler(POST, URI_BASE + "/_start", this);
-        controller.registerHandler(POST, URI_BASE + "/_stop", new StopRestHandler());
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/_start", this,
+            POST, URI_BASE + "/watcher/_start", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/_stop", new StopRestHandler(),
+            POST, URI_BASE + "/watcher/_stop", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_watcher_start_service_action";
+        return "watcher_start_service";
     }
 
     @Override
@@ -34,7 +44,7 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     private static class StopRestHandler extends WatcherRestHandler {
         @Override
         public String getName() {
-            return "xpack_watcher_stop_service_action";
+            return "watcher_stop_service";
         }
 
         @Override

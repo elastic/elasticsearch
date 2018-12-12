@@ -12,7 +12,7 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 ==== Request
 
-`POST _xpack/ml/datafeeds/<feed_id>/_start`
+`POST _ml/datafeeds/<feed_id>/_start`
 
 ==== Description
 
@@ -95,7 +95,7 @@ The following example starts the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-total-requests/_start
+POST _ml/datafeeds/datafeed-total-requests/_start
 {
   "start": "2017-04-07T18:22:16Z"
 }

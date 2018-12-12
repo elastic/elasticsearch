@@ -344,11 +344,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // query by geohash subfield
         SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash")
             .setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
 
         // query by latlon subfield
         searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
     }
 
 

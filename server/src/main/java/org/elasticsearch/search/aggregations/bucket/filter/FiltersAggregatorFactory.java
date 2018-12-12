@@ -56,7 +56,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
-            this.filters[i] = keyedFilter.filter().toFilter(context.getQueryShardContext());
+            this.filters[i] = keyedFilter.filter().toQuery(context.getQueryShardContext());
         }
     }
 

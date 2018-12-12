@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
 
 public class UserFunctionIT extends ESRestTestCase {
 
@@ -59,11 +61,9 @@ public class UserFunctionIT extends ESRestTestCase {
     private void setUpUsers() throws IOException {
         int usersCount = name.getMethodName().startsWith("testSingle") ? 1 : randomIntBetween(5,  15);
         users = new ArrayList<String>(usersCount);
-        
-        for(int i = 0; i < usersCount; i++) {
-            String randomUserName = randomAlphaOfLengthBetween(1, 15);
-            users.add(randomUserName);
-            createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        users.addAll(randomUnique(() -> randomAlphaOfLengthBetween(1, 15), usersCount));
+        for (String user : users) {
+            createUser(user, MINIMAL_ACCESS_ROLE);
         }
     }
 
@@ -157,7 +157,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private void createUser(String name, String role) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject(); {
             user.field("password", "testpass");
@@ -169,19 +169,16 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private void deleteUser(String name) throws IOException {
-        Request request = new Request("DELETE", "/_xpack/security/user/" + name);
+        Request request = new Request("DELETE", "/_security/user/" + name);
         client().performRequest(request);
     }
     
     private Map<String, Object> runSql(String asUser, String mode, String sql) throws IOException {
-        return runSql(asUser, mode, new StringEntity("{\"query\": \"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        return runSql(asUser, new StringEntity("{\"query\": \"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON));
     }
     
-    private Map<String, Object> runSql(String asUser, String mode, HttpEntity entity) throws IOException {
+    private Map<String, Object> runSql(String asUser, HttpEntity entity) throws IOException {
         Request request = new Request("POST", "/_sql");
-        if (false == mode.isEmpty()) {
-            request.addParameter("mode", mode);
-        }
         if (asUser != null) {
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("es-security-runas-user", asUser);
@@ -203,10 +200,6 @@ public class UserFunctionIT extends ESRestTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    private String randomMode() {
-        return randomFrom("plain", "jdbc", "");
     }
 
     private void index(String... docs) throws IOException {

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -18,19 +20,32 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestGetInfluencersAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestGetInfluencersAction.class));
+
     public RestGetInfluencersAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET,
-                MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers",
+                this,
+            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers",
+                deprecationLogger);
         // endpoints that support body parameters must also accept POST
-        controller.registerHandler(RestRequest.Method.POST,
-                MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers", this);
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers",
+                this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers",
+                deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_get_influencers_action";
+        return "ml_get_influencers_action";
     }
 
     @Override

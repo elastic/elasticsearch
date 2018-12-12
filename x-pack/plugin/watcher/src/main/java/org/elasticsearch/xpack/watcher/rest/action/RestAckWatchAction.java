@@ -3,8 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -29,16 +32,27 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestAckWatchAction extends WatcherRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAckWatchAction.class));
+
     public RestAckWatchAction(RestController controller) {
-        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack", this);
-        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_ack", this);
-        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack/{actions}", this);
-        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_ack/{actions}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/watch/{id}/_ack", this,
+            POST, URI_BASE + "/watcher/watch/{id}/_ack", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_watcher/watch/{id}/_ack", this,
+            PUT, URI_BASE + "/watcher/watch/{id}/_ack", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/watch/{id}/_ack/{actions}", this,
+            POST, URI_BASE + "/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_watcher/watch/{id}/_ack/{actions}", this,
+            PUT, URI_BASE + "/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_watcher_ack_watch_action";
+        return "watcher_ack_watch";
     }
 
     @Override

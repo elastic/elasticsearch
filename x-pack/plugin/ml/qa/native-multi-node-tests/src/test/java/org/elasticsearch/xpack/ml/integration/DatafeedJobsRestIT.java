@@ -56,7 +56,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private void setupDataAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/role/test_data_access");
+        Request request = new Request("PUT", "/_security/role/test_data_access");
         request.setJsonEntity("{"
                 + "  \"indices\" : ["
                 + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"read\"] }"
@@ -66,7 +66,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private void setupFullAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/role/test_data_access");
+        Request request = new Request("PUT", "/_security/role/test_data_access");
         request.setJsonEntity("{"
             + "  \"indices\" : ["
             + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"all\"] }"
@@ -78,7 +78,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     private void setupUser(String user, List<String> roles) throws IOException {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
-        Request request = new Request("PUT", "/_xpack/security/user/" + user);
+        Request request = new Request("PUT", "/_security/user/" + user);
         request.setJsonEntity("{"
                 + "  \"password\" : \"" + password + "\","
                 + "  \"roles\" : [ " + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", ")) + " ]"
@@ -955,7 +955,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"stopped\":true}"));
 
-        client().performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close"));
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
 
         response = client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -992,7 +992,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
 
         expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request("GET", "/_xpack/ml/datafeeds/" + datafeedId)));
+                () -> client().performRequest(new Request("GET", "/_ml/datafeeds/" + datafeedId)));
     }
 
     private class LookbackOnlyTestHelper {

@@ -37,6 +37,7 @@ setup:
 
   - do:
       msearch:
+        rest_total_hits_as_int: true
         body:
           - index: index_*
           - query:
@@ -67,6 +68,7 @@ setup:
 # only passing these parameters to make sure they are consumed
   - do:
       msearch:
+        rest_total_hits_as_int: true
         max_concurrent_shard_requests: 1
         max_concurrent_searches: 1
         body:

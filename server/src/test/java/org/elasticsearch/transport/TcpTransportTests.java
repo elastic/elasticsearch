@@ -21,16 +21,19 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -188,16 +191,16 @@ public class TcpTransportTests extends ESTestCase {
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
-                new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
+                PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(), null, null) {
 
                 @Override
-                protected FakeChannel bind(String name, InetSocketAddress address) throws IOException {
+                protected FakeServerChannel bind(String name, InetSocketAddress address) throws IOException {
                     return null;
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeChannel(messageCaptor);
+                protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+                    return new FakeTcpChannel(true, messageCaptor);
                 }
 
                 @Override
@@ -205,16 +208,17 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+                public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
                     if (compressed)  {
-                        assertTrue(connectionProfile.getCompressionEnabled());
+                        assertTrue(profile.getCompressionEnabled());
                     }
-                    int numConnections = connectionProfile.getNumConnections();
+                    int numConnections = profile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeChannel(messageCaptor));
+                        fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
                     }
-                    return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
+                    listener.onResponse(new NodeChannels(node, fakeChannels, profile, Version.CURRENT));
+                    return () -> CloseableChannel.closeChannels(fakeChannels, false);
                 }
             };
 
@@ -225,7 +229,9 @@ public class TcpTransportTests extends ESTestCase {
             } else {
                 profileBuilder.setCompressionEnabled(false);
             }
-            Transport.Connection connection = transport.openConnection(node, profileBuilder.build());
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            transport.openConnection(node, profileBuilder.build(), future);
+            Transport.Connection connection = future.actionGet();
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
 
             BytesReference reference = messageCaptor.get();
@@ -258,13 +264,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
-
-        private final AtomicReference<BytesReference> messageCaptor;
-
-        FakeChannel(AtomicReference<BytesReference> messageCaptor) {
-            this.messageCaptor = messageCaptor;
-        }
+    private static final class FakeServerChannel implements TcpServerChannel {
 
         @Override
         public void close() {
@@ -280,10 +280,6 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void addConnectListener(ActionListener<Void> listener) {
-        }
-
-        @Override
         public boolean isOpen() {
             return false;
         }
@@ -291,16 +287,6 @@ public class TcpTransportTests extends ESTestCase {
         @Override
         public InetSocketAddress getLocalAddress() {
             return null;
-        }
-
-        @Override
-        public InetSocketAddress getRemoteAddress() {
-            return null;
-        }
-
-        @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            messageCaptor.set(reference);
         }
     }
 

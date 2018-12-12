@@ -138,7 +138,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     if (totalHits > 0) {
                         Aggregations aggregations = searchResponse.getAggregations();
                         Min min = aggregations.get(EARLIEST_TIME);
@@ -257,6 +257,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .start(startTime)
                 .end(endTime)
                 .build();
+        searchSourceBuilder.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));

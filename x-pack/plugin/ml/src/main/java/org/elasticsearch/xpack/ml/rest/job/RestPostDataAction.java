@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -16,19 +18,26 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestPostDataAction extends BaseRestHandler {
 
     private static final String DEFAULT_RESET_START = "";
     private static final String DEFAULT_RESET_END = "";
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestPostDataAction.class));
+
     public RestPostDataAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH
-                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_post_data_action";
+        return "ml_post_data_action";
     }
 
     @Override

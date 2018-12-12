@@ -14,7 +14,7 @@ import java.io.IOException;
 
 public abstract class WatcherRestHandler extends BaseRestHandler {
 
-    protected static String URI_BASE = "_xpack/watcher";
+    protected static String URI_BASE = "/_xpack";
 
     @Override
     public final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {

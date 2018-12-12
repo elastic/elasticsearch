@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -18,17 +20,25 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestUpdateModelSnapshotAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestUpdateModelSnapshotAction.class));
+
     public RestUpdateModelSnapshotAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update",
-                this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_update_model_snapshot_action";
+        return "ml_update_model_snapshot_action";
     }
 
     @Override

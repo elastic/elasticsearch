@@ -2006,7 +2006,29 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testKeepAlivePings() throws Exception {
+        assumeTrue("only tcp transport has keep alive pings", serviceA.getOriginalTransport() instanceof TcpTransport);
+        TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
+
+        ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(TimeValue.timeValueMillis(50))
+            .build();
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (Transport.Connection connection = future.actionGet()) {
+                assertBusy(() -> {
+                    assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30);
+                });
+                assertEquals(0, originalTransport.getKeepAlive().failedPingCount());
+            }
+        }
+    }
+
+    public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -2035,11 +2057,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
-             TcpTransport.NodeChannels connection = originalTransport.openConnection(
-                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 connectionProfile)) {
-            assertEquals(connection.getVersion(), Version.CURRENT);
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (Transport.Connection connection = future.actionGet()) {
+                assertEquals(connection.getVersion(), Version.CURRENT);
+            }
         }
     }
 
@@ -2357,7 +2382,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(50, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2367,7 +2392,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(101, transportStats.getTxSize().getBytes());
+                assertEquals(106, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2375,7 +2400,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
             assertEquals(46, stats.getRxSize().getBytes());
-            assertEquals(101, stats.getTxSize().getBytes());
+            assertEquals(106, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2472,7 +2497,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(50, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2482,7 +2507,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(101, transportStats.getTxSize().getBytes());
+                assertEquals(106, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2497,7 +2522,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // 49 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
             assertEquals(failedMessage, 49 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(101, stats.getTxSize().getBytes());
+            assertEquals(106, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

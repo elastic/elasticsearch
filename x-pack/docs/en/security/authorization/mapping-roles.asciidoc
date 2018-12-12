@@ -92,7 +92,7 @@ user:
 You can use the role-mapping API to define equivalent mappings as follows:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admins
+PUT /_security/role_mapping/admins
 {
   "roles" : [ "monitoring", "user" ],
   "rules" : { "field" : { "groups" : "cn=admins,dc=example,dc=com" } },
@@ -103,7 +103,7 @@ PUT _xpack/security/role_mapping/admins
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_users
+PUT /_security/role_mapping/basic_users
 {
   "roles" : [ "user" ],
   "rules" : { "any" : [
@@ -136,7 +136,7 @@ The following example creates equivalent mappings using the API:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admin_user
+PUT /_security/role_mapping/admin_user
 {
   "roles" : [ "monitoring" ],
   "rules" : { "field" : { "dn" : "cn=Admin,ou=example,o=com" } },
@@ -147,7 +147,7 @@ PUT _xpack/security/role_mapping/admin_user
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_user
+PUT /_security/role_mapping/basic_user
 {
   "roles" : [ "user" ],
   "rules" : { "field" : { "dn" : "cn=John Doe,ou=example,o=com" } },

@@ -15,8 +15,16 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class RestRollupSearchAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            RestSearchAction.TYPED_KEYS_PARAM,
+            RestSearchAction.TOTAL_HIT_AS_INT_PARAM)));
 
     public RestRollupSearchAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "_rollup_search", this);
@@ -36,5 +44,10 @@ public class RestRollupSearchAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "rollup_search_action";
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

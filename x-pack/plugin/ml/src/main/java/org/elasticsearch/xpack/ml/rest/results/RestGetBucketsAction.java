@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,25 +22,42 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestGetBucketsAction extends BaseRestHandler {
 
-    public RestGetBucketsAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET,
-                MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                        + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
-        controller.registerHandler(RestRequest.Method.POST,
-                MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                        + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestGetBucketsAction.class));
 
-        controller.registerHandler(RestRequest.Method.GET,
-                MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
-        controller.registerHandler(RestRequest.Method.POST,
-                MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
+    public RestGetBucketsAction(RestController controller) {
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this,
+            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", deprecationLogger);
+
+        controller.registerWithDeprecatedHandler(
+            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets", this,
+            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_get_buckets_action";
+        return "ml_get_buckets_action";
     }
 
     @Override

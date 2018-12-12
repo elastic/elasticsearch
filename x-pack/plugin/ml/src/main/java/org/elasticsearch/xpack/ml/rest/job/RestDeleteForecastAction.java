@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,19 +20,25 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestDeleteForecastAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestDeleteForecastAction.class));
+
     public RestDeleteForecastAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE,
-            MachineLearning.BASE_PATH +
-                "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
-            this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
+                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", this,
+            DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
+                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_delete_forecast_action";
+        return "ml_delete_forecast_action";
     }
 
     @Override

@@ -133,7 +133,10 @@ In the response, the aggregations names will be changed to respectively `date_hi
                     "doc_count" : 5,
                     "top_hits#top_users" : {  <2>
                         "hits" : {
-                            "total" : 5,
+                            "total" : {
+                                "value": 5,
+                                "relation": "eq"
+                            },
                             "max_score" : 1.0,
                             "hits" : [
                                 {

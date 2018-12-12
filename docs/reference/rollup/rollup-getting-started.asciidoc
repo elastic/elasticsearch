@@ -158,7 +158,10 @@ If you were to execute that query, you'd receive a result that looks like a norm
   "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
-    "total" : 0,
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    },
     "max_score" : 0.0,
     "hits" : [ ]
   },
@@ -229,7 +232,10 @@ Which returns a corresponding response:
    "terminated_early" : false,
    "_shards" : ... ,
    "hits" : {
-     "total" : 0,
+     "total" : {
+        "value": 0,
+        "relation": "eq"
+     },
      "max_score" : 0.0,
      "hits" : [ ]
    },

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -143,7 +144,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty();
+            store.createEmpty(Version.CURRENT.luceneVersion);
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class :
                     UnsupportedOperationException.class;

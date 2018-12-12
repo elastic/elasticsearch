@@ -73,16 +73,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
-        final String esNetworkAddressCacheTtl = System.getProperty("es.networkaddress.cache.ttl");
-        if (esNetworkAddressCacheTtl != null) {
-            // round-trip the property to an integer and back to a string to ensure that it parses properly
-            Security.setProperty("networkaddress.cache.ttl", Integer.toString(Integer.valueOf(esNetworkAddressCacheTtl)));
-        }
-        final String esNetworkAddressCacheNegativeTtl = System.getProperty("es.networkaddress.cache.negative.ttl");
-        if (esNetworkAddressCacheNegativeTtl != null) {
-            // round-trip the property to an integer and back to a string to ensure that it parses properly
-            Security.setProperty("networkaddress.cache.negative.ttl", Integer.toString(Integer.valueOf(esNetworkAddressCacheNegativeTtl)));
-        }
+        overrideDnsCachePolicyProperty("networkaddress.cache.ttl");
+        overrideDnsCachePolicyProperty("networkaddress.cache.negative.ttl");
         /*
          * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
          * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
@@ -99,6 +91,18 @@ class Elasticsearch extends EnvironmentAwareCommand {
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             exit(status);
+        }
+    }
+
+    private static void overrideDnsCachePolicyProperty(final String property) {
+        final String override = System.getProperty("es." + property);
+        if (override != null) {
+            // round-trip the property to an integer and back to a string to ensure that it parses properly
+            try {
+                Security.setProperty(property, Integer.toString(Integer.valueOf(override)));
+            } catch (final NumberFormatException e) {
+                throw new IllegalArgumentException("failed to parse [es." + property + "] with value [" + override + "]", e);
+            }
         }
     }
 

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -211,12 +212,13 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
                     "] as history uuid");
             }
         }
-
-        if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+        // soft deletes are enabled by default on indices created on 7.0.0 or later
+        if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndex.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] does not have soft deletes enabled");
         }
-        if (followIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
@@ -443,6 +445,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
+        // soft deletes setting is checked manually
+        settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_UUID);
         settings.remove(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);

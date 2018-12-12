@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMont
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoDayOfWeek;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName;
@@ -151,7 +153,7 @@ public class FunctionRegistry {
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
         // Scalar functions
-        // conditional
+        // Conditional
         addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
                  def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                  def(NullIf.class, NullIf::new, "NULLIF"),
@@ -163,6 +165,8 @@ public class FunctionRegistry {
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
+                def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
+                def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),
                 def(MinuteOfDay.class, MinuteOfDay::new, "MINUTE_OF_DAY"),
                 def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE_OF_HOUR", "MINUTE"),
                 def(MonthName.class, MonthName::new, "MONTH_NAME", "MONTHNAME"),

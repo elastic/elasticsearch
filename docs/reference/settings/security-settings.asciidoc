@@ -1210,8 +1210,8 @@ through the list of URLs will continue until a successful connection is made.
 ==== Default TLS/SSL settings
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications]. These settings will be used
-for all of {xpack} unless they have been overridden by more specific
+{stack-ov}/encrypting-communications.html[Encrypting communications]. These
+settings are used unless they have been overridden by more specific
 settings such as those for HTTP or Transport.
 
 `xpack.ssl.supported_protocols`::
@@ -1262,8 +1262,8 @@ Jurisdiction Policy Files_ has been installed, the default value also includes `
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, this will default to the <<ssl-tls-settings, {xpack}
-defaults>>. If no trusted certificates are configured, the default certificates that are trusted by the JVM will be
+If none of the settings below are specified, the 
+<<ssl-tls-settings,default settings>> are used. If no trusted certificates are configured, the default certificates that are trusted by the JVM will be
 trusted along with the certificate(s) from the <<tls-ssl-key-settings, key settings>>. The key and certificate must be in place
 for connections that require client authentication or when acting as a SSL enabled server.
 

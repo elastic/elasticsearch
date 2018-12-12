@@ -15,7 +15,7 @@ For more information, see <<configuring-ldap-realm>>.
 . Configure the realm's TLS settings on each node to trust certificates signed 
 by the CA that signed your LDAP server certificates. The following example 
 demonstrates how to trust a CA certificate, `cacert.pem`, located within the 
-{xpack} configuration directory:
+{es} configuration directory (ES_PATH_CONF):
 +
 --
 [source,shell]

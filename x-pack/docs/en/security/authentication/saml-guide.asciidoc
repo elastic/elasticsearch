@@ -469,7 +469,7 @@ or separate keys used for each of those.
 
 The Elastic Stack uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
-the `elasticsearch-certutil` tool that ships with {xpack}.
+the `elasticsearch-certutil` tool.
 
 Your IdP may require that the Elastic Stack have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within

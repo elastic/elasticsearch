@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -86,7 +86,7 @@ public class SSLChannelContextTests extends ESTestCase {
         assertEquals(messageLength, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
         verify(readConsumer, times(1)).apply(channelBuffer);
     }
 
@@ -101,7 +101,7 @@ public class SSLChannelContextTests extends ESTestCase {
         assertEquals(bytes.length, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
         verify(readConsumer, times(2)).apply(channelBuffer);
     }
 
@@ -124,7 +124,7 @@ public class SSLChannelContextTests extends ESTestCase {
         assertEquals(messageLength, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - (bytes.length * 2), channelBuffer.getCapacity());
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE - (bytes.length * 2), channelBuffer.getCapacity());
         verify(readConsumer, times(2)).apply(channelBuffer);
     }
 

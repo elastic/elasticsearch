@@ -260,7 +260,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         res = serviceB.submitRequest(nodeA, "internal:sayHello", new StringMessageRequest("moshe"),
-            TransportRequestOptions.builder().withCompress(true).build(), new TransportResponseHandler<StringMessageResponse>() {
+            TransportRequestOptions.EMPTY, new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
                     return new StringMessageResponse(in);
@@ -519,7 +519,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
 
             TransportFuture<TransportResponse.Empty> res = serviceC.submitRequest(nodeA, "internal:sayHello",
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {
@@ -572,7 +572,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
             TransportFuture<StringMessageResponse> res = serviceC.submitRequest(nodeA, "internal:sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
+                new StringMessageRequest("moshe"), TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse read(StreamInput in) throws IOException {
@@ -1795,7 +1795,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     DiscoveryNode node = randomFrom(nodeA, nodeB, nodeC);
                     logger.debug("send secondary request from {} to {} - {}", toNodeMap.get(service), node, request.info);
                     service.sendRequest(node, "internal:action1", new TestRequest("secondary " + request.info),
-                        TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
+                        TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TestResponse>() {
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
@@ -1886,7 +1886,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node = randomFrom(nodeC, nodeB, nodeA);
             logger.debug("send from {} to {}", toNodeMap.get(service), node);
             service.sendRequest(node, "internal:action1", new TestRequest("REQ[" + i + "]"),
-                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TestResponseHandler(i));
+                TransportRequestOptions.EMPTY, new TestResponseHandler(i));
         }
         logger.debug("waiting for response");
         fail.set(randomBoolean());

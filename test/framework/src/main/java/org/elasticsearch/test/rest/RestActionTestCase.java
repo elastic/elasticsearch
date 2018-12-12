@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +26,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 

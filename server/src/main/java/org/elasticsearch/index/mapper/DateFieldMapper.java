@@ -64,8 +64,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
-            "strict_date_optional_time||epoch_millis", Locale.ROOT);
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);

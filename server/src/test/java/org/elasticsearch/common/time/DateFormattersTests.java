@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -30,6 +31,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -191,5 +193,17 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
         assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
         assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
+    }
+
+    public void testForceJava8() {
+        assertThat(DateFormatter.forPattern("8yyyy-MM-dd"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        assertThat(DateFormatter.forPattern("8date_optional_time"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        DateFormatter formatter = DateFormatter.forPattern("8date_optional_time||ww-MM-dd");
+        assertThat(formatter, instanceOf(DateFormatters.MergedDateFormatter.class));
+        DateFormatters.MergedDateFormatter mergedFormatter = (DateFormatters.MergedDateFormatter) formatter;
+        assertThat(mergedFormatter.formatters.get(0), instanceOf(JavaDateFormatter.class));
+        assertThat(mergedFormatter.formatters.get(1), instanceOf(JodaDateFormatter.class));
     }
 }

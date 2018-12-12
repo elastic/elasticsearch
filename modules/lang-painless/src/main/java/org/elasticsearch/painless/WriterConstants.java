@@ -124,7 +124,7 @@ public final class WriterConstants {
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
 
-    public static final Method DEF_TO_BOOLEAN = getAsmMethod(boolean.class, "defToboolean", Object.class);
+    public static final Method DEF_TO_P_BOOLEAN = getAsmMethod(boolean.class, "defToboolean", Object.class);
 
     public static final Method DEF_TO_P_BYTE_IMPLICIT   = getAsmMethod(byte.class   , "defTobyteImplicit"   , Object.class);
     public static final Method DEF_TO_P_SHORT_IMPLICIT  = getAsmMethod(short.class  , "defToshortImplicit"  , Object.class);
@@ -140,6 +140,8 @@ public final class WriterConstants {
     public static final Method DEF_TO_P_LONG_EXPLICIT   = getAsmMethod(long.class   , "defTolongExplicit"   , Object.class);
     public static final Method DEF_TO_P_FLOAT_EXPLICIT  = getAsmMethod(float.class  , "defTofloatExplicit"  , Object.class);
     public static final Method DEF_TO_P_DOUBLE_EXPLICIT = getAsmMethod(double.class , "defTodoubleExplicit" , Object.class);
+
+    public static final Method DEF_TO_B_BOOLEAN = getAsmMethod(Boolean.class, "defToBoolean", Object.class);
 
     public static final Method DEF_TO_B_BYTE_IMPLICIT      = getAsmMethod(Byte.class      , "defToByteImplicit"      , Object.class);
     public static final Method DEF_TO_B_SHORT_IMPLICIT     = getAsmMethod(Short.class     , "defToShortImplicit"     , Object.class);

@@ -187,7 +187,7 @@ role.
 Configured via the role-mapping API:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admins
+PUT /_security/role_mapping/admins
 {
   "roles" : [ "monitoring" , "user" ],
   "rules" : { "field" : {
@@ -201,7 +201,7 @@ PUT _xpack/security/role_mapping/admins
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_users
+PUT /_security/role_mapping/basic_users
 {
   "roles" : [ "user" ],
   "rules" : { "any": [

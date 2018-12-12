@@ -292,7 +292,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * @param terminal where to write verbose info.
          */
         void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
-            URL route = createURL(url, "/_xpack/security/_authenticate", "?pretty");
+            URL route = createURL(url, "/_security/_authenticate", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
             try {
@@ -449,7 +449,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * @param password the new password of the user.
          */
         private void changeUserPassword(String user, SecureString password, Terminal terminal) throws Exception {
-            URL route = createURL(url, "/_xpack/security/user/" + user + "/_password", "?pretty");
+            URL route = createURL(url, "/_security/user/" + user + "/_password", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {

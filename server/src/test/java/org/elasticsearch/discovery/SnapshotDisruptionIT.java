@@ -68,7 +68,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // requires more work
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
             .build();
     }
@@ -133,7 +132,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
-            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(true).get().getState()
+            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(false).get().getState()
                 .custom(SnapshotsInProgress.TYPE);
             if (snapshots != null && snapshots.entries().size() > 0) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
@@ -146,15 +145,9 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
             try {
-                GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots("test-repo")
-                    .setSnapshots("test-snap-2").get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
-                assertEquals(0, snapshotInfo.failedShards());
-                logger.info("--> done verifying");
+                assertSnapshotExists("test-repo", "test-snap-2");
             } catch (SnapshotMissingException exception) {
-                logger.info("--> snapshot doesn't exist");
+                logger.info("--> done verifying, snapshot doesn't exist");
             }
         }, 1, TimeUnit.MINUTES);
 
@@ -172,6 +165,21 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             cause = cause.getCause();
             assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
         }
+
+        logger.info("--> verify that snapshot eventually will be created due to retries");
+        assertBusy(() -> {
+            assertSnapshotExists("test-repo", "test-snap-2");
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    private void assertSnapshotExists(String repository, String snapshot) {
+        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
+                .setSnapshots(snapshot).get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+        logger.info("--> done verifying, snapshot exists");
     }
 
     private void createRandomIndex(String idxName) throws InterruptedException {

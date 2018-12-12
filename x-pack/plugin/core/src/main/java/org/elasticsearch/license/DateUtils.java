@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
@@ -15,7 +14,7 @@ import java.time.ZoneOffset;
 
 public class DateUtils {
 
-    private static final DateFormatter dateOnlyFormatter = Joda.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    private static final DateFormatter dateOnlyFormatter = DateFormatter.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
 
     private static final DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
 

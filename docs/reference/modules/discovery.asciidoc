@@ -450,33 +450,40 @@ DELETE /_cluster/voting_config_exclusions?wait_for_removal=false
 
 The master node is the only node in a cluster that can make changes to the
 cluster state. The master node processes one cluster state update at a time,
-applies the required changes and publishes the updated cluster state to all the
-other nodes in the cluster. Each node receives the publish message, acknowledges
-it, but does *not* yet apply it. If the master does not receive acknowledgement
-from enough master-eligible nodes within a certain time (controlled by the
-`cluster.publish.timeout` setting which defaults to 30 seconds) the cluster
-state change is rejected.
+applying the required changes and publishing the updated cluster state to all
+the other nodes in the cluster. Each publication starts with the master
+broadcasting the updated cluster state to all nodes in the cluster, to which
+each node responds with an acknowledgement but does not yet apply the
+newly-received state. Once the master has collected acknowledgements from
+enough master-eligible nodes the new cluster state is said to be _committed_,
+and the master broadcasts another message instructing nodes to apply the
+now-committed state. Each node receives this message, applies the updated
+state, and then sends an acknowledgement back to the master.
 
-Once enough nodes have responded, the cluster state is committed and a commit
-message is sent to all the nodes. The nodes then proceed to apply the new
-cluster state to their internal state. The master node waits for all nodes to
-respond, or until `cluster.publish.timeout` has elapsed, before starting to
-process the next update in the queue. The `cluster.publish.timeout` is measured
-from the moment the publishing started.
+The master waits to receive this second acknowledgement from all nodes for some
+time, defined by `cluster.publish.timeout`, which defaults to `30s`, measured
+from the moment that publishing started. If this time is reached before the new
+cluster state was committed then the master node failed to contact enough other
+master-eligible nodes, so the cluster state change is rejected and the master
+stands down and starts a new election process.
 
-If a node fails to apply a cluster state update within the
-`cluster.publish.timeout` timeout then its cluster state lags behind the most
-recently-published state from the master. The master waits for a further
-timeout, `cluster.follower_lag.timeout`, which defaults to 90 seconds, and if
-the node has still not successfully applied the cluster state update then it is
-removed from the cluster.
+If the `cluster.publish.timeout` time is reached after the new cluster state
+was committed (but before all acknowledgements have been received) then the
+master node starts processing and publishing the next cluster state update,
+even though some nodes have not yet confirmed that they have applied the
+current one. These nodes are said to be _lagging_ since their cluster states
+are no longer up-to-date. The master waits for the lagging nodes to catch up
+for a further time, `cluster.follower_lag.timeout`, which defaults to `90s`,
+and if a node has still not successfully applied the cluster state update
+within this time then it is removed from the cluster to prevent it from
+disrupting the rest of the cluster.
 
 NOTE: Elasticsearch is a peer to peer based system, in which nodes communicate
 with one another directly. The high-throughput APIs (index, delete, search) do
 not normally interact with the master node. The responsibility of the master
-node is to maintain the global cluster state, and act if nodes join or leave the
-cluster by reassigning shards. Each time the cluster state is changed, the new
-state is published to all nodes in the cluster as described above.
+node is to maintain the global cluster state, and act if nodes join or leave
+the cluster by reassigning shards. Each time the cluster state is changed, the
+new state is published to all nodes in the cluster as described above.
 
 [float]
 [[no-master-block]]

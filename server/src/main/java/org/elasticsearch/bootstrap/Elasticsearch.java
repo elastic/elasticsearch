@@ -36,6 +36,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Permission;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -72,8 +73,21 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
-        // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
-        // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
+        final String esNetworkAddressCacheTtl = System.getProperty("es.networkaddress.cache.ttl");
+        if (esNetworkAddressCacheTtl != null) {
+            // round-trip the property to an integer and back to a string to ensure that it parses properly
+            Security.setProperty("networkaddress.cache.ttl", Integer.toString(Integer.valueOf(esNetworkAddressCacheTtl)));
+        }
+        final String esNetworkAddressCacheNegativeTtl = System.getProperty("es.networkaddress.cache.negative.ttl");
+        if (esNetworkAddressCacheNegativeTtl != null) {
+            // round-trip the property to an integer and back to a string to ensure that it parses properly
+            Security.setProperty("networkaddress.cache.negative.ttl", Integer.toString(Integer.valueOf(esNetworkAddressCacheNegativeTtl)));
+        }
+        /*
+         * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
+         * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
+         * forces such policies to take effect immediately.
+         */
         System.setSecurityManager(new SecurityManager() {
             @Override
             public void checkPermission(Permission perm) {

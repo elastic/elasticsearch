@@ -33,7 +33,6 @@ import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.DateTimeParser;
 import org.joda.time.format.ISODateTimeFormat;
 
-import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.Locale;
 
@@ -310,14 +309,14 @@ public class SimpleJodaTests extends ESTestCase {
         DateFormatter formatter = DateFormatter.forPattern("epoch_second");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             formatter.parseJoda(randomFrom("invalid date", "12345678901234567", "12345678901234567890")));
-        assertThat(e.getCause().getMessage(), containsString("Invalid format"));
+        assertThat(e.getMessage(), containsString("Invalid format"));
     }
 
     public void testForInvalidDatesInEpochMillis() {
         DateFormatter formatter = DateFormatter.forPattern("epoch_millis");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             formatter.parseJoda(randomFrom("invalid date", "12345678901234567890")));
-        assertThat(e.getCause().getMessage(), containsString("Invalid format"));
+        assertThat(e.getMessage(), containsString("Invalid format"));
     }
 
     public void testForInvalidTimeZoneWithEpochSeconds() {
@@ -330,7 +329,7 @@ public class SimpleJodaTests extends ESTestCase {
             new JodaDateFormatter("epoch_seconds", dateTimeFormatter, dateTimeFormatter);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             formatter.parseJoda("1433144433655"));
-        assertThat(e.getCause().getMessage(), containsString("time_zone must be UTC"));
+        assertThat(e.getMessage(), containsString("time_zone must be UTC"));
     }
 
     public void testForInvalidTimeZoneWithEpochMillis() {
@@ -343,7 +342,7 @@ public class SimpleJodaTests extends ESTestCase {
             new JodaDateFormatter("epoch_millis", dateTimeFormatter, dateTimeFormatter);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             formatter.parseJoda("1433144433"));
-        assertThat(e.getCause().getMessage(), containsString("time_zone must be UTC"));
+        assertThat(e.getMessage(), containsString("time_zone must be UTC"));
     }
 
     public void testThatEpochParserIsPrinter() {

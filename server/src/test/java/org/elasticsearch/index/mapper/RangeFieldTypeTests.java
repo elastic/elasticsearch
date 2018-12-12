@@ -30,6 +30,7 @@ import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -45,7 +46,6 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.net.InetAddress;
-import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
@@ -115,7 +115,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         final String from = "2016-15-06T15:29:50+08:00";
         final String to = "2016-16-06T15:29:50+08:00";
 
-        DateTimeParseException ex = expectThrows(DateTimeParseException.class,
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
             () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
         assertEquals("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]",
             ex.getMessage());

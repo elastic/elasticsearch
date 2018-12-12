@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -1486,7 +1487,8 @@ public class DateFormatters {
             for (DateFormatter formatter : formatters) {
                 try {
                     return formatter.parse(input);
-                } catch (IllegalArgumentException e) {
+                    // TODO: remove DateTimeParseException when JavaDateFormatter throws IAE
+                } catch (IllegalArgumentException | DateTimeParseException e) {
                     if (failure == null) {
                         // wrap so the entire multi format is in the message
                         failure = new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + pattern + "]",

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -26,7 +27,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -252,7 +252,7 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     void assertParseException(String msg, String date, String exc) {
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> parser.parse(date, () -> 0));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
         assertThat(msg, ExceptionsHelper.detailedMessage(e), containsString(exc));
     }
 

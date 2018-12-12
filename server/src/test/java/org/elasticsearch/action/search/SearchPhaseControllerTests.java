@@ -20,10 +20,15 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.text.Text;
@@ -521,5 +526,77 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertEquals(93.0f, scoreDocs[2].score, 0.0f);
         assertEquals(92.0f, scoreDocs[3].score, 0.0f);
         assertEquals(91.0f, scoreDocs[4].score, 0.0f);
+    }
+
+    public void testConsumerSortByField() {
+        int expectedNumResults = randomIntBetween(1, 100);
+        int bufferSize = randomIntBetween(2, 200);
+        SearchRequest request = new SearchRequest();
+        int size = randomIntBetween(1, 10);
+        request.setBatchedReduceSize(bufferSize);
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
+            searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
+        AtomicInteger max = new AtomicInteger();
+        SortField[] sortFields = {new SortField("field", SortField.Type.INT, true)};
+        DocValueFormat[] docValueFormats = {DocValueFormat.RAW};
+        for (int i = 0; i < expectedNumResults; i++) {
+            int number = randomIntBetween(1, 1000);
+            max.updateAndGet(prev -> Math.max(prev, number));
+            FieldDoc[] fieldDocs = {new FieldDoc(0, Float.NaN, new Object[]{number})};
+            TopDocs topDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), fieldDocs, sortFields);
+            QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new Index("a", "b"), i, null));
+            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
+            result.setShardIndex(i);
+            result.size(size);
+            consumer.consumeResult(result);
+        }
+        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+        assertEquals(Math.min(expectedNumResults, size), reduce.sortedTopDocs.scoreDocs.length);
+        assertEquals(expectedNumResults, reduce.totalHits.value);
+        assertEquals(max.get(), ((FieldDoc)reduce.sortedTopDocs.scoreDocs[0]).fields[0]);
+        assertTrue(reduce.sortedTopDocs.isSortedByField);
+        assertEquals(1, reduce.sortedTopDocs.sortFields.length);
+        assertEquals("field", reduce.sortedTopDocs.sortFields[0].getField());
+        assertEquals(SortField.Type.INT, reduce.sortedTopDocs.sortFields[0].getType());
+        assertNull(reduce.sortedTopDocs.collapseField);
+        assertNull(reduce.sortedTopDocs.collapseValues);
+    }
+
+    public void testConsumerFieldCollapsing() {
+        int expectedNumResults = randomIntBetween(30, 100);
+        int bufferSize = randomIntBetween(2, 200);
+        SearchRequest request = new SearchRequest();
+        int size = randomIntBetween(5, 10);
+        request.setBatchedReduceSize(bufferSize);
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
+            searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
+        SortField[] sortFields = {new SortField("field", SortField.Type.STRING)};
+        BytesRef a = new BytesRef("a");
+        BytesRef b = new BytesRef("b");
+        BytesRef c = new BytesRef("c");
+        Object[] collapseValues = new Object[]{a, b, c};
+        DocValueFormat[] docValueFormats = {DocValueFormat.RAW};
+        for (int i = 0; i < expectedNumResults; i++) {
+            Object[] values = {randomFrom(collapseValues)};
+            FieldDoc[] fieldDocs = {new FieldDoc(0, Float.NaN, values)};
+            TopDocs topDocs = new CollapseTopFieldDocs("field", new TotalHits(1, Relation.EQUAL_TO), fieldDocs, sortFields, values);
+            QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new Index("a", "b"), i, null));
+            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
+            result.setShardIndex(i);
+            result.size(size);
+            consumer.consumeResult(result);
+        }
+        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+        assertEquals(3, reduce.sortedTopDocs.scoreDocs.length);
+        assertEquals(expectedNumResults, reduce.totalHits.value);
+        assertEquals(a, ((FieldDoc)reduce.sortedTopDocs.scoreDocs[0]).fields[0]);
+        assertEquals(b, ((FieldDoc)reduce.sortedTopDocs.scoreDocs[1]).fields[0]);
+        assertEquals(c, ((FieldDoc)reduce.sortedTopDocs.scoreDocs[2]).fields[0]);
+        assertTrue(reduce.sortedTopDocs.isSortedByField);
+        assertEquals(1, reduce.sortedTopDocs.sortFields.length);
+        assertEquals("field", reduce.sortedTopDocs.sortFields[0].getField());
+        assertEquals(SortField.Type.STRING, reduce.sortedTopDocs.sortFields[0].getType());
+        assertEquals("field", reduce.sortedTopDocs.collapseField);
+        assertArrayEquals(collapseValues, reduce.sortedTopDocs.collapseValues);
     }
 }

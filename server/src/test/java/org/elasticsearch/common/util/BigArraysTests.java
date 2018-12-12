@@ -258,7 +258,7 @@ public class BigArraysTests extends ESTestCase {
         random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
         for (int i = 0; i < array1.length; ) {
-            final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * BigArrays.BYTE_PAGE_SIZE));
+            final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * PageCacheRecycler.BYTE_PAGE_SIZE));
             array2.set(i, array1, i, len);
             i += len;
         }
@@ -358,7 +358,7 @@ public class BigArraysTests extends ESTestCase {
                             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                             .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(10, maxSize / 16);
             BigArray array = (BigArray) create.invoke(bigArrays, size);
@@ -422,7 +422,7 @@ public class BigArraysTests extends ESTestCase {
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        BigArrays bigArrays = new BigArrays(null, hcbs, false);
+        BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
         return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);
     }
 

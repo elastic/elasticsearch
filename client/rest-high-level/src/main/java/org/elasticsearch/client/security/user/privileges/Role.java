@@ -85,16 +85,16 @@ public final class Role {
 
     private final String name;
     private final Set<String> clusterPrivileges;
-    private final @Nullable GlobalPrivileges globalApplicationPrivileges;
+    private final @Nullable GlobalPrivileges globalPrivileges;
     private final Set<IndicesPrivileges> indicesPrivileges;
-    private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
+    private final Set<ApplicationResourcePrivileges> applicationPrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
 
     private Role(String name, @Nullable Collection<String> clusterPrivileges,
-                 @Nullable GlobalPrivileges globalApplicationPrivileges,
+                 @Nullable GlobalPrivileges globalPrivileges,
                  @Nullable Collection<IndicesPrivileges> indicesPrivileges,
-                 @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges,
+                 @Nullable Collection<ApplicationResourcePrivileges> applicationPrivileges,
                  @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata) {
         if (Strings.hasText(name) == false){
             throw new IllegalArgumentException("role name must be provided");
@@ -104,13 +104,13 @@ public final class Role {
         // no cluster privileges are granted unless otherwise specified
         this.clusterPrivileges = Collections
                 .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
-        this.globalApplicationPrivileges = globalApplicationPrivileges;
+        this.globalPrivileges = globalPrivileges;
         // no indices privileges are granted unless otherwise specified
         this.indicesPrivileges = Collections
                 .unmodifiableSet(indicesPrivileges != null ? new HashSet<>(indicesPrivileges) : Collections.emptySet());
         // no application resource privileges are granted unless otherwise specified
-        this.applicationResourcePrivileges = Collections.unmodifiableSet(
-                applicationResourcePrivileges != null ? new HashSet<>(applicationResourcePrivileges) : Collections.emptySet());
+        this.applicationPrivileges = Collections.unmodifiableSet(
+                applicationPrivileges != null ? new HashSet<>(applicationPrivileges) : Collections.emptySet());
         // no run as privileges are granted unless otherwise specified
         this.runAsPrivilege = Collections.unmodifiableSet(runAsPrivilege != null ? new HashSet<>(runAsPrivilege) : Collections.emptySet());
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
@@ -124,16 +124,16 @@ public final class Role {
         return clusterPrivileges;
     }
 
-    public GlobalPrivileges getGlobalApplicationPrivileges() {
-        return globalApplicationPrivileges;
+    public GlobalPrivileges getGlobalPrivileges() {
+        return globalPrivileges;
     }
 
     public Set<IndicesPrivileges> getIndicesPrivileges() {
         return indicesPrivileges;
     }
 
-    public Set<ApplicationResourcePrivileges> getApplicationResourcePrivileges() {
-        return applicationResourcePrivileges;
+    public Set<ApplicationResourcePrivileges> getApplicationPrivileges() {
+        return applicationPrivileges;
     }
 
     public Set<String> getRunAsPrivilege() {
@@ -151,16 +151,16 @@ public final class Role {
         Role that = (Role) o;
         return name.equals(that.name)
             && clusterPrivileges.equals(that.clusterPrivileges)
-            && Objects.equals(globalApplicationPrivileges, that.globalApplicationPrivileges)
+            && Objects.equals(globalPrivileges, that.globalPrivileges)
             && indicesPrivileges.equals(that.indicesPrivileges)
-            && applicationResourcePrivileges.equals(that.applicationResourcePrivileges)
+            && applicationPrivileges.equals(that.applicationPrivileges)
             && runAsPrivilege.equals(that.runAsPrivilege)
             && metadata.equals(that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+        return Objects.hash(name, clusterPrivileges, globalPrivileges, indicesPrivileges, applicationPrivileges,
             runAsPrivilege, metadata);
     }
 
@@ -173,9 +173,9 @@ public final class Role {
             sb.append(clusterPrivileges.toString());
             sb.append(", ");
         }
-        if (globalApplicationPrivileges != null) {
-            sb.append("GlobalApplcationPrivileges=");
-            sb.append(globalApplicationPrivileges.toString());
+        if (globalPrivileges != null) {
+            sb.append("GlobalPrivileges=");
+            sb.append(globalPrivileges.toString());
             sb.append(", ");
         }
         if (false == indicesPrivileges.isEmpty()) {
@@ -183,9 +183,9 @@ public final class Role {
             sb.append(indicesPrivileges.toString());
             sb.append(", ");
         }
-        if (false == applicationResourcePrivileges.isEmpty()) {
+        if (false == applicationPrivileges.isEmpty()) {
             sb.append("ApplicationPrivileges=");
-            sb.append(applicationResourcePrivileges.toString());
+            sb.append(applicationPrivileges.toString());
             sb.append(", ");
         }
         if (false == runAsPrivilege.isEmpty()) {

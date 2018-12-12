@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -66,7 +65,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true)
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), 3)
             .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
             .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3)
             .build();
@@ -195,7 +193,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), 3)
             .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
             .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3)
             .build();

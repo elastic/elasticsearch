@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -59,7 +58,6 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         final Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), 1)
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE);
 
         if (nodeOrdinal == 0) {

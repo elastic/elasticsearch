@@ -30,10 +30,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RequestOptions.Builder;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
@@ -69,12 +71,14 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static java.util.Collections.sort;
@@ -177,6 +181,71 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert hasXPack != null;
         assert nodeVersions != null;
     }
+    
+    /**
+     * Helper class to check warnings in REST responses with sensitivity to versions
+     * used in the target cluster.
+     */
+    public static class VersionSensitiveWarningsHandler implements WarningsHandler {
+        Set<String> requiredSameVersionClusterWarnings = new HashSet<>();
+        Set<String> allowedWarnings = new HashSet<>();
+        final Set<Version> testNodeVersions;
+        
+        public VersionSensitiveWarningsHandler(Set<Version> nodeVersions) {
+            this.testNodeVersions = nodeVersions;
+        }
+
+        /**
+         * Adds to the set of warnings that are all required in responses if the cluster
+         * is formed from nodes all running the exact same version as the client. 
+         * @param requiredWarnings a set of required warnings
+         */
+        public void current(String... requiredWarnings) {
+            requiredSameVersionClusterWarnings.addAll(Arrays.asList(requiredWarnings));
+        }
+
+        /**
+         * Adds to the set of warnings that are permissible (but not required) when running 
+         * in mixed-version clusters or those that differ in version from the test client.
+         * @param allowedWarnings optional warnings that will be ignored if received
+         */
+        public void compatible(String... allowedWarnings) {            
+            this.allowedWarnings.addAll(Arrays.asList(allowedWarnings));
+        }
+
+        @Override
+        public boolean warningsShouldFailRequest(List<String> warnings) {
+            if (isExclusivelyTargetingCurrentVersionCluster()) {
+                // absolute equality required in expected and actual.
+                Set<String> actual = new HashSet<>(warnings);
+                return false == requiredSameVersionClusterWarnings.equals(actual);
+            } else {
+                // Some known warnings can safely be ignored
+                for (String actualWarning : warnings) {
+                    if (false == allowedWarnings.contains(actualWarning) &&
+                        false == requiredSameVersionClusterWarnings.contains(actualWarning)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        
+        private boolean isExclusivelyTargetingCurrentVersionCluster() {
+            assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
+            return testNodeVersions.size() == 1 && 
+                    testNodeVersions.iterator().next().equals(Version.CURRENT);
+        } 
+        
+    }
+    
+    public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
+        Builder builder = RequestOptions.DEFAULT.toBuilder();
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
+        expectationsSetter.accept(warningsHandler);
+        builder.setWarningsHandler(warningsHandler);
+        return builder.build();
+    }    
 
     /**
      * Construct an HttpHost from the given host and port
@@ -475,7 +544,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeRollupJobs() throws IOException, InterruptedException {
-        Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
+        Response response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
@@ -488,7 +557,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("POST", "/_xpack/rollup/job/" + jobId + "/_stop");
+            Request request = new Request("POST", "/_rollup/job/" + jobId + "/_stop");
             request.addParameter("ignore", "404");
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
@@ -499,7 +568,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
+            Request request = new Request("DELETE", "/_rollup/job/" + jobId);
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);
@@ -833,5 +902,4 @@ public abstract class ESRestTestCase extends ESTestCase {
             return false;
         }
     }
-
 }

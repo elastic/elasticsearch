@@ -9,7 +9,7 @@
   - do:
       index:
         index:       test
-        type:        test
+        type:        _doc
         id:          1
         body:        {"text": "test"}
   - do:

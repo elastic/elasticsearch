@@ -74,14 +74,14 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (role.getApplicationResourcePrivileges() != null) {
-            builder.field(Role.APPLICATIONS.getPreferredName(), role.getApplicationResourcePrivileges());
+        if (role.getApplicationPrivileges() != null) {
+            builder.field(Role.APPLICATIONS.getPreferredName(), role.getApplicationPrivileges());
         }
         if (role.getClusterPrivileges() != null) {
             builder.field(Role.CLUSTER.getPreferredName(), role.getClusterPrivileges());
         }
-        if (role.getGlobalApplicationPrivileges() != null) {
-            builder.field(Role.GLOBAL.getPreferredName(), role.getGlobalApplicationPrivileges());
+        if (role.getGlobalPrivileges() != null) {
+            builder.field(Role.GLOBAL.getPreferredName(), role.getGlobalPrivileges());
         }
         if (role.getIndicesPrivileges() != null) {
             builder.field(Role.INDICES.getPreferredName(), role.getIndicesPrivileges());

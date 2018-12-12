@@ -95,6 +95,7 @@ dependencies {
   }
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
+  minimumRuntimeCompile gradleApi()
 }
 jar {
   from sourceSets.minimumRuntime.output
@@ -123,7 +124,7 @@ dependencies {
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
   compile 'de.thetaphi:forbiddenapis:2.6'
-  compile 'com.avast.gradle:docker-compose-gradle-plugin:0.4.5'
+  compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
 }
 
@@ -217,7 +218,7 @@ if (project != rootProject) {
   forbiddenPatterns {
     exclude '**/*.wav'
     // the file that actually defines nocommit
-    exclude '**/ForbiddenPatternsTask.groovy'
+    exclude '**/ForbiddenPatternsTask.java'
   }
 
   namingConventions {

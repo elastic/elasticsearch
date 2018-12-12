@@ -775,7 +775,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final boolean compressMessage = options.compress() && canCompress(request);
 
         status = TransportStatus.setRequest(status);
-        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays, false);
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
         boolean addedReleaseListener = false;
         try {

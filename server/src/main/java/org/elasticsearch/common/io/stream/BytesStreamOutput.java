@@ -53,12 +53,12 @@ public class BytesStreamOutput extends BytesStream {
      * @param expectedSize the expected maximum size of the stream in bytes.
      */
     public BytesStreamOutput(int expectedSize) {
-        this(expectedSize, BigArrays.NON_RECYCLING_INSTANCE, true);
+        this(expectedSize, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    protected BytesStreamOutput(int expectedSize, BigArrays bigArrays, boolean clearOnResize) {
+    protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bytes = bigArrays.newByteArray(expectedSize, clearOnResize);
+        this.bytes = bigArrays.newByteArray(expectedSize, false);
     }
 
     @Override

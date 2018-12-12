@@ -43,16 +43,8 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput
         this(BigArrays.PAGE_SIZE_IN_BYTES, bigarrays);
     }
 
-    public ReleasableBytesStreamOutput(BigArrays bigarrays, boolean clearOnResize) {
-        this(BigArrays.PAGE_SIZE_IN_BYTES, bigarrays, clearOnResize);
-    }
-
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
-        this(expectedSize, bigArrays, true);
-    }
-
-    public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays, boolean clearOnResize) {
-        super(expectedSize, bigArrays, clearOnResize);
+        super(expectedSize, bigArrays);
         this.releasable = Releasables.releaseOnce(this.bytes);
     }
 

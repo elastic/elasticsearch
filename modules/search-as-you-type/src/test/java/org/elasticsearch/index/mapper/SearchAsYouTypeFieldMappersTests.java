@@ -131,6 +131,8 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         final SearchAsYouTypeFieldMapper searchAsYouTypeFieldMapper = (SearchAsYouTypeFieldMapper) mapper;
 
         final SuggesterizedFieldType fieldType = searchAsYouTypeFieldMapper.fieldType();
+        assertFalse(fieldType.hasShingles());
+        assertFalse(fieldType.hasEdgeNGrams());
         for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
@@ -141,6 +143,9 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         final SuggesterizedFieldMapper suggesterizedFieldMapper = (SuggesterizedFieldMapper) mapper;
 
         final SuggesterizedFieldType fieldType = suggesterizedFieldMapper.fieldType();
+        assertFalse(fieldType.hasShingles());
+        assertTrue(fieldType.hasEdgeNGrams());
+
         final NamedAnalyzer namedIndexAnalyzer = fieldType.indexAnalyzer();
         final NamedAnalyzer namedSearchAnalyzer = fieldType.searchAnalyzer();
         assertThat(namedIndexAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
@@ -171,6 +176,10 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         final SuggesterizedFieldMapper suggesterizedFieldMapper = (SuggesterizedFieldMapper) mapper;
 
         final SuggesterizedFieldType fieldType = suggesterizedFieldMapper.fieldType();
+        assertTrue(fieldType.hasShingles());
+        assertThat(fieldType.shingleSize(), equalTo(numberOfShingles));
+        assertThat(fieldType.hasEdgeNGrams(), equalTo(withEdgeNGrams));
+
         final NamedAnalyzer namedIndexAnalyzer = fieldType.indexAnalyzer();
         final NamedAnalyzer namedSearchAnalyzer = fieldType.searchAnalyzer();
         assertThat(namedIndexAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));

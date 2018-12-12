@@ -112,6 +112,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             final long term;
             if (loadSeqNo) {
                 NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                // remove the null check in 7.0 once we can't read indices with no seq#
                 if (seqNos != null && seqNos.advanceExact(docID)) {
                     seqNo = seqNos.longValue();
                 } else {
@@ -170,6 +171,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 final NumericDocValues seqNoDV = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
                 for (; docID != DocIdSetIterator.NO_MORE_DOCS; docID = docsEnum.nextDoc()) {
                     final long seqNo;
+                    // remove the null check in 7.0 once we can't read indices with no seq#
                     if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
                         seqNo = seqNoDV.longValue();
                     } else {

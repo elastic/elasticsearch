@@ -112,6 +112,25 @@ public class IndexResolverTests extends ESTestCase {
         assertTrue(resolution.isValid());
         assertEqualsMaps(nestedMapping, resolution.get().mapping());
     }
+    
+    public void testMetaFieldsAreIgnored() throws Exception {
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "_version", "_version", false, false);
+        addFieldCaps(fieldCaps, "_meta_field", "integer", true, true);
+        addFieldCaps(fieldCaps, "_size", "integer", true, true);
+        addFieldCaps(fieldCaps, "text", "keyword", true, true);
+        
+        String wildcard = "*";
+        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertNull(esIndex.mapping().get("_version"));
+        assertNull(esIndex.mapping().get("_size"));
+        assertEquals(DataType.INTEGER, esIndex.mapping().get("_meta_field").getDataType());
+        assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
+    }
 
     public static IndexResolution merge(EsIndex... indices) {
         return IndexResolver.mergedMapping("*", fromMappings(indices));
@@ -208,5 +227,12 @@ public class IndexResolverTests extends ESTestCase {
             V rv = right.get(entry.getKey());
             assertEquals(String.format(Locale.ROOT, "Key [%s] has different values", entry.getKey()), entry.getValue(), rv);
         }
+    }
+    
+    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps, String name, String type, boolean isSearchable,
+            boolean isAggregatable) {
+        Map<String, FieldCapabilities> cap = new HashMap<>();
+        cap.put(name, new FieldCapabilities(name, type, isSearchable, isAggregatable));
+        fieldCaps.put(name, cap);
     }
 }

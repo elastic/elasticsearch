@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -310,11 +311,16 @@ public class DiscoveryUpgradeService {
      * we lie and claim to have an impossible ID that compares above all genuine IDs.
      */
     public static DiscoveryNode createDiscoveryNodeWithImpossiblyHighId(DiscoveryNode node) {
-        // IDs are base-64-encoded UUIDs, which means they the character set [0-9A-Za-z_-]. The highest character in this set is 'z', and
-        // 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
+        // IDs are base-64-encoded UUIDs, which means they use the character set [0-9A-Za-z_-]. The highest character in this set is 'z',
+        // and 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
         final String fakeId = "{zen2}" + node.getId();
-        assert node.getId().compareTo(fakeId) < 0 : node + " vs " + fakeId;
+        assert assertFakeIdGreater(node.getId(), fakeId) && assertFakeIdGreater(UUIDs.randomBase64UUID(), fakeId);
         return new DiscoveryNode(node.getName(), fakeId, node.getEphemeralId(), node.getHostName(),
             node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
+    }
+
+    private static boolean assertFakeIdGreater(String realId, String fakeId) {
+        assert realId.compareTo(fakeId) < 0 : realId + " vs " + fakeId;
+        return true;
     }
 }

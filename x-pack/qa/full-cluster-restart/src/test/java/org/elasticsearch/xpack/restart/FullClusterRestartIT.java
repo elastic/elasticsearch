@@ -92,7 +92,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
 
         Request getRequest = new Request("GET", docLocation);
-        getRequest.setOptions(expectTypesWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 

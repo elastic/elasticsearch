@@ -430,11 +430,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         }
 
         @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
-        }
-
-        @Override
         public String toString() {
             return "persistent_task_recheck";
         }

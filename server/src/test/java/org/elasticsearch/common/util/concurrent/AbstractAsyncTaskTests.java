@@ -30,7 +30,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class AbstractAsyncTaskTests extends ESTestCase {
 
@@ -46,10 +45,10 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testAutoRepeat() throws InterruptedException {
+    public void testAutoRepeat() throws Exception {
 
-        final AtomicReference<CountDownLatch> latch1 = new AtomicReference<>(new CountDownLatch(1));
-        final AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
+        boolean shouldRunThrowException = randomBoolean();
+        final CyclicBarrier barrier = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final AtomicInteger count = new AtomicInteger();
         AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), true) {
 
@@ -61,16 +60,13 @@ public class AbstractAsyncTaskTests extends ESTestCase {
             @Override
             protected void runInternal() {
                 assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
-                final CountDownLatch l1 = latch1.get();
-                final CountDownLatch l2 = latch2.get();
                 count.incrementAndGet();
-                l1.countDown();
                 try {
-                    l2.await();
-                } catch (InterruptedException e) {
+                    barrier.await();
+                } catch (Exception e) {
                     fail("interrupted");
                 }
-                if (randomBoolean()) {
+                if (shouldRunThrowException) {
                     throw new RuntimeException("foo");
                 }
             }
@@ -84,24 +80,21 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         assertFalse(task.isScheduled());
         task.rescheduleIfNecessary();
         assertTrue(task.isScheduled());
-        latch1.get().await();
-        latch1.set(new CountDownLatch(1));
+        barrier.await();
         assertEquals(1, count.get());
-        // here we need to swap first before we let it go otherwise threads might be very fast and run that task twice due to
-        // random exception and the schedule interval is 1ms
-        latch2.getAndSet(new CountDownLatch(1)).countDown();
-        latch1.get().await();
+        barrier.reset();
+        barrier.await();
         assertEquals(2, count.get());
         assertTrue(task.isScheduled());
         task.close();
         assertTrue(task.isClosed());
         assertFalse(task.isScheduled());
-        latch2.get().countDown();
         assertEquals(2, count.get());
     }
 
     public void testManualRepeat() throws Exception {
 
+        boolean shouldRunThrowException = randomBoolean();
         final CyclicBarrier barrier = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final AtomicInteger count = new AtomicInteger();
         AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), false) {
@@ -116,11 +109,11 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
                 count.incrementAndGet();
                 try {
-                    barrier.await(10, TimeUnit.SECONDS); // should happen very quickly
+                    barrier.await();
                 } catch (Exception e) {
-                    fail("barrier not passed in reasonable time");
+                    fail("interrupted");
                 }
-                if (randomBoolean()) {
+                if (shouldRunThrowException) {
                     throw new RuntimeException("foo");
                 }
             }
@@ -133,15 +126,15 @@ public class AbstractAsyncTaskTests extends ESTestCase {
 
         assertFalse(task.isScheduled());
         task.rescheduleIfNecessary();
-        barrier.await(10, TimeUnit.SECONDS); // should happen very quickly
+        barrier.await();
         assertEquals(1, count.get());
         assertFalse(task.isScheduled());
         barrier.reset();
-        expectThrows(TimeoutException.class, () -> barrier.await(100, TimeUnit.MILLISECONDS));
+        expectThrows(TimeoutException.class, () -> barrier.await(10, TimeUnit.MILLISECONDS));
         assertEquals(1, count.get());
         barrier.reset();
         task.rescheduleIfNecessary();
-        barrier.await(10, TimeUnit.SECONDS); // should happen very quickly
+        barrier.await();
         assertEquals(2, count.get());
         assertFalse(task.isScheduled());
         assertFalse(task.isClosed());

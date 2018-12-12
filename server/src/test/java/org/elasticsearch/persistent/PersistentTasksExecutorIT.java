@@ -184,7 +184,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksClusterService persistentTasksClusterService =
             internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
         // Speed up rechecks to a rate that is quicker than what settings would allow
-        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(10));
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
 
         TestPersistentTasksExecutor.setNonClusterStateCondition(false);
 

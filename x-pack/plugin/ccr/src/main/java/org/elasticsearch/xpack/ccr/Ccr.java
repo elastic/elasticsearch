@@ -58,10 +58,13 @@ import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.repositories.DeleteCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
@@ -156,6 +159,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         return Arrays.asList(
             ccrLicenseChecker,
+            new CcrRestoreSourceService(settings),
             new AutoFollowCoordinator(client, clusterService, ccrLicenseChecker)
         );
     }
@@ -182,6 +186,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     PutInternalCcrRepositoryAction.TransportPutInternalRepositoryAction.class),
                 new ActionHandler<>(DeleteInternalCcrRepositoryAction.INSTANCE,
                     DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class),
+                new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE,
+                    PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
+                new ActionHandler<>(DeleteCcrRestoreSessionAction.INSTANCE,
+                    DeleteCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),

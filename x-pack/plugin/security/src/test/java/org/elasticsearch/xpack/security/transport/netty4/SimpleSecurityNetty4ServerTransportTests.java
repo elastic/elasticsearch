@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,7 +34,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNetty4ServerTransport(settings1, version, threadPool,
-            networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
+            networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override

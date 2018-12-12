@@ -76,13 +76,12 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -103,6 +102,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
+    private final DiscoverySettings discoverySettings;
     // TODO: the following two fields are package-private as some tests require access to them
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
@@ -135,7 +135,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
-    private final Set<Consumer<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
+    private final Set<ActionListener<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
 
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
@@ -148,6 +148,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
         this.persistedStateSupplier = persistedStateSupplier;
+        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
@@ -166,8 +167,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService, this::isBootstrapped,
-            joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
+            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
@@ -207,8 +208,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
+    void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
         synchronized (mutex) {
+            final long previousTerm = getCurrentTerm();
             ensureTermAtLeast(followerCheckRequest.getSender(), followerCheckRequest.getTerm());
 
             if (getCurrentTerm() != followerCheckRequest.getTerm()) {
@@ -217,7 +219,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + getCurrentTerm() + "], rejecting " + followerCheckRequest);
             }
 
-            becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            if (previousTerm != getCurrentTerm()) {
+                becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            }
         }
     }
 
@@ -278,6 +282,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 preVoteCollector.update(getPreVoteResponse(), getLocalNode());
             } else {
                 becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
+            }
+
+            if (isInitialConfigurationSet()) {
+                for (final ActionListener<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                    discoveredNodesListener.onFailure(new ClusterAlreadyBootstrappedException());
+                }
             }
 
             return new PublishWithJoinResponse(publishResponse,
@@ -520,7 +530,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                    .addGlobalBlock(NO_MASTER_BLOCK_WRITES)) // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
+                    .addGlobalBlock(discoverySettings.getNoMasterBlock()))
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
             applierState = initialState;
@@ -560,7 +570,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
-            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
+            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID);
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -704,10 +714,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private boolean isBootstrapped() {
-        return getLastAcceptedState().getLastAcceptedConfiguration().isEmpty() == false;
-    }
-
     private void unsafelySetConfigurationForUpgrade(VotingConfiguration votingConfiguration) {
         assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this method once unsafe upgrades are no longer needed";
         synchronized (mutex) {
@@ -715,7 +721,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new IllegalStateException("Cannot overwrite configuration in mode " + mode);
             }
 
-            if (isBootstrapped()) {
+            if (isInitialConfigurationSet()) {
                 throw new IllegalStateException("Cannot overwrite configuration: configuration is already set to "
                     + getLastAcceptedState().getLastAcceptedConfiguration());
             }
@@ -869,11 +875,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private ClusterState clusterStateWithNoMasterBlock(ClusterState clusterState) {
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID) == false :
+            assert clusterState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID) == false :
                 "NO_MASTER_BLOCK should only be added by Coordinator";
-            // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
             final ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks()).addGlobalBlock(
-                NO_MASTER_BLOCK_WRITES).build();
+                discoverySettings.getNoMasterBlock()).build();
             final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
             return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(discoveryNodes).build();
         } else {
@@ -1014,8 +1019,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }
 
-            for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
-                discoveredNodesListener.accept(foundPeers);
+            for (final ActionListener<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                discoveredNodesListener.onResponse(foundPeers);
             }
         }
     }
@@ -1051,7 +1056,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         });
     }
 
-    public Releasable withDiscoveryListener(Consumer<Iterable<DiscoveryNode>> listener) {
+    public Releasable withDiscoveryListener(ActionListener<Iterable<DiscoveryNode>> listener) {
         discoveredNodesListeners.add(listener);
         return () -> {
             boolean removed = discoveredNodesListeners.remove(listener);

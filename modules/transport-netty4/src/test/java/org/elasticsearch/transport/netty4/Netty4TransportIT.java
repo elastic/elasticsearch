@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -90,13 +89,13 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
         public static class TestPlugin extends Plugin implements NetworkPlugin {
 
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   NetworkService networkService) {
                 return Collections.singletonMap("exception-throwing",
-                    () -> new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, bigArrays,
+                    () -> new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, pageCacheRecycler,
                     namedWriteableRegistry, circuitBreakerService));
             }
         }
@@ -105,10 +104,10 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
                 Settings settings,
                 ThreadPool threadPool,
                 NetworkService networkService,
-                BigArrays bigArrays,
+                PageCacheRecycler recycler,
                 NamedWriteableRegistry namedWriteableRegistry,
                 CircuitBreakerService circuitBreakerService) {
-            super(settings, Version.CURRENT, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+            super(settings, Version.CURRENT, threadPool, networkService, recycler, namedWriteableRegistry, circuitBreakerService);
         }
 
         @Override

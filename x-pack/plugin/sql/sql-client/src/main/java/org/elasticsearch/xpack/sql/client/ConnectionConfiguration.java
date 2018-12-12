@@ -50,7 +50,7 @@ public class ConnectionConfiguration {
     public static final String PAGE_SIZE = "page.size";
     private static final String PAGE_SIZE_DEFAULT = "1000";
     
-    public static final String CLIENT_ID = "client.id";
+    public static final String CLIENT_ID = "client_id";
 
     // Auth
 

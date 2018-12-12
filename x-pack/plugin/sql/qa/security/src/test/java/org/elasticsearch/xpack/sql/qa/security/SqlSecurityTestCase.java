@@ -476,7 +476,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     protected static void createUser(String name, String role) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject(); {
             user.field("password", "testpass");

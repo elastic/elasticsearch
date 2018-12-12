@@ -77,13 +77,11 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, Version.CURRENT, threadPool,
-            networkService, bigArrays, namedWriteableRegistry, circuitBreakerService));
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService));
     }
 
     @Override

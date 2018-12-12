@@ -125,7 +125,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
      */
     @After
     public void deleteUsers() throws Exception {
-        ClientYamlTestResponse response = getAdminExecutionContext().callApi("xpack.security.get_user", emptyMap(), emptyList(),
+        ClientYamlTestResponse response = getAdminExecutionContext().callApi("security.get_user", emptyMap(), emptyList(),
                 emptyMap());
         @SuppressWarnings("unchecked")
         Map<String, Object> users = (Map<String, Object>) response.getBody();
@@ -134,7 +134,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
             Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
             if (reserved == null || reserved == false) {
                 logger.warn("Deleting leftover user {}", user);
-                getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
         }
     }

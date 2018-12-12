@@ -4,7 +4,7 @@
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/rollup/job/{id}",
-      "paths": [ "/_xpack/rollup/job/{id}", "/_xpack/rollup/job/" ],
+      "paths": [ "/_xpack/rollup/job/{id}", "/_xpack/rollup/job/", "/_rollup/job/{id}", "/_rollup/job/"],
       "parts": {
         "id": {
           "type": "string",

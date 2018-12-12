@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -154,7 +153,7 @@ public final class SearchPhaseController {
      * @param from the offset into the search results top docs
      * @param size the number of hits to return from the merged top docs
      */
-    public SortedTopDocs sortDocs(boolean ignoreFrom, Collection<? extends SearchPhaseResult> results,
+    static SortedTopDocs sortDocs(boolean ignoreFrom, Collection<? extends SearchPhaseResult> results,
                                   final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size) {
         if (results.isEmpty()) {
             return SortedTopDocs.EMPTY;
@@ -214,7 +213,7 @@ public final class SearchPhaseController {
             }
             final boolean isSortedByField;
             final SortField[] sortFields;
-            if (mergedTopDocs != null && mergedTopDocs instanceof TopFieldDocs) {
+            if (mergedTopDocs instanceof TopFieldDocs) {
                 TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
                 isSortedByField = (fieldDocs instanceof CollapseTopFieldDocs &&
                     fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
@@ -230,11 +229,10 @@ public final class SearchPhaseController {
         }
     }
 
-    TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
         if (results.isEmpty()) {
             return null;
         }
-        assert results.isEmpty() == false;
         final boolean setShardIndex = false;
         final TopDocs topDocs = results.stream().findFirst().get();
         final TopDocs mergedTopDocs;
@@ -259,12 +257,8 @@ public final class SearchPhaseController {
     }
 
     private static void setShardIndex(TopDocs topDocs, int shardIndex) {
+        assert topDocs.scoreDocs.length == 0 || topDocs.scoreDocs[0].shardIndex == -1 : "shardIndex is already set";
         for (ScoreDoc doc : topDocs.scoreDocs) {
-            if (doc.shardIndex != -1) {
-                // once there is a single shard index initialized all others will be initialized too
-                // there are many asserts down in lucene land that this is actually true. we can shortcut it here.
-                return;
-            }
             doc.shardIndex = shardIndex;
         }
     }
@@ -283,7 +277,6 @@ public final class SearchPhaseController {
             }
         }
         return lastEmittedDocPerShard;
-
     }
 
     /**
@@ -402,15 +395,15 @@ public final class SearchPhaseController {
                 hits.add(searchHit);
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits, reducedQueryPhase.maxScore);
+        return new SearchHits(hits.toArray(new SearchHit[0]), reducedQueryPhase.totalHits, reducedQueryPhase.maxScore);
     }
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest) {
-        return reducedQueryPhase(queryResults, isScrollRequest, true);
+    public ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
+        return reducedQueryPhase(queryResults, true, true);
     }
 
     /**
@@ -421,7 +414,6 @@ public final class SearchPhaseController {
                                                boolean isScrollRequest, boolean trackTotalHits) {
         return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
     }
-
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
@@ -507,14 +499,12 @@ public final class SearchPhaseController {
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
-        final SortedTopDocs scoreDocs = this.sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
+        final SortedTopDocs scoreDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
             timedOut, terminatedEarly, suggest, aggregations, shardResults, scoreDocs.scoreDocs, scoreDocs.sortFields,
-            firstResult != null ? firstResult.sortValueFormats() : null,
-            numReducePhases, scoreDocs.isSortedByField, size, from, firstResult == null);
+            firstResult.sortValueFormats(), numReducePhases, scoreDocs.isSortedByField, size, from, false);
     }
-
 
     /**
      * Performs an intermediate reduce phase on the aggregations. For instance with this reduce phase never prune information
@@ -526,7 +516,7 @@ public final class SearchPhaseController {
             null, reduceContext);
     }
 
-    private InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
+    private static InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
                                             List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
@@ -657,7 +647,6 @@ public final class SearchPhaseController {
             this.hasTopDocs = hasTopDocs;
             this.hasAggs = hasAggs;
             this.bufferSize = bufferSize;
-
         }
 
         @Override
@@ -675,10 +664,9 @@ public final class SearchPhaseController {
                     aggsBuffer[0] = reducedAggs;
                 }
                 if (hasTopDocs) {
-                    TopDocs reducedTopDocs = controller.mergeTopDocs(Arrays.asList(topDocsBuffer),
+                    TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
                         // we have to merge here in the same way we collect on a shard
-                        querySearchResult.from() + querySearchResult.size()
-                        , 0);
+                        querySearchResult.from() + querySearchResult.size(), 0);
                     Arrays.fill(topDocsBuffer, null);
                     topDocsBuffer[0] = reducedTopDocs;
                 }
@@ -692,7 +680,7 @@ public final class SearchPhaseController {
             if (hasTopDocs) {
                 final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
                 topDocsStats.add(topDocs);
-                SearchPhaseController.setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
+                setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
                 topDocsBuffer[i] = topDocs.topDocs;
             }
         }
@@ -704,7 +692,6 @@ public final class SearchPhaseController {
         private synchronized List<TopDocs> getRemainingTopDocs() {
             return hasTopDocs ? Arrays.asList(topDocsBuffer).subList(0, index) : null;
         }
-
 
         @Override
         public ReducedQueryPhase reduce() {
@@ -739,7 +726,7 @@ public final class SearchPhaseController {
                 return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs);
             }
         }
-        return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {
+        return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
                 return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);

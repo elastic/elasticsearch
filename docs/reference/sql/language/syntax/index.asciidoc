@@ -3,6 +3,8 @@
 [[sql-commands]]
 == SQL Commands
 
+beta[]
+
 This section contains the list of SQL commands supported by {es-sql} along with their syntax:
 
 <<sql-syntax-describe-table>>:: Describe a table.

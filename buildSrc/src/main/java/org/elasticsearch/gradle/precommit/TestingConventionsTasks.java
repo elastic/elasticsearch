@@ -319,9 +319,11 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private FileCollection getTestsClassPath() {
-        // Loading the classes does depend on the @Classpath but we can have better caching if we don't annotate this
-        // as such as the conventions as such don't depend on the classpath and any missing classes would be detected
-        // when running the tests
+        // Loading the classes depends on the classpath, so we could make this an input annotated with @Classpath.
+        // The reason we don't is that test classes are already inputs and while the dependencies are needed to load
+        // the classes these don't influence the checks done by this task.
+        // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
+        // running the tests.
         return getProject().files(
             getProject().getConfigurations().getByName("testRuntime").resolve(),
             Boilerplate.getJavaSourceSets(getProject())

@@ -48,10 +48,6 @@ import java.util.Locale;
 
 public class Joda {
 
-    public static JodaDateFormatter forPattern(String input) {
-        return forPattern(input, Locale.ROOT);
-    }
-
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
@@ -231,27 +227,7 @@ public class Joda {
             formatter = StrictISODateTimeFormat.yearMonth();
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             formatter = StrictISODateTimeFormat.yearMonthDay();
-        } else if (Strings.hasLength(input) && input.contains("||")) {
-                String[] formats = Strings.delimitedListToStringArray(input, "||");
-                DateTimeParser[] parsers = new DateTimeParser[formats.length];
 
-                if (formats.length == 1) {
-                    formatter = forPattern(input, locale).parser;
-                } else {
-                    DateTimeFormatter dateTimeFormatter = null;
-                    for (int i = 0; i < formats.length; i++) {
-                        JodaDateFormatter currentFormatter = forPattern(formats[i], locale);
-                        DateTimeFormatter currentParser = currentFormatter.parser;
-                        if (dateTimeFormatter == null) {
-                            dateTimeFormatter = currentFormatter.printer;
-                        }
-                        parsers[i] = currentParser.getParser();
-                    }
-
-                    DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
-                        .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
-                    formatter = builder.toFormatter();
-                }
         } else {
             try {
                 formatter = DateTimeFormat.forPattern(input);

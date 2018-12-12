@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -201,7 +202,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     private static String getBucketKeyAsString(DateTime key, DateTimeZone tz) {
         ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(tz);
-        return Joda.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()).withZone(zoneId).formatJoda(key);
+        return DateFormatter.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()).withZone(zoneId).formatJoda(key);
     }
 
     public void testSingleValuedField() throws Exception {

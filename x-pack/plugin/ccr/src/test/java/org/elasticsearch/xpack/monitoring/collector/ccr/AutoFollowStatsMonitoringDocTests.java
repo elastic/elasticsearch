@@ -41,7 +41,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
     @Before
     public void instantiateAutoFollowStats() {
         autoFollowStats = new AutoFollowStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            Collections.emptyNavigableMap());
+            Collections.emptyNavigableMap(), Collections.emptyNavigableMap());
     }
 
     @Override
@@ -74,8 +74,14 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
             new TreeMap<>(Collections.singletonMap(
                 randomAlphaOfLength(4),
                 new ElasticsearchException("cannot follow index")));
+
+        final NavigableMap<String, Long> trackingClusters =
+            new TreeMap<>(Collections.singletonMap(
+                randomAlphaOfLength(4),
+                1L));
         final AutoFollowStats autoFollowStats =
-            new AutoFollowStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), recentAutoFollowExceptions);
+            new AutoFollowStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), recentAutoFollowExceptions,
+                trackingClusters);
 
         final AutoFollowStatsMonitoringDoc document =
             new AutoFollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, autoFollowStats);
@@ -99,7 +105,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                     + "\"ccr_auto_follow_stats\":{"
                         + "\"number_of_failed_follow_indices\":" + autoFollowStats.getNumberOfFailedFollowIndices() + ","
                         + "\"number_of_failed_remote_cluster_state_requests\":" +
-                            autoFollowStats.getNumberOfFailedRemoteClusterStateRequests() + ","
+                        autoFollowStats.getNumberOfFailedRemoteClusterStateRequests() + ","
                         + "\"number_of_successful_follow_indices\":" + autoFollowStats.getNumberOfSuccessfulFollowIndices() + ","
                         + "\"recent_auto_follow_errors\":["
                             + "{"
@@ -109,6 +115,12 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                                     + "\"reason\":\"cannot follow index\""
                                 + "}"
                             + "}"
+                        + "],"
+                        + "\"tracking_remote_clusters\":["
+                            + "{"
+                                + "\"cluster_name\":\"" + trackingClusters.keySet().iterator().next() + "\","
+                                + "\"time_since_last_auto_follow_started_millis\":"  + trackingClusters.values().iterator().next()
+                            + "}"
                         + "]"
                     + "}"
             + "}"));
@@ -117,7 +129,11 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
     public void testShardFollowNodeTaskStatusFieldsMapped() throws IOException {
         final NavigableMap<String, ElasticsearchException> fetchExceptions =
             new TreeMap<>(Collections.singletonMap("leader_index", new ElasticsearchException("cannot follow index")));
-        final AutoFollowStats status = new AutoFollowStats(1, 0, 2, fetchExceptions);
+        final NavigableMap<String, Long> trackingClusters =
+            new TreeMap<>(Collections.singletonMap(
+                randomAlphaOfLength(4),
+                1L));
+        final AutoFollowStats status = new AutoFollowStats(1, 0, 2, fetchExceptions, trackingClusters);
         XContentBuilder builder = jsonBuilder();
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
@@ -154,6 +170,12 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                     assertThat(exceptionFieldMapping.size(), equalTo(2));
                     assertThat(XContentMapValues.extractValue("type.type", exceptionFieldMapping), equalTo("keyword"));
                     assertThat(XContentMapValues.extractValue("reason.type", exceptionFieldMapping), equalTo("text"));
+                } else if (fieldName.equals("tracking_remote_clusters")) {
+                    assertThat(fieldType, equalTo("nested"));
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(2));
+                    assertThat(XContentMapValues.extractValue("properties.cluster_name.type", fieldMapping), equalTo("keyword"));
+                    assertThat(XContentMapValues.extractValue("properties.time_since_last_auto_follow_started_millis.type", fieldMapping),
+                        equalTo("long"));
                 } else {
                     fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
                 }

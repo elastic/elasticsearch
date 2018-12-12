@@ -34,7 +34,8 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomReadExceptions()
+            randomReadExceptions(),
+            randomTrackingClusters()
         );
     }
 
@@ -43,6 +44,15 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
         final NavigableMap<String, ElasticsearchException> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
             readExceptions.put("" + i, new ElasticsearchException(new IllegalStateException("index [" + i + "]")));
+        }
+        return readExceptions;
+    }
+
+    static NavigableMap<String, Long> randomTrackingClusters() {
+        final int count = randomIntBetween(0, 16);
+        final NavigableMap<String, Long> readExceptions = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            readExceptions.put("" + i, randomLong());
         }
         return readExceptions;
     }

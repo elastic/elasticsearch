@@ -163,7 +163,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         remoteCluster,
                         request,
                         e -> handler.accept(null, e),
-                        remoteClusterStateRsp -> handler.accept(remoteClusterStateRsp, null));
+                        remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null));
                 }
 
                 @Override
@@ -272,14 +272,14 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             this.autoFollowPatternsCountDown = new CountDown(patterns.size());
             this.autoFollowResults = new AtomicArray<>(patterns.size());
 
-            getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateRsp, remoteError) -> {
-                if (remoteClusterStateRsp != null) {
+            getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateResponse, remoteError) -> {
+                if (remoteClusterStateResponse != null) {
                     assert remoteError == null;
-                    if (remoteClusterStateRsp.isWaitForTimedOut()) {
+                    if (remoteClusterStateResponse.isWaitForTimedOut()) {
                         start();
                         return;
                     }
-                    ClusterState remoteClusterState = remoteClusterStateRsp.getState();
+                    ClusterState remoteClusterState = remoteClusterStateResponse.getState();
                     metadataVersion = remoteClusterState.metaData().version();
                     autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns);
                 } else {

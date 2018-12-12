@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -154,9 +156,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
-        /*if (parent != null) {
+        if(!checkParentIsNullOrNested(parent)) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation");
-        }*/
+        }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {
             configs[i] = sources.get(i).build(context);
@@ -221,5 +223,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return size == other.size &&
             Objects.equals(sources, other.sources) &&
             Objects.equals(after, other.after);
+    }
+
+    private boolean checkParentIsNullOrNested(AggregatorFactory<?> parent) {
+        if (parent == null) {
+            return true;
+        } else if (parent instanceof ReverseNestedAggregatorFactory) {
+            return checkParentIsNullOrNested(parent.getParent());
+        } else {
+            return false;
+        }
     }
 }

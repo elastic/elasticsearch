@@ -48,11 +48,12 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.bucket.composite.*;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -64,6 +65,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -78,6 +80,8 @@ import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
+
+
 
 public class NestedAggregatorTests extends AggregatorTestCase {
 
@@ -125,6 +129,114 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
+            }
+        }
+    }
+
+    private DateHistogramValuesSourceBuilder randomDateHistogramSourceBuilder() {
+        DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            histo.field(randomAlphaOfLengthBetween(1, 20));
+        } else {
+            histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
+        }
+        if (randomBoolean()) {
+            histo.dateHistogramInterval(randomFrom(DateHistogramInterval.days(10),
+                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
+        } else {
+            histo.interval(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            histo.timeZone(randomDateTimeZone());
+        }
+        if (randomBoolean()) {
+            histo.missingBucket(true);
+        }
+        return histo;
+    }
+
+    private TermsValuesSourceBuilder randomTermsSourceBuilder() {
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            terms.field(randomAlphaOfLengthBetween(1, 20));
+        } else {
+            terms.script(new Script(randomAlphaOfLengthBetween(10, 20)));
+        }
+        terms.order(randomFrom(SortOrder.values()));
+        if (randomBoolean()) {
+            terms.missingBucket(true);
+        }
+        return terms;
+    }
+
+    private HistogramValuesSourceBuilder randomHistogramSourceBuilder() {
+        HistogramValuesSourceBuilder histo = new HistogramValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            histo.field(randomAlphaOfLengthBetween(1, 20));
+        } else {
+            histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
+        }
+        if (randomBoolean()) {
+            histo.missingBucket(true);
+        }
+        histo.interval(randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false));
+        return histo;
+    }
+
+
+    public void testNestedWithComposite() throws IOException {
+        int numRootDocs = randomIntBetween(1, 20);
+        int expectedNestedDocs = 0;
+        double expectedMaxValue = Double.NEGATIVE_INFINITY;
+
+
+        int numSources = randomIntBetween(1, 10);
+        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+        for (int i = 0; i < numSources; i++) {
+            int type = randomIntBetween(0, 2);
+            switch (type) {
+                case 0:
+                    sources.add(randomTermsSourceBuilder());
+                    break;
+                case 1:
+                    sources.add(randomDateHistogramSourceBuilder());
+                    break;
+                case 2:
+                    sources.add(randomHistogramSourceBuilder());
+                    break;
+                default:
+                    throw new AssertionError("wrong branch");
+            }
+        }
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numRootDocs; i++) {
+                    List<Document> documents = new ArrayList<>();
+                    int numNestedDocs = randomIntBetween(0, 20);
+                    expectedMaxValue = Math.max(expectedMaxValue, generateMaxDocs(documents, numNestedDocs, i, NESTED_OBJECT, VALUE_FIELD_NAME));
+                    expectedNestedDocs += numNestedDocs;
+
+                    Document document = new Document();
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(sequenceIDFields.primaryTerm);
+                    documents.add(document);
+                    iw.addDocuments(documents);
+                }
+                iw.commit();
+            }
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT);
+                MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
+                nestedBuilder.subAggregation(compositeBuilder);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                fieldType.setName(VALUE_FIELD_NAME);
+
+                assertEquals(1, nestedBuilder.getSubAggregations().size());
+                assertEquals(CompositeAggregationBuilder.class, nestedBuilder.getSubAggregations().toArray()[0].getClass());
+                assertEquals("composite", compositeBuilder.getType());
             }
         }
     }

@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -49,7 +49,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -57,6 +56,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -99,12 +99,11 @@ public final class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings) {
-        MockTcpTransport mockTcpTransport = newMockTransport(settings, version, threadPool);
-        return createNewService(settings, mockTcpTransport, version, threadPool, clusterSettings,
-            Collections.emptySet());
+        MockNioTransport mockTransport = newMockTransport(settings, version, threadPool);
+        return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
-    public static MockTcpTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -112,8 +111,8 @@ public final class MockTransportService extends TransportService {
         int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
         settings = Settings.builder().put(TcpTransport.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        return new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
+        return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
+            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());
     }
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
@@ -160,7 +159,7 @@ public final class MockTransportService extends TransportService {
         this.original = transport.getDelegate();
     }
 
-    public static TransportAddress[] extractTransportAddresses(TransportService transportService) {
+    private static TransportAddress[] extractTransportAddresses(TransportService transportService) {
         HashSet<TransportAddress> transportAddresses = new HashSet<>();
         BoundTransportAddress boundTransportAddress = transportService.boundAddress();
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));

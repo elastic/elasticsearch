@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -52,6 +51,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -128,7 +128,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         rangeBuilder.addUnboundedTo("a long time ago", "now-50y").addRange("recently", "now-50y", "now-1y")
-                                .addUnboundedFrom("last year", "now-1y").timeZone(DateTimeZone.forID("EST"))).execute().actionGet();
+                                .addUnboundedFrom("last year", "now-1y").timeZone(DateTimeZone.forID("EST"))).get();
 
         assertSearchResponse(response);
 
@@ -162,7 +162,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -208,7 +208,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo("2012-02-15")
                         .addRange("2012-02-15", "2012-03-15")
                         .addUnboundedFrom("2012-03-15"))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -255,7 +255,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo("2012-02-15")
                         .addRange("2012-02-15", "2012-03-15")
                         .addUnboundedFrom("2012-03-15"))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -309,7 +309,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addRange("2012-02-15", "2012-02-15||+1M")
                         .addUnboundedFrom("2012-02-15||+1M")
                         .timeZone(timezone))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -355,7 +355,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo("r1", date(2, 15))
                         .addRange("r2", date(2, 15), date(3, 15))
                         .addUnboundedFrom("r3", date(3, 15)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -411,7 +411,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addRange("r2", date(2, 15), date(3, 15))
                         .addUnboundedFrom("r3", date(3, 15))
                         .subAggregation(sum("sum").field("value")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -488,7 +488,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -544,8 +544,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(dateRange("range")
                         .field("dates")
                                 .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.DOUBLE_PLUS_ONE_MONTH, params))
-                                .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
-                .actionGet();
+                                .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).get();
 
         assertSearchResponse(response);
 
@@ -603,7 +602,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -663,7 +662,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(
                         dateRange("range").script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.EXTRACT_FIELD, params))
                         .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
-                        .addUnboundedFrom(date(3, 15))).execute().actionGet();
+                        .addUnboundedFrom(date(3, 15))).get();
 
         assertSearchResponse(response);
 
@@ -702,7 +701,7 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(dateRange("range")
@@ -710,7 +709,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -756,7 +755,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo("2012-02-15")
                         .addRange("2012-02-15", "2012-03-15")
                         .addUnboundedFrom("2012-03-15"))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -802,7 +801,7 @@ public class DateRangeIT extends ESIntegTestCase {
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -846,7 +845,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(dateRange("date_range").field("value").addRange("0-1", 0, 1)))
-                .execute().actionGet();
+                .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -870,7 +869,7 @@ public class DateRangeIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                 .addAggregation(dateRange("my_date_range_agg").field("value"))
-                .execute().actionGet();
+                .get();
             fail();
         } catch (SearchPhaseExecutionException spee){
             Throwable rootCause = spee.getCause().getCause();
@@ -973,8 +972,8 @@ public class DateRangeIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000)).get());
         Throwable cause = e.getCause();
-        assertThat(cause, instanceOf(ElasticsearchParseException.class));
-        assertEquals("failed to parse date field [1000000] with format [strict_hour_minute_second]", cause.getMessage());
+        assertThat(cause.getMessage(),
+            containsString("failed to parse date field [1000000] with format [strict_hour_minute_second]"));
     }
 
     /**

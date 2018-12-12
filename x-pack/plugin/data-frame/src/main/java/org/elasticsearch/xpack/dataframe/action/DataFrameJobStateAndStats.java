@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.job.DataFrameIndexerJobStats;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobState;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
             a -> new DataFrameJobStateAndStats((String) a[0], (DataFrameJobState) a[1], (DataFrameIndexerJobStats) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameJob.ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameJobState.PARSER::apply, STATE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerJobStats.fromXContent(p), STATS_FIELD);
     }
@@ -54,7 +54,7 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(DataFrameJob.ID.getPreferredName(), id);
+        builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), jobState);
         builder.field(STATS_FIELD.getPreferredName(), jobStats);
         builder.endObject();

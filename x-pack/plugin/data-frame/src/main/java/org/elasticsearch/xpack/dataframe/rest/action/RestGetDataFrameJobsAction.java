@@ -12,20 +12,19 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsAction;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 public class RestGetDataFrameJobsAction extends BaseRestHandler {
 
     public RestGetDataFrameJobsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, DataFrame.BASE_PATH_JOBS_BY_ID, this);
+        controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String id = restRequest.param(DataFrameJob.ID.getPreferredName());
+        String id = restRequest.param(DataFrameField.ID.getPreferredName());
         GetDataFrameJobsAction.Request request = new GetDataFrameJobsAction.Request(id);
         return channel -> client.execute(GetDataFrameJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

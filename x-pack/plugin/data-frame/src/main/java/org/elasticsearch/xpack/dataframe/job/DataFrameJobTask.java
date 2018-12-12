@@ -21,10 +21,10 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
-import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.action.StartDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.action.StopDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.action.StartDataFrameJobAction.Response;
@@ -46,12 +46,12 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     // 1: data frame complete, all data has been indexed
     private final AtomicReference<Long> generation;
 
-    static final String SCHEDULE_NAME = DataFrame.TASK_NAME + "/schedule";
+    static final String SCHEDULE_NAME = DataFrameField.TASK_NAME + "/schedule";
 
     public DataFrameJobTask(long id, String type, String action, TaskId parentTask, DataFrameJob job,
             DataFrameJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
             Map<String, String> headers) {
-        super(id, type, action, DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + job.getConfig().getId(), parentTask, headers);
+        super(id, type, action, DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + job.getConfig().getId(), parentTask, headers);
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;

@@ -19,8 +19,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,11 +46,11 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
         public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
-            PARSER.declareString(Request::setId, DataFrameJob.ID);
+            PARSER.declareString(Request::setId, DataFrameField.ID);
         }
 
         public Request(String id) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameJob.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         }
 
         public Request() {
@@ -82,7 +82,7 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameJob.ID.getPreferredName(), id);
+            builder.field(DataFrameField.ID.getPreferredName(), id);
             return builder;
         }
 
@@ -106,7 +106,7 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
 
         @Override
         public boolean match(Task task) {
-            String expectedDescription = DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
+            String expectedDescription = DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
 
             return task.getDescription().equals(expectedDescription);
         }

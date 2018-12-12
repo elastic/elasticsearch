@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,9 +34,6 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
 
     public static final GetDataFrameJobsStatsAction INSTANCE = new GetDataFrameJobsStatsAction();
     public static final String NAME = "cluster:monitor/data_frame_stats/get";
-    public static final ParseField COUNT = new ParseField("count");
-    public static final ParseField JOBS = new ParseField("jobs");
-
     public GetDataFrameJobsStatsAction() {
         super(NAME);
     }
@@ -69,10 +65,10 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description does not contain the id
             if (id.equals(MetaData.ALL)) {
-                return task.getDescription().startsWith(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX);
+                return task.getDescription().startsWith(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX);
             }
             // Otherwise find the task by ID
-            return task.getDescription().equals(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
+            return task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         public String getId() {
@@ -92,7 +88,7 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameJob.ID.getPreferredName(), id);
+            builder.field(DataFrameField.ID.getPreferredName(), id);
             return builder;
         }
 
@@ -164,8 +160,8 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(COUNT.getPreferredName(), jobsStateAndStats.size());
-            builder.field(JOBS.getPreferredName(), jobsStateAndStats);
+            builder.field(DataFrameField.COUNT.getPreferredName(), jobsStateAndStats.size());
+            builder.field(DataFrameField.JOBS.getPreferredName(), jobsStateAndStats);
             builder.endObject();
             return builder;
         }

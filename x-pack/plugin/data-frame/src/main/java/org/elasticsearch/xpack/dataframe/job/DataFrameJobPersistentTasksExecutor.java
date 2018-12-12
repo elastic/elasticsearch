@@ -16,6 +16,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 
@@ -31,7 +32,7 @@ public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor
 
     public DataFrameJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine,
             ThreadPool threadPool) {
-        super(DataFrame.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
+        super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;

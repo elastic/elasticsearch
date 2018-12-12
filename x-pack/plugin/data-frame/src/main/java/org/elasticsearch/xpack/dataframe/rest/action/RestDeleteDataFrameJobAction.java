@@ -13,9 +13,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 import java.io.IOException;
 
@@ -23,12 +22,12 @@ public class RestDeleteDataFrameJobAction extends BaseRestHandler {
 
     public RestDeleteDataFrameJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE,  DataFrame.BASE_PATH_JOBS_BY_ID, this);
+        controller.registerHandler(RestRequest.Method.DELETE,  DataFrameField.REST_BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(DataFrameJob.ID.getPreferredName());
+        String id = restRequest.param(DataFrameField.ID.getPreferredName());
         DeleteDataFrameJobAction.Request request = new DeleteDataFrameJobAction.Request(id);
 
         return channel -> client.execute(DeleteDataFrameJobAction.INSTANCE, request,

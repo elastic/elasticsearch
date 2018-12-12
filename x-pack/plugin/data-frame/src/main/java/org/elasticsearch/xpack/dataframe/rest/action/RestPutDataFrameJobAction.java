@@ -13,9 +13,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.action.PutDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 import java.io.IOException;
 
@@ -23,7 +22,7 @@ public class RestPutDataFrameJobAction extends BaseRestHandler {
     
     public RestPutDataFrameJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, DataFrame.BASE_PATH_JOBS_BY_ID, this);
+        controller.registerHandler(RestRequest.Method.PUT, DataFrameField.REST_BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override
@@ -33,7 +32,7 @@ public class RestPutDataFrameJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(DataFrameJob.ID.getPreferredName());
+        String id = restRequest.param(DataFrameField.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
         PutDataFrameJobAction.Request request = PutDataFrameJobAction.Request.fromXContent(parser, id);

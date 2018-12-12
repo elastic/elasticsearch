@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance
@@ -40,7 +41,7 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput
     private Releasable releasable;
 
     public ReleasableBytesStreamOutput(BigArrays bigarrays) {
-        this(BigArrays.PAGE_SIZE_IN_BYTES, bigarrays);
+        this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigarrays);
     }
 
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {

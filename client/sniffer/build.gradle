@@ -78,6 +78,16 @@ namingConventions {
   skipIntegTestInDisguise = true
 }
 
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.client.RestClientTestCase'
+    }
+  }
+}
+
+
 dependencyLicenses {
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false

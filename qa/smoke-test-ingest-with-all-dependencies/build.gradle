@@ -31,3 +31,12 @@ dependencies {
 integTestCluster {
     plugin ':plugins:ingest-geoip'
 }
+
+
+testingConventions {
+    naming {
+        IT {
+            baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
+        }
+    }
+}

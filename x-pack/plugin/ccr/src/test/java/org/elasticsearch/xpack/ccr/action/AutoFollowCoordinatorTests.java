@@ -728,8 +728,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
 
-        @SuppressWarnings("unchecked")
-        final List<AutoFollowCoordinator.AutoFollowResult>[] resultHolder = new List[1];
+        final Object[] resultHolder = new Object[1];
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> {
             resultHolder[0] = results;
         };
@@ -767,7 +766,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         autoFollower.start();
 
-        List<AutoFollowCoordinator.AutoFollowResult> results = resultHolder[0];
+        @SuppressWarnings("unchecked")
+        List<AutoFollowCoordinator.AutoFollowResult> results = (List<AutoFollowCoordinator.AutoFollowResult>) resultHolder[0];
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
         assertThat(results.get(0).clusterStateFetchException, nullValue());

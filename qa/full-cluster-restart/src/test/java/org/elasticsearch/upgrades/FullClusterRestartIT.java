@@ -970,7 +970,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("number_of_shards", 1);
                 mappingsAndSettings.field("number_of_replicas", 1);
-                if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                if (getOldClusterVersion().onOrAfter(Version.V_6_5_0) && randomBoolean()) {
                     mappingsAndSettings.field("soft_deletes.enabled", true);
                 }
                 mappingsAndSettings.endObject();

@@ -37,7 +37,6 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -228,7 +227,7 @@ public class InternalComposite
     }
 
     static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
-            implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
+        implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
 
         private final CompositeKey key;
         private final long docCount;
@@ -393,17 +392,16 @@ public class InternalComposite
         return obj;
     }
 
-    static class ArrayMap extends AbstractMap<String, Object> implements Comparable<Map<String,Object>> {
+    static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
-        final Object[] values;
+        final Comparable<?>[] values;
+        final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Object[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
-            this.values = new Object[values.length];
-            for (int i = 0; i < values.length; i++) {
-                this.values[i] = formatObject(values[i], formats.get(i));
-            }
+            this.formats = formats;
+            this.values = values;
         }
 
         @Override
@@ -415,7 +413,7 @@ public class InternalComposite
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return values[i];
+                    return formatObject(values[i], formats.get(i));
                 }
             }
             return null;
@@ -436,7 +434,7 @@ public class InternalComposite
                         @Override
                         public Entry<String, Object> next() {
                             SimpleEntry<String, Object> entry =
-                                new SimpleEntry<>(keys.get(pos), values[pos]);
+                                new SimpleEntry<>(keys.get(pos), formatObject(values[pos], formats.get(pos)));
                             ++ pos;
                             return entry;
                         }
@@ -450,8 +448,8 @@ public class InternalComposite
             };
         }
 
-        private <T> int compareInternal(T a, T b, Comparator<T> comparator) {
-            if (a == null && b == null) {
+        private int compareNullables(Comparable a, Comparable b) {
+            if (a == b) {
                 return 0;
             }
             if (a == null) {
@@ -460,49 +458,30 @@ public class InternalComposite
             if (b == null) {
                 return 1;
             }
-            return comparator.compare(a,b);
-        }
-
-        /**
-         * @param a - first object to compare
-         * @param b - second object to compare
-         * @return compares two Objects of unknown type
-         * @throws IllegalStateException if they a and b not of the same class or their class doe's not impl java.lang.Comparable
-         */
-        private static int objectCompare(Object a, Object b) {
-            if (a.getClass() != b.getClass()) {
-                throw new IllegalStateException("expecting values to be of the same type but got: " + a
-                    + "(" + a.getClass() +"), " + b + "(" + b.getClass() +")");
-            }
-            if (Comparable.class.isAssignableFrom(a.getClass())) {
-                Comparable<Object> ca = (Comparable<Object>) a;
-                return ca.compareTo(b);
-            }
-            throw new IllegalStateException("expecting values types to implement java.lang.Comparable but got: " + a.getClass());
+            return a.compareTo(b);
         }
 
         @Override
-        public int compareTo(Map<String,Object> that) {
+        public int compareTo(ArrayMap that) {
             if (that == this) {
                 return 0;
             }
-            Iterator<Entry<String, Object>> thisIterator = this.entrySet().iterator();
-            Iterator<Entry<String, Object>> thatIterator = that.entrySet().iterator();
-            while (thisIterator.hasNext() && thatIterator.hasNext()) {
-                Entry<String, Object> thisNext = thisIterator.next();
-                Entry<String, Object> thatNext = thatIterator.next();
-                int compare = compareInternal(thisNext.getKey(),thatNext.getKey(),String::compareTo);
+            int idx = 0;
+            int max = Math.min(this.keys.size(), that.keys.size());
+            while (idx < max) {
+                int compare = Objects.compare(this.keys.get(idx),that.keys.get(idx),String::compareTo);
                 if (compare == 0) {
-                    compare = compareInternal(thisNext.getValue(),thatNext.getValue(), ArrayMap::objectCompare);
+                    compare = compareNullables(this.values[idx],that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;
                 }
+                idx++;
             }
-            if (thisIterator.hasNext()) {
+            if (idx < this.keys.size()) {
                 return 1;
             }
-            if (thatIterator.hasNext()) {
+            if (idx < that.keys.size()) {
                 return -1;
             }
             return 0;

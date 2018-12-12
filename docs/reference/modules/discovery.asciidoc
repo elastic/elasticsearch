@@ -24,8 +24,7 @@ It is separated into several sections, which are explained below:
     master-ineligible nodes only. However there are situations in which it may
     be desirable to add or remove some master-eligible nodes to or from a
     cluster. A section on <<modules-discovery-adding-removing-nodes,adding and
-    removing nodes>> describes how Elasticsearch supports dynamically adding and
-    removing master-eligible nodes and also describes the extra steps that need
+    removing nodes>> describes this process as well as the extra steps that need
     to be performed when removing more than half of the master-eligible nodes at
     the same time.
 *   <<cluster-state-publishing,Cluster state publishing>> covers how a master
@@ -33,8 +32,9 @@ It is separated into several sections, which are explained below:
 *   The <<no-master-block,no-master block>> is put in place when there is no
     known elected master, and can be configured to determine which operations
     should be rejected when it is in place.
-*   <<master-election>> and <<fault-detection>> sections cover advanced settings
-    to influence the election and fault detection processes.
+*   <<master-election,Master election>> and <<fault-detection,fault detection>>
+    sections cover advanced settings to influence the election and fault
+    detection processes.
 *   <<modules-discovery-quorums,Quorum-based decision making>> explains the
     design behind the master election and auto-reconfiguration logic.
 
@@ -48,11 +48,11 @@ Elasticsearch tries to connect to each seed node in its list, and holds a
 gossip-like conversation with them to find other nodes and to build a complete
 picture of the master-eligible nodes in the cluster. By default the cluster
 formation module offers two hosts providers to configure the list of seed
-nodes: a _settings-based_ and a _file-based_ hosts provider, but can be
-extended to support cloud environments and other forms of host providers via
-{plugins}/discovery.html[discovery plugins].  Host providers are configured
+nodes: a _settings_-based and a _file_-based hosts provider, but can be
+extended to support cloud environments and other forms of hosts providers via
+{plugins}/discovery.html[discovery plugins]. Hosts providers are configured
 using the `discovery.zen.hosts_provider` setting, which defaults to the
-_settings-based_ hosts provider. Multiple hosts providers can be specified as a
+_settings_-based hosts provider. Multiple hosts providers can be specified as a
 list.
 
 [float]
@@ -62,7 +62,7 @@ list.
 The settings-based hosts provider use a node setting to configure a static list
 of hosts to use as seed nodes. These hosts can be specified as hostnames or IP
 addresses; hosts specified as hostnames are resolved to IP addresses during each
-round of pinging. Note that if you are in an environment where DNS resolutions
+round of discovery. Note that if you are in an environment where DNS resolutions
 vary with time, you might need to adjust your <<networkaddress-cache-ttl,JVM
 security settings>>.
 
@@ -73,8 +73,20 @@ the setting `transport.profiles.default.port` falling back to
 `transport.tcp.port` if not set). Note that IPv6 hosts must be bracketed. The
 default for this setting is `127.0.0.1, [::1]`
 
+[source,yaml]
+--------------------------------------------------
+discovery.zen.ping.unicast.hosts:
+   - 192.168.1.10:9300
+   - 192.168.1.11 <1>
+   - seeds.mydomain.com <2>
+--------------------------------------------------
+<1> The port will default to `transport.profiles.default.port` and fallback to
+    `transport.tcp.port` if not specified.
+<2> A hostname that resolves to multiple IP addresses will try all resolved
+    addresses.
+
 Additionally, the `discovery.zen.ping.unicast.hosts.resolve_timeout` configures
-the amount of time to wait for DNS lookups on each round of pinging. This is
+the amount of time to wait for DNS lookups on each round of discovery. This is
 specified as a <<time-units, time unit>> and defaults to 5s.
 
 Unicast discovery uses the <<modules-transport,transport>> module to perform the
@@ -223,17 +235,17 @@ master-eligible nodes in the cluster using this setting:
 
 `cluster.initial_master_nodes`::
 
-    Sets a list of the node names or transport addresses of the initial set of
-    master-eligible nodes in a brand-new cluster. By default this list is
-    empty, meaning that this node expects to join a cluster that has already
-    been bootstrapped.
+    Sets a list of the <<node.name,node names>> or transport addresses of the
+    initial set of master-eligible nodes in a brand-new cluster. By default
+    this list is empty, meaning that this node expects to join a cluster that
+    has already been bootstrapped.
 
 This setting can be given on the command line when starting up each node, or
 added to the `elasticsearch.yml` configuration file. Once the cluster has
 formed this setting is no longer required and should be removed.
 
-For a cluster with 3 master-eligible nodes (named `master-a`, `master-b` and
-`master-c`) the configuration will look as follows:
+For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
+`master-a`, `master-b` and `master-c`) the configuration will look as follows:
 
 [source,yaml]
 --------------------------------------------------
@@ -243,7 +255,8 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-Alternatively the IP addresses or hostnames of the nodes can be used. If there
+Alternatively the IP addresses or hostnames
+(<<node.name,if node name defaults to the host name>>) can be used. If there
 is more than one Elasticsearch node with the same IP address or hostname then
 the transport ports must also be given
 
@@ -256,8 +269,8 @@ cluster.initial_master_nodes:
   - master-node-hostname
 --------------------------------------------------
 
-It is also possible to set the initial set of master nodes on the command-line
-used to start Elasticsearch:
+Like all node settings, it is also possible to specify the initial set of
+master nodes on the command-line that is used to start Elasticsearch:
 
 [source,bash]
 --------------------------------------------------
@@ -265,10 +278,10 @@ $ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
 
 It is technically sufficient to set this on a single master-eligible node in
-the cluster, and only to mention a single master-eligible node, but this does
-not allow for this single node to fail before the cluster has fully formed. It
-is therefore better to bootstrap using multiple master-eligible nodes. In any
-case, when specifying the list of initial master nodes, **it is vitally
+the cluster, and only to mention that single node in the setting, but this
+provides no fault tolerance before the cluster has fully formed. It
+is therefore better to bootstrap using at least three master-eligible nodes.
+In any case, when specifying the list of initial master nodes, **it is vitally
 important** to configure each node with exactly the same list of nodes, to
 prevent two independent clusters from forming. Typically you will set this on
 the nodes that are mentioned in the list of initial master nodes.
@@ -278,14 +291,15 @@ NOTE: In alpha releases, all listed master-eligible nodes are required to be
   relaxed in production-ready releases.
 
 WARNING: You must put exactly the same set of initial master nodes in each
-  configuration file in order to be sure that only a single cluster forms during
-  bootstrapping and therefore to avoid the risk of data loss.
+  configuration file (or leave the configuration empty) in order to be sure
+  that only a single cluster forms during bootstrapping and therefore to
+  avoid the risk of data loss.
 
 [float]
 ==== Choosing a cluster name
 
 The `cluster.name` allows you to create multiple clusters which are separated
-from each other.  Nodes verify that they agree on their cluster name when they
+from each other. Nodes verify that they agree on their cluster name when they
 first connect to each other, and if two nodes have different cluster names then
 they will not communicate meaningfully and will not belong to the same cluster.
 The default value for the cluster name is `elasticsearch`, but it is
@@ -336,11 +350,12 @@ cannot take any further actions.
 
 As long as there are at least three master-eligible nodes in the cluster, as a
 general rule it is best to remove nodes one-at-a-time, allowing enough time for
-the auto-reconfiguration to take effect after each removal.
+the cluster to <<modules-discovery-quorums,auto-adjust>> the voting
+configuration and adapt the fault tolerance level to the new set of nodes.
 
-If there are only two master-eligible nodes then neither node can be safely
-removed since both are required to reliably make progress, so you must first
-inform Elasticsearch that one of the nodes should not be part of the voting
+If there are only two master-eligible nodes remaining then neither node can be
+safely removed since both are required to reliably make progress, so you must
+first inform Elasticsearch that one of the nodes should not be part of the voting
 configuration, and that the voting power should instead be given to other nodes,
 allowing the excluded node to be taken offline without preventing the other node
 from making progress. A node which is added to a voting configuration exclusion
@@ -349,8 +364,8 @@ voting configuration so its vote is no longer required, and will never
 automatically move such a node back into the voting configuration after it has
 been removed. Once a node has been successfully reconfigured out of the voting
 configuration, it is safe to shut it down without affecting the cluster's
-availability. A node can be added to the voting configuration exclusion list
-using the following API:
+master-level availability. A node can be added to the voting configuration
+exclusion list using the following API:
 
 [source,js]
 --------------------------------------------------
@@ -358,6 +373,7 @@ using the following API:
 # auto-reconfigure the node out of the voting configuration up to the default
 # timeout of 30 seconds
 POST /_cluster/voting_config_exclusions/node_name
+
 # Add node to voting configuration exclusions list and wait for
 # auto-reconfiguration up to one minute
 POST /_cluster/voting_config_exclusions/node_name?timeout=1m
@@ -367,12 +383,12 @@ POST /_cluster/voting_config_exclusions/node_name?timeout=1m
 The node that should be added to the exclusions list is specified using
 <<cluster-nodes,node filters>> in place of `node_name` here. If a call to the
 voting configuration exclusions API fails then the call can safely be retried.
-A successful response guarantees that the node has been removed from the voting
-configuration and will not be reinstated.
+Only a successful response guarantees that the node has actually been removed
+from the voting configuration and will not be reinstated.
 
 Although the voting configuration exclusions API is most useful for down-scaling
 a two-node to a one-node cluster, it is also possible to use it to remove
-multiple nodes from larger clusters all at the same time. Adding multiple nodes
+multiple master-eligible nodes all at the same time. Adding multiple nodes
 to the exclusions list has the system try to auto-reconfigure all of these nodes
 out of the voting configuration, allowing them to be safely shut down while
 keeping the cluster available. In the example described above, shrinking a
@@ -388,7 +404,7 @@ removing fewer than half of the master-eligible nodes.
 Adding an exclusion for a node creates an entry for that node in the voting
 configuration exclusions list, which has the system automatically try to
 reconfigure the voting configuration to remove that node and prevents it from
-returning to the voting configuration once it has removed. The current set of
+returning to the voting configuration once it has removed. The current list of
 exclusions is stored in the cluster state and can be inspected as follows:
 
 [source,js]
@@ -421,6 +437,7 @@ created in error or were only required temporarily:
 # the cluster and then remove all the exclusions, allowing any node to return to
 # the voting configuration in the future.
 DELETE /_cluster/voting_config_exclusions
+
 # Immediately remove all the voting configuration exclusions, allowing any node
 # to return to the voting configuration in the future.
 DELETE /_cluster/voting_config_exclusions?wait_for_removal=false

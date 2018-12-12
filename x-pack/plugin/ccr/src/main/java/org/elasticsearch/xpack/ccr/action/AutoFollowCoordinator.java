@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,13 +25,11 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -64,7 +63,6 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private static final int MAX_AUTO_FOLLOW_ERRORS = 256;
 
     private final Client client;
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -78,11 +76,9 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
     public AutoFollowCoordinator(
             Client client,
-            ThreadPool threadPool,
             ClusterService clusterService,
             CcrLicenseChecker ccrLicenseChecker) {
         this.client = client;
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
         clusterService.addListener(this);
@@ -148,22 +144,24 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
-            AutoFollower autoFollower = new AutoFollower(remoteCluster, threadPool, this::updateStats, clusterService::state) {
+            AutoFollower autoFollower = new AutoFollower(remoteCluster, this::updateStats, clusterService::state) {
 
                 @Override
                 void getRemoteClusterState(final String remoteCluster,
-                                           final BiConsumer<ClusterState, Exception> handler) {
+                                           final long metadataVersion,
+                                           final BiConsumer<ClusterStateResponse, Exception> handler) {
                     final ClusterStateRequest request = new ClusterStateRequest();
                     request.clear();
                     request.metaData(true);
                     request.routingTable(true);
+                    request.waitForMetaDataVersion(metadataVersion);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
                         request,
                         e -> handler.accept(null, e),
-                        remoteClusterState -> handler.accept(remoteClusterState, null));
+                        remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null));
                 }
 
                 @Override
@@ -237,19 +235,17 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     abstract static class AutoFollower {
 
         private final String remoteCluster;
-        private final ThreadPool threadPool;
         private final Consumer<List<AutoFollowResult>> statsUpdater;
         private final Supplier<ClusterState> followerClusterStateSupplier;
 
+        private volatile long metadataVersion = 0;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 
         AutoFollower(final String remoteCluster,
-                     final ThreadPool threadPool,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
                      final Supplier<ClusterState> followerClusterStateSupplier) {
             this.remoteCluster = remoteCluster;
-            this.threadPool = threadPool;
             this.statsUpdater = statsUpdater;
             this.followerClusterStateSupplier = followerClusterStateSupplier;
         }
@@ -274,9 +270,15 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             this.autoFollowPatternsCountDown = new CountDown(patterns.size());
             this.autoFollowResults = new AtomicArray<>(patterns.size());
 
-            getRemoteClusterState(remoteCluster, (remoteClusterState, remoteError) -> {
-                if (remoteClusterState != null) {
+            getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateResponse, remoteError) -> {
+                if (remoteClusterStateResponse != null) {
                     assert remoteError == null;
+                    if (remoteClusterStateResponse.isWaitForTimedOut()) {
+                        start();
+                        return;
+                    }
+                    ClusterState remoteClusterState = remoteClusterStateResponse.getState();
+                    metadataVersion = remoteClusterState.metaData().version();
                     autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns);
                 } else {
                     assert remoteError != null;
@@ -400,8 +402,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             autoFollowResults.set(slot, result);
             if (autoFollowPatternsCountDown.countDown()) {
                 statsUpdater.accept(autoFollowResults.asList());
-                // TODO: Remove scheduling here with using cluster state API's waitForMetadataVersion:
-                threadPool.schedule(TimeValue.timeValueMillis(2500), ThreadPool.Names.GENERIC, this::start);
+                start();
             }
         }
 
@@ -520,13 +521,15 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         /**
-         * Fetch the cluster state from the leader with the specified cluster alias
+         * Fetch a remote cluster state from with the specified cluster alias
          * @param remoteCluster      the name of the leader cluster
+         * @param metadataVersion   the last seen metadata version
          * @param handler            the callback to invoke
          */
         abstract void getRemoteClusterState(
             String remoteCluster,
-            BiConsumer<ClusterState, Exception> handler
+            long metadataVersion,
+            BiConsumer<ClusterStateResponse, Exception> handler
         );
 
         abstract void createAndFollow(

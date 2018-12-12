@@ -73,23 +73,24 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     @Override
-    public TemporalAccessor parse(String input) {
+    public TemporalAccessor parse(final String input) {
         ElasticsearchParseException failure = null;
         for (int i = 0; i < parsers.length; i++) {
             try {
                 return parsers[i].parse(input);
             } catch (DateTimeParseException e) {
+                String msg = "could not parse input [" + input + "] with date formatter [" + format + "]";
+                if (locale().equals(Locale.ROOT) == false) {
+                    msg += " and locale [" + locale() + "]";
+                }
+                if (e.getErrorIndex() > 0) {
+                    msg += "at position [" + e.getErrorIndex() + "]";
+                }
+                msg += ": " + e.getMessage();
                 if (failure == null) {
-                    String msg = "could not parse input [" + input + "] with date formatter [" + format + "]";
-                    if (locale().equals(Locale.ROOT) == false) {
-                        msg += " and locale [" + locale() + "]";
-                    }
-                    if (e.getErrorIndex() > 0) {
-                        msg += "at position [" + e.getErrorIndex() + "]";
-                    }
                     failure = new ElasticsearchParseException(msg);
                 }
-                failure.addSuppressed(e);
+                failure.addSuppressed(new ElasticsearchParseException(msg, e));
             }
         }
 

@@ -5,24 +5,21 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.joda.time.MutableDateTime;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.ZoneOffset;
 
 public class DateUtils {
 
-    private static final DateFormatter dateOnlyFormatter = Joda.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
-
-    private static final DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
+    private static final DateFormatter dateOnlyFormatter = DateFormatters.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    private static final DateFormatter dateTimeFormatter = DateFormatters.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
 
     public static long endOfTheDay(String date) {
         try {
             // Try parsing using complete date/time format
-            return dateTimeFormatter.parseDateTime(date).getMillis();
+            return dateTimeFormatter.parseMillis(date);
         } catch (IllegalArgumentException ex) {
             // Fall back to the date only format
             MutableDateTime dateTime = new MutableDateTime(dateOnlyFormatter.parseMillis(date));
@@ -34,7 +31,7 @@ public class DateUtils {
     public static long beginningOfTheDay(String date) {
         try {
             // Try parsing using complete date/time format
-            return dateTimeFormatter.parseDateTime(date).getMillis();
+            return dateTimeFormatter.parseMillis(date);
         } catch (IllegalArgumentException ex) {
             // Fall back to the date only format
             return dateOnlyFormatter.parseMillis(date);

@@ -65,8 +65,7 @@ import java.util.Objects;
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
-    public static final String DEFAULT_DATE_FORMATTER_STRING = "strict_date_optional_time||epoch_millis";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatters.forPattern(DEFAULT_DATE_FORMATTER_STRING);
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
@@ -453,7 +452,7 @@ public class DateFieldMapper extends FieldMapper {
         long timestamp;
         try {
             timestamp = fieldType().parse(dateAsString);
-        } catch (ElasticsearchParseException e) {
+        } catch (IllegalArgumentException | ElasticsearchParseException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(fieldType.name());
                 return;

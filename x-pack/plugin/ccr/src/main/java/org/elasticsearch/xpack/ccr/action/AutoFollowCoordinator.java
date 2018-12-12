@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Client;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -416,7 +418,10 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
                         // If so then handle it differently: not follow it, but just add an entry to
                         // AutoFollowMetadata#followedLeaderIndexUUIDs
-                        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)) {
+                        final Settings leaderIndexSettings = leaderIndexMetaData.getSettings();
+                        // soft deletes are enabled by default on indices created on 7.0.0 or later
+                        if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+                            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0))) {
                             leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                         }
                     }

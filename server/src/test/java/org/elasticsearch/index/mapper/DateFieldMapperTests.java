@@ -176,7 +176,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("could not parse input [2016-03-99]"));
+        assertThat(e.getCause().getMessage(),
+            containsString("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")

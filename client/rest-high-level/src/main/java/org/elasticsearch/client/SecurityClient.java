@@ -48,6 +48,8 @@ import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUserPrivilegesRequest;
+import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -309,6 +311,25 @@ public final class SecurityClient {
     public void hasPrivilegesAsync(HasPrivilegesRequest request, RequestOptions options, ActionListener<HasPrivilegesResponse> listener) {
          restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::hasPrivileges, options,
             HasPrivilegesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve the set of effective privileges held by the current user.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetUserPrivilegesResponse getUserPrivileges(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(GetUserPrivilegesRequest.INSTANCE, GetUserPrivilegesRequest::getRequest,
+            options, GetUserPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve the set of effective privileges held by the current user.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getUserPrivilegesAsync(RequestOptions options, ActionListener<GetUserPrivilegesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(GetUserPrivilegesRequest.INSTANCE, GetUserPrivilegesRequest::getRequest,
+            options, GetUserPrivilegesResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -697,5 +718,4 @@ public final class SecurityClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deletePrivileges, options,
             DeletePrivilegesResponse::fromXContent, listener, singleton(404));
     }
-
 }

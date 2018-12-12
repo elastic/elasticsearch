@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTime;
 
 import java.time.Instant;
@@ -28,11 +29,9 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
-import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 public interface DateFormatter {
 
@@ -129,125 +128,22 @@ public interface DateFormatter {
      */
     DateMathParser toDateMathParser();
 
-    /**
-     * Merge several date formatters into a single one. Useful if you need to have several formatters with
-     * different formats act as one, for example when you specify a
-     * format like <code>date_hour||epoch_millis</code>
-     *
-     * @param formatters The list of date formatters to be merged together
-     * @return           The new date formtter containing the specified date formatters
-     */
-    static DateFormatter merge(DateFormatter... formatters) {
-        return new MergedDateFormatter(formatters);
+    static DateFormatter forPattern(String input) {
+        return forPattern(input, Locale.ROOT);
     }
 
-    class MergedDateMathParser implements DateMathParser {
-
-        private final DateMathParser[] parsers;
-
-        MergedDateMathParser(DateFormatter ... formatters) {
-            this.parsers = Arrays.stream(formatters)
-                .map(DateFormatter::toDateMathParser)
-                .collect(Collectors.toList()).toArray(new DateMathParser[0]);
+    static DateFormatter forPattern(String input, Locale locale) {
+        if (Strings.hasLength(input) == false) {
+            throw new IllegalArgumentException("No date pattern provided");
+        }
+        List<DateFormatter> formatters = new ArrayList<>();
+        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
+            formatters.add(Joda.forPattern(pattern, locale));
         }
 
-        @Override
-        public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
-            ElasticsearchParseException failure = null;
-            for (DateMathParser parser : parsers) {
-                try {
-                    return parser.parse(text, now, roundUp, tz);
-                } catch (ElasticsearchParseException e) {
-                    if (failure == null) {
-                        failure = e;
-                    } else {
-                        failure.addSuppressed(e);
-                    }
-                }
-            }
-            throw failure;
+        if (formatters.size() == 1) {
+            return formatters.get(0);
         }
-    }
-
-    class MergedDateFormatter implements DateFormatter {
-
-        private final String format;
-        private final DateFormatter[] formatters;
-        private final DateMathParser[] dateMathParsers;
-
-        MergedDateFormatter(DateFormatter... formatters) {
-            this.formatters = formatters;
-            this.format = Arrays.stream(formatters).map(DateFormatter::pattern).collect(Collectors.joining("||"));
-            this.dateMathParsers = Arrays.stream(formatters).map(DateFormatter::toDateMathParser).toArray(DateMathParser[]::new);
-        }
-
-        @Override
-        public TemporalAccessor parse(String input) {
-            ElasticsearchParseException failure = null;
-            for (DateFormatter formatter : formatters) {
-                try {
-                    return formatter.parse(input);
-                } catch (ElasticsearchParseException e) {
-                    if (failure == null) {
-                        failure = e;
-                    } else {
-                        failure.addSuppressed(e);
-                    }
-                }
-            }
-            throw failure;
-        }
-
-        @Override
-        public DateFormatter withZone(ZoneId zoneId) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.withZone(zoneId)).toArray(DateFormatter[]::new));
-        }
-
-        @Override
-        public DateFormatter withLocale(Locale locale) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.withLocale(locale)).toArray(DateFormatter[]::new));
-        }
-
-        @Override
-        public String format(TemporalAccessor accessor) {
-            return formatters[0].format(accessor);
-        }
-
-        @Override
-        public String pattern() {
-            return format;
-        }
-
-        @Override
-        public Locale locale() {
-            return formatters[0].locale();
-        }
-
-        @Override
-        public ZoneId zone() {
-            return formatters[0].zone();
-        }
-
-        @Override
-        public DateMathParser toDateMathParser() {
-            return new MergedDateMathParser(formatters);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(locale(), format);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj.getClass().equals(this.getClass()) == false) {
-                return false;
-            }
-            MergedDateFormatter other = (MergedDateFormatter) obj;
-
-            return Objects.equals(pattern(), other.pattern()) &&
-                   Objects.equals(locale(), other.locale()) &&
-                   Objects.equals(zone(), other.zone());
-        }
+        return new DateFormatters.MergedDateFormatter(input, formatters);
     }
 }

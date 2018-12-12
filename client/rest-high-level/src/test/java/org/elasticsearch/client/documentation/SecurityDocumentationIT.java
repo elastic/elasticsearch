@@ -131,6 +131,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             byte[] salt = new byte[32];
+            // no need for secure random in a test; it could block and would not be reproducible anyway
             random().nextBytes(salt);
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example2", Collections.singletonList("superuser"));

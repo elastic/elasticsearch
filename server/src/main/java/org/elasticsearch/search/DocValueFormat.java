@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
@@ -178,7 +177,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this(Joda.forPattern(in.readString()), DateTimeZone.forID(in.readString()));
+            this(DateFormatter.forPattern(in.readString()), DateTimeZone.forID(in.readString()));
         }
 
         @Override

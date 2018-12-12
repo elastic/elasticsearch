@@ -150,7 +150,6 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
 
         for (NamedAnalyzer analyzer : asList(namedIndexAnalyzer, namedSearchAnalyzer)) {
             assertThat(analyzer.name(), equalTo(analyzerName));
-
         }
 
         for (SearchAsYouTypeAnalyzer analyzer : asList(indexAnalyzer, searchAnalyzer)) {

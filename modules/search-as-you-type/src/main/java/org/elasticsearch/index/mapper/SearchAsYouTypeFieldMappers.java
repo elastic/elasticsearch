@@ -41,14 +41,13 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.mapper.TypeParsers.nodeIndexOptionValue;
 
 /**
@@ -156,22 +155,23 @@ public final class SearchAsYouTypeFieldMappers {
                 throw new MapperParsingException("Index and search analyzers must be the same");
             }
 
-            final Set<SuggesterizedFieldType> suggesterizedFieldTypes = new HashSet<>();
+            final Map<Integer, SuggesterizedFieldMapper> withShinglesMappers = new HashMap<>();
+            final Map<Integer, SuggesterizedFieldMapper> withShinglesAndEdgeNGramsMappers = new HashMap<>();
 
             final SuggesterizedFieldType withEdgeNgrams = new SuggesterizedFieldType(name() + "._with_edge_ngrams");
             final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(originalAnalyzer);
             final SearchAsYouTypeAnalyzer unmodified = SearchAsYouTypeAnalyzer.withNeither(originalAnalyzer);
             withEdgeNgrams.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, wrappedWithEdgeNGrams));
             withEdgeNgrams.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, unmodified));
-            suggesterizedFieldTypes.add(withEdgeNgrams);
+            final SuggesterizedFieldMapper withEdgeNGramsMapper = new SuggesterizedFieldMapper(withEdgeNgrams, context.indexSettings());
 
-            for (int i = 2; i <= maxShingleSize; i++) {
-                final int numberOfShingles = i;
+            for (int numberOfShingles = 2; numberOfShingles <= maxShingleSize; numberOfShingles++) {
                 final SuggesterizedFieldType withShingles = new SuggesterizedFieldType(name() + "._with_" + numberOfShingles + "_shingles");
                 final SuggesterizedFieldType withShinglesAndEdgeNGrams = new SuggesterizedFieldType(name() + "._with_" + numberOfShingles +
                     "_shingles_and_edge_ngrams");
 
-                final SearchAsYouTypeAnalyzer withShinglesAnalyzer = SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer, numberOfShingles);
+                final SearchAsYouTypeAnalyzer withShinglesAnalyzer =
+                    SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer, numberOfShingles);
                 final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
                     SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(originalAnalyzer, numberOfShingles);
 
@@ -183,20 +183,44 @@ public final class SearchAsYouTypeFieldMappers {
                 withShinglesAndEdgeNGrams.setSearchAnalyzer(
                     new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
 
-                suggesterizedFieldTypes.add(withShingles);
-                suggesterizedFieldTypes.add(withShinglesAndEdgeNGrams);
+                withShinglesMappers.put(numberOfShingles,
+                    new SuggesterizedFieldMapper(withShingles, context.indexSettings()));
+                withShinglesAndEdgeNGramsMappers.put(numberOfShingles,
+                    new SuggesterizedFieldMapper(withShinglesAndEdgeNGrams, context.indexSettings()));
             }
 
-            final Set<SuggesterizedFieldMapper> suggesterizedFieldMappers = suggesterizedFieldTypes.stream()
-                .map(suggesterizedFieldType -> new SuggesterizedFieldMapper(suggesterizedFieldType, context.indexSettings()))
-                .collect(Collectors.toSet());
+            final SuggesterizedFields suggesterizedFields =
+                new SuggesterizedFields(withEdgeNGramsMapper, withShinglesMappers, withShinglesAndEdgeNGramsMappers);
+
             return new SearchAsYouTypeFieldMapper(
                 name(),
                 fieldType(),
-                suggesterizedFieldMappers,
+                suggesterizedFields,
                 context.indexSettings(),
                 copyTo
             );
+        }
+    }
+
+    public static final class SuggesterizedFields implements Iterable<SuggesterizedFieldMapper> {
+        final SuggesterizedFieldMapper withEdgeNGrams;
+        final Map<Integer, SuggesterizedFieldMapper> withShingles;
+        final Map<Integer, SuggesterizedFieldMapper> withShinglesAndEdgeNGrams;
+
+        public SuggesterizedFields(SuggesterizedFieldMapper withEdgeNGrams,
+                                   Map<Integer, SuggesterizedFieldMapper> withShingles,
+                                   Map<Integer, SuggesterizedFieldMapper> withShinglesAndEdgeNGrams) {
+
+            this.withEdgeNGrams = withEdgeNGrams;
+            this.withShingles = unmodifiableMap(withShingles);
+            this.withShinglesAndEdgeNGrams = unmodifiableMap(withShinglesAndEdgeNGrams);
+        }
+
+        @Override
+        public Iterator<SuggesterizedFieldMapper> iterator() {
+            return Stream.concat(
+                Stream.concat(Stream.of(withEdgeNGrams), withShingles.values().stream()),
+                withShinglesAndEdgeNGrams.values().stream()).iterator();
         }
     }
 
@@ -319,10 +343,6 @@ public final class SearchAsYouTypeFieldMappers {
             return (SuggesterizedFieldType) super.fieldType();
         }
 
-        void addField(String value, List<IndexableField> fields) {
-            fields.add(new Field(fieldType().name(), value, fieldType));
-        }
-
         @Override
         protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
             throw new UnsupportedOperationException();
@@ -336,16 +356,16 @@ public final class SearchAsYouTypeFieldMappers {
 
     public static class SearchAsYouTypeFieldMapper extends SuggesterizedFieldMapper {
 
-        private Set<SuggesterizedFieldMapper> suggesterizedFieldMappers;
+        private final SuggesterizedFields suggesterizedFields;
 
         public SearchAsYouTypeFieldMapper(String simpleName,
                                           MappedFieldType fieldType,
-                                          Set<SuggesterizedFieldMapper> suggesterizedFieldMappers,
+                                          SuggesterizedFields suggesterizedFields,
                                           Settings indexSettings,
                                           CopyTo copyTo) {
 
             super(simpleName, fieldType, indexSettings, copyTo);
-            this.suggesterizedFieldMappers = suggesterizedFieldMappers;
+            this.suggesterizedFields = suggesterizedFields;
         }
 
         @Override
@@ -365,8 +385,8 @@ public final class SearchAsYouTypeFieldMappers {
                 createFieldNamesField(context, fields);
             }
 
-            for (SuggesterizedFieldMapper fieldMapper : suggesterizedFieldMappers) {
-                fieldMapper.addField(value, fields);
+            for (SuggesterizedFieldMapper fieldMapper : suggesterizedFields) {
+                fields.add(new Field(fieldMapper.fieldType().name(), value, fieldMapper.fieldType()));
             }
         }
 
@@ -385,8 +405,7 @@ public final class SearchAsYouTypeFieldMappers {
         @SuppressWarnings("unchecked") // todo fix
         @Override
         public Iterator<Mapper> iterator() {
-            final List<Mapper> mappers = new ArrayList<>(suggesterizedFieldMappers);
-            return Iterators.concat(super.iterator(), mappers.iterator());
+            return Iterators.concat(super.iterator(), suggesterizedFields.iterator());
         }
 
         @Override

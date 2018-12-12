@@ -148,10 +148,6 @@ public class ElasticsearchNode {
         this.plugins.add(plugin);
     }
 
-    public void plugin(String plugin) {
-        plugin(URI.create(plugin));
-    }
-
     public void plugin(File plugin) {
         plugin(plugin.toURI());
     }
@@ -416,7 +412,7 @@ public class ElasticsearchNode {
 
     private void removeWithRetry(Path destinationRoot) {
         if (Files.exists(destinationRoot)) {
-            for (int tries = 1; true; tries++) {
+            for (int tries = 1; tries<=CLEAN_WORKDIR_RETRIES; tries++) {
                 try (Stream<Path> stream = Files.walk(destinationRoot)) {
                     stream.sorted(Comparator.reverseOrder()).forEach(toDelete -> {
                         try {

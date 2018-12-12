@@ -95,11 +95,10 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
         MapperService mapperService = Mockito.mock(MapperService.class);
-        Mockito.when(mapperService.documentMapper()).thenReturn(null);
-        Mockito.when(context.getMapperService()).thenReturn(mapperService);
         DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("my_type");
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
         Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
+        Mockito.when(mapper.type()).thenReturn("my_type");
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
         ft.setName(TypeFieldMapper.NAME);

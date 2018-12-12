@@ -93,7 +93,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     public static final class TypeFieldType extends StringFieldType {
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
-        public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using [_type] as a field name in a query is deprecated.";
+        public static final String TYPES_DEPRECATION_MESSAGE =
+            "[types removal] Referring to types within search queries is deprecated, filter on a field instead.";
 
         TypeFieldType() {
         }

@@ -73,8 +73,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
-        overrideDnsCachePolicyProperty("networkaddress.cache.ttl");
-        overrideDnsCachePolicyProperty("networkaddress.cache.negative.ttl");
+        overrideDnsCachePolicyProperties();
         /*
          * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
          * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
@@ -94,14 +93,16 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    private static void overrideDnsCachePolicyProperty(final String property) {
-        final String override = System.getProperty("es." + property);
-        if (override != null) {
-            // round-trip the property to an integer and back to a string to ensure that it parses properly
-            try {
-                Security.setProperty(property, Integer.toString(Integer.valueOf(override)));
-            } catch (final NumberFormatException e) {
-                throw new IllegalArgumentException("failed to parse [es." + property + "] with value [" + override + "]", e);
+    private static void overrideDnsCachePolicyProperties() {
+        for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
+            final String override = System.getProperty("es." + property);
+            if (override != null) {
+                // round-trip the property to an integer and back to a string to ensure that it parses properly
+                try {
+                    Security.setProperty(property, Integer.toString(Integer.valueOf(override)));
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException("failed to parse [es." + property + "] with value [" + override + "]", e);
+                }
             }
         }
     }

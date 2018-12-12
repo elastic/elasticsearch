@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.hasSize;
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1, transportClientRatio = 0)
 public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
 
-    private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
+    private static final ByteSizeValue LIMIT = new ByteSizeValue(512, ByteSizeUnit.BYTES);
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -110,7 +110,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         ensureGreen();
 
         @SuppressWarnings("unchecked")
-        Tuple<String, CharSequence>[] requestUris = new Tuple[1500];
+        Tuple<String, CharSequence>[] requestUris = new Tuple[375];
         for (int i = 0; i < requestUris.length; i++) {
             requestUris[i] = Tuple.tuple("/_cluster/settings",
                 "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }");

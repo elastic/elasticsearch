@@ -1327,11 +1327,11 @@ public class SearchQueryIT extends ESIntegTestCase {
             "           \"ordered\" : \"true\"," +
             "           \"intervals\" : [" +
             "               { \"any_of\" : {" +
-            "                   \"sources\" : [" +
+            "                   \"intervals\" : [" +
             "                       { \"match\" : { \"query\" : \"cold\" } }," +
             "                       { \"match\" : { \"query\" : \"outside\" } } ] } }," +
             "               { \"match\" : { \"query\" : \"atmosphere\" } } ]," +
-            "           \"gaps\" : 30 } } } }";
+            "           \"max_gaps\" : 30 } } } }";
         SearchResponse response = client().prepareSearch("test").setQuery(wrapperQuery(json)).get();
         assertHitCount(response, 1L);
     }

@@ -116,4 +116,17 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue percolatorUnmappedFieldsAsStringCheck(IndexMetaData indexMetaData) {
+        if (indexMetaData.getSettings().hasValue("index.percolator.map_unmapped_fields_as_text")) {
+            String settingValue = indexMetaData.getSettings().get("index.percolator.map_unmapped_fields_as_text");
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Setting index.percolator.map_unmapped_fields_as_text has been renamed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_percolator",
+                "The index setting [index.percolator.map_unmapped_fields_as_text] currently set to [" + settingValue +
+                    "] been removed in favor of [index.percolator.map_unmapped_fields_as_text].");
+        }
+        return null;
+    }
 }

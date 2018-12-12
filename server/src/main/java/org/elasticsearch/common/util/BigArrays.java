@@ -33,9 +33,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
-public class BigArrays implements Releasable {
+public class BigArrays {
 
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, false);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, CircuitBreaker.REQUEST);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -81,11 +81,6 @@ public class BigArrays implements Releasable {
 
     static boolean indexIsInt(long index) {
         return index == (int) index;
-    }
-
-    @Override
-    public void close() {
-        recycler.close();
     }
 
     private abstract static class AbstractArrayWrapper extends AbstractArray implements BigArray {
@@ -369,24 +364,26 @@ public class BigArrays implements Releasable {
     }
 
     final PageCacheRecycler recycler;
-    final CircuitBreakerService breakerService;
-    final boolean checkBreaker;
+    private final CircuitBreakerService breakerService;
+    private final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
+    private final String breakerName;
 
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
         // Checking the breaker is disabled if not specified
-        this(recycler, breakerService, false);
+        this(recycler, breakerService, breakerName, false);
     }
 
-    // public for tests
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
+    protected BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName,
+                        boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
         this.breakerService = breakerService;
+        this.breakerName = breakerName;
         if (checkBreaker) {
             this.circuitBreakingInstance = this;
         } else {
-            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, true);
+            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, breakerName, true);
         }
     }
 
@@ -400,7 +397,7 @@ public class BigArrays implements Releasable {
      */
     void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
         if (this.breakerService != null) {
-            CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.REQUEST);
+            CircuitBreaker breaker = this.breakerService.getBreaker(breakerName);
             if (this.checkBreaker) {
                 // checking breaker means potentially tripping, but it doesn't
                 // have to if the delta is negative

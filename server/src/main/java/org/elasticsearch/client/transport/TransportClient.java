@@ -30,6 +30,7 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -183,8 +184,8 @@ public abstract class TransportClient extends AbstractClient {
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
-            BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(bigArrays);
+            BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
+            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
                 bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null);
@@ -195,6 +196,7 @@ public abstract class TransportClient extends AbstractClient {
                     UUIDs.randomBase64UUID()), null, Collections.emptySet());
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
+                b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
@@ -375,7 +377,7 @@ public abstract class TransportClient extends AbstractClient {
             closeables.add(plugin);
         }
         closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
-        closeables.add(injector.getInstance(BigArrays.class));
+        closeables.add(injector.getInstance(PageCacheRecycler.class));
         IOUtils.closeWhileHandlingException(closeables);
     }
 

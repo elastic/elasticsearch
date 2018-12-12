@@ -37,12 +37,11 @@ public class MockTcpTransportPlugin extends Plugin implements NetworkPlugin {
     public static final String MOCK_TCP_TRANSPORT_NAME = "mock-socket-network";
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.singletonMap(MOCK_TCP_TRANSPORT_NAME,
-            () -> new MockTcpTransport(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService));
+            () -> new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
+                namedWriteableRegistry, networkService));
     }
 }

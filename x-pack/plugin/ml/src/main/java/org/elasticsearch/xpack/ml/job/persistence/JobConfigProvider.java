@@ -101,6 +101,13 @@ public class JobConfigProvider {
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
 
+    /**
+     * In most cases we expect 10s or 100s of jobs to be defined and
+     * a search for all jobs should return all.
+     * TODO this is a temporary fix
+     */
+    private int searchSize = 1000;
+
     private final Client client;
 
     public JobConfigProvider(Client client) {
@@ -660,7 +667,9 @@ public class JobConfigProvider {
 
         return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
     }
 
     /**
@@ -684,7 +693,9 @@ public class JobConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
 
@@ -741,7 +752,9 @@ public class JobConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -785,7 +798,9 @@ public class JobConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -841,12 +856,13 @@ public class JobConfigProvider {
         String customRulesPath = Strings.collectionToDelimitedString(Arrays.asList(Job.ANALYSIS_CONFIG.getPreferredName(),
                 AnalysisConfig.DETECTORS.getPreferredName(), Detector.CUSTOM_RULES_FIELD.getPreferredName()), ".");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .query(QueryBuilders.nestedQuery(customRulesPath, QueryBuilders.existsQuery(customRulesPath), ScoreMode.None))
-                .size(10000);
+                .query(QueryBuilders.nestedQuery(customRulesPath, QueryBuilders.existsQuery(customRulesPath), ScoreMode.None));
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(

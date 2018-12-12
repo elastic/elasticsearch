@@ -74,7 +74,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             termVectorsRequest = new TermVectorsRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

@@ -2382,7 +2382,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(50, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2392,7 +2392,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(101, transportStats.getTxSize().getBytes());
+                assertEquals(106, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2400,7 +2400,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
             assertEquals(46, stats.getRxSize().getBytes());
-            assertEquals(101, stats.getTxSize().getBytes());
+            assertEquals(106, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2497,7 +2497,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(50, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2507,7 +2507,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(101, transportStats.getTxSize().getBytes());
+                assertEquals(106, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2522,7 +2522,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // 49 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
             assertEquals(failedMessage, 49 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(101, stats.getTxSize().getBytes());
+            assertEquals(106, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

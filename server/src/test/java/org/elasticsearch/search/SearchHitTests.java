@@ -61,7 +61,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
-    public static SearchHit createTestItem(boolean withOptionalInnerHits) {
+    public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
+        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+    }
+
+    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean withShardTarget) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
         Text type = new Text(randomAlphaOfLengthBetween(5, 10));
@@ -71,7 +75,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         }
         Map<String, DocumentField> fields = new HashMap<>();
         if (randomBoolean()) {
-            fields = GetResultTests.randomDocumentFields(XContentType.JSON).v1();
+            fields = GetResultTests.randomDocumentFields(xContentType).v2();
         }
         SearchHit hit = new SearchHit(internalId, uid, type, nestedIdentity, fields);
         if (frequently()) {
@@ -82,7 +86,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
             }
         }
         if (frequently()) {
-            hit.sourceRef(RandomObjects.randomSource(random()));
+            hit.sourceRef(RandomObjects.randomSource(random(), xContentType));
         }
         if (randomBoolean()) {
             hit.version(randomLong());
@@ -115,12 +119,13 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
             if (innerHitsSize > 0) {
                 Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
                 for (int i = 0; i < innerHitsSize; i++) {
-                    innerHits.put(randomAlphaOfLength(5), SearchHitsTests.createTestItem());
+                    innerHits.put(randomAlphaOfLength(5),
+                        SearchHitsTests.createTestItem(xContentType, false, withShardTarget));
                 }
                 hit.setInnerHits(innerHits);
             }
         }
-        if (randomBoolean()) {
+        if (withShardTarget && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
@@ -136,13 +141,13 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
 
     @Override
     protected SearchHit createTestInstance() {
-        return createTestItem(randomBoolean());
+        return createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean());
     }
 
     public void testFromXContent() throws IOException {
-        SearchHit searchHit = createTestItem(true);
-        boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
+        SearchHit searchHit = createTestItem(xContentType, true, false);
+        boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         SearchHit parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -164,8 +169,8 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
      * which are already tested elsewhere.
      */
     public void testFromXContentLenientParsing() throws IOException {
-        SearchHit searchHit = createTestItem(true);
         XContentType xContentType = randomFrom(XContentType.values());
+        SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
                 || path.contains("inner_hits"));
@@ -345,7 +350,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         }
     }
 
-    private static Explanation createExplanation(int depth) {
+    static Explanation createExplanation(int depth) {
         String description = randomAlphaOfLengthBetween(5, 20);
         float value = randomFloat();
         List<Explanation> details = new ArrayList<>();

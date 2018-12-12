@@ -594,7 +594,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () -> {
                 SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
                 if (randomBoolean()) {
-                    qb.useAllFields(true);
+                    qb.field("*");
                 }
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });

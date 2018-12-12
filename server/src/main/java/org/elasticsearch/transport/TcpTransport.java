@@ -59,6 +59,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -179,6 +180,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final Version version;
     protected final ThreadPool threadPool;
     protected final BigArrays bigArrays;
+    protected final PageCacheRecycler pageCacheRecycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
@@ -202,31 +204,32 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final TransportLogger transportLogger;
-    private final TcpTransportHandshaker handshaker;
+    private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, BigArrays bigArrays,
-                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                        NetworkService networkService) {
+    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool,
+                        PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
+                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         super(settings);
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
-        this.bigArrays = bigArrays;
+        this.bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
+        this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
-        this.handshaker = new TcpTransportHandshaker(version, threadPool,
+        this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
-                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
-                TransportStatus.setHandshake((byte) 0)),
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
+                TransportRequestOptions.EMPTY, v, TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
-                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
         this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
@@ -1284,7 +1287,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
-                handshaker.handleHandshake(version, features, channel, requestId);
+                handshaker.handleHandshake(version, features, channel, requestId, stream);
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {

@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 public class GetDiscoveredNodesAction extends Action<GetDiscoveredNodesResponse> {
     public static final GetDiscoveredNodesAction INSTANCE = new GetDiscoveredNodesAction();
-    public static final String NAME = "cluster:monitor/discovered_nodes";
+    public static final String NAME = "cluster:admin/bootstrap/discover_nodes";
 
     private GetDiscoveredNodesAction() {
         super(NAME);

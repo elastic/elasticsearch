@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -48,16 +49,16 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             Supplier<T> instanceSupplier,
             CheckedBiConsumer<T, XContentBuilder, IOException> toXContent,
             CheckedFunction<XContentParser, T, IOException> fromXContent) {
-        return new XContentTester<T>(
-                createParser,
-                instanceSupplier,
-                (testInstance, xContentType) -> {
-                    try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                        toXContent.accept(testInstance, builder);
-                        return BytesReference.bytes(builder);
-                    }
-                },
-                fromXContent);
+        return new XContentTester<>(
+            createParser,
+            x -> instanceSupplier.get(),
+            (testInstance, xContentType) -> {
+                try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                    toXContent.accept(testInstance, builder);
+                    return BytesReference.bytes(builder);
+                }
+            },
+            fromXContent);
     }
 
     public static <T extends ToXContent> XContentTester<T> xContentTester(
@@ -72,12 +73,25 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             Supplier<T> instanceSupplier,
             ToXContent.Params toXContentParams,
             CheckedFunction<XContentParser, T, IOException> fromXContent) {
-        return new XContentTester<T>(
-                createParser,
-                instanceSupplier,
-                (testInstance, xContentType) ->
-                        XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
-                fromXContent);
+        return new XContentTester<>(
+            createParser,
+            x -> instanceSupplier.get(),
+            (testInstance, xContentType) ->
+                XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
+            fromXContent);
+    }
+
+    public static <T extends ToXContent> XContentTester<T> xContentTester(
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
+        Function<XContentType, T> instanceSupplier,
+        ToXContent.Params toXContentParams,
+        CheckedFunction<XContentParser, T, IOException> fromXContent) {
+        return new XContentTester<>(
+            createParser,
+            instanceSupplier,
+            (testInstance, xContentType) ->
+                XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
+            fromXContent);
     }
 
     /**
@@ -85,7 +99,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      */
     public static class XContentTester<T> {
         private final CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser;
-        private final Supplier<T> instanceSupplier;
+        private final Function<XContentType, T> instanceSupplier;
         private final CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent;
         private final CheckedFunction<XContentParser, T, IOException> fromXContent;
 
@@ -102,7 +116,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
 
         private XContentTester(
                 CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-                Supplier<T> instanceSupplier,
+                Function<XContentType, T> instanceSupplier,
                 CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent,
                 CheckedFunction<XContentParser, T, IOException> fromXContent) {
             this.createParser = createParser;
@@ -113,8 +127,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
 
         public void test() throws IOException {
             for (int runs = 0; runs < numberOfTestRuns; runs++) {
-                T testInstance = instanceSupplier.get();
                 XContentType xContentType = randomFrom(XContentType.values());
+                T testInstance = instanceSupplier.apply(xContentType);
                 BytesReference originalXContent = toXContent.apply(testInstance, xContentType);
                 BytesReference shuffledContent = insertRandomFieldsAndShuffle(originalXContent, xContentType, supportsUnknownFields,
                         shuffleFieldsExceptions, randomFieldsExcludeFilter, createParser);

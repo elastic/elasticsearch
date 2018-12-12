@@ -50,7 +50,6 @@ import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.MoreLikeThisQueryBuilder.ids;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -452,7 +451,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");
-        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, ids("1")).include(true)
+        Item[] items = new Item[] { new Item(null, null, "1")};
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, items).include(true)
                 .minTermFreq(1).minDocFreq(1);
         SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).get();
         assertHitCount(mltResponse, 3L);

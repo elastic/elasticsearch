@@ -36,6 +36,6 @@ public class GetUserPrivilegesRequest implements Validatable {
     }
 
     public Request getRequest() {
-        return new Request(HttpGet.METHOD_NAME, "/_xpack/security/user/_privileges");
+        return new Request(HttpGet.METHOD_NAME, "/_security/user/_privileges");
     }
 }

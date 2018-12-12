@@ -230,7 +230,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final Store store = indexShard.store();
         store.incRef();
         try {
-            store.createEmpty(indexShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
+            store.createEmpty();
         } catch (EngineException | IOException e) {
             throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
         } finally {

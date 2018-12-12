@@ -47,7 +47,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     public static SearchHits empty() {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients
-        return new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0, null, null, null);
+        return new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
@@ -69,10 +69,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     }
 
-    //TODO look for other users of the old constructor!!!
-
-    //TODO we may want to remove this constructor and replace it with the new one:
-    // such change causes a lot of noise, probably wise to make it as a followup
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
     }

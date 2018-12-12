@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.joda.time.MutableDateTime;
 
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 
 public class DateUtils {
 
@@ -20,11 +22,10 @@ public class DateUtils {
         try {
             // Try parsing using complete date/time format
             return dateTimeFormatter.parseMillis(date);
-        } catch (IllegalArgumentException ex) {
-            // Fall back to the date only format
-            MutableDateTime dateTime = new MutableDateTime(dateOnlyFormatter.parseMillis(date));
-            dateTime.millisOfDay().set(dateTime.millisOfDay().getMaximumValue());
-            return dateTime.getMillis();
+        } catch (ElasticsearchParseException | IllegalArgumentException ex) {
+            ZonedDateTime dateTime = DateFormatters.toZonedDateTime(dateOnlyFormatter.parse(date));
+            dateTime.with(ChronoField.MILLI_OF_DAY, ChronoField.MILLI_OF_DAY.range().getMaximum());
+            return dateTime.toInstant().toEpochMilli();
         }
     }
 
@@ -32,10 +33,9 @@ public class DateUtils {
         try {
             // Try parsing using complete date/time format
             return dateTimeFormatter.parseMillis(date);
-        } catch (IllegalArgumentException ex) {
+        } catch (ElasticsearchParseException | IllegalArgumentException ex) {
             // Fall back to the date only format
-            return dateOnlyFormatter.parseMillis(date);
+            return DateFormatters.toZonedDateTime(dateOnlyFormatter.parse(date)).toInstant().toEpochMilli();
         }
-
     }
 }

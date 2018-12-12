@@ -26,7 +26,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     @Override

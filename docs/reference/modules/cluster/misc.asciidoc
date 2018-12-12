@@ -30,6 +30,11 @@ There is a soft limit on the number of shards in a cluster, based on the number
 of nodes in the cluster. This is intended to prevent operations which may
 unintentionally destabilize the cluster.
 
+IMPORTANT: This limit is intended as a safety net, not a sizing recommendation. The
+exact number of shards your cluster can safely support depends on your hardware
+configuration and workload, but should remain well below this limit in almost
+all cases, as the default limit is set quite high.
+
 If an operation, such as creating a new index, restoring a snapshot of an index,
 or opening a closed index would lead to the number of shards in the cluster
 going over this limit, the operation will fail with an error indicating the
@@ -53,8 +58,8 @@ adjusted using the following property:
      Controls the number of shards allowed in the cluster per data node.
 
 For example, a 3-node cluster with the default setting would allow 3,000 shards
-total, across all open indexes. If the above setting is changed to 1,500, then
-the cluster would allow 4,500 shards total.
+total, across all open indexes. If the above setting is changed to 500, then
+the cluster would allow 1,500 shards total.
 
 NOTE: If there are no data nodes in the cluster, the limit will not be enforced.
 This allows the creation of indices during cluster creation if dedicated master

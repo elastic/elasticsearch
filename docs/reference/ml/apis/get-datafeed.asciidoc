@@ -11,13 +11,13 @@ Retrieves configuration information for {dfeeds}.
 ==== Request
 
 
-`GET _xpack/ml/datafeeds/<feed_id>` +
+`GET _ml/datafeeds/<feed_id>` +
 
-`GET _xpack/ml/datafeeds/<feed_id>,<feed_id>` +
+`GET _ml/datafeeds/<feed_id>,<feed_id>` +
 
-`GET _xpack/ml/datafeeds/` +
+`GET _ml/datafeeds/` +
 
-`GET _xpack/ml/datafeeds/_all` +
+`GET _ml/datafeeds/_all` +
 
 
 ===== Description
@@ -58,7 +58,7 @@ The following example gets configuration information for the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-total-requests
+GET _ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]

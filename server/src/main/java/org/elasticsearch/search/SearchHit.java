@@ -117,7 +117,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private Map<String, SearchHits> innerHits;
 
-    private SearchHit() {
+    SearchHit() {
 
     }
 
@@ -792,6 +792,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
                 SearchHits value = SearchHits.readSearchHits(in);
                 innerHits.put(key, value);
             }
+        } else {
+            innerHits = null;
         }
     }
 

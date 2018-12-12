@@ -6,18 +6,19 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.util.TimeZone;
 
 /**
- * Extract the day of the week from a datetime. 1 is Monday, 2 is Tuesday, etc.
+ * Extract the day of the week from a datetime in non-ISO format. 1 is Sunday, 2 is Monday, etc.
  */
-public class DayOfWeek extends DateTimeFunction {
+public class DayOfWeek extends NonIsoDateTimeFunction {
+    
     public DayOfWeek(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.DAY_OF_WEEK);
+        super(location, field, timeZone, NonIsoDateTimeExtractor.DAY_OF_WEEK);
     }
 
     @Override
@@ -28,10 +29,5 @@ public class DayOfWeek extends DateTimeFunction {
     @Override
     protected DayOfWeek replaceChild(Expression newChild) {
         return new DayOfWeek(location(), newChild, timeZone());
-    }
-
-    @Override
-    public String dateTimeFormat() {
-        return "e";
     }
 }

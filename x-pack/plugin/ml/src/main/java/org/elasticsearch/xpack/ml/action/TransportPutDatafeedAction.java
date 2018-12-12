@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -154,6 +155,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private void putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers,
                              ActionListener<PutDatafeedAction.Response> listener) {
 
+        DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations());
         clusterService.submitStateUpdateTask(
                 "put-datafeed-" + request.getDatafeed().getId(),
                 new AckedClusterStateUpdateTask<PutDatafeedAction.Response>(request, listener) {

@@ -40,6 +40,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index:   completion_with_sub_keyword
         body:
           suggest:
@@ -54,6 +55,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index:   completion_with_sub_keyword
         body:
           query:   { term: { suggest_1.text_raw: "bar" }}
@@ -103,6 +105,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: completion_with_sub_completion
         body:
           suggest:
@@ -170,6 +173,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: completion_with_context
         body:
           suggest:
@@ -230,6 +234,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: completion_with_weight
         body:
           suggest:
@@ -286,6 +291,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: geofield_with_completion
         body:
           suggest:

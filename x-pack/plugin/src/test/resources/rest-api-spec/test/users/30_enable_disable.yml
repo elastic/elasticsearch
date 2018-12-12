@@ -7,7 +7,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -18,7 +18,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
 
@@ -32,7 +32,7 @@ teardown:
 
 # disable the user
   - do:
-      xpack.security.disable_user:
+      security.disable_user:
         username: "joe"
 
 # validate user cannot login
@@ -44,7 +44,7 @@ teardown:
 
 # enable the user
   - do:
-      xpack.security.enable_user:
+      security.enable_user:
         username: "joe"
 
 # validate that the user can login again
@@ -65,7 +65,7 @@ teardown:
 
 # enable the user
   - do:
-      xpack.security.enable_user:
+      security.enable_user:
         username: "joe"
 
 # validate that the user still works
@@ -86,7 +86,7 @@ teardown:
 
 # disable the user
   - do:
-      xpack.security.disable_user:
+      security.disable_user:
         username: "joe"
 
 # validate user cannot login
@@ -98,11 +98,11 @@ teardown:
 
 # disable again
   - do:
-      xpack.security.disable_user:
+      security.disable_user:
         username: "joe"
 
   - do:
-      xpack.security.enable_user:
+      security.enable_user:
         username: "joe"
 
 ---
@@ -119,5 +119,5 @@ teardown:
       catch: '/users may not update the enabled status of their own account/'
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="
-      xpack.security.disable_user:
+      security.disable_user:
         username: "joe"

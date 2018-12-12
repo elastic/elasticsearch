@@ -301,6 +301,7 @@ if (secureFixtureSupported) {
   // Security tests unsupported. Don't run these tests.
   integTestSecure.enabled = false
   integTestSecureHa.enabled = false
+  testingConventions.enabled = false
 }
 
 thirdPartyAudit.excludes = [

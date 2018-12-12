@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -39,6 +40,17 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     @Nullable
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = Collections.emptyList();
+    
+    static final ParseField QUERY = new ParseField("query");
+    static final ParseField CURSOR = new ParseField("cursor");
+    static final ParseField PARAMS = new ParseField("params");
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
+    static final ParseField FETCH_SIZE = new ParseField("fetch_size");
+    static final ParseField REQUEST_TIMEOUT = new ParseField("request_timeout");
+    static final ParseField PAGE_TIMEOUT = new ParseField("page_timeout");
+    static final ParseField FILTER = new ParseField("filter");
+    static final ParseField MODE = new ParseField("mode");
+    static final ParseField CLIENT_ID = new ParseField("client_id");
 
     public AbstractSqlQueryRequest() {
         super();
@@ -57,19 +69,22 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     }
 
     protected static <R extends AbstractSqlQueryRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
-        // TODO: convert this into ConstructingObjectParser
-        ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", true, supplier);
-        parser.declareString(AbstractSqlQueryRequest::query, new ParseField("query"));
-        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), new ParseField("params"));
-        parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), new ParseField("time_zone"));
-        parser.declareInt(AbstractSqlQueryRequest::fetchSize, new ParseField("fetch_size"));
+        // Using an ObjectParser here (vs. ConstructingObjectParser) because the latter needs to instantiate a concrete class
+        // and we would duplicate the code from this class to its subclasses
+        ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", false, supplier);
+        parser.declareString(AbstractSqlQueryRequest::query, QUERY);
+        parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
+        parser.declareString((request, clientId) -> request.clientId(clientId), CLIENT_ID);
+        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), PARAMS);
+        parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), TIME_ZONE);
+        parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
-            "request_timeout")), new ParseField("request_timeout"));
+            "request_timeout")), REQUEST_TIMEOUT);
         parser.declareString(
                 (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, "page_timeout")),
-                new ParseField("page_timeout"));
+                PAGE_TIMEOUT);
         parser.declareObject(AbstractSqlQueryRequest::filter,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("filter"));
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
         return parser;
     }
 

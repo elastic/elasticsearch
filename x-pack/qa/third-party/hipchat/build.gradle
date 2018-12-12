@@ -29,4 +29,5 @@ integTestCluster {
 
 if (!integrationAccount && !userAccount && !v1Account) {
   integTest.enabled = false
+  testingConventions.enabled = false
 }

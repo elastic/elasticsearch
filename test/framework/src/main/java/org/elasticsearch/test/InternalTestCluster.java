@@ -27,11 +27,14 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -70,6 +73,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -101,6 +105,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
@@ -144,6 +149,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
@@ -159,6 +165,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -521,7 +528,9 @@ public final class InternalTestCluster extends TestCluster {
         }
         final int ord = nextNodeId.getAndIncrement();
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
-        final NodeAndClient buildNode = buildNode(ord, random.nextLong(), null, false, 1, onTransportServiceStarted);
+        final Settings settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1).build();
+        final NodeAndClient buildNode = buildNode(ord, random.nextLong(), settings, false, 1, onTransportServiceStarted);
+        assert nodes.isEmpty();
         buildNode.startNode();
         publishNode(buildNode);
         return buildNode;
@@ -573,7 +582,7 @@ public final class InternalTestCluster extends TestCluster {
         final Stream<NodeAndClient> collection = n == 0
                 ? nodes.values().stream()
                 : nodes.values().stream()
-                        .filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+                        .filter(new DataNodePredicate().and(new NodeNamePredicate(getMasterName()).negate()));
         final Iterator<NodeAndClient> values = collection.iterator();
 
         logger.info("changing cluster size from {} data nodes to {}", size, n);
@@ -719,7 +728,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client masterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()));
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()));
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client master is requested
         }
@@ -732,7 +741,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client nonMasterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
@@ -1063,16 +1072,38 @@ public final class InternalTestCluster extends TestCluster {
             wipePendingDataDirectories();
         }
 
+        assertTrue("expected at least one master-eligible node left in " + nodes,
+            nodes.isEmpty() || nodes.values().stream().anyMatch(NodeAndClient::isMasterEligible));
+
+        final int prevNodeCount = nodes.size();
+
         // start any missing node
         assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
         final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
+
+        final int bootstrapNodeIndex;
+        if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+            if (numSharedDedicatedMasterNodes > 0) {
+                bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
+            } else if (numSharedDataNodes > 0) {
+                bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
+            } else {
+                bootstrapNodeIndex = -1;
+            }
+        } else {
+            bootstrapNodeIndex = -1;
+        }
+
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
+            if (i == bootstrapNodeIndex) {
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes);
+            }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
@@ -1083,6 +1114,8 @@ public final class InternalTestCluster extends TestCluster {
                 // if we don't have dedicated master nodes, keep things default
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
+            } else if (i == bootstrapNodeIndex) {
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDataNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
@@ -1423,12 +1456,16 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, new DataNodePredicate());
     }
 
+    public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new NodeNamePredicate(getMasterName()));
+    }
+
     /**
      * Returns an Iterable to all instances for the given class &gt;T&lt; across all data and master nodes
      * in the cluster.
      */
     public synchronized <T> Iterable<T> getDataOrMasterNodeInstances(Class<T> clazz) {
-        return getInstances(clazz, new DataOrMasterNodePredicate());
+        return getInstances(clazz, new DataNodePredicate().or(new MasterNodePredicate()));
     }
 
     private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -1449,6 +1486,10 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized <T> T getDataNodeInstance(Class<T> clazz) {
         return getInstance(clazz, new DataNodePredicate());
+    }
+
+    public synchronized <T> T getMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new MasterNodePredicate());
     }
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -1525,7 +1566,7 @@ public final class InternalTestCluster extends TestCluster {
      * Stops any of the current nodes but not the master node.
      */
     public synchronized void stopRandomNonMasterNode() throws IOException {
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
             stopNodesAndClient(nodeAndClient);
@@ -1600,18 +1641,16 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
-        if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
-            int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
-            if (masters > 0) {
-                updateMinMasterNodes(getMasterNodesCount() - masters);
-            }
-        }
+        final Set<String> excludedNodeIds = excludeMasters(nodeAndClients);
+
         for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
             NodeAndClient previous = nodes.remove(nodeAndClient.name);
             assert previous == nodeAndClient;
             nodeAndClient.close();
         }
+
+        removeExclusions(excludedNodeIds);
     }
 
     /**
@@ -1677,31 +1716,78 @@ public final class InternalTestCluster extends TestCluster {
 
     private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
         logger.info("Restarting node [{}] ", nodeAndClient.name);
+
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
         }
-        final int masterNodesCount = getMasterNodesCount();
-        // special case to allow stopping one node in a two node cluster and keep it functional
-        final boolean updateMinMaster = nodeAndClient.isMasterEligible() && masterNodesCount == 2 && autoManageMinMasterNodes;
-        if (updateMinMaster) {
-            updateMinMasterNodes(masterNodesCount - 1);
-        }
+
+        Set<String> excludedNodeIds = excludeMasters(Collections.singleton(nodeAndClient));
+
         final Settings newSettings = nodeAndClient.closeForRestart(callback,
-            autoManageMinMasterNodes ? getMinMasterNodes(masterNodesCount) : -1);
+                autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1);
+
+        removeExclusions(excludedNodeIds);
+
         nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
         nodeAndClient.startNode();
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
-        if (callback.validateClusterForming() || updateMinMaster) {
+
+        if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size if updateMinMaster == true, because we need the
             // second node to join in order to increment min_master_nodes back to 2.
             // we also have to do via the node that was just restarted as it may be that the master didn't yet process
             // the fact it left
             validateClusterFormed(nodeAndClient.name);
         }
-        if (updateMinMaster) {
-            updateMinMasterNodes(masterNodesCount);
+
+        if (excludedNodeIds.isEmpty() == false) {
+            updateMinMasterNodes(getMasterNodesCount());
+        }
+    }
+
+    private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
+        final Set<String> excludedNodeIds = new HashSet<>();
+        if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
+
+            final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
+            final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
+
+            assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
+            if (stoppingMasters != currentMasters && stoppingMasters > 0) {
+                // If stopping few enough master-nodes that there's still a majority left, there is no need to withdraw their votes first.
+                // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
+                // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
+                // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
+                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeIds::add);
+                assert excludedNodeIds.size() == stoppingMasters;
+
+                logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeIds);
+                try {
+                    client().execute(AddVotingConfigExclusionsAction.INSTANCE,
+                            new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(new String[0]))).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+
+            if (stoppingMasters > 0) {
+                updateMinMasterNodes(getMasterNodesCount() - Math.toIntExact(stoppingMasters));
+            }
+        }
+        return excludedNodeIds;
+    }
+
+    private void removeExclusions(Set<String> excludedNodeIds) {
+        if (excludedNodeIds.isEmpty() == false) {
+            logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
+            try {
+                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client(random);
+                client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new AssertionError("unexpected", e);
+            }
         }
     }
 
@@ -1758,7 +1844,6 @@ public final class InternalTestCluster extends TestCluster {
             validateClusterFormed();
         }
     }
-
 
     /**
      * Returns the name of the current master node in the cluster.
@@ -1861,22 +1946,33 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes with the given settings and returns their names
      */
     public synchronized List<String> startNodes(Settings... settings) {
+        final int newMasterCount = Math.toIntExact(Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count());
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
-            int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
-            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + mastersDelta);
+            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + newMasterCount);
         } else {
             defaultMinMasterNodes = -1;
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
+        final int prevMasterCount = getMasterNodesCount();
+        int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0 && Arrays.stream(settings)
+            .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || TestZenDiscovery.USE_ZEN2.get(s) == true)
+            ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
+
         for (Settings nodeSettings : settings) {
-            nodes.add(buildNode(nodeSettings, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
+            final Builder builder = Settings.builder();
+            if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                if (bootstrapMasterNodeIndex == 0) {
+                    builder.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), newMasterCount);
+                }
+                bootstrapMasterNodeIndex -= 1;
+            }
+            nodes.add(buildNode(builder.put(nodeSettings).build(), defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
         startAndPublishNodesAndClients(nodes);
         if (autoManageMinMasterNodes) {
             validateClusterFormed();
         }
-
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 
@@ -2034,7 +2130,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
-        return filterNodes(nodes, new DataOrMasterNodePredicate());
+        return filterNodes(nodes, new DataNodePredicate().or(new MasterNodePredicate()));
     }
 
     private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map,
@@ -2053,24 +2149,23 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
+    private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.isDataNode(nodeAndClient.node.settings()) ||
-                DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
+            return DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
     }
 
-    private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
-        private final String masterNodeName;
+    private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
+        private final HashSet<String> nodeNames;
 
-        MasterNodePredicate(String masterNodeName) {
-            this.masterNodeName = masterNodeName;
+        NodeNamePredicate(String... nodeNames) {
+            this.nodeNames = Sets.newHashSet(nodeNames);
         }
 
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return masterNodeName.equals(nodeAndClient.name);
+            return nodeNames.contains(nodeAndClient.getName());
         }
     }
 
@@ -2157,24 +2252,10 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a predicate that only accepts settings of nodes with one of the given names.
      */
-    public static Predicate<Settings> nameFilter(String... nodeName) {
-        return new NodeNamePredicate(new HashSet<>(Arrays.asList(nodeName)));
+    public static Predicate<Settings> nameFilter(String... nodeNames) {
+        final Set<String> nodes = Sets.newHashSet(nodeNames);
+        return settings -> nodes.contains(settings.get("node.name"));
     }
-
-    private static final class NodeNamePredicate implements Predicate<Settings> {
-        private final HashSet<String> nodeNames;
-
-        NodeNamePredicate(HashSet<String> nodeNames) {
-            this.nodeNames = nodeNames;
-        }
-
-        @Override
-        public boolean test(Settings settings) {
-            return nodeNames.contains(settings.get("node.name"));
-
-        }
-    }
-
 
     /**
      * An abstract class that is called during {@link #rollingRestart(InternalTestCluster.RestartCallback)}

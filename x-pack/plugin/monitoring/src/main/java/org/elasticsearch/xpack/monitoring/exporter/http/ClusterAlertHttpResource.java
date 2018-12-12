@@ -87,13 +87,13 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 
             checkForResource(client, listener, logger,
-                             "/_xpack/watcher/watch", watchId.get(), "monitoring cluster alert",
+                             "/_watcher/watch", watchId.get(), "monitoring cluster alert",
                              resourceOwnerName, "monitoring cluster",
                              GET_EXISTS, GET_DOES_NOT_EXIST,
                              watchChecker, this::alwaysReplaceResource);
         } else {
             // if we should be deleting, then just try to delete it (same level of effort as checking)
-            deleteResource(client, listener, logger, "/_xpack/watcher/watch", watchId.get(),
+            deleteResource(client, listener, logger, "/_watcher/watch", watchId.get(),
                            "monitoring cluster alert",
                            resourceOwnerName, "monitoring cluster");
         }
@@ -105,7 +105,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
         putResource(client, listener, logger,
-                    "/_xpack/watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
+                    "/_watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
                     resourceOwnerName, "monitoring cluster");
     }
 

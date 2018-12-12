@@ -36,7 +36,7 @@ import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
-public class TransportSettings {
+public final class TransportSettings {
 
     public static final String DEFAULT_PROFILE = "default";
     public static final String FEATURE_PREFIX = "transport.features";
@@ -143,4 +143,7 @@ public class TransportSettings {
         listSetting("transport.tracer.exclude",
             Arrays.asList("internal:discovery/zen/fd*", "internal:coordination/fault_detection/*", TransportLivenessAction.NAME),
             Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    private TransportSettings() {
+    }
 }

@@ -274,7 +274,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         public String toString() {
-            return "snapshot recovery [" + restoreUUID + "] from " + snapshot.toString();
+            return "snapshot recovery [" + restoreUUID + "] from " + snapshot;
         }
 
         @Override
@@ -293,7 +293,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshot, index, version);
+            return Objects.hash(restoreUUID, snapshot, index, version);
         }
 
     }

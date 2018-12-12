@@ -389,9 +389,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 }
             }
 
-            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(snapshot, RestoreInProgress.State.INIT,
-                new ArrayList<>(snapshotIndices), restoreShards.build(), restoreUUID);
-            restores.put(RestoreInProgress.TYPE, new RestoreInProgress(restore));
+            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(restoreUUID, snapshot, RestoreInProgress.State.INIT,
+                new ArrayList<>(snapshotIndices), restoreShards.build());
+            restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
 
         return ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

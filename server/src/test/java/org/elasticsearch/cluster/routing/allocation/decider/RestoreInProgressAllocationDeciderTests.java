@@ -141,10 +141,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         Snapshot snapshot = recoverySource.snapshot();
         RestoreInProgress.State restoreState = RestoreInProgress.State.STARTED;
         RestoreInProgress.Entry restore =
-            new RestoreInProgress.Entry(snapshot, restoreState, singletonList("test"), shards.build(), recoverySource.restoreUUID());
+            new RestoreInProgress.Entry(recoverySource.restoreUUID(), snapshot, restoreState, singletonList("test"), shards.build());
 
         clusterState = ClusterState.builder(clusterState)
-            .putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restore))
+            .putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build())
             .routingTable(routingTable)
             .build();
 

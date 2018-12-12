@@ -34,6 +34,7 @@ import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -56,24 +57,16 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     /**
      * Constructs new restore metadata
      *
-     * @param entries list of currently running restore processes
+     * @param entries map of currently running restore processes keyed by their restore uuid
      */
-    public RestoreInProgress(Entry... entries) {
-        this.entries = collectEntryMap(entries);
-    }
-
-    private static ImmutableOpenMap<String, Entry> collectEntryMap(Entry ... entries) {
-        ImmutableOpenMap.Builder<String, Entry> entryBuilder = ImmutableOpenMap.builder();
-        for (final Entry entry : entries) {
-            entryBuilder.put(entry.uuid(), entry);
-        }
-        return entryBuilder.build();
+    private RestoreInProgress(ImmutableOpenMap<String, Entry> entries) {
+        this.entries = entries;
     }
 
     /**
-     * Returns list of currently running restore processes
+     * Returns map of currently running restore processes keyed by their restore uuid
      *
-     * @return list of currently running restore processes
+     * @return map of currently running restore processes keyed by their restore uuid
      */
     public ImmutableOpenMap<String, Entry> entries() {
         return this.entries;
@@ -101,6 +94,35 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         return new StringBuilder("RestoreInProgress[").append(entries).append("]").toString();
     }
 
+    private static ImmutableOpenMap<String, Entry> collectEntryMap(Collection<Entry> entries) {
+        ImmutableOpenMap.Builder<String, Entry> entryBuilder = ImmutableOpenMap.builder();
+        for (final Entry entry : entries) {
+            entryBuilder.put(entry.uuid(), entry);
+        }
+        return entryBuilder.build();
+    }
+
+    public static final class Builder {
+
+        private final List<Entry> entries = new ArrayList<>();
+
+        public Builder() {
+        }
+
+        public Builder(RestoreInProgress restoreInProgress) {
+            restoreInProgress.entries.valuesIt().forEachRemaining(entries::add);
+        }
+
+        public Builder add(Entry entry) {
+            entries.add(entry);
+            return this;
+        }
+
+        public RestoreInProgress build() {
+            return new RestoreInProgress(collectEntryMap(entries));
+        }
+    }
+
     /**
      * Restore metadata
      */
@@ -114,14 +136,14 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         /**
          * Creates new restore metadata
          *
+         * @param uuid       uuid of the restore
          * @param snapshot   snapshot
          * @param state      current state of the restore process
          * @param indices    list of indices being restored
          * @param shards     map of shards being restored to their current restore status
-         * @param uuid       uuid of the restore
          */
-        public Entry(Snapshot snapshot, State state, List<String> indices, ImmutableOpenMap<ShardId, ShardRestoreStatus> shards,
-            String uuid) {
+        public Entry(String uuid, Snapshot snapshot, State state, List<String> indices,
+            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.indices = Objects.requireNonNull(indices);
@@ -414,8 +436,15 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     }
 
     public RestoreInProgress(StreamInput in) throws IOException {
-        Entry[] entries = new Entry[in.readVInt()];
-        for (int i = 0; i < entries.length; i++) {
+        int count = in.readVInt();
+        final List<Entry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            final String uuid;
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                uuid = in.readString();
+            } else {
+                uuid = BWC_UUID;
+            }
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
@@ -430,13 +459,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
                 builder.put(shardId, shardState);
             }
-            final String uuid;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                uuid = in.readString();
-            } else {
-                uuid = BWC_UUID;
-            }
-            entries[i] = new Entry(snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build(), uuid);
+            entries.add(new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build()));
         }
         this.entries = collectEntryMap(entries);
     }
@@ -449,6 +472,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         out.writeVInt(entries.size());
         for (ObjectCursor<Entry> v : entries.values()) {
             Entry entry = v.value;
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeString(entry.uuid);
+            }
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
@@ -459,9 +485,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards()) {
                 shardEntry.key.writeTo(out);
                 shardEntry.value.writeTo(out);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeString(entry.uuid);
             }
         }
     }

@@ -91,7 +91,7 @@ Response:
         "snapshot" : "my_snapshot",
         "index" : "index1",
         "version" : "{version}",
-        "restoreUUID": ""
+        "restoreUUID": "PDh1ZAOaRbiGIVtCvZOMww"
       },
       "target" : {
         "id" : "ryqJ5lO5S4-lSFbGntkEkg",

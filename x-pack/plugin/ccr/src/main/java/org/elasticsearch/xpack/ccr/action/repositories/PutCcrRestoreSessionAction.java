@@ -15,12 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -76,17 +75,12 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
-            Engine.IndexCommitRef commit = indexShard.acquireSafeIndexCommit();
-            String sessionUUID = UUIDs.randomBase64UUID();
-            ccrRestoreService.addCommit(sessionUUID, commit);
-            final Store.MetadataSnapshot snapshot;
-            indexShard.store().incRef();
-            try {
-                snapshot = indexShard.store().getMetadata(commit.getIndexCommit());
-            } finally {
-                indexShard.store().decRef();
-            }
-            return new PutCcrRestoreSessionResponse(indexShard.routingEntry().currentNodeId(), new ArrayList<>(), new ArrayList<>());
+            Store.MetadataSnapshot sourceMetaData = ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
+            Store.RecoveryDiff recoveryDiff = sourceMetaData.recoveryDiff(request.getMetaData());
+
+            ArrayList<StoreFileMetaData> filesToRecover = new ArrayList<>(recoveryDiff.different);
+            filesToRecover.addAll(recoveryDiff.missing);
+            return new PutCcrRestoreSessionResponse(indexShard.routingEntry().currentNodeId(), recoveryDiff.identical, filesToRecover);
         }
 
         @Override

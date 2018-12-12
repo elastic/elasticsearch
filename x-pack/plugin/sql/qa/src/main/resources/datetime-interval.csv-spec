@@ -140,7 +140,7 @@ INTERVAL 1 DAY + INTERVAL 53 MINUTES
 +1 00:53:00.0    
 ;
 
-datePlusIntervalLocal
+datePlusIntervalInline
 SELECT CAST('1969-05-13T12:34:56' AS DATE) + INTERVAL 49 YEARS AS result;
 
        result       

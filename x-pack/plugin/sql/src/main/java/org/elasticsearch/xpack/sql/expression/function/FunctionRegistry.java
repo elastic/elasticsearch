@@ -419,8 +419,8 @@ public class FunctionRegistry {
     }
 
     /**
-     * Build a {@linkplain FunctionDefinition} for a plur/n-ary function that
-     * operates on a datetime.
+     * Build a {@linkplain FunctionDefinition} for a binary function that
+     * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
@@ -552,4 +552,4 @@ public class FunctionRegistry {
     private interface CastFunctionBuilder<T> {
         T build(Location location, Expression expression, DataType dataType);
     }
-        }
+}

@@ -3,7 +3,9 @@
 [[sql-functions-grouping]]
 === Grouping Functions
 
-Functions for creating special __grouping__s (also known as _bucketing_) and need to be used
+beta[]
+
+Functions for creating special __grouping__s (also known as _bucketing_); as such these need to be used
 as part of the <<sql-syntax-group-by, grouping>>.
 
 [[sql-functions-grouping-histogram]]
@@ -22,7 +24,6 @@ HISTOGRAM ( date_exp<3>,  date_time_interval<4>)
 <2> numeric interval
 <3> date/time expression (typically a field)
 <4> date/time <<sql-functions-datetime-interval, interval>>
-...
 
 *Output*: non-empty buckets or groups of the given expression divided according to the given interval
 
@@ -43,7 +44,7 @@ bucket_key = Math.floor(value / interval) * interval
 include-tagged::{sql-specs}/docs.csv-spec[histogramNumeric]
 ----
 
-and date/time fields:
+or date/time fields:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----

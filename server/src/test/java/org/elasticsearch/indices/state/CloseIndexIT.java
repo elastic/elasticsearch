@@ -18,13 +18,8 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,17 +29,14 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
@@ -102,7 +94,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
 
         assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setFetchSource(false).get(), nbDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
     }
 
     public void testCloseAlreadyClosedIndex() throws Exception {
@@ -170,90 +162,26 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        final int nbDocs = randomIntBetween(10, 50);
-        final AtomicInteger acknowledgedDocs = new AtomicInteger(nbDocs);
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+        int nbDocs = 0;
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client())) {
+            indexer.setAssertNoFailuresOnStop(false);
 
-        final CountDownLatch startIndexing = new CountDownLatch(1);
-        final CountDownLatch startClosing = new CountDownLatch(1);
-        final AtomicBoolean runIndexing = new AtomicBoolean(true);
-
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    startIndexing.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                while (runIndexing.get()) {
-                    switch (randomIntBetween(0, 2)) {
-                        case 0: // Single doc indexing
-                        {
-                            try {
-                                IndexResponse response = client().prepareIndex(indexName, "_doc").setSource("num", randomInt()).get();
-                                if (response.status() == RestStatus.CREATED) {
-                                    acknowledgedDocs.incrementAndGet();
-                                }
-                            } catch (Exception e) {
-                                assertException(e, indexName);
-                            }
-                            break;
-                        }
-                        case 1: // Bulk docs indexing
-                        {
-                            BulkRequestBuilder request = client().prepareBulk(indexName, "_doc");
-                            for (int j = 0; j < randomIntBetween(1, 10); j++) {
-                                request.add(new IndexRequest().source("num", randomInt()));
-                            }
-
-                            BulkResponse response = request.get();
-                            startClosing.countDown();
-                            for (BulkItemResponse itemResponse : response) {
-                                if (itemResponse.isFailed() == false) {
-                                    acknowledgedDocs.incrementAndGet();
-                                } else {
-                                    assertException(itemResponse.getFailure().getCause(), indexName);
-                                }
-                            }
-                            break;
-                        }
-                        case 2: // Single doc update
-                        {
-                            try {
-                                int docId = randomIntBetween(0, nbDocs - 1);
-                                client().prepareUpdate(indexName, "_doc", String.valueOf(docId)).setDoc("num", randomInt()).get();
-                            } catch (VersionConflictEngineException e) {
-                                // it's ok to ignore
-                            } catch (Exception e) {
-                                assertException(e, indexName);
-                            }
-                            break;
-                        }
-                        default:
-                            throw new AssertionError("Illegal randomisation branch");
-                    }
-                }
-            });
-            threads[i].start();
-        }
-
-        try {
-            startIndexing.countDown();
-            startClosing.await();
+            waitForDocs(randomIntBetween(10, 50), indexer);
             assertAcked(client().admin().indices().prepareClose(indexName));
-        } finally {
-            runIndexing.set(false);
-        }
+            indexer.stop();
+            nbDocs += indexer.totalIndexedDocs();
 
-        for (Thread thread : threads) {
-            thread.join();
+            final Throwable[] failures = indexer.getFailures();
+            if (failures != null) {
+                for (Throwable failure : failures) {
+                    assertException(failure, indexName);
+                }
+            }
         }
 
         assertIndexIsClosed(indexName);
         assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setFetchSource(false).get(), acknowledgedDocs.get());
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -317,27 +245,29 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
     }
 
-    static void assertException(final Exception exception, final String indexName) {
-        if (exception instanceof ElasticsearchWrapperException) {
-            if (exception.getCause() != null && exception.getCause() instanceof Exception) {
-                assertException((Exception) exception.getCause(), indexName);
-                return;
-            }
-        }
-        if (exception instanceof ClusterBlockException) {
-            ClusterBlockException clusterBlockException = (ClusterBlockException) exception;
+    static void assertIndexIsOpened(final String indexName) {
+        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.OPEN));
+        assertThat(clusterState.routingTable().index(indexName), notNullValue());
+        assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(false));
+    }
+
+    static void assertException(final Throwable throwable, final String indexName) {
+        final Throwable t = ExceptionsHelper.unwrapCause(throwable);
+        if (t instanceof ClusterBlockException) {
+            ClusterBlockException clusterBlockException = (ClusterBlockException) t;
             assertThat(clusterBlockException.blocks(), hasSize(1));
             assertThat(clusterBlockException.blocks(), hasItem(MetaDataIndexStateService.INDEX_CLOSED_BLOCK));
-        } else if (exception instanceof IndexClosedException) {
-            IndexClosedException indexClosedException = (IndexClosedException) exception;
+        } else if (t instanceof IndexClosedException) {
+            IndexClosedException indexClosedException = (IndexClosedException) t;
             assertThat(indexClosedException.getIndex(), notNullValue());
             assertThat(indexClosedException.getIndex().getName(), equalTo(indexName));
-        } else if (exception instanceof IndexNotFoundException) {
-            IndexNotFoundException indexNotFoundException = (IndexNotFoundException) exception;
+        } else if (t instanceof IndexNotFoundException) {
+            IndexNotFoundException indexNotFoundException = (IndexNotFoundException) t;
             assertThat(indexNotFoundException.getIndex(), notNullValue());
             assertThat(indexNotFoundException.getIndex().getName(), equalTo(indexName));
         } else {
-            fail("Unexpected exception: " + exception);
+            fail("Unexpected exception: " + t);
         }
     }
 }

@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
@@ -71,6 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -137,6 +139,7 @@ public class MetaDataIndexStateService {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
                         listener.onResponse(new AcknowledgedResponse(true));
                     } else {
+                        assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(new WaitForClosedBlocksApplied(blockedIndices, timeout,
                                 ActionListener.wrap(closedBlocksResults ->
@@ -228,7 +231,7 @@ public class MetaDataIndexStateService {
             blockedIndices.add(index);
         }
 
-        logger.debug(() -> new ParameterizedMessage("adding block to indices {}",
+        logger.info(() -> new ParameterizedMessage("closing indices {}",
             blockedIndices.stream().map(Object::toString).collect(Collectors.joining(","))));
         return ClusterState.builder(currentState).blocks(blocks).metaData(metadata).routingTable(routingTable.build()).build();
     }
@@ -268,44 +271,27 @@ public class MetaDataIndexStateService {
             final CountDown countDown = new CountDown(blockedIndices.size());
             final ClusterState state = clusterService.state();
             for (Index blockedIndex : blockedIndices) {
-                waitForShardsReadyForClosing(blockedIndex, state, timeout, new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(final AcknowledgedResponse result) {
-                        results.put(blockedIndex, result);
-                        processIfFinished();
-                    }
-
-                    @Override
-                    public void onFailure(final Exception e) {
-                        results.put(blockedIndex, new AcknowledgedResponse(false));
-                        processIfFinished();
-                    }
-
-                    private void processIfFinished() {
-                        if (countDown.countDown()) {
-                            listener.onResponse(unmodifiableMap(results));
-                        }
+                waitForShardsReadyForClosing(blockedIndex, state, timeout, response -> {
+                    results.put(blockedIndex, response);
+                    if (countDown.countDown()) {
+                        listener.onResponse(unmodifiableMap(results));
                     }
                 });
             }
         }
 
         private void waitForShardsReadyForClosing(final Index index, final ClusterState state, @Nullable final TimeValue timeout,
-                                                  final ActionListener<AcknowledgedResponse> listener) {
+                                                  final Consumer<AcknowledgedResponse> onResponse) {
             final IndexMetaData indexMetaData = state.metaData().index(index);
-            if (indexMetaData == null || indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                logger.debug("index {} has been blocked before closing and is already closed, ignoring", index);
-                listener.onResponse(new AcknowledgedResponse(true));
+            if (indexMetaData == null) {
+                logger.debug("index {} has been blocked before closing and is now deleted, ignoring", index);
+                onResponse.accept(new AcknowledgedResponse(true));
                 return;
             }
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
-            if (indexRoutingTable == null) {
-                logger.debug("index {} has been blocked before closing but is now deleted, ignoring", index);
-                listener.onResponse(new AcknowledgedResponse(true));
-                return;
-            } else if (indexRoutingTable.allPrimaryShardsUnassigned()) {
-                logger.debug("index {} has been blocked before closing but is now unassigned, ignoring", index);
-                listener.onResponse(new AcknowledgedResponse(true));
+            if (indexRoutingTable == null || indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                logger.debug("index {} has been blocked before closing and is already closed, ignoring", index);
+                onResponse.accept(new AcknowledgedResponse(true));
                 return;
             }
 
@@ -316,16 +302,16 @@ public class MetaDataIndexStateService {
             for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
                 final IndexShardRoutingTable shardRoutingTable = shard.value;
                 final ShardId shardId = shardRoutingTable.shardId();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, timeout, new ActionListener<ReplicationResponse>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, timeout, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
-                    public void onResponse(final ReplicationResponse replicationResponse) {
+                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
                         ReplicationResponse.ShardInfo shardInfo = replicationResponse.getShardInfo();
                         results.setOnce(shardId.id(), new AcknowledgedResponse(shardInfo.getFailed() == 0));
                         processIfFinished();
                     }
 
                     @Override
-                    public void onFailure(final Exception e) {
+                    public void innerOnFailure(final Exception e) {
                         results.setOnce(shardId.id(), new AcknowledgedResponse(false));
                         processIfFinished();
                     }
@@ -333,7 +319,7 @@ public class MetaDataIndexStateService {
                     private void processIfFinished() {
                         if (countDown.countDown()) {
                             final boolean acknowledged = results.asList().stream().allMatch(AcknowledgedResponse::isAcknowledged);
-                            listener.onResponse(new AcknowledgedResponse(acknowledged));
+                            onResponse.accept(new AcknowledgedResponse(acknowledged));
                         }
                     }
                 });
@@ -383,12 +369,14 @@ public class MetaDataIndexStateService {
                         logger.debug("closing index {} failed, removing index block because: {}", index, result.getValue());
                         blocks.removeIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                     }
+                } else {
+                    logger.debug("index {} has been closed since it was blocked before closing, ignoring", index);
                 }
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since it was blocked before closing, ignoring", index);
             }
         }
-        logger.debug("closing indices {}", closedIndices);
+        logger.info("completed closing of indices {}", closedIndices);
         return ClusterState.builder(currentState).blocks(blocks).metaData(metadata).routingTable(routingTable.build()).build();
     }
 

@@ -18,39 +18,34 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
+import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
@@ -71,21 +66,22 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
     public void testCloseWhileRelocatingShards() throws Exception {
         final String[] indices = new String[randomIntBetween(3, 10)];
-        final Map<String, AtomicInteger> docsPerIndex = new HashMap<>();
+        final Map<String, Long> docsPerIndex = new HashMap<>();
 
         for (int i = 0; i < indices.length; i++) {
-            final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            final String indexName =  "index-" + i;
             createIndex(indexName);
 
             int nbDocs = 0;
             if (randomBoolean()) {
                 nbDocs = randomIntBetween(1, 20);
-                indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-                    .mapToObj(n -> client().prepareIndex(indexName, "_doc", String.valueOf(n)).setSource("num", n)).collect(toList()));
-                docsPerIndex.put(indexName, new AtomicInteger(nbDocs));
+                for (int j = 0; j < nbDocs; j++) {
+                    IndexResponse indexResponse = client().prepareIndex(indexName, "_doc").setSource("num", j).get();
+                    assertEquals(RestStatus.CREATED, indexResponse.status());
+                }
             }
+            docsPerIndex.put(indexName, (long) nbDocs);
             indices[i] = indexName;
-            docsPerIndex.put(indexName, new AtomicInteger(nbDocs));
         }
 
         ensureGreen(indices);
@@ -93,51 +89,17 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             .setTransientSettings(Settings.builder()
                 .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.toString())));
 
-        final List<Thread> indexingThreads = new ArrayList<>();
-        final AtomicBoolean indexing = new AtomicBoolean(true);
-
         // start some concurrent indexing threads
+        final Map<String, BackgroundIndexer> indexers = new HashMap<>();
         for (final String index : indices) {
             if (randomBoolean()) {
-                final Thread thread = new Thread(() -> {
-                    while (indexing.get()) {
-                        if (randomBoolean()) {
-                            try {
-                                // Single doc indexing
-                                IndexResponse response = client().prepareIndex(index, "_doc").setSource("num", randomInt()).get();
-                                if (response.status() == RestStatus.CREATED) {
-                                    docsPerIndex.get(index).incrementAndGet();
-                                }
-                            } catch (final Exception e) {
-                                if (indexing.get()) {
-                                    assertException(e, index);
-                                }
-                            }
-                        } else {
-                            // Bulk docs indexing
-                            BulkRequestBuilder request = client().prepareBulk(index, "_doc");
-                            for (int j = 0; j < randomIntBetween(1, 10); j++) {
-                                request.add(new IndexRequest().source("num", randomInt()));
-                            }
-
-                            BulkResponse response = request.get();
-                            for (BulkItemResponse itemResponse : response) {
-                                if (itemResponse.isFailed() == false) {
-                                    docsPerIndex.get(index).incrementAndGet();
-                                } else {
-                                    if (indexing.get()) {
-                                        assertException(itemResponse.getFailure().getCause(), index);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-                indexingThreads.add(thread);
-                thread.start();
+                final BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client());
+                waitForDocs(1, indexer);
+                indexers.put(index, indexer);
             }
         }
 
+        final Set<String> acknowledgedCloses = ConcurrentCollections.newConcurrentSet();
         final String newNode = internalCluster().startDataOnlyNode();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
@@ -179,7 +141,10 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }
-                    assertAcked(client().admin().indices().prepareClose(indexToClose).get());
+                    AcknowledgedResponse closeResponse = client().admin().indices().prepareClose(indexToClose).get();
+                    if (closeResponse.isAcknowledged()) {
+                        assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
+                    }
                 });
                 threads.add(thread);
                 thread.start();
@@ -189,20 +154,42 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             for (Thread thread : threads) {
                 thread.join();
             }
-            indexing.set(false);
-            for (Thread indexingThread : indexingThreads) {
-                indexingThread.join();
+            for (Map.Entry<String, BackgroundIndexer> entry : indexers.entrySet()) {
+                final BackgroundIndexer indexer = entry.getValue();
+                indexer.setAssertNoFailuresOnStop(false);
+                indexer.stop();
+
+                final String indexName = entry.getKey();
+                docsPerIndex.computeIfPresent(indexName, (key, value) -> value + indexer.totalIndexedDocs());
+
+                final Throwable[] failures = indexer.getFailures();
+                if (failures != null) {
+                    for (Throwable failure : failures) {
+                        assertException(failure, indexName);
+                    }
+                }
             }
         } finally {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())));
         }
 
-        for(String index : indices) {
-            assertIndexIsClosed(index);
+        for (String index : indices) {
+            if (acknowledgedCloses.contains(index)) {
+                assertIndexIsClosed(index);
+            } else {
+                assertIndexIsOpened(index);
+            }
+        }
 
-            assertAcked(client().admin().indices().prepareOpen(index).setWaitForActiveShards(ActiveShardCount.ALL));
-            assertHitCount(client().prepareSearch(index).setSize(0).setFetchSource(false).get(), docsPerIndex.get(index).get());
+        assertThat("Consider that the test failed if no indices were successfully closed", acknowledgedCloses.size(), greaterThan(0));
+        assertAcked(client().admin().indices().prepareOpen("index-*"));
+        ensureGreen(indices);
+
+        for (String index : acknowledgedCloses) {
+            long docsCount = client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+            assertEquals("Expected " + docsPerIndex.get(index) + " docs in index " + index + " but got " + docsCount
+                + " (close acknowledged=" + acknowledgedCloses.contains(index) + ")", (long) docsPerIndex.get(index), docsCount);
         }
     }
 }

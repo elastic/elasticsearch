@@ -227,7 +227,7 @@ public class ClusterStateChanges {
 
         newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, blockedIndices.stream()
             .collect(Collectors.toMap(Function.identity(), index -> new AcknowledgedResponse(true))));
-        return newState;
+        return allocationService.reroute(newState, "indices closed");
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {

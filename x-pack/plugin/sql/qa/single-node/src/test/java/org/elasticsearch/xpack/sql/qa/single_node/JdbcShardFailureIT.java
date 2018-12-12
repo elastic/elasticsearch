@@ -31,7 +31,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         createTest2.addParameter("timeout", "100ms");
         client().performRequest(createTest2);
 
-        Request request = new Request("PUT", "/test1/doc/_bulk");
+        Request request = new Request("PUT", "/test1/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {

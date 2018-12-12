@@ -83,7 +83,7 @@ public class DataLoader {
         createIndex.endObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("emp");
+            createIndex.startObject("_doc");
             {
                 createIndex.startObject("properties");
                 {
@@ -153,7 +153,7 @@ public class DataLoader {
             list.add(dep);
         });
 
-        request = new Request("POST", "/" + index + "/emp/_bulk?refresh=wait_for");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(fileName, (titles, fields) -> {
@@ -228,7 +228,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_doc/_bulk?refresh=wait_for");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
@@ -259,7 +259,7 @@ public class DataLoader {
         createIndex.endObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("book");
+            createIndex.startObject("_doc");
             {
                 createIndex.startObject("properties");
                 {
@@ -276,7 +276,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/book/_bulk?refresh=wait_for");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines("library", (titles, fields) -> {

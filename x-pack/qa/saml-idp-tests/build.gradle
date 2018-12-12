@@ -49,7 +49,6 @@ integTestCluster {
   setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
   // SAML realm 2 (uses authorization_realms)
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.type', 'saml'
   setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
   setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
   setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'

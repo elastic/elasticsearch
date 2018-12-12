@@ -31,11 +31,11 @@ public class JodaTests extends ESTestCase {
 
 
     public void testBasicTTimePattern() {
-        DateFormatter formatter1 = Joda.forPattern("basic_t_time");
+        DateFormatter formatter1 = DateFormatter.forPattern("basic_t_time");
         assertEquals(formatter1.pattern(), "basic_t_time");
         assertEquals(formatter1.zone(), ZoneOffset.UTC);
 
-        DateFormatter formatter2 = Joda.forPattern("basicTTime");
+        DateFormatter formatter2 = DateFormatter.forPattern("basicTTime");
         assertEquals(formatter2.pattern(), "basicTTime");
         assertEquals(formatter2.zone(), ZoneOffset.UTC);
 
@@ -43,9 +43,9 @@ public class JodaTests extends ESTestCase {
         assertEquals("T102030.040Z", formatter1.formatJoda(dt));
         assertEquals("T102030.040Z", formatter1.formatJoda(dt));
 
-        expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_t_Time"));
-        expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_T_Time"));
-        expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_T_time"));
+        expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("basic_t_Time"));
+        expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("basic_T_Time"));
+        expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("basic_T_time"));
     }
 
 }

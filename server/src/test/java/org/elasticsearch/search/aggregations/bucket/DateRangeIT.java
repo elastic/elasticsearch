@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -52,6 +51,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -972,8 +972,8 @@ public class DateRangeIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000)).get());
         Throwable cause = e.getCause();
-        assertThat(cause, instanceOf(ElasticsearchParseException.class));
-        assertEquals("failed to parse date field [1000000] with format [strict_hour_minute_second]", cause.getMessage());
+        assertThat(cause.getMessage(),
+            containsString("failed to parse date field [1000000] with format [strict_hour_minute_second]"));
     }
 
     /**

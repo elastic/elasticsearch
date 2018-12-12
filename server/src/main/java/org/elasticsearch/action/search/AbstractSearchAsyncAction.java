@@ -72,7 +72,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
+    AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                                         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Map<String, Set<String>> indexRoutings,

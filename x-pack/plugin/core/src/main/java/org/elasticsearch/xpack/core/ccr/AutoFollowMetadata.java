@@ -165,12 +165,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowMetadata that = (AutoFollowMetadata) o;
-        return Objects.equals(patterns, that.patterns);
+        return Objects.equals(patterns, that.patterns) &&
+               Objects.equals(followedLeaderIndexUUIDs, that.followedLeaderIndexUUIDs) &&
+               Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(patterns);
+        return Objects.hash(patterns, followedLeaderIndexUUIDs, headers);
     }
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {

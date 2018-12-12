@@ -32,14 +32,7 @@ publishing {
 }
 
 dependencies {
-    compile "org.elasticsearch:elasticsearch-core:${version}"
-
-
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-
-    if (isEclipse == false || project.path == ":libs:x-content-tests") {
+    if (isEclipse == false || project.path == ":libs:x-geo-tests") {
         testCompile("org.elasticsearch.test:framework:${version}") {
             exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
         }
@@ -65,5 +58,3 @@ if (isEclipse) {
         }
     }
 }
-
-jarHell.enabled = false

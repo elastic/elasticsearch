@@ -40,10 +40,10 @@ https://www.elastic.co/subscriptions.
 [float]
 ==== Authorization
 
-If {security-features} are enabled, you need `manage` cluster privileges to
+If {es} {security-features} are enabled, you need `manage` cluster privileges to
 install the license.
 
-If {security-features} are enabled and you are installing a gold or platinum
+If {es} {security-features} are enabled and you are installing a gold or platinum
 license, you must enable TLS on the transport networking layer before you
 install the license. See <<configuring-tls>>.
 

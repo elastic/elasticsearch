@@ -1948,6 +1948,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
+            public List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
+                return ESIntegTestCase.this.updateNodesSettings(allNodesSettings);
+            }
+
+            @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
@@ -1973,6 +1978,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return Collections.unmodifiableCollection(plugins);
             }
         };
+    }
+
+    protected List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
+        return allNodesSettings;
     }
 
     /**

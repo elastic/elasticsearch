@@ -55,7 +55,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testAddYearMonthIntervalToDate() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
@@ -64,7 +64,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testAddDayTimeIntervalToDate() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
@@ -73,7 +73,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testAddDayTimeIntervalToDateReverse() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
@@ -102,7 +102,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testSubYearMonthIntervalToDate() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
@@ -111,7 +111,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testSubYearMonthIntervalToDateIllegal() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
@@ -126,7 +126,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testSubDayTimeIntervalToDate() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);

@@ -4,26 +4,27 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.sql.expression.function.scalar;
+package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.xpack.sql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-public class Database extends ConfigurationFunction {
+public class CurrentDateTime extends ConfigurationFunction {
 
-    public Database(Location location, Configuration configuration) {
-        super(location, configuration, DataType.KEYWORD);
+    public CurrentDateTime(Location location, Configuration configuration) {
+        super(location, configuration, DataType.DATE);
     }
 
     @Override
     public Object fold() {
-        return configuration().clusterName();
+        return configuration().now();
     }
-    
+
     @Override
-    protected NodeInfo<Database> info() {
-        return NodeInfo.create(this, Database::new, configuration());
+    protected NodeInfo<CurrentDateTime> info() {
+        return NodeInfo.create(this, CurrentDateTime::new, configuration());
     }
 }

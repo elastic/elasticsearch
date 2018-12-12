@@ -59,7 +59,7 @@ public class BytesStreamOutput extends BytesStream {
 
     protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bytes = bigArrays.newByteArray(expectedSize);
+        this.bytes = bigArrays.newByteArray(expectedSize, false);
     }
 
     @Override

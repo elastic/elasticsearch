@@ -6,28 +6,32 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.util.TimeZone;
 
 /**
- * Extract the week of the year from a datetime following the non-ISO standard.
+ * Extract the week of the year from a datetime following the ISO standard.
  */
-public class WeekOfYear extends NonIsoDateTimeFunction {
-    
-    public WeekOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, NonIsoDateTimeExtractor.WEEK_OF_YEAR);
+public class IsoWeekOfYear extends DateTimeFunction {
+    public IsoWeekOfYear(Location location, Expression field, TimeZone timeZone) {
+        super(location, field, timeZone, DateTimeExtractor.ISO_WEEK_OF_YEAR);
     }
 
     @Override
     protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
-        return WeekOfYear::new;
+        return IsoWeekOfYear::new;
     }
 
     @Override
-    protected WeekOfYear replaceChild(Expression newChild) {
-        return new WeekOfYear(location(), newChild, timeZone());
+    protected IsoWeekOfYear replaceChild(Expression newChild) {
+        return new IsoWeekOfYear(location(), newChild, timeZone());
+    }
+
+    @Override
+    public String dateTimeFormat() {
+        return "w";
     }
 }

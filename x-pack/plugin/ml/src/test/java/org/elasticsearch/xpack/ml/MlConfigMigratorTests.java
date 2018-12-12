@@ -405,6 +405,14 @@ public class MlConfigMigratorTests extends ESTestCase {
         assertTrue(selectedJobIds.containsAll(datafeedJobIds));
     }
 
+    public void testLimitWrites_GivenNullJob() {
+        List<DatafeedConfig> datafeeds = Collections.singletonList(createCompatibleDatafeed("no-job-for-this-datafeed"));
+        MlConfigMigrator.JobsAndDatafeeds jobsAndDatafeeds = MlConfigMigrator.limitWrites(datafeeds, Collections.emptyMap());
+
+        assertThat(jobsAndDatafeeds.datafeedConfigs, hasSize(1));
+        assertThat(jobsAndDatafeeds.jobs, empty());
+    }
+
     private DatafeedConfig createCompatibleDatafeed(String jobId) {
         // create a datafeed without aggregations or anything
         // else that may cause validation errors

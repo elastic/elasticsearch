@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * on that rather than the clusterstate.
  *
  * The number of configs indexed in each bulk operation is limited by {@link #MAX_BULK_WRITE_SIZE}
- * pairs of datafeeds adn jobs are migrated together.
+ * pairs of datafeeds and jobs are migrated together.
  */
 public class MlConfigMigrator {
 
@@ -376,7 +376,7 @@ public class MlConfigMigrator {
 
     /**
      * Return at most {@link #MAX_BULK_WRITE_SIZE} configs favouring
-     * datafeed and job pairs so if a datafeed is choosen so is its job.
+     * datafeed and job pairs so if a datafeed is chosen so is its job.
      *
      * @param datafeedsToMigrate Datafeed configs
      * @param jobsToMigrate      Job configs
@@ -396,11 +396,11 @@ public class MlConfigMigrator {
         // prioritise datafeed and job pairs
         for (DatafeedConfig datafeedConfig : datafeedsToMigrate) {
             if (count < MAX_BULK_WRITE_SIZE) {
-                Job datafeedsJob = jobsToMigrate.remove(datafeedConfig.getJobId());
-                jobsAndDatafeeds.jobs.add(datafeedsJob);
+                jobsAndDatafeeds.datafeedConfigs.add(datafeedConfig);
                 count++;
+                Job datafeedsJob = jobsToMigrate.remove(datafeedConfig.getJobId());
                 if (datafeedsJob != null) {
-                    jobsAndDatafeeds.datafeedConfigs.add(datafeedConfig);
+                    jobsAndDatafeeds.jobs.add(datafeedsJob);
                     count++;
                 }
             }

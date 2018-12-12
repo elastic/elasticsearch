@@ -222,14 +222,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
-            snapshot = new Snapshot(in);
-            version = Version.readVersion(in);
-            index = in.readString();
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 restoreUUID = in.readString();
             } else {
                 restoreUUID = RestoreInProgress.BWC_UUID;
             }
+            snapshot = new Snapshot(in);
+            version = Version.readVersion(in);
+            index = in.readString();
         }
 
         public String restoreUUID() {
@@ -250,12 +250,12 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            snapshot.writeTo(out);
-            Version.writeVersion(version, out);
-            out.writeString(index);
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeString(restoreUUID);
             }
+            snapshot.writeTo(out);
+            Version.writeVersion(version, out);
+            out.writeString(index);
         }
 
         @Override

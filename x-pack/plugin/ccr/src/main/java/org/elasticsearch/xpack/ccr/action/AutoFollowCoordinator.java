@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -303,8 +304,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 Map<String, String> headers = autoFollowMetadata.getHeaders().get(autoFollowPatternName);
                 List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(autoFollowPatternName);
 
-                final List<Index> leaderIndicesToFollow = getLeaderIndicesToFollow(autoFollowPattern, remoteClusterState,
-                    clusterState, followedIndices);
+                final List<Index> leaderIndicesToFollow =
+                    getLeaderIndicesToFollow(autoFollowPattern, remoteClusterState, followedIndices);
                 if (leaderIndicesToFollow.isEmpty()) {
                     finalise(slot, new AutoFollowResult(autoFollowPatternName));
                 } else {
@@ -317,7 +318,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameRemoteCluster, resultHandler);
+                        patternsForTheSameRemoteCluster, clusterState.metaData(), resultHandler);
                 }
                 i++;
             }
@@ -330,6 +331,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
                                             List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
+                                            MetaData localMetadata,
                                             Consumer<AutoFollowResult> resultHandler) {
 
             final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
@@ -349,14 +351,42 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                     }
                 } else {
-                    followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
-                        results.set(slot, new Tuple<>(indexToFollow, error));
-                        if (leaderIndicesCountDown.countDown()) {
-                            resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
-                        }
-                    });
+                    if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                            results.set(slot, new Tuple<>(indexToFollow, error));
+                            if (leaderIndicesCountDown.countDown()) {
+                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                            }
+                        });
+                    } else {
+                        followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
+                            results.set(slot, new Tuple<>(indexToFollow, error));
+                            if (leaderIndicesCountDown.countDown()) {
+                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                            }
+                        });
+                    }
                 }
             }
+        }
+
+        private static boolean leaderIndexAlreadyFollowed(AutoFollowPattern autoFollowPattern,
+                                                          Index leaderIndex,
+                                                          MetaData localMetadata) {
+            String followIndexName = getFollowerIndexName(autoFollowPattern, leaderIndex.getName());
+            IndexMetaData indexMetaData = localMetadata.index(followIndexName);
+            if (indexMetaData != null) {
+                // If an index with the same name exists, but it is not a follow index for this leader index then
+                // we should let the auto follower attempt to auto follow it, so it can fail later and
+                // it is then visible in the auto follow stats. For example a cluster can just happen to have
+                // an index with the same name as the new follower index.
+                Map<String, String> customData = indexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+                if (customData != null) {
+                    String recordedLeaderIndexUUID = customData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+                    return leaderIndex.getUUID().equals(recordedLeaderIndexUUID);
+                }
+            }
+            return false;
         }
 
         private void followLeaderIndex(String autoFollowPattenName,
@@ -410,7 +440,6 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
                                                     ClusterState remoteClusterState,
-                                                    ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : remoteClusterState.getMetaData()) {
@@ -423,10 +452,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         // this index will be auto followed.
                         indexRoutingTable.allPrimaryShardsActive() &&
                         followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
-                        // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData
-                        // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
-                        // If so then handle it differently: not follow it, but just add an entry to
-                        // AutoFollowMetadata#followedLeaderIndexUUIDs
+
                         final Settings leaderIndexSettings = leaderIndexMetaData.getSettings();
                         // soft deletes are enabled by default on indices created on 7.0.0 or later
                         if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),

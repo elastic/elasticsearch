@@ -29,7 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -603,7 +603,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         // array settings - complex matcher
         assertNotNull(settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
-        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertSame(TransportSettings.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
 
         // array settings - complex matcher - only accepts numbers
         assertNull(settings.get("transport.tracer.include.FOO"));
@@ -745,7 +745,7 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testUpdateTracer() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AtomicReference<List<String>> ref = new AtomicReference<>();
-        settings.addSettingsUpdateConsumer(TransportService.TRACE_LOG_INCLUDE_SETTING, ref::set);
+        settings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, ref::set);
         settings.applySettings(Settings.builder()
                 .putList("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
         assertNotNull(ref.get().size());

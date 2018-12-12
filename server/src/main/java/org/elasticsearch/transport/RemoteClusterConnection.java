@@ -738,8 +738,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     private static ConnectionManager createConnectionManager(Settings settings, String clusterAlias, TransportService transportService) {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
-            .setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings))
-            .setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings))
+            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
             // we don't want this to be used for anything else but search
             .addConnections(0, TransportRequestOptions.Type.BULK,

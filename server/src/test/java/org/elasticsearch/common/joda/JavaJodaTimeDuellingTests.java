@@ -472,25 +472,32 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testSeveralTimeFormats() {
-        assertSameDate("2018-12-12", "year_month_day||ordinal_date");
-        assertSameDate("2018-128", "year_month_day||ordinal_date");
+        DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
+        DateFormatter javaFormatter = DateFormatters.forPattern("year_month_day||ordinal_date");
+        assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
+        assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
-        String jodaTimeOut = Joda.forPattern(format).formatJoda(jodaDate);
+        String jodaTimeOut = DateFormatter.forPattern(format).formatJoda(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
     }
 
     private void assertSameDate(String input, String format) {
-        DateFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = Joda.forPattern(format, Locale.ROOT);
+        DateFormatter javaFormatter = DateFormatters.forPattern(format);
+
+        assertSameDate(input, format, jodaFormatter, javaFormatter);
+    }
+
+    private void assertSameDate(String input, String format, DateFormatter jodaFormatter, DateFormatter javaFormatter) {
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
-        TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
+        TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 
         String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
@@ -505,7 +512,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
-        DateFormatter jodaFormatter = Joda.forPattern(format);
+        DateFormatter jodaFormatter = Joda.forPattern(format, Locale.ROOT);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }

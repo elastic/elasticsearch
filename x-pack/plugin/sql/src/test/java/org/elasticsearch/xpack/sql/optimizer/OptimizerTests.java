@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
@@ -333,9 +333,9 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, UTC)));
-        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, cast, UTC)));
+        assertEquals(3, foldFunction(new IsoWeekOfYear(EMPTY, cast, UTC)));
         assertNull(foldFunction(
-                new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
+                new IsoWeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
     }
 
     public void testConstantFoldingIn() {

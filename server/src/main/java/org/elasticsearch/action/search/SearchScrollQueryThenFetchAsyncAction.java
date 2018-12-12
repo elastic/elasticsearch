@@ -69,8 +69,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         return new SearchPhase("fetch") {
             @Override
             public void run() throws IOException {
-                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
-                    queryResults.asList(), true);
+                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedScrollQueryPhase(
+                    queryResults.asList());
                 if (reducedQueryPhase.scoreDocs.length == 0) {
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;

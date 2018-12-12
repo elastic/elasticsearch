@@ -59,6 +59,7 @@ setup:
       catch: bad_request
       explain:
           index:  test_1
+          type:   test
           id:     id_1
           body:
             match_all: {}

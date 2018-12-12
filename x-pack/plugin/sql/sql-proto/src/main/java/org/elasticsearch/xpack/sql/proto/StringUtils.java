@@ -24,6 +24,8 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public final class StringUtils {
 
+    public static final String EMPTY = "";
+    
     private static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .append(ISO_LOCAL_DATE)

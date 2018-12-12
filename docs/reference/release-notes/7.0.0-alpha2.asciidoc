@@ -1,0 +1,4 @@
+[[release-notes-7.0.0-alpha2]]
+== {es} version 7.0.0-alpha2
+
+coming[7.0.0-alpha2]

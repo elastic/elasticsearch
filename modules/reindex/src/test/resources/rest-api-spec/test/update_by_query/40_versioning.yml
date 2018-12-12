@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        type:    test
+        type:    _doc
         id:      1
         body:    {"text": "test"}
   - do:
@@ -18,7 +18,7 @@
   - do:
       get:
         index: test
-        type:  test
+        type:  _doc
         id:    1
   - match: {_version: 2}
 
@@ -27,7 +27,7 @@
   - do:
       index:
         index:        index1
-        type:         type1
+        type:         _doc
         id:           1
         version:      0 # Starting version is zero
         version_type: external
@@ -45,6 +45,6 @@
   - do:
       get:
         index: index1
-        type:  type1
+        type:  _doc
         id:    1
   - match: {_version: 0}

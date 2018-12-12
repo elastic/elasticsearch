@@ -37,12 +37,12 @@ import static org.hamcrest.Matchers.not;
 
 public class MlMigrationIT extends AbstractUpgradeTestCase {
 
-    private static final String OLD_CLUSTER_OPEN_JOB_ID = "migration-it-old-cluster-open-job";
-    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-it-old-cluster-started-datafeed";
-    private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-it-old-cluster-closed-job";
-    private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-it-old-cluster-stopped-datafeed";
-    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = "migration-it-old-cluster-closed-job-extra";
-    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = "migration-it-old-cluster-stopped-datafeed-extra";
+    private static final String OLD_CLUSTER_OPEN_JOB_ID = "ml-migration-it-old-cluster-open-job";
+    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "ml-migration-it-old-cluster-started-datafeed";
+    private static final String OLD_CLUSTER_CLOSED_JOB_ID = "ml-migration-it-old-cluster-closed-job";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "ml-migration-it-old-cluster-stopped-datafeed";
+    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = "ml-migration-it-old-cluster-closed-job-extra";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = "ml-migration-it-old-cluster-stopped-datafeed-extra";
 
     @Override
     protected Collection<String> templatesToWaitFor() {
@@ -83,7 +83,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     }
 
     private void createTestIndex() throws IOException {
-        Request createTestIndex = new Request("PUT", "/airline-data");
+        Request createTestIndex = new Request("PUT", "/airline-responsetime-data");
         createTestIndex.setJsonEntity("{\"mappings\": { \"doc\": {\"properties\": {" +
                     "\"time\": {\"type\": \"date\"}," +
                     "\"airline\": {\"type\": \"keyword\"}," +
@@ -140,7 +140,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         if (UPGRADED_FROM_VERSION.before(Version.V_6_6_0)) {
             dfBuilder.setDelayedDataCheckConfig(null);
         }
-        dfBuilder.setIndices(Collections.singletonList("airline-data"));
+        dfBuilder.setIndices(Collections.singletonList("airline-responsetime-data"));
         dfBuilder.setTypes(Collections.singletonList("doc"));
 
         Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
@@ -162,7 +162,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         if (UPGRADED_FROM_VERSION.before(Version.V_6_6_0)) {
             stoppedDfBuilder.setDelayedDataCheckConfig(null);
         }
-        stoppedDfBuilder.setIndices(Collections.singletonList("airline-data"));
+        stoppedDfBuilder.setIndices(Collections.singletonList("airline-responsetime-data"));
 
         Request putStoppedDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
         putStoppedDatafeed.setJsonEntity(Strings.toString(stoppedDfBuilder.build()));

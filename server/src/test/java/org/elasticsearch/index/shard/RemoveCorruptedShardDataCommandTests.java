@@ -225,7 +225,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final Throwable cause = exception.getCause() instanceof EngineException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
-        closeShards(corruptedShard);
+        closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();

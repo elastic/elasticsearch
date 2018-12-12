@@ -121,9 +121,9 @@ information, see {xpack-ref}/security-privileges.html[Security Privileges].
 [float]
 ==== Security Integration
 
-When {security} is enabled on your Elasticsearch cluster, then watches will be
-executed with the privileges of the user that stored the watches. If your user
-is allowed to read index `a`, but not index `b`, then the exact same set of
+When {security-features} are enabled on your Elasticsearch cluster, then watches
+are executed with the privileges of the user that stored the watches. If your
+user is allowed to read index `a`, but not index `b`, then the exact same set of
 rules will apply during execution of a watch.
 
 When using the execute watch API, the authorization data of the user that

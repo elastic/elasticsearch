@@ -90,13 +90,14 @@ see <<ml-datafeed-resource>>.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
 ==== Security Integration
 
-When {security} is enabled, your {dfeed} will remember which roles the user who
-created it had at the time of creation, and run the query using those same roles.
+When {security-features} are enabled, your {dfeed} will remember which roles the
+user who created it had at the time of creation, and run the query using those
+same roles.
 
 
 ==== Examples

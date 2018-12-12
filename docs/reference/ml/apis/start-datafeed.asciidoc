@@ -84,9 +84,9 @@ For more information, see
 
 ==== Security Integration
 
-When {security} is enabled, your {dfeed} will remember which roles the last
-user to create or update it had at the time of creation/update, and run the query
-using those same roles.
+When {security-features} are enabled, your {dfeed} will remember which roles the
+last user to create or update it had at the time of creation/update, and run the
+query using those same roles.
 
 
 ==== Examples

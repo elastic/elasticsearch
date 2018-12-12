@@ -48,7 +48,8 @@ public class AbstractAsyncTaskTests extends ESTestCase {
     public void testAutoRepeat() throws Exception {
 
         boolean shouldRunThrowException = randomBoolean();
-        final CyclicBarrier barrier = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
+        final CyclicBarrier barrier1 = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
+        final CyclicBarrier barrier2 = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final AtomicInteger count = new AtomicInteger();
         AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), true) {
 
@@ -60,9 +61,14 @@ public class AbstractAsyncTaskTests extends ESTestCase {
             @Override
             protected void runInternal() {
                 assertTrue("generic threadpool is configured", Thread.currentThread().getName().contains("[generic]"));
+                try {
+                    barrier1.await();
+                } catch (Exception e) {
+                    fail("interrupted");
+                }
                 count.incrementAndGet();
                 try {
-                    barrier.await();
+                    barrier2.await();
                 } catch (Exception e) {
                     fail("interrupted");
                 }
@@ -80,13 +86,17 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         assertFalse(task.isScheduled());
         task.rescheduleIfNecessary();
         assertTrue(task.isScheduled());
-        barrier.await();
+        barrier1.await();
+        assertTrue(task.isScheduled());
+        barrier2.await();
         assertEquals(1, count.get());
-        barrier.reset();
-        barrier.await();
-        assertEquals(2, count.get());
+        barrier1.reset();
+        barrier2.reset();
+        barrier1.await();
         assertTrue(task.isScheduled());
         task.close();
+        barrier2.await();
+        assertEquals(2, count.get());
         assertTrue(task.isClosed());
         assertFalse(task.isScheduled());
         assertEquals(2, count.get());

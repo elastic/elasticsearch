@@ -77,6 +77,7 @@ import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
@@ -131,7 +132,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             byte[] salt = new byte[32];
-            SecureRandom.getInstanceStrong().nextBytes(salt);
+            random().nextBytes(salt);
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example2", Collections.singletonList("superuser"));
 

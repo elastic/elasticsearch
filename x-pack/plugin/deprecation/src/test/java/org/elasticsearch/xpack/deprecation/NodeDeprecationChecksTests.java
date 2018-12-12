@@ -78,6 +78,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
     }
 
+    public void testHttpPipeliningCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "HTTP pipelining setting removed as pipelining is now mandatory",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#remove-http-pipelining-setting",
+            "nodes with http.pipelining set: [node_check]");
+        assertSettingsAndIssue("http.pipelining", Boolean.toString(randomBoolean()), expected);
+    }
+
     public void testAzurePluginCheck() {
         Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         PluginInfo deprecatedPlugin = new PluginInfo(

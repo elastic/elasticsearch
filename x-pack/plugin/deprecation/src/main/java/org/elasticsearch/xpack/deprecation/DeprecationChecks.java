@@ -40,6 +40,7 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             NodeDeprecationChecks::httpEnabledSettingRemoved,
             NodeDeprecationChecks::tribeNodeCheck,
+            NodeDeprecationChecks::httpPipeliningCheck,
             NodeDeprecationChecks::azureRepositoryChanges,
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved

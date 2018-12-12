@@ -49,7 +49,7 @@ information, see
 . Set the passwords for all built-in users.
 +
 --
-{security} provides
+The {es} {security-features} provide
 {stack-ov}/built-in-users.html[built-in users] to
 help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.

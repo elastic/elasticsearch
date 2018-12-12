@@ -475,7 +475,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36526")
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -676,7 +675,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
     private void pruneOldDeleteGenerations(Set<Path> files) {
         final TreeSet<Path> delFiles = new TreeSet<>();
         for (Path file : files) {
-            if (file.getFileName().toString().endsWith(".liv")) {
+            if (file.getFileName().toString().endsWith(".liv")
+            || file.getFileName().toString().endsWith(".dvm")
+            || file.getFileName().toString().endsWith(".dvd")
+            ) {
                 delFiles.add(file);
             }
         }
@@ -685,17 +687,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
             if (last != null) {
                 final String newSegmentName = IndexFileNames.parseSegmentName(current.getFileName().toString());
                 final String oldSegmentName = IndexFileNames.parseSegmentName(last.getFileName().toString());
-                if (newSegmentName.equals(oldSegmentName)) {
-                    int oldGen =
-                        Integer.parseInt(
-                            IndexFileNames.stripExtension(
-                                IndexFileNames.stripSegmentName(last.getFileName().toString())).replace("_", ""),
-                            Character.MAX_RADIX
-                        );
-                    int newGen = Integer.parseInt(
-                        IndexFileNames.stripExtension(
-                            IndexFileNames.stripSegmentName(current.getFileName().toString())).replace("_", ""),
-                        Character.MAX_RADIX);
+                if (newSegmentName.equals(oldSegmentName) ) {
+                    long oldGen = IndexFileNames.parseGeneration(last.getFileName().toString());
+                    long newGen = IndexFileNames.parseGeneration(current.getFileName().toString());
                     if (newGen > oldGen) {
                         files.remove(last);
                     } else {

@@ -47,7 +47,7 @@ public class JodaDateFormatter implements DateFormatter {
 
     @Override
     public TemporalAccessor parse(String input) {
-        DateTime dt = parser.parseDateTime(input);
+        final DateTime dt = parser.parseDateTime(input);
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(dt.getMillis()), DateUtils.dateTimeZoneToZoneId(dt.getZone()));
     }
 

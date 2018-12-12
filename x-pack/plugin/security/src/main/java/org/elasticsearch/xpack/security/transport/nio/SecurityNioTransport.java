@@ -16,7 +16,6 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -75,10 +74,10 @@ public class SecurityNioTransport extends NioTransport {
     private final boolean sslEnabled;
 
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
-                                BigArrays bigArrays, PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                                PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
                                 SSLService sslService) {
-        super(settings, version, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);

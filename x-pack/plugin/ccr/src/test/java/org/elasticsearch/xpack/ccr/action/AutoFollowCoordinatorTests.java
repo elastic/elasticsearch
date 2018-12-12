@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -46,13 +47,12 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedRemoteIndices;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -60,7 +60,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollower() {
         Client client = mock(Client.class);
-        ThreadPool threadPool = mockThreadPool();
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101");
@@ -90,12 +89,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
             assertThat(entries.get(0).getValue(), nullValue());
         };
-        AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, localClusterStateSupplier(currentState)) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState)) {
             @Override
             void getRemoteClusterState(String remoteCluster,
-                                       BiConsumer<ClusterState, Exception> handler) {
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(remoteState, null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
             }
 
             @Override
@@ -131,7 +131,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerClusterStateApiFailure() {
         Client client = mock(Client.class);
-        ThreadPool threadPool = mockThreadPool();
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
@@ -155,10 +154,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(results.get(0).clusterStateFetchException, sameInstance(failure));
             assertThat(results.get(0).autoFollowExecutionResults.entrySet().size(), equalTo(0));
         };
-        AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, localClusterStateSupplier(clusterState)) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState)) {
             @Override
             void getRemoteClusterState(String remoteCluster,
-                                       BiConsumer<ClusterState, Exception> handler) {
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
                 handler.accept(null, failure);
             }
 
@@ -182,7 +182,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerUpdateClusterStateFailure() {
         Client client = mock(Client.class);
-        ThreadPool threadPool = mockThreadPool();
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
         ClusterState remoteState = createRemoteClusterState("logs-20190101");
 
@@ -210,11 +209,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
             assertThat(entries.get(0).getValue(), sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, localClusterStateSupplier(clusterState)) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState)) {
             @Override
             void getRemoteClusterState(String remoteCluster,
-                                       BiConsumer<ClusterState, Exception> handler) {
-                handler.accept(remoteState, null);
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
             }
 
             @Override
@@ -239,7 +239,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerCreateAndFollowApiCallFailure() {
         Client client = mock(Client.class);
-        ThreadPool  threadPool = mockThreadPool();
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
         ClusterState remoteState = createRemoteClusterState("logs-20190101");
 
@@ -267,11 +266,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
             assertThat(entries.get(0).getValue(), sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower("remote", threadPool, handler, localClusterStateSupplier(clusterState)) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState)) {
             @Override
             void getRemoteClusterState(String remoteCluster,
-                                       BiConsumer<ClusterState, Exception> handler) {
-                handler.accept(remoteState, null);
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
             }
 
             @Override
@@ -531,7 +531,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testStats() {
         AutoFollowCoordinator autoFollowCoordinator = new AutoFollowCoordinator(
             null,
-            null,
             mock(ClusterService.class),
             new CcrLicenseChecker(() -> true, () -> false)
         );
@@ -586,6 +585,122 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias2:index2").getCause().getMessage(), equalTo("error"));
     }
 
+    public void testWaitForMetadataVersion() {
+        Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
+            null, null, null, null, null, null, null, null, null, null, null);
+        Map<String, AutoFollowPattern> patterns = new HashMap<>();
+        patterns.put("remote", autoFollowPattern);
+        Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
+        followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
+        Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
+        autoFollowHeaders.put("remote", Collections.singletonMap("key", "val"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
+
+        final LinkedList<ClusterState> leaderStates = new LinkedList<>();
+        ClusterState[] states = new ClusterState[16];
+        for (int i = 0; i < states.length; i++) {
+            states[i] = ClusterState.builder(new ClusterName("name"))
+                .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+                .build();
+            String indexName = "logs-" + i;
+            leaderStates.add(i == 0 ? createRemoteClusterState(indexName) : createRemoteClusterState(leaderStates.get(i - 1), indexName));
+        }
+
+        List<AutoFollowCoordinator.AutoFollowResult> allResults = new ArrayList<>();
+        Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = allResults::addAll;
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(states)) {
+
+            long previousRequestedMetadataVersion = 0;
+
+            @Override
+            void getRemoteClusterState(String remoteCluster,
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                assertThat(remoteCluster, equalTo("remote"));
+                assertThat(metadataVersion, greaterThan(previousRequestedMetadataVersion));
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), leaderStates.poll(), 1L, false), null);
+            }
+
+            @Override
+            void createAndFollow(Map<String, String> headers,
+                                 PutFollowAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
+                successHandler.run();
+            }
+
+            @Override
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
+                handler.accept(null);
+            }
+        };
+        autoFollower.start();
+        assertThat(allResults.size(), equalTo(states.length));
+        for (int i = 0; i < states.length; i++) {
+            assertThat(allResults.get(i).autoFollowExecutionResults.containsKey(new Index("logs-" + i, "_na_")), is(true));
+        }
+    }
+
+    public void testWaitForTimeOut() {
+        Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
+            null, null, null, null, null, null, null, null, null, null, null);
+        Map<String, AutoFollowPattern> patterns = new HashMap<>();
+        patterns.put("remote", autoFollowPattern);
+        Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
+        followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
+        Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
+        autoFollowHeaders.put("remote", Collections.singletonMap("key", "val"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
+
+        ClusterState[] states = new ClusterState[16];
+        for (int i = 0; i < states.length; i++) {
+            states[i] = ClusterState.builder(new ClusterName("name"))
+                .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+                .build();
+        }
+        Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> {
+            fail("should not be invoked");
+        };
+        AtomicInteger counter = new AtomicInteger();
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(states)) {
+
+            long previousRequestedMetadataVersion = 0;
+
+            @Override
+            void getRemoteClusterState(String remoteCluster,
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                counter.incrementAndGet();
+                assertThat(remoteCluster, equalTo("remote"));
+                assertThat(metadataVersion, greaterThan(previousRequestedMetadataVersion));
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), null, 1L, true), null);
+            }
+
+            @Override
+            void createAndFollow(Map<String, String> headers,
+                                 PutFollowAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
+                fail("should not be invoked");
+            }
+
+            @Override
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
+                fail("should not be invoked");
+            }
+        };
+        autoFollower.start();
+        assertThat(counter.get(), equalTo(states.length));
+    }
+
     private static ClusterState createRemoteClusterState(String indexName) {
         IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
             .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
@@ -594,6 +709,25 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().put(indexMetaData, true));
+
+        ShardRouting shardRouting =
+            TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetaData.getIndex()).addShard(shardRouting).build();
+        csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+
+        return csBuilder.build();
+    }
+
+    private static ClusterState createRemoteClusterState(ClusterState previous, String indexName) {
+        IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
+            .metaData(MetaData.builder(previous.metaData())
+                .version(previous.metaData().version() + 1)
+                .put(indexMetaData, true));
 
         ShardRouting shardRouting =
             TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
@@ -618,17 +752,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 return lastState;
             }
         };
-    }
-
-    private static ThreadPool mockThreadPool() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            Runnable task = (Runnable) args[2];
-            task.run();
-            return null;
-        }).when(threadPool).schedule(any(), anyString(), any());
-        return threadPool;
     }
 
 }

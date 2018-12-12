@@ -153,7 +153,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
             }
 
             BaseGeoShapeFieldType ft = (BaseGeoShapeFieldType)fieldType();
-            ft.setOrientation(orientation);
+            ft.setOrientation(orientation().value());
         }
     }
 
@@ -265,17 +265,15 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
     protected Explicit<Boolean> coerce;
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
-    protected Explicit<Orientation> orientation;
 
     protected BaseGeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                     Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
+                                     Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                      Explicit<Boolean> ignoreZValue, Settings indexSettings,
                                      MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
-        this.orientation = orientation;
     }
 
     @Override
@@ -291,9 +289,6 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
         if (gsfm.ignoreZValue.explicit()) {
             this.ignoreZValue = gsfm.ignoreZValue;
         }
-        if (gsfm.orientation.explicit()) {
-            this.orientation = gsfm.orientation;
-        }
     }
 
     @Override
@@ -303,9 +298,9 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
-
-        if (includeDefaults || orientation.explicit()) {
-            builder.field(Names.ORIENTATION.getPreferredName(), orientation.value());
+        BaseGeoShapeFieldType ft = (BaseGeoShapeFieldType)fieldType();
+        if (includeDefaults || ft.orientation() != Defaults.ORIENTATION.value()) {
+            builder.field(Names.ORIENTATION.getPreferredName(), ft.orientation());
         }
         if (includeDefaults || coerce.explicit()) {
             builder.field(Names.COERCE.getPreferredName(), coerce.value());
@@ -330,8 +325,8 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
         return ignoreZValue;
     }
 
-    public Explicit<Orientation> orientation() {
-        return orientation;
+    public Orientation orientation() {
+        return ((BaseGeoShapeFieldType)fieldType).orientation();
     }
 
     @Override

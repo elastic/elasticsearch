@@ -51,7 +51,7 @@ abstract class GeoJsonParser {
 
         Orientation orientation = (shapeMapper == null)
             ? BaseGeoShapeFieldMapper.Defaults.ORIENTATION.value()
-            : shapeMapper.orientation().value();
+            : shapeMapper.orientation();
         Explicit<Boolean> coerce = (shapeMapper == null)
             ? BaseGeoShapeFieldMapper.Defaults.COERCE
             : shapeMapper.coerce();
@@ -108,7 +108,7 @@ abstract class GeoJsonParser {
                             malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";
                         }
                         subParser.nextToken();
-                        orientation = ShapeBuilder.Orientation.fromString(parser.text());
+                        orientation = ShapeBuilder.Orientation.fromString(subParser.text());
                     } else {
                         subParser.nextToken();
                         subParser.skipChildren();

@@ -419,8 +419,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         // CONTAINS queries are not yet supported by VECTOR strategy
         if (relation == ShapeRelation.CONTAINS) {
             throw new QueryShardException(context,
-                ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName
-                    + "] Use prefix tree strategy [" + SpatialStrategy.RECURSIVE + "] or [" + SpatialStrategy.TERM + "] instead.");
+                ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]");
         }
 
         // wrap geoQuery as a ConstantScoreQuery

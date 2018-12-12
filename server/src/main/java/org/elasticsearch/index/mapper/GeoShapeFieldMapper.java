@@ -70,7 +70,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                orientation(), ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -90,10 +90,10 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     }
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<ShapeBuilder.Orientation> orientation,
+                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                Explicit<Boolean> ignoreZValue, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, orientation, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
     }
 

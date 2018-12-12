@@ -36,3 +36,242 @@ to test if a response is necessary.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+You can then use the example watch to retrieve and manipulate total spend
+calculations for each play present in the example data set.
+
+The watcher condition can be used in two places, and below are examples of each.
+
+The first example is a condition for the watch itself. This determines if any
+of the actions in the watch are executed. The example aggregates the total sold
+seats for each play in the data set. The condition validates that there is at
+least one play that has sold under $15,000 or over $50,000.
+
+[source,Painless]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition" : {
+      "script" :
+      """
+        return ctx.payload.aggregations.theatres.buckets.stream()       <1>
+          .filter(t -> t.money.value < 15000 || t.money.value > 50000)  <2>
+          .collect(Collectors.toList())                                 <3>
+          .size() > 0                                                   <4>
+      """
+    },
+    "actions" : {
+      "my_log" : {
+        "logging" : {
+          "text" : "The output of the search was : {{ctx.payload.aggregations.theatres.buckets}}"
+        }
+      }
+    }
+  }
+}
+----
+
+<1> The Java Stream API is used in the condition. This API allows manipulation of
+the elements of the list in a pipeline.
+<2> A Stream Filter is used to remove items that do not meet the criteria within the
+filter.
+<3> The collector reduces the stream back into a java.util.List
+<4> The size of the list is is validated, and if it returns greater than zero entries,
+the condition passes and is executed.
+
+The next example is a condition on an action. This determines if a distinct action
+in the watch are executed. The example aggregates the total sold seats for each play
+in the data set. The action condition validates that there is at least one play that
+has sold over $50,000.
+
+[source,Painless]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "actions" : {
+      "my_log" : {
+        "condition": {
+          "script" :                                                  <1>
+          """
+            return ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> t.money.value > 50000)                       <2>
+            .collect(Collectors.toList())
+            .size() > 0
+          """
+        },
+        "logging" : {
+          "text" : "At least one play has grossed over $50,000: {{ctx.payload.aggregations.theatres.buckets}}"
+        }
+      }
+    }
+  }
+}
+----
+
+This example uses a nearly identical condition as the previous example. The
+differences below are subtle and are worth calling out.
+
+<1> The location of the condition is no longer at the top level, but is within
+an individual action.
+<2> The filter only checks there is any play has soledover $50,000.
+
+While these two examples are contrived, a more complete watch shown below contains
+both conditions and <<painless-watcher-transform-context, transforms>>, and is the
+basis of the above examples. It is shown for completeness. Please refer to the
+<<painless-watcher-transform-context, transform>> documentation for information
+on watcher transforms.
+
+[source,Painless]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition" : {
+      "script" :
+      """
+        return ctx.payload.aggregations.theatres.buckets.stream()
+          .filter(t -> t.money.value < 15000 || t.money.value > 50000)
+          .collect(Collectors.toList())
+          .size() > 0
+      """
+    },
+    "transform" : {
+      "script":
+      """
+        return [
+          'money_makers': ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> {
+                return t.money.value > 50000
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList()),
+          'duds' : ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> {
+                return t.money.value < 15000
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList())
+          ]
+      """
+    },
+    "actions" : {
+      "log_money_makers" : {
+        "condition": {
+          "script" : "return ctx.payload.money_makers.size() > 0"
+        },
+        "transform": {
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'msg': ctx.payload.money_makers.stream()
+              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
+              .collect(Collectors.toList())
+              .join(", ")
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The following plays contain the higest grossing total income: {{ctx.payload.msg}}"
+        }
+      },
+      "log_duds" : {
+        "condition": {
+          "script" : "return ctx.payload.duds.size() > 0"
+        },
+        "transform": {
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'msg': ctx.payload.duds.stream()
+              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
+              .collect(Collectors.toList())
+              .join(", ")
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The following plays need more advertising due to their low total income: {{ctx.payload.msg}}"
+        }
+      }
+    }
+  }
+}
+----

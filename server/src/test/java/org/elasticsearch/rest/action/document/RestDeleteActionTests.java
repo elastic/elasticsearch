@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.rest.action.RestActionTestCase;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 

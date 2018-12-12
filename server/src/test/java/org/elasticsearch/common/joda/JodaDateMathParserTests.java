@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -26,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.time.ZoneId;
-import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -277,7 +277,7 @@ public class JodaDateMathParserTests extends ESTestCase {
         try {
             parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
-        } catch (DateTimeParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
         }
     }
@@ -312,7 +312,7 @@ public class JodaDateMathParserTests extends ESTestCase {
         try {
             parser.parse("1234567890123", () -> 42, false, ZoneId.of("CET"));
             fail("Expected ElasticsearchParseException");
-        } catch(DateTimeParseException e) {
+        } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("failed to parse date field"));
             assertThat(e.getMessage(), containsString("with format [epoch_millis]"));
         }

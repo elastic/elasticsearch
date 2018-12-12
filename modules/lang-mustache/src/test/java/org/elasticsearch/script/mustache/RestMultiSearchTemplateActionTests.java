@@ -27,7 +27,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -62,7 +61,7 @@ public class RestMultiSearchTemplateActionTests extends ESTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() {
@@ -76,7 +75,7 @@ public class RestMultiSearchTemplateActionTests extends ESTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     private void performRequest(RestRequest request) {

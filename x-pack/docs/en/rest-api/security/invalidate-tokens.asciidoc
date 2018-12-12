@@ -6,7 +6,7 @@ Invalidates an access token or a refresh token.
 
 ==== Request
 
-`DELETE /_xpack/security/oauth2/token`
+`DELETE /_security/oauth2/token`
 
 ==== Description
 
@@ -41,7 +41,7 @@ The following example invalidates the specified token immediately:
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/oauth2/token
+DELETE /_security/oauth2/token
 {
   "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
@@ -52,7 +52,7 @@ whereas the following example invalidates the specified refresh token immediatel
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/oauth2/token
+DELETE /_security/oauth2/token
 {
   "refresh_token" : "movUJjPGRRC0PQ7+NW0eag"
 }

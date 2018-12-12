@@ -2481,7 +2481,9 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        // TODO: Should we defer the refresh until we really need it?
+        if (softDeleteEnabled == false) {
+            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
+        }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
@@ -2584,6 +2586,11 @@ public class InternalEngine extends Engine {
                                             Field... softDeletes) throws IOException {
             assert softDeleteEnabled : "Call #softUpdateDocuments but soft-deletes is disabled";
             return super.softUpdateDocuments(term, docs, softDeletes);
+        }
+        @Override
+        public long tryDeleteDocument(IndexReader readerIn, int docID) {
+            assert false : "#tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs";
+            throw new UnsupportedOperationException();
         }
     }
 

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,7 +13,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -32,18 +30,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
-    public static final ParseField CURSOR = new ParseField("cursor");
-    public static final ParseField FILTER = new ParseField("filter");
-
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
-        PARSER.declareObject(SqlQueryRequest::filter,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
     }
 
     private String cursor = "";
 
     public SqlQueryRequest() {
+        super();
     }
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
@@ -114,9 +108,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             pageTimeout(), filter(), cursor(), requestInfo()).toXContent(builder, params);
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser, RequestInfo requestInfo) {
-        SqlQueryRequest request = PARSER.apply(parser, null);
-        request.requestInfo(requestInfo);
-        return request;
+    public static SqlQueryRequest fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

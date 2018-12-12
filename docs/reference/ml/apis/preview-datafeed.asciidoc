@@ -11,7 +11,7 @@ Previews a {dfeed}.
 
 ==== Request
 
-`GET _xpack/ml/datafeeds/<datafeed_id>/_preview`
+`GET _ml/datafeeds/<datafeed_id>/_preview`
 
 
 ==== Description
@@ -51,7 +51,7 @@ The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-farequote/_preview
+GET _ml/datafeeds/datafeed-farequote/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:farequote_datafeed]

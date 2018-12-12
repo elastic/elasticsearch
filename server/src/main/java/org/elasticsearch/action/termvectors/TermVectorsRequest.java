@@ -626,7 +626,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecated(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types",
+                        RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
                         throw new ElasticsearchParseException("failed to parse term vectors request. " +

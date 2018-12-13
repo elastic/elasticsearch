@@ -146,7 +146,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         } else {
             try {
                 listener.onResponse(resolveBulk(clusterService.state(), false));
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 listener.onFailure(e);
             }
         }

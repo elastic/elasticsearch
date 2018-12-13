@@ -37,12 +37,13 @@ import static org.hamcrest.Matchers.not;
 
 public class MlMigrationIT extends AbstractUpgradeTestCase {
 
-    private static final String OLD_CLUSTER_OPEN_JOB_ID = "ml-migration-it-old-cluster-open-job";
-    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "ml-migration-it-old-cluster-started-datafeed";
-    private static final String OLD_CLUSTER_CLOSED_JOB_ID = "ml-migration-it-old-cluster-closed-job";
-    private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "ml-migration-it-old-cluster-stopped-datafeed";
-    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = "ml-migration-it-old-cluster-closed-job-extra";
-    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = "ml-migration-it-old-cluster-stopped-datafeed-extra";
+    private static final String PREFIX = "ml-migration-it-";
+    private static final String OLD_CLUSTER_OPEN_JOB_ID = PREFIX + "old-cluster-open-job";
+    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = PREFIX + "old-cluster-started-datafeed";
+    private static final String OLD_CLUSTER_CLOSED_JOB_ID = PREFIX + "old-cluster-closed-job";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = PREFIX + "old-cluster-stopped-datafeed";
+    private static final String OLD_CLUSTER_CLOSED_JOB_EXTRA_ID = PREFIX + "old-cluster-closed-job-extra";
+    private static final String OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID = PREFIX + "old-cluster-stopped-datafeed-extra";
 
     @Override
     protected Collection<String> templatesToWaitFor() {
@@ -256,7 +257,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             return;
         }
 
-        Request getJobs = new Request("GET", "_xpack/ml/anomaly_detectors/migration*");
+        Request getJobs = new Request("GET", "_xpack/ml/anomaly_detectors/" + PREFIX + "*");
         Response response = client().performRequest(getJobs);
 
         Map<String, Object> jobs = entityAsMap(response);
@@ -277,7 +278,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             assertNull(customSettings.get("migrated from version"));
         }
 
-        Request getJobStats = new Request("GET", "_xpack/ml/anomaly_detectors/migration*/_stats");
+        Request getJobStats = new Request("GET", "_xpack/ml/anomaly_detectors/"+ PREFIX + "*/_stats");
         response = client().performRequest(getJobStats);
 
         Map<String, Object> stats = entityAsMap(response);
@@ -301,7 +302,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
             return;
         }
 
-        Request getDatafeeds = new Request("GET", "_xpack/ml/datafeeds/migration*");
+        Request getDatafeeds = new Request("GET", "_xpack/ml/datafeeds/" + PREFIX + "*");
         Response response = client().performRequest(getDatafeeds);
         List<Map<String, Object>> configs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", entityAsMap(response));
@@ -310,7 +311,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
         assertEquals(OLD_CLUSTER_STOPPED_DATAFEED_ID, XContentMapValues.extractValue("datafeed_id", configs.get(1)));
         assertEquals(OLD_CLUSTER_STOPPED_DATAFEED_EXTRA_ID, XContentMapValues.extractValue("datafeed_id", configs.get(2)));
 
-        Request getDatafeedStats = new Request("GET", "_xpack/ml/datafeeds/migration*/_stats");
+        Request getDatafeedStats = new Request("GET", "_xpack/ml/datafeeds/" + PREFIX + "*/_stats");
         response = client().performRequest(getDatafeedStats);
         configs = (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", entityAsMap(response));
         assertThat(configs, hasSize(3));

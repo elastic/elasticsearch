@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -26,15 +25,16 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MlAssignmentNotifier extends AbstractComponent implements ClusterStateListener, LocalNodeMasterListener {
+public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMasterListener {
+
+    private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
     private final Auditor auditor;
     private final ClusterService clusterService;
 
     private final AtomicBoolean enabled = new AtomicBoolean(false);
 
-    MlAssignmentNotifier(Settings settings, Auditor auditor, ClusterService clusterService) {
-        super(settings);
+    MlAssignmentNotifier(Auditor auditor, ClusterService clusterService) {
         this.auditor = auditor;
         this.clusterService = clusterService;
         clusterService.addLocalNodeMasterListener(this);
@@ -90,8 +90,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                 }
             } else if (StartDatafeedAction.TASK_NAME.equals(currentTask.getTaskName())) {
                 String datafeedId = ((StartDatafeedAction.DatafeedParams) currentTask.getParams()).getDatafeedId();
-                MlMetadata mlMetadata = event.state().getMetaData().custom(MLMetadataField.TYPE);
-                DatafeedConfig datafeedConfig = mlMetadata.getDatafeed(datafeedId);
+                DatafeedConfig datafeedConfig = MlMetadata.getMlMetadata(event.state()).getDatafeed(datafeedId);
                 if (currentAssignment.getExecutorNode() == null) {
                     String msg = "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
                             currentAssignment.getExplanation() + "]";

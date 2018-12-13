@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.watcher.trigger;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
@@ -31,13 +29,12 @@ import java.util.concurrent.ConcurrentMap;
  * jobCount.
  */
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
+    private static final Logger logger = LogManager.getLogger(ScheduleTriggerEngineMock.class);
 
-    private final Logger logger;
     private final ConcurrentMap<String, Watch> watches = new ConcurrentHashMap<>();
 
-    public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry, clock);
-        this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
+    public ScheduleTriggerEngineMock(ScheduleRegistry scheduleRegistry, Clock clock) {
+        super(scheduleRegistry, clock);
     }
 
     @Override
@@ -53,6 +50,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void start(Collection<Watch> jobs) {
+        jobs.forEach(this::add);
     }
 
     @Override
@@ -72,27 +70,17 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public int getJobCount() {
-        return watches.size();
-    }
-
-    @Override
     public boolean remove(String jobId) {
         return watches.remove(jobId) != null;
     }
 
-    public void trigger(String jobName) {
-        trigger(jobName, 1, null);
+    public boolean trigger(String jobName) {
+        return trigger(jobName, 1, null);
     }
 
-    public void trigger(String jobName, int times) {
-        trigger(jobName, times, null);
-    }
-
-    public void trigger(String jobName, int times, TimeValue interval) {
+    public boolean trigger(String jobName, int times, TimeValue interval) {
         if (watches.containsKey(jobName) == false) {
-            logger.trace("not executing job [{}], not found", jobName);
-            return;
+            return false;
         }
 
         for (int i = 0; i < times; i++) {
@@ -112,5 +100,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
                 }
             }
         }
+
+        return true;
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

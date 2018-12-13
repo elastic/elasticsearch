@@ -3,12 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.inject.Inject;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -27,15 +30,19 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetLicenseAction extends XPackRestHandler {
 
-    @Inject
-    public RestGetLicenseAction(Settings settings, RestController controller) {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetLicenseAction.class));
+
+    RestGetLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET,  URI_BASE + "/license", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, "/_license", this,
+                GET,  URI_BASE + "/license", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_get_license_action";
+        return "get_license";
     }
 
     /**

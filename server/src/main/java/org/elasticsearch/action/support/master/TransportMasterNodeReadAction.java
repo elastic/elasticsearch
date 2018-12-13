@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -37,29 +36,29 @@ import java.util.function.Supplier;
 public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse>
         extends TransportMasterNodeAction<Request, Response> {
 
-    protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportMasterNodeReadAction(String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
     }
 
-    protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportMasterNodeReadAction(String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    protected TransportMasterNodeReadAction(Settings settings, String actionName, boolean checkSizeLimit, TransportService transportService,
+    protected TransportMasterNodeReadAction(String actionName, boolean checkSizeLimit, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters,
+        super(actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver,request);
     }
 
-    protected TransportMasterNodeReadAction(Settings settings, String actionName, boolean checkSizeLimit, TransportService transportService,
+    protected TransportMasterNodeReadAction(String actionName, boolean checkSizeLimit, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters, request,
+        super(actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters, request,
             indexNameExpressionResolver);
     }
 

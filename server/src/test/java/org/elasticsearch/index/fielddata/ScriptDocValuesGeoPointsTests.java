@@ -21,10 +21,22 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PermissionCollection;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.BiConsumer;
+
+import static org.hamcrest.Matchers.contains;
 
 public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
@@ -70,8 +82,18 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lat2 = randomLat();
         final double lon1 = randomLon();
         final double lon2 = randomLon();
+
+        Set<String> warnings = new HashSet<>();
+        Set<String> keys = new HashSet<>();
+
         final MultiGeoPointValues values = wrap(new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2));
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
+        final ScriptDocValues.GeoPoints script = geoPointsWrap(values, (deprecationKey, deprecationMessage)  -> {
+            keys.add(deprecationKey);
+            warnings.add(deprecationMessage);
+
+            // Create a temporary directory to prove we are running with the server's permissions.
+            createTempDir();
+        });
         script.setNextDocId(1);
         assertEquals(true, script.isEmpty());
         script.setNextDocId(0);
@@ -82,6 +104,30 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         assertEquals(lon1, script.getLon(), 0);
         assertTrue(Arrays.equals(new double[] {lat1, lat2}, script.getLats()));
         assertTrue(Arrays.equals(new double[] {lon1, lon2}, script.getLons()));
+
+        /*
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
+         */
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
+            public Void run() {
+                script.getValues();
+                return null;
+            }
+        }, noPermissionsAcc);
+
+        assertThat(warnings, contains(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+           + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, contains("ScriptDocValues#getValues"));
+
     }
 
     public void testGeoDistance() throws IOException {
@@ -108,6 +154,10 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         assertEquals(GeoUtils.planeDistance(lat, lon, otherLat, otherLon) / 1000d,
                 script.planeDistanceWithDefault(otherLat, otherLon, 42) / 1000d, 0.01);
         assertEquals(42, emptyScript.planeDistanceWithDefault(otherLat, otherLon, 42), 0);
+    }
+
+    private GeoPoints geoPointsWrap(MultiGeoPointValues in, BiConsumer<String, String> deprecationHandler) {
+        return new GeoPoints(in, deprecationHandler);
     }
 
 }

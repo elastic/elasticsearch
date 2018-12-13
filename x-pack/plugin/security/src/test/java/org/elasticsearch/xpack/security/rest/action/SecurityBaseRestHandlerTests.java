@@ -24,11 +24,11 @@ import static org.mockito.Mockito.when;
 public class SecurityBaseRestHandlerTests extends ESTestCase {
 
     public void testSecurityBaseRestHandlerChecksLicenseState() throws Exception {
-        final boolean securityEnabled = randomBoolean();
+        final boolean securityDisabledByTrial = randomBoolean();
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityAvailable()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(securityEnabled);
+        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(securityDisabledByTrial);
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(Settings.EMPTY, licenseState) {
 
             @Override
@@ -46,7 +46,7 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             }
         };
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityEnabled ? 0 : 1);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityDisabledByTrial ? 1 : 0);
         NodeClient client = mock(NodeClient.class);
 
         assertFalse(consumerCalled.get());
@@ -54,8 +54,7 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
         verify(licenseState).isSecurityAvailable();
-        verify(licenseState).isSecurityEnabled();
-        if (securityEnabled) {
+        if (securityDisabledByTrial == false) {
             assertTrue(consumerCalled.get());
             assertEquals(0, fakeRestChannel.responses().get());
             assertEquals(0, fakeRestChannel.errors().get());

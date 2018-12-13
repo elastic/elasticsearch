@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -41,6 +43,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -62,18 +65,36 @@ import java.util.function.Function;
  * </ul>
  */
 public class MockNode extends Node {
+
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, null);
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(settings, classpathPlugins, true);
     }
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        this(InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath), classpathPlugins);
+    public MockNode(
+            final Settings settings,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final boolean forbidPrivateIndexSettings) {
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
     }
 
-    public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(environment, classpathPlugins);
+    public MockNode(
+            final Settings settings,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final Path configPath,
+            final boolean forbidPrivateIndexSettings) {
+        this(
+                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
+                classpathPlugins,
+                forbidPrivateIndexSettings);
+    }
+
+    private MockNode(
+            final Environment environment,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final boolean forbidPrivateIndexSettings) {
+        super(environment, classpathPlugins, forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
     }
 
@@ -144,5 +165,13 @@ public class MockNode extends Node {
             return new MockInternalClusterInfoService(settings, clusterService, threadPool, client, listener);
         }
     }
-}
 
+    @Override
+    protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
+        if (getPluginsService().filterPlugins(MockHttpTransport.TestPlugin.class).isEmpty()) {
+            return super.newHttpTransport(networkModule);
+        } else {
+            return new MockHttpTransport();
+        }
+    }
+}

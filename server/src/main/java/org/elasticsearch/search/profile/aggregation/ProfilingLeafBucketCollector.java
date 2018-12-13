@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.profile.Timer;
 
@@ -46,7 +46,7 @@ public class ProfilingLeafBucketCollector extends LeafBucketCollector {
     }
 
     @Override
-    public void setScorer(Scorer scorer) throws IOException {
+    public void setScorer(Scorable scorer) throws IOException {
         delegate.setScorer(scorer);
     }
 

@@ -44,6 +44,8 @@ import java.util.function.Predicate;
  */
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
+    static final String COORDINATING_ONLY = "coordinating_only";
+
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false &&

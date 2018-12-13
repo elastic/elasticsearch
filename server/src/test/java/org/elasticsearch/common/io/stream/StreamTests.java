@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +43,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.iterableWithSize;
 
 public class StreamTests extends ESTestCase {
 
@@ -65,7 +67,7 @@ public class StreamTests extends ESTestCase {
         final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
         set.remove((byte) 0);
         set.remove((byte) 1);
-        final byte[] corruptBytes = new byte[] { randomFrom(set) };
+        final byte[] corruptBytes = new byte[]{randomFrom(set)};
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readBoolean());
         final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
@@ -100,7 +102,7 @@ public class StreamTests extends ESTestCase {
         set.remove((byte) 0);
         set.remove((byte) 1);
         set.remove((byte) 2);
-        final byte[] corruptBytes = new byte[] { randomFrom(set) };
+        final byte[] corruptBytes = new byte[]{randomFrom(set)};
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readOptionalBoolean());
         final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
@@ -119,22 +121,22 @@ public class StreamTests extends ESTestCase {
 
     public void testSpecificVLongSerialization() throws IOException {
         List<Tuple<Long, byte[]>> values =
-                Arrays.asList(
-                        new Tuple<>(0L, new byte[]{0}),
-                        new Tuple<>(-1L, new byte[]{1}),
-                        new Tuple<>(1L, new byte[]{2}),
-                        new Tuple<>(-2L, new byte[]{3}),
-                        new Tuple<>(2L, new byte[]{4}),
-                        new Tuple<>(Long.MIN_VALUE, new byte[]{-1, -1, -1, -1, -1, -1, -1, -1, -1, 1}),
-                        new Tuple<>(Long.MAX_VALUE, new byte[]{-2, -1, -1, -1, -1, -1, -1, -1, -1, 1})
+            Arrays.asList(
+                new Tuple<>(0L, new byte[]{0}),
+                new Tuple<>(-1L, new byte[]{1}),
+                new Tuple<>(1L, new byte[]{2}),
+                new Tuple<>(-2L, new byte[]{3}),
+                new Tuple<>(2L, new byte[]{4}),
+                new Tuple<>(Long.MIN_VALUE, new byte[]{-1, -1, -1, -1, -1, -1, -1, -1, -1, 1}),
+                new Tuple<>(Long.MAX_VALUE, new byte[]{-2, -1, -1, -1, -1, -1, -1, -1, -1, 1})
 
-                );
+            );
         for (Tuple<Long, byte[]> value : values) {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(value.v1());
             assertArrayEquals(Long.toString(value.v1()), value.v2(), BytesReference.toBytes(out.bytes()));
             BytesReference bytes = new BytesArray(value.v2());
-            assertEquals(Arrays.toString(value.v2()), (long)value.v1(), bytes.streamInput().readZLong());
+            assertEquals(Arrays.toString(value.v2()), (long) value.v1(), bytes.streamInput().readZLong());
         }
     }
 
@@ -158,7 +160,7 @@ public class StreamTests extends ESTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
-        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>)out.bytes().streamInput().readGenericValue();
+        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) out.bytes().streamInput().readGenericValue();
         assertEquals(size, read.size());
         int index = 0;
         for (Map.Entry<String, Integer> entry : read.entrySet()) {
@@ -172,7 +174,8 @@ public class StreamTests extends ESTestCase {
         final int length = randomIntBetween(1, 1024);
         StreamInput delegate = StreamInput.wrap(new byte[length]);
 
-        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {};
+        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {
+        };
         assertEquals(filterInputStream.available(), length);
 
         // read some bytes
@@ -201,7 +204,7 @@ public class StreamTests extends ESTestCase {
         }
         stream.writeByteArray(array);
         InputStreamStreamInput streamInput = new InputStreamStreamInput(StreamInput.wrap(BytesReference.toBytes(stream.bytes())), array
-            .length-1);
+            .length - 1);
         expectThrows(EOFException.class, streamInput::readByteArray);
         streamInput = new InputStreamStreamInput(StreamInput.wrap(BytesReference.toBytes(stream.bytes())), BytesReference.toBytes(stream
             .bytes()).length);
@@ -228,6 +231,21 @@ public class StreamTests extends ESTestCase {
         }
 
         assertThat(targetArray, equalTo(sourceArray));
+    }
+
+    public void testSetOfLongs() throws IOException {
+        final int size = randomIntBetween(0, 6);
+        final Set<Long> sourceSet = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            sourceSet.add(randomLongBetween(i * 1000, (i + 1) * 1000 - 1));
+        }
+        assertThat(sourceSet, iterableWithSize(size));
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeCollection(sourceSet, StreamOutput::writeLong);
+
+        final Set<Long> targetSet = out.bytes().streamInput().readSet(StreamInput::readLong);
+        assertThat(targetSet, equalTo(sourceSet));
     }
 
     static final class WriteableString implements Writeable {

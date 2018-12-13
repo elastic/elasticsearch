@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -28,6 +26,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scoreSort;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
@@ -37,19 +36,22 @@ public abstract class SourceGenerator {
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
-        final SearchSourceBuilder source = new SearchSourceBuilder();
+        QueryBuilder finalQuery = null;
         // add the source
-        if (container.query() == null) {
+        if (container.query() != null) {
             if (filter != null) {
-                source.query(new ConstantScoreQueryBuilder(filter));
+                finalQuery = boolQuery().must(container.query().asBuilder()).filter(filter);
+            } else {
+                finalQuery = container.query().asBuilder();
             }
         } else {
             if (filter != null) {
-                source.query(new BoolQueryBuilder().must(container.query().asBuilder()).filter(filter));
-            } else {
-                source.query(container.query().asBuilder());
+                finalQuery = boolQuery().filter(filter);
             }
         }
+
+        final SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(finalQuery);
 
         SqlSourceBuilder sortBuilder = new SqlSourceBuilder();
         // Iterate through all the columns requested, collecting the fields that
@@ -108,9 +110,15 @@ public abstract class SourceGenerator {
                     FieldAttribute fa = (FieldAttribute) attr;
                     fa = fa.isInexact() ? fa.exactAttribute() : fa;
 
-                    sortBuilder = fieldSort(fa.name());
+                    sortBuilder = fieldSort(fa.name())
+                            .missing(as.missing().position())
+                            .unmappedType(fa.dataType().esType);
+                    
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name());
+                        FieldSortBuilder fieldSort = fieldSort(fa.name())
+                                .missing(as.missing().position())
+                                .unmappedType(fa.dataType().esType);
+
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
 

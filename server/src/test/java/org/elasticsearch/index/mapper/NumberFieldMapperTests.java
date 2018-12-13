@@ -66,7 +66,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
@@ -117,7 +117,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
     }
 
@@ -141,7 +141,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -170,7 +170,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -255,6 +255,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+        assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
     }
 
     public void testRejectNorms() throws IOException {
@@ -343,7 +344,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];

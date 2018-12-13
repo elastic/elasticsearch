@@ -43,8 +43,16 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
         assertNull(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getPartitionFieldName());
     }
 
+    public void testGetPartitionFieldValue() {
+        assertNull(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getPartitionFieldValue());
+    }
+
     public void testGetPersonFieldName() {
         assertEquals("airline", new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getPersonFieldName());
+    }
+
+    public void testGetPersonFieldValue() {
+        assertNull(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getPersonFieldValue());
     }
 
     public void testGetFunctionName() {

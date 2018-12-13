@@ -309,18 +309,14 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             query = new MatchAllDocsQuery();
         }
 
+        CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
         // handle cases where only one score function and no filter was provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.length == 0) {
             return new FunctionScoreQuery(query, minScore, maxBoost);
         } else if (filterFunctions.length == 1 && filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction == false) {
-            CombineFunction combineFunction = this.boostMode;
-            if (combineFunction == null) {
-                combineFunction = filterFunctions[0].getDefaultScoreCombiner();
-            }
-            return new FunctionScoreQuery(query, filterFunctions[0], combineFunction, minScore, maxBoost);
+            return new FunctionScoreQuery(query, filterFunctions[0], boostMode, minScore, maxBoost);
         }
         // in all other cases we create a FunctionScoreQuery with filters
-        CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
         return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);
     }
 

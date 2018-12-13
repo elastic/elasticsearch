@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -20,10 +21,11 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -57,8 +59,10 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .putAlias(new AliasMetaData.Builder("ba").build())
                         .build(), true)
                 .build();
-        Role roles = CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(aStarRole, bRole),
-                new FieldPermissionsCache(Settings.EMPTY));
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
+        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, roles, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -81,7 +85,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
@@ -97,12 +101,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
-        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityLifecycleService.SECURITY_INDEX_NAME));
+        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
     }
 }

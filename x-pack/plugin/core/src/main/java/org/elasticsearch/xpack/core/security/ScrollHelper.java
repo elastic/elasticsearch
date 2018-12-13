@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.security;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -12,7 +15,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 
@@ -25,6 +27,7 @@ import java.util.function.Function;
 
 public final class ScrollHelper {
 
+    private static final Logger LOGGER = LogManager.getLogger(ScrollHelper.class);
     private ScrollHelper() {}
 
     /**
@@ -35,13 +38,15 @@ public final class ScrollHelper {
                                             Function<SearchHit, T> hitParser) {
         final List<T> results = new ArrayList<>();
         if (request.scroll() == null) { // we do scroll by default lets see if we can get rid of this at some point.
-            request.scroll(TimeValue.timeValueSeconds(10L));
+            throw new IllegalArgumentException("request must have scroll set");
         }
         final Consumer<SearchResponse> clearScroll = (response) -> {
             if (response != null && response.getScrollId() != null) {
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
                 clearScrollRequest.addScrollId(response.getScrollId());
-                client.clearScroll(clearScrollRequest, ActionListener.wrap((r) -> {}, (e) -> {}));
+                client.clearScroll(clearScrollRequest, ActionListener.wrap((r) -> {}, e ->
+                    LOGGER.warn(new ParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()), e)
+                ));
             }
         };
         // This function is MADNESS! But it works, don't think about it too hard...
@@ -62,12 +67,12 @@ public final class ScrollHelper {
                             }
                         }
 
-                        if (results.size() > resp.getHits().getTotalHits()) {
+                        if (results.size() > resp.getHits().getTotalHits().value) {
                             clearScroll.accept(lastResponse);
                             listener.onFailure(new IllegalStateException("scrolling returned more hits [" + results.size()
-                                    + "] than expected [" + resp.getHits().getTotalHits() + "] so bailing out to prevent unbounded "
+                                    + "] than expected [" + resp.getHits().getTotalHits().value + "] so bailing out to prevent unbounded "
                                     + "memory consumption."));
-                        } else if (results.size() == resp.getHits().getTotalHits()) {
+                        } else if (results.size() == resp.getHits().getTotalHits().value) {
                             clearScroll.accept(resp);
                             // Finally, return the list of the entity
                             listener.onResponse(Collections.unmodifiableList(results));

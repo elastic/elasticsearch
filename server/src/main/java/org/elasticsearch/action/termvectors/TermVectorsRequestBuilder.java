@@ -33,7 +33,7 @@ import java.util.Map;
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
  */
-public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse, TermVectorsRequestBuilder> {
+public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 
     public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action) {
         super(client, action, new TermVectorsRequest());
@@ -90,7 +90,7 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public TermVectorsRequestBuilder setPreference(String preference) {

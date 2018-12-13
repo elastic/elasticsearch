@@ -66,8 +66,7 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    public static final String NAME = "completion";
-
+    @Deprecated
     public static final int TYPE = 4;
 
     private boolean skipDuplicates;
@@ -86,12 +85,16 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         this.skipDuplicates = skipDuplicates;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public CompletionSuggestion(StreamInput in) throws IOException {
+        super(in);
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             skipDuplicates = in.readBoolean();
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return CompletionSuggestionBuilder.SUGGESTION_NAME;
     }
 
     @Override
@@ -119,6 +122,17 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
      */
     public boolean hasScoreDocs() {
         return getOptions().size() > 0;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return super.equals(other)
+            && Objects.equals(skipDuplicates, ((CompletionSuggestion) other).skipDuplicates);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), skipDuplicates);
     }
 
     public static CompletionSuggestion fromXContent(XContentParser parser, String name) throws IOException {
@@ -222,13 +236,13 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     }
 
     @Override
-    protected String getType() {
-        return NAME;
+    protected Entry newEntry() {
+        return new Entry();
     }
 
     @Override
-    protected Entry newEntry() {
-        return new Entry();
+    protected Entry newEntry(StreamInput in) throws IOException {
+        return new Entry(in);
     }
 
     public static final class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
@@ -237,12 +251,20 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             super(text, offset, length);
         }
 
-        Entry() {
+        Entry() {}
+
+        public Entry(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
         protected Option newOption() {
             return new Option();
+        }
+
+        @Override
+        protected Option newOption(StreamInput in) throws IOException {
+            return new Option(in);
         }
 
         private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true,
@@ -258,13 +280,13 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
+            private Map<String, Set<String>> contexts = Collections.emptyMap();
             private ScoreDoc doc;
             private SearchHit hit;
 
             public static final ParseField CONTEXTS = new ParseField("contexts");
 
-            public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
+            public Option(int docID, Text text, float score, Map<String, Set<String>> contexts) {
                 super(text, score);
                 this.doc = new ScoreDoc(docID, score);
                 this.contexts = Objects.requireNonNull(contexts, "context map cannot be null");
@@ -274,6 +296,25 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super();
             }
 
+            public Option(StreamInput in) throws IOException {
+                super(in);
+                this.doc = Lucene.readScoreDoc(in);
+                if (in.readBoolean()) {
+                    this.hit = SearchHit.readSearchHit(in);
+                }
+                int contextSize = in.readInt();
+                this.contexts = new LinkedHashMap<>(contextSize);
+                for (int i = 0; i < contextSize; i++) {
+                    String contextName = in.readString();
+                    int nContexts = in.readVInt();
+                    Set<String> contexts = new HashSet<>(nContexts);
+                    for (int j = 0; j < nContexts; j++) {
+                        contexts.add(in.readString());
+                    }
+                    this.contexts.put(contextName, contexts);
+                }
+            }
+
             @Override
             protected void mergeInto(Suggest.Suggestion.Entry.Option otherOption) {
                 // Completion suggestions are reduced by
@@ -281,7 +322,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 throw new UnsupportedOperationException();
             }
 
-            public Map<String, Set<CharSequence>> getContexts() {
+            public Map<String, Set<String>> getContexts() {
                 return contexts;
             }
 
@@ -302,7 +343,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             @Override
-            protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field(TEXT.getPreferredName(), getText());
                 if (hit != null) {
                     hit.toInnerXContent(builder, params);
@@ -311,7 +352,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 }
                 if (contexts.size() > 0) {
                     builder.startObject(CONTEXTS.getPreferredName());
-                    for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
+                    for (Map.Entry<String, Set<String>> entry : contexts.entrySet()) {
                         builder.startArray(entry.getKey());
                         for (CharSequence context : entry.getValue()) {
                             builder.value(context.toString());
@@ -336,13 +377,13 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                         (p,c) -> parseContexts(p), CompletionSuggestion.Entry.Option.CONTEXTS);
             }
 
-            private static Map<String, Set<CharSequence>> parseContexts(XContentParser parser) throws IOException {
-                Map<String, Set<CharSequence>> contexts = new HashMap<>();
+            private static Map<String, Set<String>> parseContexts(XContentParser parser) throws IOException {
+                Map<String, Set<String>> contexts = new HashMap<>();
                 while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
                     String key = parser.currentName();
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-                    Set<CharSequence> values = new HashSet<>();
+                    Set<String> values = new HashSet<>();
                     while((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
                         values.add(parser.text());
@@ -358,7 +399,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 Text text = new Text((String) values.get(Suggestion.Entry.Option.TEXT.getPreferredName()));
                 Float score = (Float) values.get(Suggestion.Entry.Option.SCORE.getPreferredName());
                 @SuppressWarnings("unchecked")
-                Map<String, Set<CharSequence>> contexts = (Map<String, Set<CharSequence>>) values
+                Map<String, Set<String>> contexts = (Map<String, Set<String>>) values
                         .get(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName());
                 if (contexts == null) {
                     contexts = Collections.emptyMap();
@@ -376,26 +417,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             @Override
-            public void readFrom(StreamInput in) throws IOException {
-                super.readFrom(in);
-                this.doc = Lucene.readScoreDoc(in);
-                if (in.readBoolean()) {
-                    this.hit = SearchHit.readSearchHit(in);
-                }
-                int contextSize = in.readInt();
-                this.contexts = new LinkedHashMap<>(contextSize);
-                for (int i = 0; i < contextSize; i++) {
-                    String contextName = in.readString();
-                    int nContexts = in.readVInt();
-                    Set<CharSequence> contexts = new HashSet<>(nContexts);
-                    for (int j = 0; j < nContexts; j++) {
-                        contexts.add(in.readString());
-                    }
-                    this.contexts.put(contextName, contexts);
-                }
-            }
-
-            @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
                 Lucene.writeScoreDoc(out, doc);
@@ -406,7 +427,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     out.writeBoolean(false);
                 }
                 out.writeInt(contexts.size());
-                for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
+                for (Map.Entry<String, Set<String>> entry : contexts.entrySet()) {
                     out.writeString(entry.getKey());
                     out.writeVInt(entry.getValue().size());
                     for (CharSequence ctx : entry.getValue()) {
@@ -423,7 +444,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append(" score:");
                 stringBuilder.append(getScore());
                 stringBuilder.append(" context:[");
-                for (Map.Entry<String, Set<CharSequence>> entry: contexts.entrySet()) {
+                for (Map.Entry<String, Set<String>> entry: contexts.entrySet()) {
                     stringBuilder.append(" ");
                     stringBuilder.append(entry.getKey());
                     stringBuilder.append(":");

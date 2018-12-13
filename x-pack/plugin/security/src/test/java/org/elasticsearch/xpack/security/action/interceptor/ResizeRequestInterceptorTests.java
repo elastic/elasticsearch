@@ -37,13 +37,14 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
 
     public void testResizeRequestInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
@@ -66,7 +67,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
         ResizeRequestInterceptor resizeRequestInterceptor =
-                new ResizeRequestInterceptor(Settings.EMPTY, threadPool, licenseState, auditTrailService);
+                new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> resizeRequestInterceptor.intercept(new ResizeRequest("bar", "foo"), authentication, role, action));
@@ -76,13 +77,14 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
 
     public void testResizeRequestInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
         Role role = Role.builder()
                 .add(IndexPrivilege.ALL, "target")
@@ -92,7 +94,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
         ResizeRequestInterceptor resizeRequestInterceptor =
-                new ResizeRequestInterceptor(Settings.EMPTY, threadPool, licenseState, auditTrailService);
+                new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> resizeRequestInterceptor.intercept(new ResizeRequest("target", "source"), authentication, role, action));
         assertEquals("Resizing an index is not allowed when the target index has more permissions than the source index",

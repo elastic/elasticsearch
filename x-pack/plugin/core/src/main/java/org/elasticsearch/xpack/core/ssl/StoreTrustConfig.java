@@ -55,7 +55,8 @@ class StoreTrustConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(trustStorePath, trustStoreType, trustStorePassword.getChars(), trustStoreAlgorithm, environment);
+            KeyStore trustStore = getStore(environment, trustStorePath, trustStoreType, trustStorePassword);
+            return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -63,8 +64,7 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
-        final Path path = CertUtils.resolvePath(trustStorePath, environment);
-        final KeyStore trustStore = CertUtils.readKeyStore(path, trustStoreType, trustStorePassword.getChars());
+        final KeyStore trustStore = getStore(environment, trustStorePath, trustStoreType, trustStorePassword);
         final List<CertificateInfo> certificates = new ArrayList<>();
         final Enumeration<String> aliases = trustStore.aliases();
         while (aliases.hasMoreElements()) {
@@ -83,7 +83,7 @@ class StoreTrustConfig extends TrustConfig {
         if (trustStorePath == null) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(CertUtils.resolvePath(trustStorePath, environment));
+        return Collections.singletonList(CertParsingUtils.resolvePath(trustStorePath, environment));
     }
 
     @Override

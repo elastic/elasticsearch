@@ -62,12 +62,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
-                .withCompress(true)
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout())
                 .build();
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
-                .withCompress(false)  // lucene files are already compressed and therefore compressing this won't really help much so
                 // we are saving the cpu for other things
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
@@ -110,9 +108,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-        final RecoveryTranslogOperationsRequest translogOperationsRequest =
-                new RecoveryTranslogOperationsRequest(recoveryId, shardId, operations, totalTranslogOps);
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                        long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfDeletesOrUpdatesOnPrimary) {
+        final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
+            recoveryId, shardId, operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary, maxSeqNoOfDeletesOrUpdatesOnPrimary);
         final TransportFuture<RecoveryTranslogOperationsResponse> future = transportService.submitRequest(
                 targetNode,
                 PeerRecoveryTargetService.Actions.TRANSLOG_OPS,

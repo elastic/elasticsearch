@@ -20,8 +20,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.Request, DeleteCalendarEventAction.Response,
-        DeleteCalendarEventAction.RequestBuilder> {
+public class DeleteCalendarEventAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteCalendarEventAction INSTANCE = new DeleteCalendarEventAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/delete";
@@ -31,13 +30,8 @@ public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -95,31 +89,10 @@ public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteCalendarEventAction action) {
             super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        private Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 }

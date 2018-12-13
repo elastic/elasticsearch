@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 
 /**
@@ -47,8 +46,7 @@ public final class AnomalyDetectorsIndex {
      * @return The index name
      */
     public static String getPhysicalIndexFromState(ClusterState state, String jobId) {
-        MlMetadata meta = state.getMetaData().custom(MLMetadataField.TYPE);
-        return meta.getJobs().get(jobId).getResultsIndexName();
+        return MlMetadata.getMlMetadata(state).getJobs().get(jobId).getResultsIndexName();
     }
 
     /**

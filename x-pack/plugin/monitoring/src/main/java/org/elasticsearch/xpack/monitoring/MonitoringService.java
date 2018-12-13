@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
@@ -18,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 import java.io.Closeable;
@@ -37,14 +38,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * service life cycles, the intended way to temporarily stop the publishing is using the start and stop methods.
  */
 public class MonitoringService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(MonitoringService.class);
+
 
     /**
      * Minimum value for sampling interval (1 second)
      */
     public static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
 
+    /*
+     * Dynamically controls enabling or disabling the collection of Monitoring data only from Elasticsearch.
+     * <p>
+      * This should only be used while transitioning to Metricbeat-based data collection for Elasticsearch with
+      * {@linkplain #ENABLED} set to {@code true}. By setting this to {@code false} and that value to {@code true},
+      * Kibana, Logstash, Beats, and APM Server can all continue to report their stats through this cluster until they
+      * are transitioned to being monitored by Metricbeat as well.
+      */
+    public static final Setting<Boolean> ELASTICSEARCH_COLLECTION_ENABLED =
+            Setting.boolSetting("xpack.monitoring.elasticsearch.collection.enabled", true,
+                                Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     /**
-     * Dynamically controls enabling or disabling the collection of Monitoring data.
+     * Dynamically controls enabling or disabling the collection of Monitoring data from Elasticsearch as well as other products
+     * in the stack.
      */
     public static final Setting<Boolean> ENABLED =
             Setting.boolSetting("xpack.monitoring.collection.enabled", false,
@@ -68,6 +84,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     private final Set<Collector> collectors;
     private final Exporters exporters;
 
+    private volatile boolean elasticsearchCollectionEnabled;
     private volatile boolean enabled;
     private volatile TimeValue interval;
     private volatile ThreadPool.Cancellable scheduler;
@@ -79,11 +96,19 @@ public class MonitoringService extends AbstractLifecycleComponent {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.collectors = Objects.requireNonNull(collectors);
         this.exporters = Objects.requireNonNull(exporters);
+        this.elasticsearchCollectionEnabled = ELASTICSEARCH_COLLECTION_ENABLED.get(settings);
         this.enabled = ENABLED.get(settings);
         this.interval = INTERVAL.get(settings);
 
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ELASTICSEARCH_COLLECTION_ENABLED, this::setElasticsearchCollectionEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED, this::setMonitoringActive);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
+    }
+
+    void setElasticsearchCollectionEnabled(final boolean enabled) {
+        this.elasticsearchCollectionEnabled = enabled;
+        scheduleExecution();
     }
 
     void setMonitoringActive(final boolean enabled) {
@@ -102,6 +127,14 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
     public boolean isMonitoringActive() {
         return isStarted() && enabled;
+    }
+
+    boolean isElasticsearchCollectionEnabled() {
+        return this.elasticsearchCollectionEnabled;
+    }
+
+    boolean shouldScheduleExecution() {
+        return isElasticsearchCollectionEnabled() && isMonitoringActive();
     }
 
     private String threadPoolName() {
@@ -140,14 +173,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     protected void doClose() {
         logger.debug("monitoring service is closing");
         monitor.close();
-
-        for (Exporter exporter : exporters) {
-            try {
-                exporter.close();
-            } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
-            }
-        }
+        exporters.close();
         logger.debug("monitoring service closed");
     }
 
@@ -155,7 +181,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         if (scheduler != null) {
             cancelExecution();
         }
-        if (isMonitoringActive()) {
+        if (shouldScheduleExecution()) {
             scheduler = threadPool.scheduleWithFixedDelay(monitor, interval, threadPoolName());
         }
     }
@@ -188,7 +214,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
         @Override
         public void doRun() {
-            if (isMonitoringActive() == false) {
+            if (shouldScheduleExecution() == false) {
                 logger.debug("monitoring execution is skipped");
                 return;
             }
@@ -223,7 +249,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                                     new ParameterizedMessage("monitoring collector [{}] failed to collect data", collector.name()), e);
                         }
                     }
-                    if (isMonitoringActive()) {
+                    if (shouldScheduleExecution()) {
                         exporters.export(results, ActionListener.wrap(r -> semaphore.release(), this::onFailure));
                     } else {
                         semaphore.release();

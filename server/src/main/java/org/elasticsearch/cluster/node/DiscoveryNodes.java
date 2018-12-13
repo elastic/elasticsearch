@@ -84,7 +84,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns <tt>true</tt> if the local node is the elected master node.
+     * Returns {@code true} if the local node is the elected master node.
      */
     public boolean isLocalNodeElectedMaster() {
         if (localNodeId == null) {
@@ -145,6 +145,19 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public ImmutableOpenMap<String, DiscoveryNode> getMasterAndDataNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
         nodes.putAll(masterNodes);
+        return nodes.build();
+    }
+
+    /**
+     * Get a {@link Map} of the coordinating only nodes (nodes which are neither master, nor data, nor ingest nodes) arranged by their ids
+     *
+     * @return {@link Map} of the coordinating only nodes arranged by their ids
+     */
+    public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
+        ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
+        nodes.removeAll(masterNodes.keys());
+        nodes.removeAll(dataNodes.keys());
+        nodes.removeAll(ingestNodes.keys());
         return nodes.build();
     }
 
@@ -297,7 +310,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * - "_local" or "_master" for the relevant nodes
      * - a node id
      * - a wild card pattern that will be matched against node names
-     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true of false
+     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true or false,
      *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
      */
     public String[] resolveNodes(String... nodes) {
@@ -348,6 +361,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 resolvedNodesIds.addAll(ingestNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(ingestNodes.keys());
+                            }
+                        } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                            } else {
+                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
                             }
                         } else {
                             for (DiscoveryNode node : this) {

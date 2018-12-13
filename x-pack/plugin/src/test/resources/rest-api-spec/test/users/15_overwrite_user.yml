@@ -8,7 +8,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
           {
@@ -19,14 +19,14 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
 
 ---
 "Test overwriting a user":
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "joe"
   - match: { joe.username: "joe" }
   - match: { joe.roles.0:  "superuser" }
@@ -38,7 +38,7 @@ teardown:
   - match: { timed_out: false }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -51,10 +51,10 @@ teardown:
                 "key2" : "val2"
               }
             }
-  - match: { user: { created: false } }
+  - match: { created: false }
 
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }

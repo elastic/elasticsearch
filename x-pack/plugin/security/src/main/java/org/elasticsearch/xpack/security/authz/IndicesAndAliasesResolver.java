@@ -14,45 +14,47 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
 
-public class IndicesAndAliasesResolver {
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
-    private static final ResolvedIndices NO_INDEX_PLACEHOLDER_RESOLVED =
-            ResolvedIndices.local(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER);
-    //`*,-*` what we replace indices with if we need Elasticsearch to return empty responses without throwing exception
-    private static final String[] NO_INDICES_ARRAY = new String[] { "*", "-*" };
-    static final List<String> NO_INDICES_LIST = Arrays.asList(NO_INDICES_ARRAY);
+class IndicesAndAliasesResolver {
+
+    //`*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
+    static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
+    static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
 
-    public IndicesAndAliasesResolver(Settings settings, ClusterService clusterService) {
-        this.nameExpressionResolver = new IndexNameExpressionResolver(settings);
+    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService) {
+        this.nameExpressionResolver = new IndexNameExpressionResolver();
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
@@ -68,7 +70,7 @@ public class IndicesAndAliasesResolver {
      * then the index names will be categorized into those that refer to {@link ResolvedIndices#getLocal() local indices}, and those that
      * refer to {@link ResolvedIndices#getRemote() remote indices}. This categorization follows the standard
      * {@link RemoteClusterAware#buildRemoteIndexName(String, String) remote index-name format} and also respects the currently defined
-     * {@link RemoteClusterAware#getRemoteClusterNames() remote clusters}.
+     * remote clusters}.
      * </p><br>
      * Thus an index name <em>N</em> will considered to be <em>remote</em> if-and-only-if all of the following are true
      * <ul>
@@ -85,14 +87,16 @@ public class IndicesAndAliasesResolver {
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      */
 
-    public ResolvedIndices resolve(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices) {
+    ResolvedIndices resolve(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices) {
         if (request instanceof IndicesAliasesRequest) {
-            ResolvedIndices indices = ResolvedIndices.empty();
+            ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
-                indices = ResolvedIndices.add(indices, resolveIndicesAndAliases(indicesRequest, metaData, authorizedIndices));
+                final ResolvedIndices resolved = resolveIndicesAndAliases(indicesRequest, metaData, authorizedIndices);
+                resolvedIndicesBuilder.addLocal(resolved.getLocal());
+                resolvedIndicesBuilder.addRemote(resolved.getRemote());
             }
-            return indices;
+            return resolvedIndicesBuilder.build();
         }
 
         // if for some reason we are missing an action... just for safety we'll reject
@@ -102,10 +106,10 @@ public class IndicesAndAliasesResolver {
         return resolveIndicesAndAliases((IndicesRequest) request, metaData, authorizedIndices);
     }
 
-    ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData,
-                                                     AuthorizedIndices authorizedIndices) {
+
+    ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData, AuthorizedIndices authorizedIndices) {
+        final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
-        final ResolvedIndices indices;
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
             /*
              * This is a special case since PutMappingRequests from dynamic mapping updates have a concrete index
@@ -114,7 +118,7 @@ public class IndicesAndAliasesResolver {
              */
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                     : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
-            return ResolvedIndices.local(((PutMappingRequest) indicesRequest).getConcreteIndex().getName());
+            resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metaData));
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
             IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
@@ -127,13 +131,12 @@ public class IndicesAndAliasesResolver {
                         indicesOptions.expandWildcardsOpen(), indicesOptions.expandWildcardsClosed());
             }
 
-            ResolvedIndices result = ResolvedIndices.empty();
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices.get()) {
                         if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
-                            result = ResolvedIndices.add(result, ResolvedIndices.local(authorizedIndex));
+                            resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
                 }
@@ -144,7 +147,7 @@ public class IndicesAndAliasesResolver {
                 if (allowsRemoteIndices(indicesRequest)) {
                     split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                 } else {
-                    split = ResolvedIndices.local(indicesRequest.indices());
+                    split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
                 List<String> replaced = replaceWildcardsWithAuthorizedIndices(split.getLocal(), indicesOptions, metaData,
                         authorizedIndices.get(), replaceWildcards);
@@ -153,27 +156,26 @@ public class IndicesAndAliasesResolver {
                     //remove all the ones that the current user is not authorized for and ignore them
                     replaced = replaced.stream().filter(authorizedIndices.get()::contains).collect(Collectors.toList());
                 }
-                result = new ResolvedIndices(new ArrayList<>(replaced), split.getRemote());
+                resolvedIndicesBuilder.addLocal(replaced);
+                resolvedIndicesBuilder.addRemote(split.getRemote());
             }
-            if (result.isEmpty()) {
+
+            if (resolvedIndicesBuilder.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
                     //this is how we tell es core to return an empty response, we can let the request through being sure
                     //that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     //as that would be resolved to _all by es core.
-                    replaceable.indices(NO_INDICES_ARRAY);
+                    replaceable.indices(NO_INDICES_OR_ALIASES_ARRAY);
                     indicesReplacedWithNoIndices = true;
-                    indices = NO_INDEX_PLACEHOLDER_RESOLVED;
+                    resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
                     throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
                 }
             } else {
-                replaceable.indices(result.toArray());
-                indices = result;
+                replaceable.indices(resolvedIndicesBuilder.build().toArray());
             }
         } else {
             if (containsWildcards(indicesRequest)) {
-                //an alias can still contain '*' in its name as of 5.0. Such aliases cannot be referred to when using
-                //the security plugin, otherwise the following exception gets thrown
                 throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
                         "their indices");
             }
@@ -182,11 +184,9 @@ public class IndicesAndAliasesResolver {
             //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
             //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
             // shard level requests.
-            List<String> resolvedNames = new ArrayList<>();
             for (String name : indicesRequest.indices()) {
-                resolvedNames.add(nameExpressionResolver.resolveDateMathExpression(name));
+                resolvedIndicesBuilder.addLocal(nameExpressionResolver.resolveDateMathExpression(name));
             }
-            indices = new ResolvedIndices(resolvedNames, new ArrayList<>());
         }
 
         if (indicesRequest instanceof AliasesRequest) {
@@ -196,7 +196,7 @@ public class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
                         loadAuthorizedAliases(authorizedIndices.get(), metaData));
-                aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
+                aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
                 if (indicesRequest instanceof GetAliasesRequest == false) {
@@ -207,13 +207,60 @@ public class IndicesAndAliasesResolver {
                 //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
                 //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
             } else {
-                return ResolvedIndices.add(indices, ResolvedIndices.local(aliasesRequest.aliases()));
+                resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
+            }
+            // if no aliases are authorized, then fill in an expression that
+            // MetaData#findAliases evaluates to the empty alias list. You cannot put
+            // "nothing" (the empty list) explicitly because this is resolved by es core to
+            // _all
+            if (aliasesRequest.aliases().length == 0) {
+                aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
-        return indices;
+        return resolvedIndicesBuilder.build();
     }
 
-    public static boolean allowsRemoteIndices(IndicesRequest request) {
+    /**
+     * Special handling of the value to authorize for a put mapping request. Dynamic put mapping
+     * requests use a concrete index, but we allow permissions to be defined on aliases so if the
+     * request's concrete index is not in the list of authorized indices, then we need to look to
+     * see if this can be authorized against an alias
+     */
+    static String getPutMappingIndexOrAlias(PutMappingRequest request, AuthorizedIndices authorizedIndices, MetaData metaData) {
+        final String concreteIndexName = request.getConcreteIndex().getName();
+        final List<String> authorizedIndicesList = authorizedIndices.get();
+
+        // validate that the concrete index exists, otherwise there is no remapping that we could do
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(concreteIndexName);
+        final String resolvedAliasOrIndex;
+        if (aliasOrIndex == null) {
+            resolvedAliasOrIndex = concreteIndexName;
+        } else if (aliasOrIndex.isAlias()) {
+            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is an alias but should not be");
+        } else if (authorizedIndicesList.contains(concreteIndexName)) {
+            // user is authorized to put mappings for this index
+            resolvedAliasOrIndex = concreteIndexName;
+        } else {
+            // the user is not authorized to put mappings for this index, but could have been
+            // authorized for a write using an alias that triggered a dynamic mapping update
+            ImmutableOpenMap<String, List<AliasMetaData>> foundAliases = metaData.findAllAliases(new String[] { concreteIndexName });
+            List<AliasMetaData> aliasMetaData = foundAliases.get(concreteIndexName);
+            if (aliasMetaData != null) {
+                Optional<String> foundAlias = aliasMetaData.stream()
+                    .map(AliasMetaData::alias)
+                    .filter(authorizedIndicesList::contains)
+                    .filter(aliasName -> metaData.getAliasAndIndexLookup().get(aliasName).getIndices().size() == 1)
+                    .findFirst();
+                resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
+            } else {
+                resolvedAliasOrIndex = concreteIndexName;
+            }
+        }
+
+        return resolvedAliasOrIndex;
+    }
+
+    static boolean allowsRemoteIndices(IndicesRequest request) {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
                 || request instanceof GraphExploreRequest;
     }
@@ -231,38 +278,39 @@ public class IndicesAndAliasesResolver {
     }
 
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
-        List<String> finalAliases = new ArrayList<>();
+        final List<String> finalAliases = new ArrayList<>();
 
-        //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
-        boolean matchAllAliases = aliases.length == 0;
-        if (matchAllAliases) {
+        // IndicesAliasesRequest doesn't support empty aliases (validation fails) but
+        // GetAliasesRequest does (in which case empty means _all)
+        if (aliases.length == 0) {
             finalAliases.addAll(authorizedAliases);
         }
 
-        for (String aliasPattern : aliases) {
-            if (aliasPattern.equals(MetaData.ALL)) {
-                matchAllAliases = true;
-                finalAliases.addAll(authorizedAliases);
-            } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
-                for (String authorizedAlias : authorizedAliases) {
-                    if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
-                        finalAliases.add(authorizedAlias);
+        for (String aliasExpression : aliases) {
+            boolean include = true;
+            if (aliasExpression.charAt(0) == '-') {
+                include = false;
+                aliasExpression = aliasExpression.substring(1);
+            }
+            if (MetaData.ALL.equals(aliasExpression) || Regex.isSimpleMatchPattern(aliasExpression)) {
+                final Set<String> resolvedAliases = new HashSet<>();
+                for (final String authorizedAlias : authorizedAliases) {
+                    if (MetaData.ALL.equals(aliasExpression) || Regex.simpleMatch(aliasExpression, authorizedAlias)) {
+                        resolvedAliases.add(authorizedAlias);
                     }
                 }
+                if (include) {
+                    finalAliases.addAll(resolvedAliases);
+                } else {
+                    finalAliases.removeAll(resolvedAliases);
+                }
+            } else if (include) {
+                finalAliases.add(aliasExpression);
             } else {
-                finalAliases.add(aliasPattern);
+                finalAliases.remove(aliasExpression);
             }
         }
 
-        //Throw exception if the wildcards expansion to authorized aliases resulted in no indices.
-        //We always need to replace wildcards for security reasons, to make sure that the operation is executed on the aliases that we
-        //authorized it to execute on. Empty set gets converted to _all by es core though, and unlike with indices, here we don't have
-        //a special expression to replace empty set with, which gives us the guarantee that nothing will be returned.
-        //This is because existing aliases can contain all kinds of special characters, they are only validated since 5.1.
-        if (finalAliases.isEmpty()) {
-            String indexName = matchAllAliases ? MetaData.ALL : Arrays.toString(aliases);
-            throw new IndexNotFoundException(indexName);
-        }
         return finalAliases;
     }
 
@@ -386,17 +434,12 @@ public class IndicesAndAliasesResolver {
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersSeeds(settings).keySet());
+            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersDynamicConfig(settings).keySet());
             listenForUpdates(clusterSettings);
         }
 
         @Override
-        protected Set<String> getRemoteClusterNames() {
-            return clusters;
-        }
-
-        @Override
-        protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {
@@ -405,7 +448,7 @@ public class IndicesAndAliasesResolver {
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
-            final Map<String, List<String>> map = super.groupClusterIndices(indices, exists -> false);
+            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices, exists -> false);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet().stream()
                     .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
@@ -423,24 +466,8 @@ public class IndicesAndAliasesResolver {
         private final List<String> remote;
 
         ResolvedIndices(List<String> local, List<String> remote) {
-            this.local = local;
-            this.remote = remote;
-        }
-
-        /**
-         * Constructs a new instance of this class where both the {@link #getLocal() local} and {@link #getRemote() remote} index lists
-         * are empty.
-         */
-        private static ResolvedIndices empty() {
-            return new ResolvedIndices(Collections.emptyList(), Collections.emptyList());
-        }
-
-        /**
-         * Constructs a new instance of this class where both the {@link #getLocal() local} index list is populated with <code>names</code>
-         * and the {@link #getRemote() remote} index list is empty.
-         */
-        private static ResolvedIndices local(String... names) {
-            return new ResolvedIndices(Arrays.asList(names), Collections.emptyList());
+            this.local = Collections.unmodifiableList(local);
+            this.remote = Collections.unmodifiableList(remote);
         }
 
         /**
@@ -449,14 +476,14 @@ public class IndicesAndAliasesResolver {
          * to <code>[ "-a1", "a*" ]</code>. As a consequence, this list <em>may contain duplicates</em>.
          */
         public List<String> getLocal() {
-            return Collections.unmodifiableList(local);
+            return local;
         }
 
         /**
          * Returns the collection of index names that have been stored as "remote" indices.
          */
         public List<String> getRemote() {
-            return Collections.unmodifiableList(remote);
+            return remote;
         }
 
         /**
@@ -471,7 +498,7 @@ public class IndicesAndAliasesResolver {
          * {@link IndicesAndAliasesResolverField#NO_INDEX_PLACEHOLDER no-index-placeholder} and nothing else.
          */
         public boolean isNoIndicesPlaceholder() {
-            return remote.isEmpty() && local.size() == 1 && local.contains(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER);
+            return remote.isEmpty() && local.size() == 1 && local.contains(NO_INDEX_PLACEHOLDER);
         }
 
         private String[] toArray() {
@@ -487,19 +514,43 @@ public class IndicesAndAliasesResolver {
         }
 
         /**
-         * Returns a new <code>ResolvedIndices</code> contains the {@link #getLocal() local} and {@link #getRemote() remote}
-         * index lists from <code>b</code> appended to the corresponding lists in <code>a</code>.
+         * Builder class for ResolvedIndices that allows for the building of a list of indices
+         * without the need to construct new objects and merging them together
          */
-        private static ResolvedIndices add(ResolvedIndices a, ResolvedIndices b) {
-            List<String> local = new ArrayList<>(a.local.size() + b.local.size());
-            local.addAll(a.local);
-            local.addAll(b.local);
+        private static class Builder {
 
-            List<String> remote = new ArrayList<>(a.remote.size() + b.remote.size());
-            remote.addAll(a.remote);
-            remote.addAll(b.remote);
-            return new ResolvedIndices(local, remote);
+            private final List<String> local = new ArrayList<>();
+            private final List<String> remote = new ArrayList<>();
+
+            /** add a local index name */
+            private void addLocal(String index) {
+                local.add(index);
+            }
+
+            /** adds the array of local index names */
+            private void addLocal(String[] indices) {
+                local.addAll(Arrays.asList(indices));
+            }
+
+            /** adds the list of local index names */
+            private void addLocal(List<String> indices) {
+                local.addAll(indices);
+            }
+
+            /** adds the list of remote index names */
+            private void addRemote(List<String> indices) {
+                remote.addAll(indices);
+            }
+
+            /** @return <code>true</code> if both the local and remote index lists are empty. */
+            private boolean isEmpty() {
+                return local.isEmpty() && remote.isEmpty();
+            }
+
+            /** @return a immutable ResolvedIndices instance with the local and remote index lists */
+            private ResolvedIndices build() {
+                return new ResolvedIndices(local, remote);
+            }
         }
-
     }
 }

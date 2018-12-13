@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -19,25 +20,36 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 
-import static org.elasticsearch.license.CryptUtils.decrypt;
+import static org.elasticsearch.license.CryptUtils.encryptV3Format;
 import static org.elasticsearch.license.CryptUtils.encrypt;
+import static org.elasticsearch.license.CryptUtils.decryptV3Format;
+import static org.elasticsearch.license.CryptUtils.decrypt;
 
 class SelfGeneratedLicense {
 
-    public static License create(License.Builder specBuilder) {
+    public static License create(License.Builder specBuilder, DiscoveryNodes currentNodes) {
+        return create(specBuilder, LicenseUtils.compatibleLicenseVersion(currentNodes));
+    }
+
+    public static License create(License.Builder specBuilder, int version) {
         License spec = specBuilder
                 .issuer("elasticsearch")
-                .version(License.VERSION_CURRENT)
+                .version(version)
                 .build();
         final String signature;
         try {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             spec.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-            byte[] encrypt = encrypt(BytesReference.toBytes(BytesReference.bytes(contentBuilder)));
+            byte[] encrypt;
+            if (version < License.VERSION_CRYPTO_ALGORITHMS) {
+                encrypt = encryptV3Format(BytesReference.toBytes(BytesReference.bytes(contentBuilder)));
+            } else {
+                encrypt = encrypt(BytesReference.toBytes(BytesReference.bytes(contentBuilder)));
+            }
             byte[] bytes = new byte[4 + 4 + encrypt.length];
             ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-            // always generate license version -VERSION_CURRENT
-            byteBuffer.putInt(-License.VERSION_CURRENT)
+            // Set -version in signature
+            byteBuffer.putInt(-version)
                     .putInt(encrypt.length)
                     .put(encrypt);
             signature = Base64.getEncoder().encodeToString(bytes);
@@ -56,9 +68,11 @@ class SelfGeneratedLicense {
             byte[] content = new byte[contentLen];
             byteBuffer.get(content);
             final License expectedLicense;
+            // Version in signature is -version, so check for -(-version) < 4
+            byte[] decryptedContent = (-version < License.VERSION_CRYPTO_ALGORITHMS) ? decryptV3Format(content) : decrypt(content);
             // EMPTY is safe here because we don't call namedObject
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, decrypt(content))) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, decryptedContent)) {
                 parser.nextToken();
                 expectedLicense = License.builder().fromLicenseSpec(License.fromXContent(parser),
                         license.signature()).version(-version).build();

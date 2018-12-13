@@ -6,12 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -21,6 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.util.Objects;
 
 public class Cast extends UnaryScalarFunction {
+
     private final DataType dataType;
 
     public Cast(Location location, Expression field, DataType dataType) {
@@ -70,23 +66,12 @@ public class Cast extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         return DataTypeConversion.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Cannot cast %s to %s", from(), to());
+                    new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }
 
     @Override
-    protected ScriptTemplate asScriptFrom(ScalarFunctionAttribute scalar) {
-        return scalar.script();
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(field.name(), Params.EMPTY, field.dataType());
-    }
-
-    @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
+    protected Processor makeProcessor() {
+        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
     }
 
     @Override
@@ -110,5 +95,12 @@ public class Cast extends UnaryScalarFunction {
     @Override
     public String toString() {
         return functionName() + "(" + field().toString() + " AS " + to().sqlName() + ")#" + id();
+    }
+
+    @Override
+    public String name() {
+        StringBuilder sb = new StringBuilder(super.name());
+        sb.insert(sb.length() - 1, " AS " + to().sqlName());
+        return sb.toString();
     }
 }

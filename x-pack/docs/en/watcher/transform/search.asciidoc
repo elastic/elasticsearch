@@ -18,6 +18,7 @@ defined on the watch level:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Like every other search based construct, one can make use of the full search
 API supported by Elasticsearch. For example, the following search transform
@@ -41,6 +42,7 @@ execute a search over all events indices, matching events with `error` priority:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The following table lists all available settings for the search transform:
 
@@ -129,6 +131,7 @@ time of the watch:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The model of the template is a union between the provided `template.params`
 settings and the <<watch-execution-context, standard watch execution context model>>.
@@ -173,3 +176,4 @@ The following is an example of using templates that refer to provided parameters
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

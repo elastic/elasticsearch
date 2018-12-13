@@ -7,13 +7,12 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,16 +41,6 @@ public interface SecurityExtension {
     }
 
     /**
-     * Returns the set of {@link Setting settings} that may be configured for the each type of realm.
-     *
-     * Each <em>setting key</em> must be unqualified and is in the same format as will be provided via {@link RealmConfig#settings()}.
-     * If a given realm-type is not present in the returned map, then it will be treated as if it supported <em>all</em> possible settings.
-     *
-     * The life-cycle of an extension dictates that this method will be called before {@link #getRealms(ResourceWatcherService)}
-     */
-    default Map<String, Set<Setting<?>>> getRealmSettings() { return Collections.emptyMap(); }
-
-    /**
      * Returns a handler for authentication failures, or null to use the default handler.
      *
      * Only one installed extension may have an authentication failure handler. If more than
@@ -72,16 +61,20 @@ public interface SecurityExtension {
      * should be asynchronous if the computation is lengthy or any disk and/or network
      * I/O is involved.  The implementation is responsible for resolving whatever roles
      * it can into a set of {@link RoleDescriptor} instances.  If successful, the
-     * implementation must invoke {@link ActionListener#onResponse(Object)} to pass along
-     * the resolved set of role descriptors.  If a failure was encountered, the
-     * implementation must invoke {@link ActionListener#onFailure(Exception)}.
+     * implementation must wrap the set of {@link RoleDescriptor} instances in a
+     * {@link RoleRetrievalResult} using {@link RoleRetrievalResult#success(Set)} and then invoke
+     * {@link ActionListener#onResponse(Object)}.  If a failure was encountered, the
+     * implementation should wrap the failure in a {@link RoleRetrievalResult} using
+     * {@link RoleRetrievalResult#failure(Exception)} and then invoke
+     * {@link ActionListener#onResponse(Object)} unless the failure needs to terminate the request,
+     * in which case the implementation should invoke {@link ActionListener#onFailure(Exception)}.
      *
      * By default, an empty list is returned.
      *
      * @param settings The configured settings for the node
      * @param resourceWatcherService Use to watch configuration files for changes
      */
-    default List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>>
+    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
         getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
         return Collections.emptyList();
     }

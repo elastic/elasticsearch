@@ -42,8 +42,8 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_SHRINK_SOURCE_NAME;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_SHRINK_SOURCE_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_RESIZE_SOURCE_NAME;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_RESIZE_SOURCE_UUID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -53,17 +53,17 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     public void testFilterInitialRecovery() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY,
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(filterAllocationDecider,
                 new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
-                new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY)));
-        AllocationService service = new AllocationService(Settings.builder().build(), allocationDeciders,
+                new ReplicaAfterPrimaryActiveAllocationDecider()));
+        AllocationService service = new AllocationService(allocationDeciders,
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         ClusterState state = createInitialClusterState(service, Settings.builder().put("index.routing.allocation.initial_recovery._id",
             "node2").build());
         RoutingTable routingTable = state.routingTable();
 
-        // we can initally only allocate on node2
+        // we can initially only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
         routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0), randomBoolean()).routingTable();
@@ -151,8 +151,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                 .putInSyncAllocationIds(1, Collections.singleton("aid1"))
                 .build();
             metaData.put(sourceIndex, false);
-            indexSettings.put(INDEX_SHRINK_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
-            indexSettings.put(INDEX_SHRINK_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
+            indexSettings.put(INDEX_RESIZE_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
+            indexSettings.put(INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
         } else {
             sourceIndex = null;
         }

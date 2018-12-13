@@ -42,7 +42,8 @@ public class XContentHelper {
 
     /**
      * Creates a parser based on the bytes provided
-     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)} to avoid content type auto-detection
+     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)}
+     * to avoid content type auto-detection
      */
     @Deprecated
     public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
@@ -109,7 +110,8 @@ public class XContentHelper {
             }
             contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             try (InputStream stream = input) {
-                return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                return new Tuple<>(Objects.requireNonNull(contentType),
+                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -294,7 +296,8 @@ public class XContentHelper {
      * auto-detection
      */
     @Deprecated
-    public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static void writeRawField(String field, BytesReference source, XContentBuilder builder,
+                                     ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
@@ -340,7 +343,8 @@ public class XContentHelper {
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
      */
-    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable) throws IOException {
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params,
+                                            boolean humanReadable) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {

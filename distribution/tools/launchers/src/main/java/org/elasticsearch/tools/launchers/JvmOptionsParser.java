@@ -38,6 +38,8 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
  */
@@ -76,6 +78,8 @@ final class JvmOptionsParser {
         }
 
         if (invalidLines.isEmpty()) {
+            List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
+            jvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
@@ -224,7 +228,7 @@ final class JvmOptionsParser {
                         // no range is present, apply the JVM option to the specified major version only
                         upper = lower;
                     } else if (end == null) {
-                        // a range of the form \\d+- is present, apply the JVM option to all major versions larger than the specifed one
+                        // a range of the form \\d+- is present, apply the JVM option to all major versions larger than the specified one
                         upper = Integer.MAX_VALUE;
                     } else {
                         // a range of the form \\d+-\\d+ is present, apply the JVM option to the specified range of major versions

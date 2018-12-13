@@ -88,7 +88,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return indices;
     }
 
-    Settings settings() {
+    public Settings settings() {
         return settings;
     }
 
@@ -155,8 +155,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     /**
      * Sets the settings to be updated (either json or yaml format)
      */
-    @SuppressWarnings("unchecked")
-    public UpdateSettingsRequest settings(Map source) {
+    public UpdateSettingsRequest settings(Map<String, ?> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);

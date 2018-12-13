@@ -18,9 +18,9 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,7 +70,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return Sets.newHashSet(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        return Sets.newHashSet(SecurityIndexManager.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
     @Override
@@ -95,7 +95,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         // Setup a second test cluster with a single node, security enabled, and SSL
         final int numNodes = 1;
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, sslEnabled, createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(sslEnabled, createTempDir(), Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -117,7 +117,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
             }
         };
         remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes,
-                cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
+                cluster2Name, cluster2SettingsSource, 0, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
         remoteCluster.beforeTest(random(), 0.0);
         assertNoTimeout(remoteCluster.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get());
     }

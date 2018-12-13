@@ -70,19 +70,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, Random random) {
-        return new MockAllocationService(settings,
+        return new MockAllocationService(
                 randomAllocationDeciders(settings, clusterSettings, random),
                 new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
-        return new MockAllocationService(settings,
+        return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
-        return new MockAllocationService(settings,
+        return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
                 gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
@@ -91,7 +91,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         List<AllocationDecider> deciders = new ArrayList<>(
             ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList()));
         Collections.shuffle(deciders, random);
-        return new AllocationDeciders(settings, deciders);
+        return new AllocationDeciders(deciders);
     }
 
     protected static Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
@@ -127,18 +127,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+        return new AllocationDeciders(Arrays.asList(
             new TestAllocateDecision(Decision.YES),
             new SameShardAllocationDecider(Settings.EMPTY,
                                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, Collections.singleton(new TestAllocateDecision(Decision.NO)));
+        return new AllocationDeciders(Collections.singleton(new TestAllocateDecision(Decision.NO)));
     }
 
     protected static AllocationDeciders throttleAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+        return new AllocationDeciders(Arrays.asList(
             new TestAllocateDecision(Decision.THROTTLE),
             new SameShardAllocationDecider(Settings.EMPTY,
                                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
@@ -159,7 +159,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         private final Decision decision;
 
         public TestAllocateDecision(Decision decision) {
-            super(Settings.EMPTY);
             this.decision = decision;
         }
 
@@ -184,9 +183,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
-        public MockAllocationService(Settings settings, AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
+        public MockAllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
                                      ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-            super(settings, allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService);
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {
@@ -203,10 +202,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      * Mocks behavior in ReplicaShardAllocator to remove delayed shards from list of unassigned shards so they don't get reassigned yet.
      */
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
-
-        public DelayedShardsMockGatewayAllocator() {
-            super(Settings.EMPTY);
-        }
+        public DelayedShardsMockGatewayAllocator() {}
 
         @Override
         public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {

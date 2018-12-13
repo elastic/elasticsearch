@@ -6,10 +6,10 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
@@ -27,12 +27,17 @@ public class LicenseServiceClusterNotRecoveredTests extends AbstractLicensesInte
         return nodeSettingsBuilder(nodeOrdinal).build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
+
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put("resource.reload.interval.high", "500ms") // for license mode file watcher
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // this test is just weird
+                .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 
     @Override

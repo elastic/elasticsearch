@@ -1,4 +1,7 @@
 "Module loaded":
+    - skip:
+          reason: "contains is a newly added assertion"
+          features: contains
     - do:
         cluster.state: {}
 
@@ -8,4 +11,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: analysis-common }
+    - contains:  { nodes.$master.modules: { name: analysis-common } }

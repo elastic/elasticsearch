@@ -2,11 +2,11 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 
-String outputDir = "generated-resources/${project.name}"
+String outputDir = "${buildDir}/generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
@@ -19,6 +19,7 @@ integTestRunner {
 }
 
 integTestCluster {
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

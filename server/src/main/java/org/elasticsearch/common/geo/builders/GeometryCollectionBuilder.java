@@ -19,23 +19,23 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.geo.parsers.GeoWKTParser;
-import org.locationtech.spatial4j.shape.Shape;
-
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class GeometryCollectionBuilder extends ShapeBuilder {
+public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
@@ -169,12 +169,12 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     }
 
     @Override
-    public Shape build() {
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
-            shapes.add(shape.build());
+            shapes.add(shape.buildS4J());
         }
 
         if (shapes.size() == 1)
@@ -182,6 +182,25 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public Object buildLucene() {
+        List<Object> shapes = new ArrayList<>(this.shapes.size());
+
+        for (ShapeBuilder shape : this.shapes) {
+            Object o = shape.buildLucene();
+            if (o.getClass().isArray()) {
+                shapes.addAll(Arrays.asList((Object[])o));
+            } else {
+                shapes.add(o);
+            }
+        }
+
+        if (shapes.size() == 1) {
+            return shapes.get(0);
+        }
+        return shapes.toArray(new Object[shapes.size()]);
     }
 
     @Override

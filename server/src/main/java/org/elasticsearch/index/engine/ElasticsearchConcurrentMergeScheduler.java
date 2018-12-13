@@ -71,7 +71,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
-        this.logger = Loggers.getLogger(getClass(), this.indexSettings, shardId);
+        this.logger = Loggers.getLogger(getClass(), shardId);
         refreshConfig();
     }
 
@@ -92,7 +92,9 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         onGoingMerges.add(onGoingMerge);
 
         if (logger.isTraceEnabled()) {
-            logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", OneMergeHelper.getSegmentName(merge), merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
+            logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
+                OneMergeHelper.getSegmentName(merge), merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes),
+                new ByteSizeValue(merge.estimatedMergeBytes));
         }
         try {
             beforeMerge(onGoingMerge);
@@ -123,7 +125,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergeThrottledTime.inc(throttledMS);
 
             String message = String.format(Locale.ROOT,
-                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
+                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], " +
+                                               "[%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
                                            OneMergeHelper.getSegmentName(merge),
                                            TimeValue.timeValueMillis(tookMS),
                                            totalSizeInBytes/1024f/1024f,
@@ -167,7 +170,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     @Override
     protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         MergeThread thread = super.getMergeThread(writer, merge);
-        thread.setName(EsExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName()));
+        thread.setName(EsExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " +
+            thread.getName()));
         return thread;
     }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -24,10 +24,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     private final LicenseService licenseService;
 
     @Inject
-    public TransportGetLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetLicenseAction(TransportService transportService, ClusterService clusterService,
                                      LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetLicenseRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }

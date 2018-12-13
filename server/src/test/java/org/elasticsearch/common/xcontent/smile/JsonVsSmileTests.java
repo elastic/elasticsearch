@@ -63,8 +63,10 @@ public class JsonVsSmileTests extends ESTestCase {
         xsonGen.close();
         jsonGen.close();
 
-        verifySameTokens(createParser(JsonXContent.jsonXContent, jsonOs.bytes()),
-                createParser(SmileXContent.smileXContent, xsonOs.bytes()));
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, jsonOs.bytes());
+            XContentParser smileParser = createParser(SmileXContent.smileXContent, xsonOs.bytes())) {
+            verifySameTokens(jsonParser, smileParser);
+        }
     }
 
     private void verifySameTokens(XContentParser parser1, XContentParser parser2) throws IOException {

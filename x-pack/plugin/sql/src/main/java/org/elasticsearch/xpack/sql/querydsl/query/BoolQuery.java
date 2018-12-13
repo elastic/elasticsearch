@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import java.util.Objects;
-
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
@@ -44,9 +44,9 @@ public class BoolQuery extends Query {
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
-        Query rewrittenLeft = left.addNestedField(path, field, hasDocValues);
-        Query rewrittenRight = right.addNestedField(path, field, hasDocValues);
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
+        Query rewrittenLeft = left.addNestedField(path, field, format, hasDocValues);
+        Query rewrittenRight = right.addNestedField(path, field, format, hasDocValues);
         if (rewrittenLeft == left && rewrittenRight == right) {
             return this;
         }
@@ -63,9 +63,8 @@ public class BoolQuery extends Query {
     public QueryBuilder asBuilder() {
         BoolQueryBuilder boolQuery = boolQuery();
         if (isAnd) {
-            // TODO are we throwing out score by using filter?
-            boolQuery.filter(left.asBuilder());
-            boolQuery.filter(right.asBuilder());
+            boolQuery.must(left.asBuilder());
+            boolQuery.must(right.asBuilder());
         } else {
             boolQuery.should(left.asBuilder());
             boolQuery.should(right.asBuilder());

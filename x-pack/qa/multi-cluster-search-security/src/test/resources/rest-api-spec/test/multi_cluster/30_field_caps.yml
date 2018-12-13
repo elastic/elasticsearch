@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -30,19 +30,15 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "x_cluster_role"
         ignore: 404
 ---
 "Get simple field caps from remote cluster":
-  - skip:
-      version: " - 5.4.99"
-      reason:  this uses a new API that has been added in 5.5.0
-
   - do:
         indices.create:
           index: field_caps_index_2

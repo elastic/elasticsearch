@@ -16,12 +16,14 @@ public class ForecastParams {
     private final long createTime;
     private final long duration;
     private final long expiresIn;
+    private final String tmpStorage;
 
-    private ForecastParams(String forecastId, long createTime, long duration, long expiresIn) {
+    private ForecastParams(String forecastId, long createTime, long duration, long expiresIn, String tmpStorage) {
         this.forecastId = forecastId;
         this.createTime = createTime;
         this.duration = duration;
         this.expiresIn = expiresIn;
+        this.tmpStorage = tmpStorage;
     }
 
     public String getForecastId() {
@@ -52,9 +54,18 @@ public class ForecastParams {
         return expiresIn;
     }
 
+    /**
+     * Temporary storage forecast is allowed to use for persisting models.
+     *
+     * @return path to tmp storage
+     */
+    public String getTmpStorage() {
+        return tmpStorage;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(forecastId, createTime, duration, expiresIn);
+        return Objects.hash(forecastId, createTime, duration, expiresIn, tmpStorage);
     }
 
     @Override
@@ -69,7 +80,8 @@ public class ForecastParams {
         return Objects.equals(forecastId, other.forecastId)
                 && Objects.equals(createTime, other.createTime)
                 && Objects.equals(duration, other.duration)
-                && Objects.equals(expiresIn, other.expiresIn);
+                && Objects.equals(expiresIn, other.expiresIn)
+                && Objects.equals(tmpStorage, other.tmpStorage);
     }
 
     public static Builder builder() {
@@ -81,6 +93,7 @@ public class ForecastParams {
         private final long createTimeEpochSecs;
         private long durationSecs;
         private long expiresInSecs;
+        private String tmpStorage;
 
         private Builder() {
             forecastId = UUIDs.base64UUID();
@@ -101,8 +114,13 @@ public class ForecastParams {
             return this;
         }
 
+        public Builder tmpStorage(String tmpStorage) {
+            this.tmpStorage = tmpStorage;
+            return this;
+        }
+
         public ForecastParams build() {
-            return new ForecastParams(forecastId, createTimeEpochSecs, durationSecs, expiresInSecs);
+            return new ForecastParams(forecastId, createTimeEpochSecs, durationSecs, expiresInSecs, tmpStorage);
         }
     }
 }

@@ -63,7 +63,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         boolean points = false;
         for (IndexableField field : doc.rootDoc().getFields("_size")) {
             stored |= field.fieldType().stored();
-            points |= field.fieldType().pointDimensionCount() > 0;
+            points |= field.fieldType().pointIndexDimensionCount() > 0;
         }
         assertTrue(stored);
         assertTrue(points);

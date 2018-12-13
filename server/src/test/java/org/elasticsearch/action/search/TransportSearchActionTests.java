@@ -44,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,7 +63,7 @@ public class TransportSearchActionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testMergeShardsIterators() throws IOException {
+    public void testMergeShardsIterators() {
         List<ShardIterator> localShardIterators = new ArrayList<>();
         {
             ShardId shardId = new ShardId("local_index", "local_index_uuid", 0);
@@ -81,7 +80,7 @@ public class TransportSearchActionTests extends ESTestCase {
         GroupShardsIterator<ShardIterator> localShardsIterator = new GroupShardsIterator<>(localShardIterators);
 
         OriginalIndices localIndices = new OriginalIndices(new String[]{"local_alias", "local_index_2"},
-                IndicesOptions.strictExpandOpenAndForbidClosed());
+                SearchRequest.DEFAULT_INDICES_OPTIONS);
 
         OriginalIndices remoteIndices = new OriginalIndices(new String[]{"remote_alias", "remote_index_2"},
                 IndicesOptions.strictExpandOpen());
@@ -146,7 +145,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testProcessRemoteShards() throws IOException {
+    public void testProcessRemoteShards() {
         try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
             null)) {
             RemoteClusterService service = transportService.getRemoteClusterService();
@@ -186,9 +185,9 @@ public class TransportSearchActionTests extends ESTestCase {
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
             remoteIndicesByCluster.put("test_cluster_1",
-                new OriginalIndices(new String[]{"fo*", "ba*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                new OriginalIndices(new String[]{"fo*", "ba*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             remoteIndicesByCluster.put("test_cluster_2",
-                new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                new OriginalIndices(new String[]{"x*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
             TransportSearchAction.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
                 remoteAliases);
@@ -241,12 +240,12 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testBuildClusters() {
-        OriginalIndices localIndices = randomOriginalIndices();
+        OriginalIndices localIndices = randomBoolean() ? null : randomOriginalIndices();
         Map<String, OriginalIndices> remoteIndices = new HashMap<>();
         Map<String, ClusterSearchShardsResponse> searchShardsResponses = new HashMap<>();
         int numRemoteClusters = randomIntBetween(0, 10);
         boolean onlySuccessful = randomBoolean();
-        int localClusters = localIndices.indices().length == 0 ? 0 : 1;
+        int localClusters = localIndices == null ? 0 : 1;
         int total = numRemoteClusters + localClusters;
         int successful = localClusters;
         int skipped = 0;
@@ -255,7 +254,7 @@ public class TransportSearchActionTests extends ESTestCase {
             remoteIndices.put(cluster, randomOriginalIndices());
             if (onlySuccessful || randomBoolean()) {
                 //whatever response counts as successful as long as it's not the empty placeholder
-                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse());
+                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse(null, null, null));
                 successful++;
             } else {
                 searchShardsResponses.put(cluster, ClusterSearchShardsResponse.EMPTY);
@@ -275,6 +274,6 @@ public class TransportSearchActionTests extends ESTestCase {
             localIndices[i] = randomAlphaOfLengthBetween(3, 10);
         }
         return new OriginalIndices(localIndices, IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
     }
 }

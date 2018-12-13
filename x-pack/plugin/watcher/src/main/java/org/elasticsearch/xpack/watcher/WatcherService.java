@@ -6,8 +6,9 @@
 package org.elasticsearch.xpack.watcher;
 
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -23,19 +24,24 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.core.watcher.WatcherState;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.upgrade.UpgradeField;
+import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
@@ -48,18 +54,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
+public class WatcherService {
 
-public class WatcherService extends AbstractComponent {
+    private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
+    private static final Logger logger = LogManager.getLogger(WatcherService.class);
 
     private final TriggerService triggerService;
     private final TriggeredWatchStore triggeredWatchStore;
@@ -68,13 +79,12 @@ public class WatcherService extends AbstractComponent {
     private final int scrollSize;
     private final WatchParser parser;
     private final Client client;
-    // package-private for testing
-    final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
     private final TimeValue defaultSearchTimeout;
+    private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
+    private final ExecutorService executor;
 
-    public WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
-                          ExecutionService executionService, WatchParser parser, Client client) {
-        super(settings);
+    WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
+                   ExecutionService executionService, WatchParser parser, Client client, ExecutorService executor) {
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executionService = executionService;
@@ -82,109 +92,162 @@ public class WatcherService extends AbstractComponent {
         this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
         this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.parser = parser;
-        this.client = client;
+        this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
+        this.executor = executor;
+    }
+
+    WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
+                   ExecutionService executionService, WatchParser parser, Client client) {
+        this(settings, triggerService, triggeredWatchStore, executionService, parser, client,
+            EsExecutors.newFixed(LIFECYCLE_THREADPOOL_NAME, 1, 1000, daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
+                client.threadPool().getThreadContext()));
     }
 
     /**
-     * Ensure that watcher can be started, by checking if all indices are marked as up and ready in the cluster state
+     * Ensure that watcher can be reloaded, by checking if all indices are marked as up and ready in the cluster state
      * @param state The current cluster state
      * @return true if everything is good to go, so that the service can be started
      */
     public boolean validate(ClusterState state) {
-        boolean executionServiceValid = executionService.validate(state);
-        if (executionServiceValid) {
-            try {
-                IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
-                // no watch index yet means we are good to go
-                if (indexMetaData == null) {
-                    return true;
-                } else {
-                    if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                        logger.debug("watch index [{}] is marked as closed, watcher cannot be started", indexMetaData.getIndex().getName());
-                        return false;
-                    } else {
-                        return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
-                    }
-                }
-            } catch (IllegalStateException e) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", Watch.INDEX), e);
+        // template check makes only sense for non existing indices, we could refine this
+        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
+        if (hasValidWatcherTemplates == false) {
+            logger.debug("missing watcher index templates, not starting watcher service");
+            return false;
+        }
+
+        IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
+        IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
+            state.metaData());
+        boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
+            UpgradeField.checkInternalIndexFormat(watcherIndexMetaData);
+        boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
+            UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
+        if (isIndexInternalFormatTriggeredWatchIndex == false || isIndexInternalFormatWatchIndex == false) {
+            logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
+                isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
+            return false;
+        }
+
+        try {
+            boolean storesValid = TriggeredWatchStore.validate(state) && HistoryStore.validate(state);
+            if (storesValid == false) {
                 return false;
             }
-        }
 
-        return false;
-    }
-
-    public void start(ClusterState clusterState) throws Exception {
-        // starting already triggered, exit early
-        WatcherState currentState = state.get();
-        if (currentState == WatcherState.STARTING || currentState == WatcherState.STARTED) {
-            throw new IllegalStateException("watcher is already in state ["+ currentState +"]");
-        }
-
-        if (state.compareAndSet(WatcherState.STOPPED, WatcherState.STARTING)) {
-            try {
-                logger.debug("starting watch service...");
-
-                executionService.start();
-                Collection<Watch> watches = loadWatches(clusterState);
-                triggerService.start(watches);
-
-                Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, clusterState);
-                executionService.executeTriggeredWatches(triggeredWatches);
-
-                state.set(WatcherState.STARTED);
-                logger.debug("watch service has started");
-            } catch (Exception e) {
-                state.set(WatcherState.STOPPED);
-                throw e;
-            }
-        } else {
-            logger.debug("could not transition state from stopped to starting, current state [{}]", state.get());
+            return watcherIndexMetaData == null || (watcherIndexMetaData.getState() == IndexMetaData.State.OPEN &&
+                state.routingTable().index(watcherIndexMetaData.getIndex()).allPrimaryShardsActive());
+        } catch (IllegalStateException e) {
+            logger.debug("error validating to start watcher", e);
+            return false;
         }
     }
 
     /**
-     * Stops the watcher service and it's subservices. Should only be called, when watcher is stopped manually
+     * Stops the watcher service and marks its services as paused
      */
     public void stop(String reason) {
-        WatcherState currentState = state.get();
-        if (currentState == WatcherState.STOPPING || currentState == WatcherState.STOPPED) {
-            logger.trace("watcher is already in state [{}] not stopping", currentState);
-        } else {
-            try {
-                if (state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING)) {
-                    logger.info("stopping watch service, reason [{}]", reason);
-                    triggerService.stop();
-                    executionService.stop();
-                    state.set(WatcherState.STOPPED);
-                    logger.debug("watch service has stopped");
-                } else {
-                    logger.debug("could not transition state from started to stopping, current state [{}]", state.get());
-                }
-            } catch (Exception e) {
-                state.set(WatcherState.STOPPED);
-                logger.error("Error stopping watcher", e);
-            }
-        }
+        logger.info("stopping watch service, reason [{}]", reason);
+        executionService.pause();
+        triggerService.pauseExecution();
+    }
+
+    /**
+     * shuts down the trigger service as well to make sure there are no lingering threads
+     * also no need to check anything, as this is final, we just can go to status STOPPED
+     */
+    void shutDown() {
+        logger.info("stopping watch service, reason [shutdown initiated]");
+        executionService.pause();
+        triggerService.stop();
+        stopExecutor();
+        logger.debug("watch service has stopped");
+    }
+
+    void stopExecutor() {
+        ThreadPool.terminate(executor, 10L, TimeUnit.SECONDS);
     }
 
     /**
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
-     * @param clusterState cluster state, which is needed to find out about local shards
+     * @param state cluster state, which is needed to find out about local shards
      */
-    public void reload(ClusterState clusterState, String reason) {
-        pauseExecution(reason);
+    void reload(ClusterState state, String reason) {
+        // this method contains the only async code block, being called by the cluster state listener
+        // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
+        // thread
+        //
+        // this method itself is called by the cluster state listener, so will never be called in parallel
+        // setting the cluster state version allows us to know if the async method has been overtaken by another async method
+        // this is unlikely, but can happen, if the thread pool schedules two of those runnables at the same time
+        // by checking the cluster state version before and after loading the watches we can potentially just exit without applying the
+        // changes
+        processedClusterStateVersion.set(state.getVersion());
 
-        // load watches
-        Collection<Watch> watches = loadWatches(clusterState);
-        watches.forEach(triggerService::add);
+        triggerService.pauseExecution();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
+        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        // then load triggered watches, which might have been in the queue that we just cleared,
-        // maybe we dont need to execute those anymore however, i.e. due to shard shuffling
-        // then someone else will
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, clusterState);
-        executionService.executeTriggeredWatches(triggeredWatches);
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
+            e -> logger.error("error reloading watcher", e)));
+    }
+
+    /**
+     * start the watcher service, load watches in the background
+     *
+     * @param state                     the current cluster state
+     * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
+     */
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+        executionService.unPause();
+        processedClusterStateVersion.set(state.getVersion());
+        executor.execute(wrapWatcherService(() -> {
+                if (reloadInner(state, "starting", true)) {
+                    postWatchesLoadedCallback.run();
+                }
+            },
+            e -> logger.error("error starting watcher", e)));
+    }
+
+    /**
+     * reload watches and start scheduling them
+     *
+     * @param state                 the current cluster state
+     * @param reason                the reason for reloading, will be logged
+     * @param loadTriggeredWatches  should triggered watches be loaded in this run, not needed for reloading, only for starting
+     * @return                      true if no other loading of a newer cluster state happened in parallel, false otherwise
+     */
+    private synchronized boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
+        // exit early if another thread has come in between
+        if (processedClusterStateVersion.get() != state.getVersion()) {
+            logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                state.getVersion(), processedClusterStateVersion.get());
+            return false;
+        }
+
+        Collection<Watch> watches = loadWatches(state);
+        Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
+        if (loadTriggeredWatches) {
+            triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
+        }
+
+        // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
+        // until the others are loaded
+        // also this is the place where we pause the trigger service execution and clear the current execution service, so that we make sure
+        // that existing executions finish, but no new ones are executed
+        if (processedClusterStateVersion.get() == state.getVersion()) {
+            executionService.unPause();
+            triggerService.start(watches);
+            if (triggeredWatches.isEmpty() == false) {
+                executionService.executeTriggeredWatches(triggeredWatches);
+            }
+            logger.debug("watch service has been reloaded, reason [{}]", reason);
+            return true;
+        } else {
+            logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                state.getVersion(), processedClusterStateVersion.get());
+            return false;
+        }
     }
 
     /**
@@ -192,8 +255,8 @@ public class WatcherService extends AbstractComponent {
      * manual watch execution, i.e. via the execute watch API
      */
     public void pauseExecution(String reason) {
-        int cancelledTaskCount = executionService.pauseExecution();
         triggerService.pauseExecution();
+        int cancelledTaskCount = executionService.pause();
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 
@@ -210,9 +273,9 @@ public class WatcherService extends AbstractComponent {
 
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try {
             RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
-                    .actionGet(TimeValue.timeValueSeconds(5));
+                .actionGet(TimeValue.timeValueSeconds(5));
             if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
                 throw illegalState("not all required shards have been refreshed");
             }
@@ -230,30 +293,30 @@ public class WatcherService extends AbstractComponent {
             List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
 
             SearchRequest searchRequest = new SearchRequest(INDEX)
-                    .scroll(scrollTimeout)
-                    .preference(Preference.ONLY_LOCAL.toString())
-                    .source(new SearchSourceBuilder()
-                            .size(scrollSize)
-                            .sort(SortBuilders.fieldSort("_doc"))
-                            .version(true));
+                .scroll(scrollTimeout)
+                .preference(Preference.ONLY_LOCAL.toString())
+                .source(new SearchSourceBuilder()
+                    .size(scrollSize)
+                    .sort(SortBuilders.fieldSort("_doc"))
+                    .version(true));
             response = client.search(searchRequest).actionGet(defaultSearchTimeout);
 
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits() == 0) {
+            if (response.getHits().getTotalHits().value == 0) {
                 return Collections.emptyList();
             }
 
             Map<Integer, List<String>> sortedShards = new HashMap<>(localShards.size());
             for (ShardRouting localShardRouting : localShards) {
                 List<String> sortedAllocationIds = watchIndexShardRoutings.stream()
-                        .filter(sr -> localShardRouting.getId() == sr.getId())
-                        .map(ShardRouting::allocationId).filter(Objects::nonNull)
-                        .map(AllocationId::getId).filter(Objects::nonNull)
-                        .sorted()
-                        .collect(Collectors.toList());
+                    .filter(sr -> localShardRouting.getId() == sr.getId())
+                    .map(ShardRouting::allocationId).filter(Objects::nonNull)
+                    .map(AllocationId::getId).filter(Objects::nonNull)
+                    .sorted()
+                    .collect(Collectors.toList());
 
                 sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
             }
@@ -262,8 +325,8 @@ public class WatcherService extends AbstractComponent {
                 for (SearchHit hit : response.getHits()) {
                     // find out if this hit should be processed locally
                     Optional<ShardRouting> correspondingShardOptional = localShards.stream()
-                            .filter(sr -> sr.shardId().equals(hit.getShard().getShardId()))
-                            .findFirst();
+                        .filter(sr -> sr.shardId().equals(hit.getShard().getShardId()))
+                        .findFirst();
                     if (correspondingShardOptional.isPresent() == false) {
                         continue;
                     }
@@ -284,7 +347,8 @@ public class WatcherService extends AbstractComponent {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                        logger.error((org.apache.logging.log4j.util.Supplier<?>)
+                            () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
@@ -293,11 +357,9 @@ public class WatcherService extends AbstractComponent {
             }
         } finally {
             if (response != null) {
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                    clearScrollRequest.addScrollId(response.getScrollId());
-                    client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
-                }
+                ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                clearScrollRequest.addScrollId(response.getScrollId());
+                client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
 
@@ -320,7 +382,25 @@ public class WatcherService extends AbstractComponent {
         return shardIndex == index;
     }
 
-    public WatcherState state() {
-        return state.get();
+    /**
+     * Wraps an abstract runnable to easier supply onFailure and doRun methods via lambdas
+     * This ensures that the uncaught exception handler in the executing threadpool does not get called
+     *
+     * @param run                 The code to be executed in the runnable
+     * @param exceptionConsumer   The exception handling code to be executed, if the runnable fails
+     * @return                    The AbstractRunnable instance to pass to the executor
+     */
+    private static AbstractRunnable wrapWatcherService(Runnable run, Consumer<Exception> exceptionConsumer) {
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                exceptionConsumer.accept(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                run.run();
+            }
+        };
     }
 }

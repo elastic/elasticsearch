@@ -28,8 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -37,7 +35,7 @@ import java.io.IOException;
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class DefaultShardOperationFailedException implements ShardOperationFailedException {
+public class DefaultShardOperationFailedException extends ShardOperationFailedException {
 
     private static final String INDEX = "index";
     private static final String SHARD_ID = "shard";
@@ -52,56 +50,16 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
     }
 
-    private String index;
-
-    private int shardId;
-
-    private Throwable reason;
-
-    private RestStatus status;
-
     protected DefaultShardOperationFailedException() {
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
-        Index index = e.getIndex();
-        this.index = index == null ? null : index.getName();
-        ShardId shardId = e.getShardId();
-        this.shardId = shardId == null ? -1 : shardId.id();
-        this.reason = e;
-        this.status = e.status();
+        super(e.getIndex() == null ? null : e.getIndex().getName(), e.getShardId() == null ? -1 : e.getShardId().getId(),
+            detailedMessage(e), e.status(), e);
     }
 
-    public DefaultShardOperationFailedException(String index, int shardId, Throwable reason) {
-        this.index = index;
-        this.shardId = shardId;
-        this.reason = reason;
-        this.status = ExceptionsHelper.status(reason);
-    }
-
-    @Override
-    public String index() {
-        return this.index;
-    }
-
-    @Override
-    public int shardId() {
-        return this.shardId;
-    }
-
-    @Override
-    public String reason() {
-        return detailedMessage(reason);
-    }
-
-    @Override
-    public RestStatus status() {
-        return status;
-    }
-
-    @Override
-    public Throwable getCause() {
-        return reason;
+    public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {
+        super(index, shardId, detailedMessage(cause), ExceptionsHelper.status(cause), cause);
     }
 
     public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
@@ -112,24 +70,17 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            index = in.readString();
-        }
+        index = in.readOptionalString();
         shardId = in.readVInt();
-        reason = in.readException();
+        cause = in.readException();
         status = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (index == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(index);
-        }
+        out.writeOptionalString(index);
         out.writeVInt(shardId);
-        out.writeException(reason);
+        out.writeException(cause);
         RestStatus.writeTo(out, status);
     }
 
@@ -145,7 +96,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         builder.field("status", status.name());
         if (reason != null) {
             builder.startObject("reason");
-            ElasticsearchException.generateThrowableXContent(builder, params, reason);
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         return builder;

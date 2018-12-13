@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -30,6 +32,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
+import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.LagDetector;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -44,7 +56,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -54,14 +65,17 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -98,6 +112,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -105,8 +120,13 @@ import java.util.function.Predicate;
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
-    public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
-        super(nodeSettings, settingsSet, Property.NodeScope);
+    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
+        this(nodeSettings, settingsSet, Collections.emptySet());
+    }
+
+    public ClusterSettings(
+            final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
+        super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
@@ -150,12 +170,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
                     }
                 } else {
-                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
+                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
                 }
             }
         }
@@ -188,6 +208,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
                     MetaData.SETTING_READ_ONLY_SETTING,
                     MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+                    MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                     RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                     RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -219,7 +240,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_TIME_SETTING,
-                    NetworkModule.HTTP_ENABLED,
                     NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
@@ -228,7 +248,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_CORS_ENABLED,
                     HttpTransportSettings.SETTING_CORS_MAX_AGE,
                     HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-                    HttpTransportSettings.SETTING_PIPELINING,
                     HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN,
                     HttpTransportSettings.SETTING_HTTP_HOST,
                     HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST,
@@ -255,6 +274,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
                     HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+                    HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -264,17 +284,29 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+                    IndexModule.NODE_STORE_ALLOW_MMAPFS,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterService.USER_DEFINED_META_DATA,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
+                    RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
                     RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+                    RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                     RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
+                    RemoteClusterService.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
                     RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
+                    RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                     RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
+                    RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
                     RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
+                    RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
+                    RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+                    RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -297,13 +329,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TcpTransport.TCP_REUSE_ADDRESS_PROFILE,
                     TcpTransport.TCP_SEND_BUFFER_SIZE_PROFILE,
                     TcpTransport.TCP_RECEIVE_BUFFER_SIZE_PROFILE,
-                    TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
-                    TcpTransport.CONNECTIONS_PER_NODE_BULK,
-                    TcpTransport.CONNECTIONS_PER_NODE_REG,
-                    TcpTransport.CONNECTIONS_PER_NODE_STATE,
-                    TcpTransport.CONNECTIONS_PER_NODE_PING,
+                    TransportService.CONNECTIONS_PER_NODE_RECOVERY,
+                    TransportService.CONNECTIONS_PER_NODE_BULK,
+                    TransportService.CONNECTIONS_PER_NODE_REG,
+                    TransportService.CONNECTIONS_PER_NODE_STATE,
+                    TransportService.CONNECTIONS_PER_NODE_PING,
+                    TransportService.TCP_CONNECT_TIMEOUT,
                     TcpTransport.PING_SCHEDULE,
-                    TcpTransport.TCP_CONNECT_TIMEOUT,
                     NetworkService.NETWORK_SERVER,
                     TcpTransport.TCP_NO_DELAY,
                     TcpTransport.TCP_KEEP_ALIVE,
@@ -359,7 +391,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
                     ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
                     ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
-                    UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+                    SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
@@ -367,6 +399,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.MAX_KEEPALIVE_SETTING,
                     MultiBucketConsumerService.MAX_BUCKET_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
+                    SearchService.MAX_OPEN_SCROLL_CONTEXT,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
@@ -381,6 +414,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
+                    TcpTransport.DEFAULT_FEATURES_SETTING,
                     Loggers.LOG_DEFAULT_LEVEL_SETTING,
                     Loggers.LOG_LEVEL_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
@@ -422,6 +456,35 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.BREAKER_TYPE_KEY,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
-                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
+                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
+                    PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
+                    PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING,
+                    ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
+                    ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
+                    Coordinator.PUBLISH_TIMEOUT_SETTING,
+                    JoinHelper.JOIN_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
+                    LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING,
+                    LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
+                    LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
+                    Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
+                    TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
+                    ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
+                    ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+                    DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
+                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
             )));
+
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
+            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER));
+
 }

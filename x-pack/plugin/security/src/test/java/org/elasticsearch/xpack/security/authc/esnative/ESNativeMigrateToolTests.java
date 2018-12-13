@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -40,16 +41,18 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     public Settings nodeSettings(int nodeOrdinal) {
         logger.info("--> use SSL? {}", useSSL);
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+                .put(super.nodeSettings(nodeOrdinal));
         addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
                 "xpack.security.http.");
         builder.put("xpack.security.http.ssl.enabled", useSSL);
-        builder.put("xpack.security.http.ssl.client_authentication", "none");
-        builder.put("xpack.security.transport.ssl.enabled", useSSL);
         return builder.build();
     }
 
@@ -77,11 +80,11 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Set<String> addedUsers = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
             String uname = randomAlphaOfLength(5);
-            c.preparePutUser(uname, "s3kirt".toCharArray(), "role1", "user").get();
+            c.preparePutUser(uname, "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
             addedUsers.add(uname);
         }
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
 
         MockTerminal t = new MockTerminal();
         String username = nodeClientUsername();
@@ -127,7 +130,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
             addedRoles.add(rname);
         }
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
 
         MockTerminal t = new MockTerminal();
         String username = nodeClientUsername();
@@ -145,9 +148,18 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         OptionParser parser = muor.getParser();
         OptionSet options = parser.parse("-u", username, "-p", password, "-U", url);
         Set<String> roles = muor.getRolesThatExist(t, settings, new Environment(settings, conf), options);
-        logger.info("--> output: \n{}", t.getOutput());;
+        logger.info("--> output: \n{}", t.getOutput());
         for (String r : addedRoles) {
             assertThat("expected list to contain: " + r, roles.contains(r), is(true));
         }
+    }
+
+    public void testMissingPasswordParameter() {
+        ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
+
+        final OptionException ex = expectThrows(OptionException.class,
+            () -> muor.getParser().parse("-u", "elastic", "-U", "http://localhost:9200"));
+
+        assertThat(ex.getMessage(), containsString("password"));
     }
 }

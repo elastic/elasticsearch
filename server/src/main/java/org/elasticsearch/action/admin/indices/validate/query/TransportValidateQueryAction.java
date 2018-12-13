@@ -37,9 +37,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -54,16 +56,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.LongSupplier;
 
-public class TransportValidateQueryAction extends TransportBroadcastAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
+public class TransportValidateQueryAction extends TransportBroadcastAction<
+        ValidateQueryRequest,
+        ValidateQueryResponse,
+        ShardValidateQueryRequest,
+        ShardValidateQueryResponse> {
 
     private final SearchService searchService;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportValidateQueryAction(ClusterService clusterService,
             TransportService transportService, SearchService searchService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(ValidateQueryAction.NAME, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
     }
@@ -71,7 +78,39 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     @Override
     protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(task, request, listener);
+        LongSupplier timeProvider = () -> request.nowInMillis;
+        ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+            request.query(rewrittenQuery);
+            super.doExecute(task, request, listener);
+        },
+            ex -> {
+            if (ex instanceof IndexNotFoundException ||
+                ex instanceof IndexClosedException) {
+                listener.onFailure(ex);
+            }
+            List<QueryExplanation> explanations = new ArrayList<>();
+            explanations.add(new QueryExplanation(null,
+                QueryExplanation.RANDOM_SHARD,
+                false,
+                null,
+                ex.getMessage()));
+            listener.onResponse(
+                new ValidateQueryResponse(
+                    false,
+                    explanations,
+                    // totalShards is documented as "the total shards this request ran against",
+                    // which is 0 since the failure is happening on the coordinating node.
+                    0,
+                    0 ,
+                    0,
+                    null));
+        });
+        if (request.query() == null) {
+            rewriteListener.onResponse(request.query());
+        } else {
+            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider),
+                rewriteListener);
+        }
     }
 
     @Override
@@ -110,7 +149,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses,
+                                                ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         boolean valid = true;
@@ -148,7 +188,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws IOException {
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request, Task task) throws IOException {
         boolean valid;
         String explanation = null;
         String error = null;
@@ -164,7 +204,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         } catch (QueryShardException|ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
-        } catch (AssertionError|IOException e) {
+        } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
         } finally {
@@ -174,7 +214,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String explain(SearchContext context, boolean rewritten) throws IOException {
+    private String explain(SearchContext context, boolean rewritten) {
         Query query = context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();

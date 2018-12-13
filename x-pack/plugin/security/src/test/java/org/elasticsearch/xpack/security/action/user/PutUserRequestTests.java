@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,16 +37,6 @@ public class PutUserRequestTests extends ESTestCase {
         final ActionRequestValidationException validation = request.validate();
         assertThat(validation, is(notNullValue()));
         assertThat(validation.validationErrors(), contains(is("user is missing")));
-        assertThat(validation.validationErrors().size(), is(1));
-    }
-
-    public void testValidateRejectsUserNameThatHasInvalidCharacters() throws Exception {
-        final PutUserRequest request = new PutUserRequest();
-        request.username("fóóbár");
-        request.roles("bar");
-        final ActionRequestValidationException validation = request.validate();
-        assertThat(validation, is(notNullValue()));
-        assertThat(validation.validationErrors(), contains(containsString("must be")));
         assertThat(validation.validationErrors().size(), is(1));
     }
 

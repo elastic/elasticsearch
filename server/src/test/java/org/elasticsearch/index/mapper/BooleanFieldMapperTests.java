@@ -30,13 +30,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -49,16 +45,13 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     private IndexService indexService;
     private DocumentMapperParser parser;
-    private DocumentMapperParser preEs6Parser;
 
     @Before
     public void setup() {
@@ -107,7 +100,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        FieldMapper mapper = defaultMapper.mappers().getMapper("field");
+        Mapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -149,7 +142,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
                 () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)));
-        assertEquals("failed to parse [field]", ex.getMessage());
+        assertEquals("failed to parse field [field] of type [boolean]", ex.getMessage());
     }
 
     public void testMultiFields() throws IOException {

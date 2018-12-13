@@ -15,16 +15,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
 import java.util.List;
 import java.util.Set;
@@ -34,10 +33,10 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
         GetDatafeedsStatsAction.Response> {
 
     @Inject
-    public TransportGetDatafeedsStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetDatafeedsStatsAction(TransportService transportService, ClusterService clusterService,
                                             ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetDatafeedsStatsAction.Request::new, indexNameExpressionResolver);
     }
 
@@ -56,11 +55,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                    ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
-        MlMetadata mlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
-
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
         Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
 
         PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -74,8 +69,8 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
 
     private static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(String datafeedId, ClusterState state,
                                                                                    PersistentTasksCustomMetaData tasks) {
-        PersistentTasksCustomMetaData.PersistentTask<?> task = MlMetadata.getDatafeedTask(datafeedId, tasks);
-        DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
+        DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasks);
         DiscoveryNode node = null;
         String explanation = null;
         if (task != null) {

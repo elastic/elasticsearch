@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.example.realm;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -50,7 +51,7 @@ public class CustomRealmIT extends ESIntegTestCase {
 
     public void testHttpConnectionWithNoAuthentication() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/");
+            getRestClient().performRequest(new Request("GET", "/"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -61,9 +62,12 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        Response response = getRestClient().performRequest("GET", "/",
-                new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
-                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString()));
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER);
+        options.addHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString());
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
@@ -114,8 +118,8 @@ public class CustomRealmIT extends ESIntegTestCase {
         for(NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
-            assertNull(settings.get("xpack.security.authc.realms.custom.filtered_setting"));
-            assertEquals(CustomRealm.TYPE, settings.get("xpack.security.authc.realms.custom.type"));
+            assertNull(settings.get("xpack.security.authc.realms.custom.custom.filtered_setting"));
+            assertEquals("0", settings.get("xpack.security.authc.realms.custom.custom.order"));
         }
     }
 }

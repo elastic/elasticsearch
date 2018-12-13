@@ -69,7 +69,7 @@ public class ProcessProbeTests extends ESTestCase {
 
         ProcessStats.Mem mem = stats.getMem();
         assertNotNull(mem);
-        // Commited total virtual memory can return -1 if not supported, let's see which platforms fail
+        // Committed total virtual memory can return -1 if not supported, let's see which platforms fail
         assertThat(mem.getTotalVirtual().getBytes(), greaterThan(0L));
     }
 }

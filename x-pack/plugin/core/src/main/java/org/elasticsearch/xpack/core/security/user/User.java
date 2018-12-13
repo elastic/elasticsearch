@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -13,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -128,7 +126,7 @@ public class User implements ToXContentObject {
         sb.append(",fullName=").append(fullName);
         sb.append(",email=").append(email);
         sb.append(",metadata=");
-        MetadataUtils.writeValue(sb, metadata);
+        sb.append(metadata);
         if (authenticatedUser != null) {
             sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
@@ -186,12 +184,7 @@ public class User implements ToXContentObject {
         boolean hasInnerUser = input.readBoolean();
         if (hasInnerUser) {
             User innerUser = readFrom(input);
-            if (input.getVersion().onOrBefore(Version.V_5_4_0)) {
-                // backcompat: runas user was read first, so reverse outer and inner
-                return new User(innerUser, outerUser);
-            } else {
-                return new User(outerUser, innerUser);
-            }
+            return new User(outerUser, innerUser);
         } else {
             return outerUser;
         }
@@ -207,11 +200,6 @@ public class User implements ToXContentObject {
     public static void writeTo(User user, StreamOutput output) throws IOException {
         if (user.authenticatedUser == null) {
             // no backcompat necessary, since there is no inner user
-            writeUser(user, output);
-        } else if (output.getVersion().onOrBefore(Version.V_5_4_0)) {
-            // backcompat: write runas user as the "inner" user
-            writeUser(user.authenticatedUser, output);
-            output.writeBoolean(true);
             writeUser(user, output);
         } else {
             writeUser(user, output);
@@ -242,6 +230,10 @@ public class User implements ToXContentObject {
         ParseField METADATA = new ParseField("metadata");
         ParseField ENABLED = new ParseField("enabled");
         ParseField TYPE = new ParseField("type");
+        ParseField AUTHENTICATION_REALM = new ParseField("authentication_realm");
+        ParseField LOOKUP_REALM = new ParseField("lookup_realm");
+        ParseField REALM_TYPE = new ParseField("type");
+        ParseField REALM_NAME = new ParseField("name");
     }
 }
 

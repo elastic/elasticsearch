@@ -21,11 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
-import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PermissionCollection;
@@ -34,51 +30,28 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
-    public void test() throws IOException {
-        long[][] values = new long[between(3, 10)][];
-        ReadableDateTime[][] expectedDates = new ReadableDateTime[values.length][];
-        for (int d = 0; d < values.length; d++) {
-            values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
-            expectedDates[d] = new ReadableDateTime[values[d].length];
-            for (int i = 0; i < values[d].length; i++) {
-                expectedDates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
-                values[d][i] = expectedDates[d][i].getMillis();
-            }
-        }
+
+    public void testGetValues() {
+        Set<String> keys = new HashSet<>();
         Set<String> warnings = new HashSet<>();
-        Dates dates = wrap(values, deprecationMessage -> {
+
+        Dates dates = biconsumerWrap((deprecationKey, deprecationMessage) -> {
+            keys.add(deprecationKey);
             warnings.add(deprecationMessage);
-            /* Create a temporary directory to prove we are running with the
-             * server's permissions. */
+
+            // Create a temporary directory to prove we are running with the server's permissions.
             createTempDir();
         });
 
-        for (int round = 0; round < 10; round++) {
-            int d = between(0, values.length - 1);
-            dates.setNextDocId(d);
-            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dates.getValue());
-            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dates.getDate());
-
-            assertEquals(values[d].length, dates.size());
-            for (int i = 0; i < values[d].length; i++) {
-                assertEquals(expectedDates[d][i], dates.get(i));
-            }
-
-            Exception e = expectThrows(UnsupportedOperationException.class, () -> dates.add(new DateTime()));
-            assertEquals("doc values are unmodifiable", e.getMessage());
-        }
-
         /*
-         * Invoke getDates without any privileges to verify that
-         * it still works without any. In particularly, this
-         * verifies that the callback that we've configured
-         * above works. That callback creates a temporary
-         * directory which is not possible with "noPermissions".
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
          */
         PermissionCollection noPermissions = new Permissions();
         AccessControlContext noPermissionsAcc = new AccessControlContext(
@@ -86,36 +59,34 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
                 new ProtectionDomain(null, noPermissions)
             }
         );
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
             public Void run() {
-                dates.getDates();
+                dates.getValues();
                 return null;
             }
         }, noPermissionsAcc);
 
-        assertThat(warnings, containsInAnyOrder(
-            "getDate is no longer necessary on date fields as the value is now a date.",
-            "getDates is no longer necessary on date fields as the values are now dates."));
+        assertThat(warnings, contains(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+           + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, contains("ScriptDocValues#getValues"));
+
+
     }
 
-    private Dates wrap(long[][] values, Consumer<String> deprecationHandler) {
+    private Dates biconsumerWrap(BiConsumer<String, String> deprecationHandler) {
         return new Dates(new AbstractSortedNumericDocValues() {
-            long[] current;
-            int i;
-
             @Override
             public boolean advanceExact(int doc) {
-                current = values[doc];
-                i = 0;
-                return current.length > 0;
+                return true;
             }
             @Override
             public int docValueCount() {
-                return current.length;
+                return 0;
             }
             @Override
             public long nextValue() {
-                return current[i++];
+                return 0L;
             }
         }, deprecationHandler);
     }

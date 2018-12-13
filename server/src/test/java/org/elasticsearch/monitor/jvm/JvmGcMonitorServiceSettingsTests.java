@@ -42,7 +42,10 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     public void testEmptySettingsAreOkay() throws InterruptedException {
         AtomicBoolean scheduled = new AtomicBoolean();
         execute(Settings.EMPTY,
-            (command, interval, name) -> { scheduled.set(true); return new MockCancellable(); },
+                (command, interval, name) -> {
+                    scheduled.set(true);
+                    return new MockCancellable();
+                },
             () -> assertTrue(scheduled.get()));
     }
 
@@ -50,7 +53,10 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("monitor.jvm.gc.enabled", "false").build();
         AtomicBoolean scheduled = new AtomicBoolean();
         execute(settings,
-            (command, interval, name) -> { scheduled.set(true); return new MockCancellable(); },
+                (command, interval, name) -> {
+                    scheduled.set(true);
+                    return new MockCancellable();
+                },
             () -> assertFalse(scheduled.get()));
     }
 

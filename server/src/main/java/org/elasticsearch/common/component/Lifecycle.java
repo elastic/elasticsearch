@@ -69,28 +69,28 @@ public class Lifecycle {
     }
 
     /**
-     * Returns <tt>true</tt> if the state is initialized.
+     * Returns {@code true} if the state is initialized.
      */
     public boolean initialized() {
         return state == State.INITIALIZED;
     }
 
     /**
-     * Returns <tt>true</tt> if the state is started.
+     * Returns {@code true} if the state is started.
      */
     public boolean started() {
         return state == State.STARTED;
     }
 
     /**
-     * Returns <tt>true</tt> if the state is stopped.
+     * Returns {@code true} if the state is stopped.
      */
     public boolean stopped() {
         return state == State.STOPPED;
     }
 
     /**
-     * Returns <tt>true</tt> if the state is closed.
+     * Returns {@code true} if the state is closed.
      */
     public boolean closed() {
         return state == State.CLOSED;

@@ -66,7 +66,7 @@ public class RewriteableTests extends ESTestCase {
 
     public void testRewriteList() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
-        List<TestRewriteable> rewriteableList = new ArrayList();
+        List<TestRewriteable> rewriteableList = new ArrayList<>();
         int numInstances = randomIntBetween(1, 10);
         rewriteableList.add(new TestRewriteable(randomIntBetween(1, Rewriteable.MAX_REWRITE_ROUNDS)));
         for (int i = 0; i < numInstances; i++) {
@@ -103,7 +103,7 @@ public class RewriteableTests extends ESTestCase {
             this(numRewrites, fetch, null);
         }
 
-        TestRewriteable(int numRewrites, boolean fetch, Supplier supplier) {
+        TestRewriteable(int numRewrites, boolean fetch, Supplier<Boolean> supplier) {
             this.numRewrites = numRewrites;
             this.fetch = fetch;
             this.supplier = supplier;

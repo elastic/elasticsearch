@@ -92,8 +92,8 @@ public class ExternalMapper extends FieldMapper {
 
             setupFieldType(context);
 
-            return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper,
+                shapeMapper, stringMapper, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -156,7 +156,8 @@ public class ExternalMapper extends FieldMapper {
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
+                          MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
@@ -168,7 +169,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
         binMapper.parse(context.createExternalValueContext(bytes));
 
@@ -181,7 +182,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = new PointBuilder(-100, 45).build();
+        Point shape = new PointBuilder(-100, 45).buildS4J();
         shapeMapper.parse(context.createExternalValueContext(shape));
 
         context = context.createExternalValueContext(generatedValue);
@@ -190,7 +191,6 @@ public class ExternalMapper extends FieldMapper {
         stringMapper.parse(context);
 
         multiFields.parse(this, context);
-        return null;
     }
 
     @Override

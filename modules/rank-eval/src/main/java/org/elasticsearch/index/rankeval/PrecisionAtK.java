@@ -30,7 +30,7 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 import javax.naming.directory.SearchResult;
 
@@ -144,8 +144,8 @@ public class PrecisionAtK implements EvaluationMetric {
     }
 
     @Override
-    public Optional<Integer> forcedSearchSize() {
-        return Optional.of(k);
+    public OptionalInt forcedSearchSize() {
+        return OptionalInt.of(k);
     }
 
     public static PrecisionAtK fromXContent(XContentParser parser) {
@@ -164,9 +164,9 @@ public class PrecisionAtK implements EvaluationMetric {
         int falsePositives = 0;
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
         for (RatedSearchHit hit : ratedSearchHits) {
-            Optional<Integer> rating = hit.getRating();
+            OptionalInt rating = hit.getRating();
             if (rating.isPresent()) {
-                if (rating.get() >= this.relevantRatingThreshhold) {
+                if (rating.getAsInt() >= this.relevantRatingThreshhold) {
                     truePositives++;
                 } else {
                     falsePositives++;

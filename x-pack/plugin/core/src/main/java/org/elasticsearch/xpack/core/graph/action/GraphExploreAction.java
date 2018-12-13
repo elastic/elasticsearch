@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.core.graph.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 
-public class GraphExploreAction extends Action<GraphExploreRequest, GraphExploreResponse, 
-    GraphExploreRequestBuilder> {
+public class GraphExploreAction extends Action<GraphExploreResponse> {
 
     public static final GraphExploreAction INSTANCE = new GraphExploreAction();
     public static final String NAME = "indices:data/read/xpack/graph/explore";
@@ -21,10 +20,5 @@ public class GraphExploreAction extends Action<GraphExploreRequest, GraphExplore
     @Override
     public GraphExploreResponse newResponse() {
         return new GraphExploreResponse();
-    }
-
-    @Override
-    public GraphExploreRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GraphExploreRequestBuilder(client, this);
     }
 }

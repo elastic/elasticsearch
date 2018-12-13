@@ -155,7 +155,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                fieldParser = getParser(currentFieldName);
+                fieldParser = getParser(currentFieldName, parser);
             } else {
                 if (currentFieldName == null) {
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
@@ -324,9 +324,31 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         switch (token) {
             case START_OBJECT:
                 parseValue(parser, fieldParser, currentFieldName, value, context);
+                /*
+                 * Well behaving parsers should consume the entire object but
+                 * asserting that they do that is not something we can do
+                 * efficiently here. Instead we can check that they end on an
+                 * END_OBJECT. They could end on the *wrong* end object and
+                 * this test won't catch them, but that is the price that we pay
+                 * for having a cheap test.
+                 */
+                if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                    throw new IllegalStateException("parser for [" + currentFieldName + "] did not end on END_OBJECT");
+                }
                 break;
             case START_ARRAY:
                 parseArray(parser, fieldParser, currentFieldName, value, context);
+                /*
+                 * Well behaving parsers should consume the entire array but
+                 * asserting that they do that is not something we can do
+                 * efficiently here. Instead we can check that they end on an
+                 * END_ARRAY. They could end on the *wrong* end array and
+                 * this test won't catch them, but that is the price that we pay
+                 * for having a cheap test.
+                 */
+                if (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                    throw new IllegalStateException("parser for [" + currentFieldName + "] did not end on END_ARRAY");
+                }
                 break;
             case END_OBJECT:
             case END_ARRAY:
@@ -341,10 +363,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private FieldParser getParser(String fieldName) {
+    private FieldParser getParser(String fieldName, XContentParser xContentParser) {
         FieldParser parser = fieldParserMap.get(fieldName);
         if (parser == null && false == ignoreUnknownFields) {
-            throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
+            throw new XContentParseException(xContentParser.getTokenLocation(),
+                    "[" + name + "] unknown field [" + fieldName + "], parser not found");
         }
         return parser;
     }
@@ -410,9 +433,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         INT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
         BOOLEAN_ARRAY(START_ARRAY, VALUE_BOOLEAN),
         OBJECT(START_OBJECT),
+        OBJECT_OR_NULL(START_OBJECT, VALUE_NULL),
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
+        OBJECT_OR_LONG(START_OBJECT, VALUE_NUMBER),
         OBJECT_ARRAY_BOOLEAN_OR_STRING(START_OBJECT, START_ARRAY, VALUE_BOOLEAN, VALUE_STRING),
         OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING),

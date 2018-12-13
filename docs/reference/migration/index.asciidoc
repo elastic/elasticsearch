@@ -17,6 +17,9 @@ As a general rule:
 * Migration between non-consecutive major versions -- e.g. `5.x` to `7.x` --
   is not supported.
 
-See <<setup-upgrade>> for more info.
+For more information, see <<setup-upgrade>>.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
 --
 include::migrate_7_0.asciidoc[]

@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import com.google.common.collect.Iterables;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
@@ -17,12 +20,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -64,39 +65,45 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class ExecutionService extends AbstractComponent {
+public class ExecutionService {
 
     public static final Setting<TimeValue> DEFAULT_THROTTLE_PERIOD_SETTING =
         Setting.positiveTimeSetting("xpack.watcher.execution.default_throttle_period",
-                                    TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(ExecutionService.class);
 
     private final MeanMetric totalExecutionsTime = new MeanMetric();
     private final Map<String, MeanMetric> actionByTypeExecutionTime = new HashMap<>();
 
-    private final HistoryStore historyStore;
-    private final TriggeredWatchStore triggeredWatchStore;
-    private final WatchExecutor executor;
-    private final Clock clock;
     private final TimeValue defaultThrottlePeriod;
     private final TimeValue maxStopTimeout;
+    private final TimeValue indexDefaultTimeout;
+
+    private final HistoryStore historyStore;
+    private final TriggeredWatchStore triggeredWatchStore;
+    private final Clock clock;
     private final WatchParser parser;
     private final ClusterService clusterService;
     private final Client client;
-    private final TimeValue indexDefaultTimeout;
+    private final WatchExecutor executor;
+    private final ExecutorService genericExecutor;
 
-    private volatile CurrentExecutions currentExecutions;
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private AtomicReference<CurrentExecutions> currentExecutions = new AtomicReference<>();
+    private final AtomicBoolean paused = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            Clock clock, WatchParser parser, ClusterService clusterService, Client client) {
-        super(settings);
+                            Clock clock, WatchParser parser, ClusterService clusterService, Client client,
+                            ExecutorService genericExecutor) {
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executor = executor;
@@ -106,52 +113,35 @@ public class ExecutionService extends AbstractComponent {
         this.parser = parser;
         this.clusterService = clusterService;
         this.client = client;
+        this.genericExecutor = genericExecutor;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
+        this.currentExecutions.set(new CurrentExecutions());
     }
 
-    public synchronized void start() throws Exception {
-        if (started.get()) {
-            return;
-        }
-
-        assert executor.queue().isEmpty() : "queue should be empty, but contains " + executor.queue().size() + " elements.";
-        if (started.compareAndSet(false, true)) {
-            try {
-                logger.debug("starting execution service");
-                historyStore.start();
-                triggeredWatchStore.start();
-                currentExecutions = new CurrentExecutions();
-                logger.debug("started execution service");
-            } catch (Exception e) {
-                started.set(false);
-                throw e;
-            }
-        }
-    }
-
-    public boolean validate(ClusterState state) {
-        return triggeredWatchStore.validate(state) && HistoryStore.validate(state);
-    }
-
-    public synchronized void stop() {
-        if (started.compareAndSet(true, false)) {
-            logger.debug("stopping execution service");
-            // We could also rely on the shutdown in #updateSettings call, but
-            // this is a forceful shutdown that also interrupts the worker threads in the thread pool
-            int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
-
-            this.clearExecutions();
-            triggeredWatchStore.stop();
-            historyStore.stop();
-            logger.debug("stopped execution service, cancelled [{}] queued tasks", cancelledTaskCount);
-        }
+    public void unPause() {
+        paused.set(false);
     }
 
     /**
-     * Pause the execution of the watcher executor
+     * Pause the execution of the watcher executor, and empty the state.
+     * Pausing means, that no new watch executions will be done unless this pausing is explicitly unset.
+     * This is important when watcher is stopped, so that scheduled watches do not accidentally get executed.
+     * This should not be used when we need to reload watcher based on some cluster state changes, then just calling
+     * {@link #clearExecutionsAndQueue()} is the way to go
+     *
      * @return the number of tasks that have been removed
      */
-    public synchronized int pauseExecution() {
+    public int pause() {
+        paused.set(true);
+        return clearExecutionsAndQueue();
+    }
+
+    /**
+     * Empty the currently queued tasks and wait for current executions to finish.
+     *
+     * @return the number of tasks that have been removed
+     */
+    public int clearExecutionsAndQueue() {
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions();
         return cancelledTaskCount;
@@ -171,12 +161,12 @@ public class ExecutionService extends AbstractComponent {
 
     // for testing only
     CurrentExecutions getCurrentExecutions() {
-        return currentExecutions;
+        return currentExecutions.get();
     }
 
     public List<WatchExecutionSnapshot> currentExecutions() {
         List<WatchExecutionSnapshot> currentExecutions = new ArrayList<>();
-        for (WatchExecution watchExecution : this.currentExecutions) {
+        for (WatchExecution watchExecution : this.currentExecutions.get()) {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:
@@ -203,26 +193,28 @@ public class ExecutionService extends AbstractComponent {
     }
 
     void processEventsAsync(Iterable<TriggerEvent> events) throws Exception {
-        if (!started.get()) {
-            throw new IllegalStateException("not started");
+        if (paused.get()) {
+            logger.debug("watcher execution service paused, not processing [{}] events", Iterables.size(events));
+            return;
         }
         Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> watchesAndContext = createTriggeredWatchesAndContext(events);
         List<TriggeredWatch> triggeredWatches = watchesAndContext.v1();
         triggeredWatchStore.putAll(triggeredWatches, ActionListener.wrap(
-                response -> executeTriggeredWatches(response, watchesAndContext),
-                e -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof EsRejectedExecutionException) {
-                        logger.debug("failed to store watch records due to filled up watcher threadpool");
-                    } else {
-                        logger.warn("failed to store watch records", e);
-                    }
-                }));
+            response -> executeTriggeredWatches(response, watchesAndContext),
+            e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof EsRejectedExecutionException) {
+                    logger.debug("failed to store watch records due to filled up watcher threadpool");
+                } else {
+                    logger.warn("failed to store watch records", e);
+                }
+            }));
     }
 
     void processEventsSync(Iterable<TriggerEvent> events) throws IOException {
-        if (!started.get()) {
-            throw new IllegalStateException("not started");
+        if (paused.get()) {
+            logger.debug("watcher execution service paused, not processing [{}] events", Iterables.size(events));
+            return;
         }
         Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> watchesAndContext = createTriggeredWatchesAndContext(events);
         List<TriggeredWatch> triggeredWatches = watchesAndContext.v1();
@@ -279,7 +271,7 @@ public class ExecutionService extends AbstractComponent {
         WatchRecord record = null;
         final String watchId = ctx.id().watchId();
         try {
-            boolean executionAlreadyExists = currentExecutions.put(watchId, new WatchExecution(ctx, Thread.currentThread()));
+            boolean executionAlreadyExists = currentExecutions.get().put(watchId, new WatchExecution(ctx, Thread.currentThread()));
             if (executionAlreadyExists) {
                 logger.trace("not executing watch [{}] because it is already queued", watchId);
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
@@ -330,13 +322,10 @@ public class ExecutionService extends AbstractComponent {
                         // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
                 }
-                try {
-                    triggeredWatchStore.delete(ctx.id());
-                } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
-                }
+
+                triggeredWatchStore.delete(ctx.id());
             }
-            currentExecutions.remove(watchId);
+            currentExecutions.get().remove(watchId);
             logger.debug("finished [{}]/[{}]", watchId, ctx.id());
         }
         return record;
@@ -351,16 +340,16 @@ public class ExecutionService extends AbstractComponent {
     public void updateWatchStatus(Watch watch) throws IOException {
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
-        // we do not want to update the status.state field, as it might have been deactivated inbetween
+        // we do not want to update the status.state field, as it might have been deactivated in-between
         Map<String, String> parameters = MapBuilder.<String, String>newMapBuilder()
-                .put(Watch.INCLUDE_STATUS_KEY, "true")
-                .put(WatchStatus.INCLUDE_STATE, "false")
-                .immutableMap();
+            .put(Watch.INCLUDE_STATUS_KEY, "true")
+            .put(WatchStatus.INCLUDE_STATE, "false")
+            .immutableMap();
         ToXContent.MapParams params = new ToXContent.MapParams(parameters);
         XContentBuilder source = JsonXContent.contentBuilder().
-                startObject()
-                .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
-                .endObject();
+            startObject()
+            .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
+            .endObject();
 
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
         updateRequest.doc(source);
@@ -400,7 +389,6 @@ public class ExecutionService extends AbstractComponent {
        The execution of an watch is split into two phases:
        1. the trigger part which just makes sure to store the associated watch record in the history
        2. the actual processing of the watch
-
        The reason this split is that we don't want to lose the fact watch was triggered. This way, even if the
        thread pool that executes the watches is completely busy, we don't lose the fact that the watch was
        triggered (it'll have its history record)
@@ -419,18 +407,12 @@ public class ExecutionService extends AbstractComponent {
                 }
             } catch (Exception exc) {
                 logger.error((Supplier<?>) () ->
-                        new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
-                                triggeredWatch.id()), exc);
+                    new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
+                        triggeredWatch.id()), exc);
             }
 
-            try {
-                triggeredWatchStore.delete(triggeredWatch.id());
-            } catch (Exception exc) {
-                logger.error((Supplier<?>) () ->
-                        new ParameterizedMessage("Error deleting triggered watch store record for watch [{}] after thread pool " +
-                                "rejection", triggeredWatch.id()), exc);
-            }
-        };
+            triggeredWatchStore.delete(triggeredWatch.id());
+        }
     }
 
     WatchRecord executeInner(WatchExecutionContext ctx) {
@@ -494,15 +476,15 @@ public class ExecutionService extends AbstractComponent {
             GetResponse response = getWatch(triggeredWatch.id().watchId());
             if (response.isExists() == false) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
-                        "], perhaps it has been deleted, ignoring...";
+                    "], perhaps it has been deleted, ignoring...";
                 WatchRecord record = new WatchRecord.MessageWatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),
-                        ExecutionState.NOT_EXECUTED_WATCH_MISSING, message, clusterService.localNode().getId());
+                    ExecutionState.NOT_EXECUTED_WATCH_MISSING, message, clusterService.localNode().getId());
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
                 DateTime now = new DateTime(clock.millis(), UTC);
                 TriggeredExecutionContext ctx = new TriggeredExecutionContext(triggeredWatch.id().watchId(), now,
-                                                                              triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
+                    triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
                 executeAsync(ctx, triggeredWatch);
                 counter++;
             }
@@ -541,9 +523,10 @@ public class ExecutionService extends AbstractComponent {
      * This clears out the current executions and sets new empty current executions
      * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
      */
-    public synchronized void clearExecutions() {
-        currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
-        currentExecutions = new CurrentExecutions();
+    private void clearExecutions() {
+        final CurrentExecutions currentExecutionsBeforeSetting = currentExecutions.getAndSet(new CurrentExecutions());
+        // clear old executions in background, no need to wait
+        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout));
     }
 
     // the watch execution task takes another runnable as parameter

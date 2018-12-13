@@ -41,7 +41,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
     }
 
     /**
-     * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch verison
+     * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch version
      */
     public static PreConfiguredCharFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
             BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
@@ -83,12 +83,10 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
         return useFilterForMultitermQueries;
     }
 
-    private interface MultiTermAwareCharFilterFactory extends CharFilterFactory, MultiTermAwareComponent {}
-
     @Override
     protected CharFilterFactory create(Version version) {
         if (useFilterForMultitermQueries) {
-            return new MultiTermAwareCharFilterFactory() {
+            return new NormalizingCharFilterFactory() {
                 @Override
                 public String name() {
                     return getName();
@@ -97,11 +95,6 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
                 @Override
                 public Reader create(Reader reader) {
                     return create.apply(reader, version);
-                }
-
-                @Override
-                public Object getMultiTermComponent() {
-                    return this;
                 }
             };
         }

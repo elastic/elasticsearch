@@ -2,21 +2,89 @@
 [[security-api]]
 == Security APIs
 
+You can use the following APIs to perform {security} activities.
+
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
-* <<security-api-privileges>>
-* <<security-api-roles>>
-* <<security-api-role-mapping>>
+* <<security-api-has-privileges>>
 * <<security-api-ssl>>
-* <<security-api-tokens>>
-* <<security-api-users>>
 
+[float]
+[[security-api-app-privileges]]
+=== Application privileges
+
+You can use the following APIs to add, update, retrieve, and remove application 
+privileges:
+
+* <<security-api-put-privileges,Create or update privileges>> 
+* <<security-api-delete-privilege,Delete privileges>>
+* <<security-api-get-privileges,Get privileges>>
+
+[float]
+[[security-role-mapping-apis]]
+=== Role mappings
+
+You can use the following APIs to add, remove, update, and retrieve role mappings:
+
+* <<security-api-put-role-mapping,Create or update role mappings>> 
+* <<security-api-delete-role-mapping,Delete role mappings>>
+* <<security-api-get-role-mapping,Get role mappings>>
+
+[float]
+[[security-role-apis]]
+=== Roles
+
+You can use the following APIs to add, remove, update, and retrieve roles in the native realm:
+
+* <<security-api-put-role,Create or update roles>>
+* <<security-api-clear-role-cache,Clear roles cache>>
+* <<security-api-delete-role,Delete roles>>
+* <<security-api-get-role,Get roles>>
+
+[float]
+[[security-token-apis]]
+=== Tokens
+
+You can use the following APIs to create and invalidate bearer tokens for access
+without requiring basic authentication:
+
+* <<security-api-get-token,Get token>>
+* <<security-api-invalidate-token,Invalidate token>>
+
+[float]
+[[security-user-apis]]
+=== Users
+
+You can use the following APIs to add, remove, update, or retrieve users in the
+native realm:
+
+* <<security-api-put-user,Create or update users>>
+* <<security-api-change-password,Change passwords>>
+* <<security-api-delete-user,Delete users>>
+* <<security-api-disable-user,Disable users>>
+* <<security-api-enable-user,Enable users>>
+* <<security-api-get-user,Get users>>
+
+
+include::security/put-app-privileges.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
-include::security/privileges.asciidoc[]
-include::security/roles.asciidoc[]
-include::security/role-mapping.asciidoc[]
+include::security/create-role-mappings.asciidoc[]
+include::security/clear-roles-cache.asciidoc[]
+include::security/create-roles.asciidoc[]
+include::security/create-users.asciidoc[]
+include::security/delete-app-privileges.asciidoc[]
+include::security/delete-role-mappings.asciidoc[]
+include::security/delete-roles.asciidoc[]
+include::security/delete-users.asciidoc[]
+include::security/disable-users.asciidoc[]
+include::security/enable-users.asciidoc[]
+include::security/get-app-privileges.asciidoc[]
+include::security/get-role-mappings.asciidoc[]
+include::security/get-roles.asciidoc[]
+include::security/get-tokens.asciidoc[]
+include::security/get-users.asciidoc[]
+include::security/has-privileges.asciidoc[]
+include::security/invalidate-tokens.asciidoc[]
 include::security/ssl.asciidoc[]
-include::security/tokens.asciidoc[]
-include::security/users.asciidoc[]

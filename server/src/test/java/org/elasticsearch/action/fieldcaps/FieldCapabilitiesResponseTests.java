@@ -19,26 +19,24 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
+
 
 public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
 
@@ -54,22 +52,46 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
 
     @Override
     protected FieldCapabilitiesResponse createTestInstance() {
-        Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+        if (randomBoolean()) {
+            // merged responses
+            Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+
+            String[] fields = generateRandomStringArray(5, 10, false, true);
+            assertNotNull(fields);
+
+            for (String field : fields) {
+                Map<String, FieldCapabilities> typesToCapabilities = new HashMap<>();
+                String[] types = generateRandomStringArray(5, 10, false, false);
+                assertNotNull(types);
+
+                for (String type : types) {
+                    typesToCapabilities.put(type, FieldCapabilitiesTests.randomFieldCaps(field));
+                }
+                responses.put(field, typesToCapabilities);
+            }
+            return new FieldCapabilitiesResponse(responses);
+        } else {
+            // non-merged responses
+            List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+            int numResponse = randomIntBetween(0, 10);
+            for (int i = 0; i < numResponse; i++) {
+                responses.add(createRandomIndexResponse());
+            }
+            return new FieldCapabilitiesResponse(responses);
+        }
+    }
+
+
+    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+        Map<String, FieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);
         assertNotNull(fields);
 
         for (String field : fields) {
-            Map<String, FieldCapabilities> typesToCapabilities = new HashMap<>();
-            String[] types = generateRandomStringArray(5, 10, false, false);
-            assertNotNull(types);
-
-            for (String type : types) {
-                typesToCapabilities.put(type, FieldCapabilitiesTests.randomFieldCaps(field));
-            }
-            responses.put(field, typesToCapabilities);
+            responses.put(field, FieldCapabilitiesTests.randomFieldCaps(field));
         }
-        return new FieldCapabilitiesResponse(responses);
+        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
     }
 
     @Override
@@ -110,10 +132,8 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
     public void testToXContent() throws IOException {
         FieldCapabilitiesResponse response = createSimpleResponse();
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)
-            .startObject();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
 
         String generatedResponse = BytesReference.bytes(builder).utf8ToString();
         assertEquals((
@@ -144,6 +164,11 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
             "        }" +
             "    }" +
             "}").replaceAll("\\s+", ""), generatedResponse);
+    }
+
+    public void testEmptyResponse() throws IOException {
+        FieldCapabilitiesResponse testInstance = new FieldCapabilitiesResponse();
+        assertSerialization(testInstance);
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {

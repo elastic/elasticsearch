@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -15,14 +14,13 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 
 public final class UserSettings {
-    private final Logger logger;
+    private final Logger logger = LogManager.getLogger(UserSettings.class);
+
     private final ThreadContext threadContext;
 
-    UserSettings(Settings settings, ThreadContext threadContext) {
-        this.logger = Loggers.getLogger(getClass(), settings);
+    UserSettings(ThreadContext threadContext) {
         this.threadContext = threadContext;
     }
-
 
     /**
      * Returns the current user information, or null if the current request has no authentication info.

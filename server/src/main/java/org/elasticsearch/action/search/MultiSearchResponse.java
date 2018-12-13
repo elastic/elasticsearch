@@ -135,6 +135,10 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     MultiSearchResponse() {
     }
 
+    MultiSearchResponse(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public MultiSearchResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
@@ -166,7 +170,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             tookInMillis = in.readVLong();
         }
     }
@@ -178,7 +182,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeVLong(tookInMillis);
         }
     }

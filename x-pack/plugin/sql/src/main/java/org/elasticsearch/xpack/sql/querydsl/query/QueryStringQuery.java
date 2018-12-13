@@ -33,12 +33,10 @@ public class QueryStringQuery extends LeafQuery {
         appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
         appliers.put("quote_analyzer", (qb, s) -> qb.quoteAnalyzer(s));
         appliers.put("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s)));
-        appliers.put("auto_generate_phrase_queries", (qb, s) -> qb.autoGeneratePhraseQueries(Booleans.parseBoolean(s)));
         appliers.put("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s)));
         appliers.put("lowercase_expanded_terms", (qb, s) -> {});
         appliers.put("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s)));
         appliers.put("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s)));
-        appliers.put("use_dis_max", (qb, s) -> qb.useDisMax(Booleans.parseBoolean(s)));
         appliers.put("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s)));
         appliers.put("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s)));
         appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
@@ -51,8 +49,6 @@ public class QueryStringQuery extends LeafQuery {
         appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));
         appliers.put("locale", (qb, s) -> {});
         appliers.put("time_zone", (qb, s) -> qb.timeZone(s));
-        appliers.put("split_on_whitespace", (qb, s) -> qb.splitOnWhitespace(Booleans.parseBoolean(s)));
-        appliers.put("all_fields", (qb, s) -> qb.useAllFields(Booleans.parseBoolean(s)));
         appliers.put("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE)));
         appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
         appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));

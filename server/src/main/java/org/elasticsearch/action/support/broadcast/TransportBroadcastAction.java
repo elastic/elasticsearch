@@ -35,7 +35,8 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -49,33 +50,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-public abstract class TransportBroadcastAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
-        extends HandledTransportAction<Request, Response> {
+public abstract class TransportBroadcastAction<
+            Request extends BroadcastRequest<Request>,
+            Response extends BroadcastResponse,
+            ShardRequest extends BroadcastShardRequest,
+            ShardResponse extends BroadcastShardResponse
+        > extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String transportShardAction;
+    private final String shardExecutor;
 
-    protected TransportBroadcastAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Supplier<Request> request, Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+    protected TransportBroadcastAction(String actionName, ClusterService clusterService,
+                                       TransportService transportService, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                       Supplier<ShardRequest> shardRequest, String shardExecutor) {
+        super(actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transportShardAction = actionName + "[s]";
+        this.shardExecutor = shardExecutor;
 
-        transportService.registerRequestHandler(transportShardAction, shardRequest, shardExecutor, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, shardRequest, ThreadPool.Names.SAME, new ShardTransportHandler());
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncBroadcastAction(task, request, listener).start();
-    }
-
-    @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
     }
 
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
@@ -84,11 +89,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws IOException;
-
-    protected ShardResponse shardOperation(ShardRequest request, Task task) throws IOException {
-        return shardOperation(request);
-    }
+    protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
@@ -175,26 +176,29 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
-                            @Override
-                            public ShardResponse newInstance() {
-                                return newShardResponse();
-                            }
+                        transportService.sendRequest(node, transportShardAction, shardRequest,
+                            new TransportResponseHandler<ShardResponse>() {
+                                @Override
+                                public ShardResponse read(StreamInput in) throws IOException {
+                                    ShardResponse response = newShardResponse();
+                                    response.readFrom(in);
+                                    return response;
+                                }
 
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
 
-                            @Override
-                            public void handleResponse(ShardResponse response) {
-                                onOperation(shard, shardIndex, response);
-                            }
+                                @Override
+                                public void handleResponse(ShardResponse response) {
+                                    onOperation(shard, shardIndex, response);
+                                }
 
-                            @Override
-                            public void handleException(TransportException e) {
-                                onOperation(shard, shardIt, shardIndex, e);
-                            }
+                                @Override
+                                public void handleException(TransportException e) {
+                                    onOperation(shard, shardIt, shardIndex, e);
+                                }
                         });
                     }
                 } catch (Exception e) {
@@ -212,7 +216,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
             }
         }
 
-        @SuppressWarnings({"unchecked"})
         void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)
@@ -284,12 +287,45 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            channel.sendResponse(shardOperation(request));
-        }
+            asyncShardOperation(request, task,  new ActionListener<ShardResponse>() {
+                @Override
+                public void onResponse(ShardResponse response) {
+                    try {
+                        channel.sendResponse(response);
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
 
-        @Override
-        public final void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required");
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception e1) {
+                        logger.warn(() -> new ParameterizedMessage(
+                            "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
+                    }
+                }
+            });
         }
     }
+
+    protected void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
+        transportService.getThreadPool().executor(getExecutor(request)).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                listener.onResponse(shardOperation(request, task));
+            }
+        });
+    }
+
+    protected String getExecutor(ShardRequest request) {
+        return shardExecutor;
+    }
+
 }

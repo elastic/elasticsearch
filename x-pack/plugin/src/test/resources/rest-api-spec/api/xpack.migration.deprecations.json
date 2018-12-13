@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/migration/current/migration-api-deprecation.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_xpack/migration/deprecations",
-      "paths": ["/_xpack/migration/deprecations", "/{index}/_xpack/migration/deprecations"],
+      "path": "/{index}/_migration/deprecations",
+      "paths": ["/_migration/deprecations", "/{index}/_migration/deprecations"],
       "parts": {
         "index": {
           "type" : "string",

@@ -1,0 +1,67 @@
+--
+:api: get-settings
+:request: GetSettingsRequest
+:response: GetSettingsResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Settings API
+
+[id="{upid}-{api}-request"]
+==== Get Settings Request
+
+A +{request}+ requires one or more `index` arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The index whose settings we should retrieve
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-names]
+--------------------------------------------------
+<1> One or more settings that be the only settings retrieved.  If unset, all settings will be retrieved
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-include-defaults]
+--------------------------------------------------
+<1> If true, defaults will be returned for settings not explicitly set on the index
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Settings Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> We can retrieve the setting value for a particular index directly from the response as a string
+<2> We can also retrieve the Settings object for a particular index for further examination
+<3> The returned Settings object provides convenience methods for non String types
+
+If the `includeDefaults` flag was set to true in the +{request}+ the
+behavior of +{response}+ will differ somewhat.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-defaults-response]
+--------------------------------------------------
+<1> Individual default setting values may be retrieved directly from the +{response}+
+<2> We may retrieve a Settings object for an index that contains those settings with default values

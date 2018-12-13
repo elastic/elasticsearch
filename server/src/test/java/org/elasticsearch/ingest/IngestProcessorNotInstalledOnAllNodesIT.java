@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.NodeService;
@@ -95,14 +95,14 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         installPlugin = true;
         String node1 = internalCluster().startNode();
 
-        WritePipelineResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
+        AcknowledgedResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
         assertThat(response.isAcknowledged(), is(true));
-        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipelineStore().get("_id");
+        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipeline("_id");
         assertThat(pipeline, notNullValue());
 
         installPlugin = false;
         String node2 = internalCluster().startNode();
-        pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipelineStore().get("_id");
+        pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipeline("_id");
 
         assertNotNull(pipeline);
         assertThat(pipeline.getId(), equalTo("_id"));

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,8 +54,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private String index;
 
-    protected CreateIndexResponse() {
-    }
+    public CreateIndexResponse() {}
 
     protected CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged, shardsAcknowledged);
@@ -66,21 +64,15 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readAcknowledged(in);
         readShardsAcknowledged(in);
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            index = in.readString();
-        }
+        index = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeAcknowledged(out);
         writeShardsAcknowledged(out);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeString(index);
-        }
+        out.writeString(index);
     }
 
     public String index() {

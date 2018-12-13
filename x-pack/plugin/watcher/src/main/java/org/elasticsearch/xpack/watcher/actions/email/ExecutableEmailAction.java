@@ -41,7 +41,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     }
 
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         Map<String, Attachment> attachments = new HashMap<>();
         DataAttachment dataAttachment = action.getDataAttachment();
@@ -63,7 +63,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         }
 
         Email.Builder email = action.getEmail().render(templateEngine, model, htmlSanitizer, attachments);
-        email.id(ctx.id().value());
+        email.id(actionId + "_" + ctx.id().value());
 
         if (ctx.simulateAction(actionId)) {
             return new EmailAction.Result.Simulated(email.build());

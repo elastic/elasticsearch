@@ -22,6 +22,7 @@
 "tasks_list headers":
   - skip:
       version: " - 6.99.99"
+      features: headers
       reason:  task headers has been added in 7.0.0
 
   - do:

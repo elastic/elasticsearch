@@ -28,7 +28,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,6 +124,17 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Rescore is not allowed on scroll requests
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.source().addRescorer(new QueryRescorerBuilder(QueryBuilders.matchAllQuery()));
+            searchRequest.requestCache(false);
+            searchRequest.scroll(new TimeValue(1000));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
     }
 

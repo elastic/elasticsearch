@@ -1,13 +1,14 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.sql.session.Configuration;
+
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import static java.lang.String.format;
 
@@ -17,13 +18,14 @@ public class FunctionDefinition {
      */
     @FunctionalInterface
     public interface Builder {
-        Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz);
+        Function build(UnresolvedFunction uf, boolean distinct, Configuration configuration);
     }
+
     private final String name;
     private final List<String> aliases;
     private final Class<? extends Function> clazz;
     /**
-     * Is this a datetime function comaptible with {@code EXTRACT}.
+     * Is this a datetime function compatible with {@code EXTRACT}.
      */
     private final boolean datetime;
     private final Builder builder;
@@ -60,7 +62,7 @@ public class FunctionDefinition {
     }
 
     /**
-     * Is this a datetime function comaptible with {@code EXTRACT}.
+     * Is this a datetime function compatible with {@code EXTRACT}.
      */
     boolean datetime() {
         return datetime;

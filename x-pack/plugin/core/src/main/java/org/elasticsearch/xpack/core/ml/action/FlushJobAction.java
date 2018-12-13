@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -26,7 +25,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response, FlushJobAction.RequestBuilder> {
+public class FlushJobAction extends Action<FlushJobAction.Response> {
 
     public static final FlushJobAction INSTANCE = new FlushJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
@@ -36,13 +35,13 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
+    public Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -79,6 +78,25 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         private String skipTime;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calcInterim = in.readBoolean();
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            advanceTime = in.readOptionalString();
+            skipTime = in.readOptionalString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(calcInterim);
+            out.writeOptionalString(start);
+            out.writeOptionalString(end);
+            out.writeOptionalString(advanceTime);
+            out.writeOptionalString(skipTime);
         }
 
         public Request(String jobId) {
@@ -126,30 +144,6 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calcInterim = in.readBoolean();
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            advanceTime = in.readOptionalString();
-            if (in.getVersion().after(Version.V_5_5_0)) {
-                skipTime = in.readOptionalString();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(calcInterim);
-            out.writeOptionalString(start);
-            out.writeOptionalString(end);
-            out.writeOptionalString(advanceTime);
-            if (out.getVersion().after(Version.V_5_5_0)) {
-                out.writeOptionalString(skipTime);
-            }
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime);
         }
@@ -193,7 +187,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, FlushJobAction action) {
             super(client, action, new Request());
@@ -205,14 +199,23 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         private boolean flushed;
         private Date lastFinalizedBucketEnd;
 
-        public Response() {
-            super(null, null);
-        }
-
         public Response(boolean flushed, @Nullable Date lastFinalizedBucketEnd) {
             super(null, null);
             this.flushed = flushed;
             this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            flushed = in.readBoolean();
+            lastFinalizedBucketEnd = new Date(in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(flushed);
+            out.writeVLong(lastFinalizedBucketEnd.getTime());
         }
 
         public boolean isFlushed() {
@@ -221,24 +224,6 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
         public Date getLastFinalizedBucketEnd() {
             return lastFinalizedBucketEnd;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            flushed = in.readBoolean();
-            if (in.getVersion().after(Version.V_5_5_0)) {
-                lastFinalizedBucketEnd = new Date(in.readVLong());
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(flushed);
-            if (out.getVersion().after(Version.V_5_5_0)) {
-                out.writeVLong(lastFinalizedBucketEnd.getTime());
-            }
         }
 
         @Override

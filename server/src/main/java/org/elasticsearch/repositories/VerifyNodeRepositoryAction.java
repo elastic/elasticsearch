@@ -21,16 +21,17 @@ package org.elasticsearch.repositories;
 
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -46,7 +47,10 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class VerifyNodeRepositoryAction  extends AbstractComponent {
+public class VerifyNodeRepositoryAction {
+
+    private static final Logger logger = LogManager.getLogger(VerifyNodeRepositoryAction.class);
+
     public static final String ACTION_NAME = "internal:admin/repository/verify";
 
     private final TransportService transportService;
@@ -55,12 +59,11 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
     private final RepositoriesService repositoriesService;
 
-    public VerifyNodeRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService, RepositoriesService repositoriesService) {
-        super(settings);
+    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService, RepositoriesService repositoriesService) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT, new VerifyNodeRepositoryRequestHandler());
     }
 
     public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
@@ -146,7 +149,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
     class VerifyNodeRepositoryRequestHandler implements TransportRequestHandler<VerifyNodeRepositoryRequest> {
         @Override
-        public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
             try {
                 doVerify(request.repository, request.verificationToken, localNode);

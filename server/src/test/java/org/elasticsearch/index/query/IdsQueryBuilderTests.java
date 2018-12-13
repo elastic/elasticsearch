@@ -31,7 +31,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -41,23 +40,17 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
-        String[] types;
-        if (getCurrentTypes() != null && getCurrentTypes().length > 0 && randomBoolean()) {
-            int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
-            types = new String[numberOfTypes];
-            for (int i = 0; i < numberOfTypes; i++) {
-                if (frequently()) {
-                    types[i] = randomFrom(getCurrentTypes());
-                } else {
-                    types[i] = randomAlphaOfLengthBetween(1, 10);
-                }
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
+        final String type;
+        if (randomBoolean()) {
+            if (frequently()) {
+                type = "_doc";
             } else {
-                types = new String[0];
+                type = randomAlphaOfLengthBetween(1, 10);
             }
+        } else if (randomBoolean()) {
+                type = MetaData.ALL;
+        } else {
+            type = null;
         }
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
@@ -65,8 +58,8 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             ids[i] = randomAlphaOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
-        if (types.length > 0 || randomBoolean()) {
-            query = new IdsQueryBuilder().types(types);
+        if (type != null && randomBoolean()) {
+            query = new IdsQueryBuilder().types(type);
             query.addIds(ids);
         } else {
             query = new IdsQueryBuilder();
@@ -84,7 +77,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
                 // there are types, but disjoint from the query
                 || (allTypes == false &&
-                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().types().iterator().next()) == -1)) {
+                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().documentMapper().type()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));

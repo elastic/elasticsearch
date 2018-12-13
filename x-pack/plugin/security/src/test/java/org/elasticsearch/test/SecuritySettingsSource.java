@@ -17,17 +17,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,22 +41,22 @@ import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
 /**
  * {@link org.elasticsearch.test.NodeConfigurationSource} subclass that allows to set all needed settings for x-pack security.
- * Unicast discovery is configured through {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration.UnicastZen},
- * also x-pack is installed with all the needed configuration and files.
+ * X-pack is installed with all the needed configuration and files.
  * To avoid conflicts, every cluster should have its own instance of this class as some configuration files need to be created.
  */
-public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
-
-    public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
+public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_USER_NAME = "test_user";
     public static final String TEST_PASSWORD_HASHED =
-        new String(Hasher.BCRYPT.hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
+            hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
 
@@ -91,18 +89,21 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
      *
-     * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslEnabled whether ssl is enabled
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
-    public SecuritySettingsSource(int numOfNodes, boolean sslEnabled, Path parentFolder, Scope scope) {
-        super(numOfNodes, DEFAULT_SETTINGS);
+    public SecuritySettingsSource(boolean sslEnabled, Path parentFolder, Scope scope) {
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslEnabled = sslEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
-        this.usePEM = randomBoolean();
+        // Use PEM instead of JKS stores so that we can run these in a FIPS 140 JVM
+        if (inFipsJvm()) {
+            this.usePEM = true;
+        } else {
+            this.usePEM = randomBoolean();
+        }
     }
 
     Path nodePath(final int nodeOrdinal) {
@@ -122,19 +123,20 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder()
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+                .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
-                .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1");
+                .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
+                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1");
         addNodeSSLSettings(builder);
         return builder.build();
     }
@@ -146,10 +148,9 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Settings transportClientSettings() {
-        Settings superSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder().put(superSettings);
+        Settings.Builder builder = Settings.builder();
         addClientSSLSettings(builder, "xpack.security.transport.");
-        addDefaultSecurityTransportType(builder, superSettings);
+        addDefaultSecurityTransportType(builder, Settings.EMPTY);
 
         if (randomBoolean()) {
             builder.put(SecurityField.USER_SETTING.getKey(),
@@ -170,7 +171,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateSecurity.class, Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateSecurity.class, Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class,
+            InternalSettingsPlugin.class);
     }
 
     @Override
@@ -206,19 +208,22 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         return new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray());
     }
 
+    public static void addSSLSettingsForNodePEMFiles(Settings.Builder builder, String prefix, boolean hostnameVerificationEnabled) {
+        addSSLSettingsForPEMFiles(builder, prefix,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
+            true, hostnameVerificationEnabled, false);
+    }
+
     private void addNodeSSLSettings(Settings.Builder builder) {
         if (sslEnabled) {
             if (usePEM) {
-                addSSLSettingsForPEMFiles(builder, "xpack.security.transport.",
-                        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
-                        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                        Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
-                                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
-                                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
-                                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-                        true, hostnameVerificationEnabled, false);
-
+                addSSLSettingsForNodePEMFiles(builder, "xpack.security.transport.", hostnameVerificationEnabled);
             } else {
                 addSSLSettingsForStore(builder, "xpack.security.transport.",
                         "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
@@ -287,6 +292,39 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         }
     }
 
+    /**
+     * Returns the SSL related configuration settings given the location of a key and certificate and the location
+     * of the PEM certificates to be trusted
+     *
+     * @param keyPath             The path to the Private key to be used for SSL
+     * @param password            The password with which the private key is protected
+     * @param certificatePath     The path to the PEM formatted Certificate encapsulating the public key that corresponds
+     *                            to the Private Key specified in {@code keyPath}. Will be presented to incoming
+     *                            SSL connections.
+     * @param trustedCertificates A list of PEM formatted certificates that will be trusted.
+     */
+    public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
+                                                 String certificatePath, List<String> trustedCertificates) {
+        addSSLSettingsForPEMFiles(builder, "", keyPath, password, certificatePath, trustedCertificates, true, true, true);
+    }
+
+    /**
+     * Returns the SSL related configuration settings given the location of a key and certificate and the location
+     * of the PEM certificates to be trusted
+     *
+     * @param keyPath             The path to the Private key to be used for SSL
+     * @param password            The password with which the private key is protected
+     * @param certificatePath     The path to the PEM formatted Certificate encapsulating the public key that corresponds
+     *                            to the Private Key specified in {@code keyPath}. Will be presented to incoming
+     *                            SSL connections.
+     * @param prefix              The settings prefix to use before ssl setting names
+     * @param trustedCertificates A list of PEM formatted certificates that will be trusted.
+     */
+    public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
+                                                 String certificatePath, String prefix, List<String> trustedCertificates) {
+        addSSLSettingsForPEMFiles(builder, prefix, keyPath, password, certificatePath, trustedCertificates, true, true, true);
+    }
+
     private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,
                                                   String certificatePath, List<String> trustedCertificates, boolean sslEnabled,
                                                   boolean hostnameVerificationEnabled, boolean transportClient) {
@@ -297,7 +335,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslEnabled);
 
         if (prefix.equals("")) {
-            prefix = "xpack.";
+            prefix = "xpack.security.transport.";
         }
         builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         builder.put(prefix + "ssl.key", resolveResourcePath(keyPath))

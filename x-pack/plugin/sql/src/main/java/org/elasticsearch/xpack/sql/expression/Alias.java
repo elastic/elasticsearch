@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 
-import static java.util.Collections.singletonList;
-
 import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 /**
  * An {@code Alias} is a {@code NamedExpression} that gets renamed to something else through the Alias.
@@ -89,6 +91,11 @@ public class Alias extends NamedExpression {
             lazyAttribute = createAttribute();
         }
         return lazyAttribute;
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Encountered a bug; an alias should never be scripted");
     }
 
     private Attribute createAttribute() {

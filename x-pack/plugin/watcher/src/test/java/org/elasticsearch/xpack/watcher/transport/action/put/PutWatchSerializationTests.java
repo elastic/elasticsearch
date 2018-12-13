@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 
 import static org.hamcrest.Matchers.is;
 

@@ -58,6 +58,10 @@ public final class ResponseException extends IOException {
             response.getStatusLine().toString()
         );
 
+        if (response.hasWarnings()) {
+            message += "\n" + "Warnings: " + response.getWarnings();
+        }
+
         HttpEntity entity = response.getEntity();
         if (entity != null) {
             if (entity.isRepeatable() == false) {

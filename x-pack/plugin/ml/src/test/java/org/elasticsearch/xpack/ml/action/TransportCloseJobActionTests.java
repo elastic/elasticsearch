@@ -12,25 +12,23 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -51,7 +49,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id").build(new Date()), false);
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id", "job_id",
-                Collections.singletonList("*")), null);
+                Collections.singletonList("*")), Collections.emptyMap());
         final PersistentTasksCustomMetaData.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", null, JobState.OPENED, startDataFeedTaskBuilder);
         addTask("datafeed_id", 0L, null, DatafeedState.STARTED, startDataFeedTaskBuilder);
@@ -108,7 +106,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("job_id_4", null, JobState.CLOSING, tasksBuilder);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
@@ -134,7 +132,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("job_id_1", null, JobState.OPENED, tasksBuilder);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
@@ -148,7 +146,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
         // Job without task is closed
         cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build()))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))
                 .build();
 
         openJobs.clear();
@@ -163,7 +161,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("job_id_1").build(new Date()), false);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build()))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))
                 .build();
 
         List<String> openJobs = new ArrayList<>();
@@ -182,7 +180,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("job_id_failed", null, JobState.FAILED, tasksBuilder);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name")).metaData(new MetaData.Builder()
-                .putCustom(MLMetadataField.TYPE, mlBuilder.build()).putCustom(PersistentTasksCustomMetaData.TYPE,
+                .putCustom(MlMetadata.TYPE, mlBuilder.build()).putCustom(PersistentTasksCustomMetaData.TYPE,
                         tasksBuilder.build())).build();
 
         List<String> openJobs = new ArrayList<>();
@@ -217,7 +215,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         // closed job has no task
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
@@ -257,16 +255,15 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("foo", null, JobState.CLOSED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
 
-        TransportCloseJobAction transportAction = new TransportCloseJobAction(Settings.EMPTY,
-                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
+        TransportCloseJobAction transportAction = new TransportCloseJobAction(mock(TransportService.class), mock(ThreadPool.class),
+            mock(ActionFilters.class), clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         CloseJobAction.Request request = new Request("foo");
@@ -312,9 +309,9 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
                                PersistentTasksCustomMetaData.Builder tasks) {
-        tasks.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
+        tasks.addTask(MlTasks.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
-        tasks.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
+        tasks.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }
 
 }

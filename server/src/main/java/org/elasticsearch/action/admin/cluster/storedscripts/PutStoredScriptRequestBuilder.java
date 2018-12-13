@@ -20,12 +20,13 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
 public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
-        PutStoredScriptResponse, PutStoredScriptRequestBuilder> {
+    AcknowledgedResponse, PutStoredScriptRequestBuilder> {
 
     public PutStoredScriptRequestBuilder(ElasticsearchClient client, PutStoredScriptAction action) {
         super(client, action, new PutStoredScriptRequest());

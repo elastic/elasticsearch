@@ -12,16 +12,16 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.plugin.CliFormatter;
+import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
-import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.mockito.ArgumentCaptor;
 
-import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -67,10 +67,10 @@ public class CursorTests extends ESTestCase {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
                 columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        randomFrom(JDBCType.values()), randomInt(25)));
+                        randomInt(), randomInt(25)));
             }
         }
-        return new SqlQueryResponse("", columns, Collections.emptyList());
+        return new SqlQueryResponse("", randomFrom(Mode.values()), columns, Collections.emptyList());
     }
 
     @SuppressWarnings("unchecked")
@@ -80,7 +80,8 @@ public class CursorTests extends ESTestCase {
                 () -> {
                     SqlQueryResponse response = createRandomSqlResponse();
                     if (response.columns() != null && response.rows() != null) {
-                        return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
+                        return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
+                            new CliFormatter(response.columns(), response.rows()));
                     } else {
                         return ScrollCursorTests.randomScrollCursor();
                     }

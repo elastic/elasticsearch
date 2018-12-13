@@ -22,10 +22,6 @@ public class GroupByRef extends AggRef {
     private final Property property;
     private final TimeZone timeZone;
 
-    public GroupByRef(String key) {
-        this(key, null, null);
-    }
-
     public GroupByRef(String key, Property property, TimeZone timeZone) {
         this.key = key;
         this.property = property == null ? Property.VALUE : property;

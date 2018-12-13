@@ -112,6 +112,9 @@ public class Aggs {
     }
 
     public Aggs addAgg(LeafAgg agg) {
+        if (metricAggs.contains(agg)) {
+            return this;
+        }
         return new Aggs(groups, combine(metricAggs, agg), pipelineAggs);
     }
 

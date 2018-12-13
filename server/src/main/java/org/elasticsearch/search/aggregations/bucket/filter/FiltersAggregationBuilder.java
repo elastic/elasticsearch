@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
@@ -210,7 +209,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             }
         }
         if (changed) {
-            return new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
+            FiltersAggregationBuilder rewritten = new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
+            rewritten.otherBucket(otherBucket);
+            rewritten.otherBucketKey(otherBucketKey);
+            return rewritten;
         } else {
             return this;
         }

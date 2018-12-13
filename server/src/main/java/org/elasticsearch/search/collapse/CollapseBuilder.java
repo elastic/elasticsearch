@@ -19,7 +19,6 @@
 package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -94,31 +93,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            this.innerHits = in.readList(InnerHitBuilder::new);
-        } else {
-            InnerHitBuilder innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
-            if (innerHitBuilder != null) {
-                this.innerHits = Collections.singletonList(innerHitBuilder);
-            } else {
-                this.innerHits = Collections.emptyList();
-            }
-        }
+        this.innerHits = in.readList(InnerHitBuilder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeList(innerHits);
-        } else {
-            boolean hasInnerHit = innerHits.isEmpty() == false;
-            out.writeBoolean(hasInnerHit);
-            if (hasInnerHit) {
-                innerHits.get(0).writeToCollapseBWC(out);
-            }
-       }
+        out.writeList(innerHits);
     }
 
     public static CollapseBuilder fromXContent(XContentParser parser) {
@@ -247,6 +229,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }
 
-        return new CollapseContext(fieldType, innerHits);
+        return new CollapseContext(field, fieldType, innerHits);
     }
 }

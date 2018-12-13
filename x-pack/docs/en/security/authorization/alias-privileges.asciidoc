@@ -1,5 +1,6 @@
+[role="xpack"]
 [[securing-aliases]]
-=== Granting Privileges for Indices & Aliases
+=== Granting privileges for indices and aliases
 
 Elasticsearch allows to execute operations against {ref}/indices-aliases.html[index aliases],
 which are effectively virtual indices. An alias points to one or more indices,

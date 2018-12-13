@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -32,6 +32,7 @@ import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -47,7 +48,7 @@ public class MatchAssertion extends Assertion {
         return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 
-    private static final Logger logger = Loggers.getLogger(MatchAssertion.class);
+    private static final Logger logger = LogManager.getLogger(MatchAssertion.class);
 
     public MatchAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);
@@ -70,8 +71,13 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        assertNotNull("field [" + getField() + "] is null", actualValue);
         logger.trace("assert that [{}] matches [{}] (field [{}])", actualValue, expectedValue, getField());
+        if (expectedValue == null) {
+            assertNull("field [" + getField() + "] should be null but was [" + actualValue + "]", actualValue);
+            return;
+        }
+        assertNotNull("field [" + getField() + "] is null", actualValue);
+
         if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 //Double 1.0 is equal to Integer 1

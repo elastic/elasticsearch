@@ -97,7 +97,7 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
 
         try {
             // We know this cast is safe because T is the method's return type.
-            @SuppressWarnings({"unchecked", "UnnecessaryLocalVariable"})
+            @SuppressWarnings({"unchecked"})
             T result = (T) method.invoke(instance, parameters);
             return result;
         } catch (IllegalAccessException e) {

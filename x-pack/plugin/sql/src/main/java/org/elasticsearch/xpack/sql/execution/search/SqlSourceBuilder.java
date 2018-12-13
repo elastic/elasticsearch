@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -22,7 +24,7 @@ import java.util.Set;
 public class SqlSourceBuilder {
     // The LinkedHashMaps preserve the order of the fields in the response
     final Set<String> sourceFields = new LinkedHashSet<>();
-    final Set<String> docFields = new LinkedHashSet<>();
+    final Set<FieldAndFormat> docFields = new LinkedHashSet<>();
     final Map<String, Script> scriptFields = new LinkedHashMap<>();
 
     boolean trackScores = false;
@@ -47,8 +49,8 @@ public class SqlSourceBuilder {
     /**
      * Retrieve the requested field from doc values (or fielddata) of the document
      */
-    public void addDocField(String field) {
-        docFields.add(field);
+    public void addDocField(String field, String format) {
+        docFields.add(new FieldAndFormat(field, format));
     }
 
     /**
@@ -67,7 +69,8 @@ public class SqlSourceBuilder {
         if (!sourceFields.isEmpty()) {
             sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
         }
-        docFields.forEach(sourceBuilder::docValueField);
+        docFields.forEach(field -> sourceBuilder.docValueField(field.field,
+                field.format == null ? DocValueFieldsContext.USE_DEFAULT_FORMAT : field.format));
         scriptFields.forEach(sourceBuilder::scriptField);
     }
 }

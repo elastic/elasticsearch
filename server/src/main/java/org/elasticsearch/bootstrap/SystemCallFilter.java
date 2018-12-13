@@ -26,10 +26,11 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -91,7 +92,7 @@ import java.util.Map;
  */
 // not an example of how to write code!!!
 final class SystemCallFilter {
-    private static final Logger logger = Loggers.getLogger(SystemCallFilter.class);
+    private static final Logger logger = LogManager.getLogger(SystemCallFilter.class);
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 

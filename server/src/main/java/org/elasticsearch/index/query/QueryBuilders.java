@@ -27,6 +27,8 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 
@@ -240,12 +242,12 @@ public final class QueryBuilders {
     }
 
     /**
-     * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
-     * matches any character sequence (including the empty one), and <tt>?</tt>,
+     * Implements the wildcard search query. Supported wildcards are {@code *}, which
+     * matches any character sequence (including the empty one), and {@code ?},
      * which matches any single character. Note this query can be slow, as it
      * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
-     * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
-     * <tt>?</tt>.
+     * a Wildcard term should not start with one of the wildcards {@code *} or
+     * {@code ?}.
      *
      * @param name  The field name
      * @param query The wildcard query string
@@ -401,7 +403,8 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder,
+                                                               FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
@@ -433,6 +436,17 @@ public final class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
+
+    /**
+     * A query that allows to define a custom scoring function through script.
+     *
+     * @param queryBuilder The query to custom score
+     * @param function     The script score function builder used to custom score
+     */
+    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, ScriptScoreFunctionBuilder function) {
+        return new ScriptScoreQueryBuilder(queryBuilder, function);
+    }
+
 
     /**
      * A more like this query that finds documents that are "like" the provided texts or documents

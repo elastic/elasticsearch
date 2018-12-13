@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Objects;
 
 public abstract class Normalizable implements ToXContentObject {
-    public enum ChildType {BUCKET_INFLUENCER, RECORD, PARTITION_SCORE};
+    public enum ChildType {BUCKET_INFLUENCER, RECORD};
 
     private final String indexName;
     private boolean hadBigNormalizedUpdate;
@@ -43,6 +43,8 @@ public abstract class Normalizable implements ToXContentObject {
     abstract String getPartitionFieldValue();
 
     abstract String getPersonFieldName();
+
+    abstract String getPersonFieldValue();
 
     abstract String getFunctionName();
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpRes
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -49,15 +49,15 @@ public class CommandLineHttpClientTests extends ESTestCase {
     }
 
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
-        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
-        Settings settings = Settings.builder().put("xpack.security.http.ssl.truststore.path", resource.toString())
-                .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE).setSecureSettings(secureSettings)
-                .build();
+        Settings settings = Settings.builder().put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
+            .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE).setSecureSettings(secureSettings)
+            .build();
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
-                new SecureString(new char[] { 'p' }), () -> null, is -> responseBuilder(is));
+                new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));
 
         assertNotNull("Should have http response", httpResponse);
         assertEquals("Http status code does not match", 200, httpResponse.getHttpStatus());
@@ -65,23 +65,36 @@ public class CommandLineHttpClientTests extends ESTestCase {
     }
 
     private MockWebServer createMockWebServer() {
-        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
-        Settings settings = Settings.builder().put("xpack.security.http.ssl.keystore.path", resource.toString())
-                .put("xpack.security.http.ssl.client_authentication", "none")
-                .setSecureSettings(secureSettings)
-                .build();
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
+        Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.key", keyPath.toString())
+            .put("xpack.security.http.ssl.certificate", certPath.toString())
+            .setSecureSettings(secureSettings)
+            .build();
         TestsSSLService sslService = new TestsSSLService(settings, environment);
-        return new MockWebServer(sslService.sslContext(settings.getByPrefix("xpack.security.http.ssl.")), false);
+        return new MockWebServer(sslService.sslContext("xpack.security.http.ssl."), false);
     }
 
     private HttpResponseBuilder responseBuilder(final InputStream is) throws IOException {
         final HttpResponseBuilder httpResponseBuilder = new HttpResponseBuilder();
         if (is != null) {
-            byte[] bytes = Streams.readAll(is);
+            byte[] bytes = toByteArray(is);
             httpResponseBuilder.withResponseBody(new String(bytes, StandardCharsets.UTF_8));
         }
         return httpResponseBuilder;
+    }
+
+    private byte[] toByteArray(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] internalBuffer = new byte[1024];
+        int read = is.read(internalBuffer);
+        while (read != -1) {
+            baos.write(internalBuffer, 0, read);
+            read = is.read(internalBuffer);
+        }
+        return baos.toByteArray();
     }
 }

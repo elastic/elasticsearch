@@ -15,12 +15,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.WatcherClientHelper;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.watcher.transform.search.SearchTransform.TYPE;
 
@@ -49,8 +51,15 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
             request = new WatcherSearchTemplateRequest(transform.getRequest(), new BytesArray(renderedTemplate));
             SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
-            SearchResponse resp = WatcherClientHelper.execute(ctx.watch(), client, () -> client.search(searchRequest).actionGet(timeout));
-            return new SearchTransform.Result(request, new Payload.XContent(resp));
+            SearchResponse resp = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
+                    () -> client.search(searchRequest).actionGet(timeout));
+            final Params params;
+            if (request.isRestTotalHitsAsint()) {
+                params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+            } else {
+                params = EMPTY_PARAMS;
+            }
+            return new SearchTransform.Result(request, new Payload.XContent(resp, params));
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new SearchTransform.Result(request, e);

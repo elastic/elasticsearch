@@ -20,18 +20,13 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SmallFloat;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
-
-import java.io.IOException;
 
 /**
  * A {@link Similarity} implementation that allows scores to be scripted.
@@ -65,8 +60,18 @@ public final class ScriptedSimilarity extends Similarity {
         return SmallFloat.intToByte4(numTerms);
     }
 
+    /** Compute the part of the score that does not depend on the current document using the init_script. */
+    private double computeWeight(Query query, Field field, Term term) {
+        if (weightScriptFactory == null) {
+            return 1d;
+        }
+        SimilarityWeightScript weightScript = weightScriptFactory.newInstance();
+        return weightScript.execute(query, field, term);
+    }
+
     @Override
-    public SimWeight computeWeight(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+    public SimScorer scorer(float boost,
+            CollectionStatistics collectionStats, TermStatistics... termStats) {
         Query query = new Query(boost);
         long docCount = collectionStats.docCount();
         if (docCount == -1) {
@@ -77,58 +82,32 @@ public final class ScriptedSimilarity extends Similarity {
         for (int i = 0; i < termStats.length; ++i) {
             terms[i] = new Term(termStats[i].docFreq(), termStats[i].totalTermFreq());
         }
-        return new Weight(collectionStats.field(), query, field, terms);
-    }
 
-    /** Compute the part of the score that does not depend on the current document using the init_script. */
-    private double computeWeight(Query query, Field field, Term term) throws IOException {
-        if (weightScriptFactory == null) {
-            return 1d;
-        }
-        SimilarityWeightScript weightScript = weightScriptFactory.newInstance();
-        return weightScript.execute(query, field, term);
-    }
-
-    @Override
-    public SimScorer simScorer(SimWeight w, LeafReaderContext context) throws IOException {
-        Weight weight = (Weight) w;
-        SimScorer[] scorers = new SimScorer[weight.terms.length];
-        for (int i = 0; i < weight.terms.length; ++i) {
-            final Term term = weight.terms[i];
+        SimScorer[] scorers = new SimScorer[terms.length];
+        for (int i = 0; i < terms.length; ++i) {
+            final Term term = terms[i];
             final SimilarityScript script = scriptFactory.newInstance();
-            final NumericDocValues norms = context.reader().getNormValues(weight.fieldName);
-            final Doc doc = new Doc(norms);
-            final double scoreWeight = computeWeight(weight.query, weight.field, term);
+            final Doc doc = new Doc();
+            final double scoreWeight = computeWeight(query, field, term);
             scorers[i] = new SimScorer() {
 
                 @Override
-                public float score(int docID, float freq) throws IOException {
-                    doc.docID = docID;
+                public float score(float freq, long norm) {
                     doc.freq = freq;
-                    return (float) script.execute(scoreWeight, weight.query, weight.field, term, doc);
+                    doc.norm = norm;
+                    return (float) script.execute(scoreWeight, query, field, term, doc);
                 }
 
                 @Override
-                public float computeSlopFactor(int distance) {
-                    return 1.0f / (distance + 1);
-                }
-
-                @Override
-                public float computePayloadFactor(int doc, int start, int end, BytesRef payload) {
-                    return 1f;
-                }
-
-                @Override
-                public Explanation explain(int docID, Explanation freq) throws IOException {
-                    doc.docID = docID;
-                    float score = score(docID, freq.getValue());
+                public Explanation explain(Explanation freq, long norm) {
+                    float score = score(freq.getValue().floatValue(), norm);
                     return Explanation.match(score, "score from " + ScriptedSimilarity.this.toString() +
                             " computed from:",
                             Explanation.match((float) scoreWeight, "weight"),
-                            Explanation.match(weight.query.boost, "query.boost"),
-                            Explanation.match(weight.field.docCount, "field.docCount"),
-                            Explanation.match(weight.field.sumDocFreq, "field.sumDocFreq"),
-                            Explanation.match(weight.field.sumTotalTermFreq, "field.sumTotalTermFreq"),
+                            Explanation.match(query.boost, "query.boost"),
+                            Explanation.match(field.docCount, "field.docCount"),
+                            Explanation.match(field.sumDocFreq, "field.sumDocFreq"),
+                            Explanation.match(field.sumTotalTermFreq, "field.sumTotalTermFreq"),
                             Explanation.match(term.docFreq, "term.docFreq"),
                             Explanation.match(term.totalTermFreq, "term.totalTermFreq"),
                             Explanation.match(freq.getValue(), "doc.freq", freq.getDetails()),
@@ -143,47 +122,23 @@ public final class ScriptedSimilarity extends Similarity {
             return new SimScorer() {
 
                 @Override
-                public float score(int doc, float freq) throws IOException {
+                public float score(float freq, long norm) {
                     double sum = 0;
                     for (SimScorer scorer : scorers) {
-                        sum += scorer.score(doc, freq);
+                        sum += scorer.score(freq, norm);
                     }
                     return (float) sum;
                 }
 
                 @Override
-                public float computeSlopFactor(int distance) {
-                    return 1.0f / (distance + 1);
-                }
-
-                @Override
-                public float computePayloadFactor(int doc, int start, int end, BytesRef payload) {
-                    return 1f;
-                }
-
-                @Override
-                public Explanation explain(int doc, Explanation freq) throws IOException {
+                public Explanation explain(Explanation freq, long norm) {
                     Explanation[] subs = new Explanation[scorers.length];
                     for (int i = 0; i < subs.length; ++i) {
-                        subs[i] = scorers[i].explain(doc, freq);
+                        subs[i] = scorers[i].explain(freq, norm);
                     }
-                    return Explanation.match(score(doc, freq.getValue()), "Sum of:", subs);
+                    return Explanation.match(score(freq.getValue().floatValue(), norm), "Sum of:", subs);
                 }
             };
-        }
-    }
-
-    private static class Weight extends SimWeight {
-        private final String fieldName;
-        private final Query query;
-        private final Field field;
-        private final Term[] terms;
-
-        Weight(String fieldName, Query query, Field field, Term[] terms) {
-            this.fieldName = fieldName;
-            this.query = query;
-            this.field = field;
-            this.terms = terms;
         }
     }
 
@@ -254,25 +209,16 @@ public final class ScriptedSimilarity extends Similarity {
 
     /** Statistics that are specific to a document. */
     public static class Doc {
-        private final NumericDocValues norms;
-        private int docID;
         private float freq;
+        private long norm;
 
-        private Doc(NumericDocValues norms) {
-            this.norms = norms;
-        }
+        private Doc() {}
 
         /** Return the number of tokens that the current document has in the considered field. */
-        public int getLength() throws IOException {
+        public int getLength() {
             // the length is computed lazily so that similarities that do not use the length are
             // not penalized
-            if (norms == null) {
-                return 1;
-            } else if (norms.advanceExact(docID)) {
-                return SmallFloat.byte4ToInt((byte) norms.longValue());
-            } else {
-                return 0;
-            }
+            return SmallFloat.byte4ToInt((byte) norm);
         }
 
         /** Return the number of occurrences of the term in the current document for the considered field. */

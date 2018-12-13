@@ -36,7 +36,8 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
-    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId) throws IOException {
+    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
+            ShardId shardId) throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
@@ -84,16 +85,19 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     }
 
     /**
-     * Adds the given listener to the provided directory reader. The reader must contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     * Adds the given listener to the provided directory reader. The reader
+     * must contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
      * otherwise we can't safely install the listener.
      *
-     * @throws IllegalArgumentException if the reader doesn't contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     * @throws IllegalArgumentException if the reader doesn't contain an
+     *     {@link ElasticsearchDirectoryReader} in it's hierarchy
      */
     @SuppressForbidden(reason = "This is the only sane way to add a ReaderClosedListener")
     public static void addReaderCloseListener(DirectoryReader reader, IndexReader.ClosedListener listener) {
         ElasticsearchDirectoryReader elasticsearchDirectoryReader = getElasticsearchDirectoryReader(reader);
         if (elasticsearchDirectoryReader == null) {
-            throw new IllegalArgumentException("Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
+            throw new IllegalArgumentException(
+                    "Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
         }
         IndexReader.CacheHelper cacheHelper = elasticsearchDirectoryReader.getReaderCacheHelper();
         if (cacheHelper == null) {
@@ -104,7 +108,9 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     }
 
     /**
-     * Tries to unwrap the given reader until the first {@link ElasticsearchDirectoryReader} instance is found or <code>null</code> if no instance is found;
+     * Tries to unwrap the given reader until the first
+     * {@link ElasticsearchDirectoryReader} instance is found or {@code null}
+     * if no instance is found.
      */
     public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(DirectoryReader reader) {
         if (reader instanceof FilterDirectoryReader) {

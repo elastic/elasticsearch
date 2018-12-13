@@ -28,6 +28,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -66,15 +67,22 @@ final class PerThreadIDVersionAndSeqNoLookup {
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
         this.uidField = uidField;
-        Terms terms = reader.terms(uidField);
+        final Terms terms = reader.terms(uidField);
         if (terms == null) {
-            throw new IllegalArgumentException("reader misses the [" + uidField + "] field");
+            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
+            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
+            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+            if (softDeletesDV == null || tombstoneDV == null) {
+                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
+                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
+            }
+            termsEnum = null;
+        } else {
+            termsEnum = terms.iterator();
         }
-        termsEnum = terms.iterator();
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
-            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
+            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
-
         Object readerKey = null;
         assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
         this.readerKey = readerKey;
@@ -111,7 +119,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
     private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
-        if (termsEnum.seekExact(id)) {
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
+        if (termsEnum != null && termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             docsEnum = termsEnum.postings(docsEnum, 0);
@@ -131,16 +140,36 @@ final class PerThreadIDVersionAndSeqNoLookup {
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context.reader().getLiveDocs());
-        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-            long seqNo;
-            if (seqNos != null && seqNos.advanceExact(docID)) {
-                seqNo = seqNos.longValue();
-            } else {
-                seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
+        if (termsEnum != null && termsEnum.seekExact(id)) {
+            docsEnum = termsEnum.postings(docsEnum, 0);
+            final Bits liveDocs = context.reader().getLiveDocs();
+            DocIdAndSeqNo result = null;
+            int docID = docsEnum.nextDoc();
+            if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                final NumericDocValues seqNoDV = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                for (; docID != DocIdSetIterator.NO_MORE_DOCS; docID = docsEnum.nextDoc()) {
+                    final long seqNo;
+                    if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
+                        seqNo = seqNoDV.longValue();
+                    } else {
+                        seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    }
+                    final boolean isLive = (liveDocs == null || liveDocs.get(docID));
+                    if (isLive) {
+                        // The live document must always be the latest copy, thus we can early terminate here.
+                        // If a nested docs is live, we return the first doc which doesn't have term (only the last doc has term).
+                        // This should not be an issue since we no longer use primary term as tier breaker when comparing operations.
+                        assert result == null || result.seqNo <= seqNo :
+                            "the live doc does not have the highest seq_no; live_seq_no=" + seqNo + " < deleted_seq_no=" + result.seqNo;
+                        return new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                    if (result == null || result.seqNo < seqNo) {
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                }
             }
-            return new DocIdAndSeqNo(docID, seqNo, context);
+            return result;
         } else {
             return null;
         }

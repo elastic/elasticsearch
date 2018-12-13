@@ -42,8 +42,8 @@ class PEMTrustConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            Certificate[] certificates = CertUtils.readCertificates(caPaths, environment);
-            return CertUtils.trustManager(certificates);
+            Certificate[] certificates = CertParsingUtils.readCertificates(caPaths, environment);
+            return CertParsingUtils.trustManager(certificates);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -53,7 +53,7 @@ class PEMTrustConfig extends TrustConfig {
     Collection<CertificateInfo> certificates(Environment environment) throws CertificateException, IOException {
         final List<CertificateInfo> info = new ArrayList<>(caPaths.size());
         for (String path : caPaths) {
-            Certificate[] chain = CertUtils.readCertificates(Collections.singletonList(path), environment);
+            Certificate[] chain = CertParsingUtils.readCertificates(Collections.singletonList(path), environment);
             for (final Certificate cert : chain) {
                 if (cert instanceof X509Certificate) {
                     info.add(new CertificateInfo(path, "PEM", null, false, (X509Certificate) cert));
@@ -67,7 +67,7 @@ class PEMTrustConfig extends TrustConfig {
     List<Path> filesToMonitor(@Nullable Environment environment) {
         List<Path> paths = new ArrayList<>(caPaths.size());
         for (String path : caPaths) {
-            paths.add(CertUtils.resolvePath(path, environment));
+            paths.add(CertParsingUtils.resolvePath(path, environment));
         }
         return paths;
     }

@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-
 public class CategorizationAnalyzerTests extends ESTestCase {
 
     private AnalysisRegistry analysisRegistry;
@@ -39,6 +38,158 @@ public class CategorizationAnalyzerTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         environment = TestEnvironment.newEnvironment(settings);
         analysisRegistry = buildTestAnalysisRegistry(environment);
+    }
+
+    public void testVerifyConfigBuilder_GivenNoConfig() {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("categorization_analyzer that is not a global analyzer must specify a [tokenizer] field", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenDefault() throws IOException {
+        CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder(defaultConfig);
+        CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment);
+    }
+
+    public void testVerifyConfigBuilder_GivenValidAnalyzer() throws IOException {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder().setAnalyzer("standard");
+        CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment);
+    }
+
+    public void testVerifyConfigBuilder_GivenInvalidAnalyzer() {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder().setAnalyzer("does not exist");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("Failed to find global analyzer [does not exist]", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenValidCustomConfig() throws IOException {
+        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
+        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
+        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffThatBeginsWithADigit = new HashMap<>();
+        ignoreStuffThatBeginsWithADigit.put("type", "pattern_replace");
+        ignoreStuffThatBeginsWithADigit.put("pattern", "^[0-9].*");
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .setTokenizer("classic")
+            .addTokenFilter("lowercase")
+            .addTokenFilter(ignoreStuffThatBeginsWithADigit)
+            .addTokenFilter("snowball");
+        CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment);
+    }
+
+    public void testVerifyConfigBuilder_GivenCustomConfigWithInvalidCharFilter() {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter("wrong!")
+            .setTokenizer("classic")
+            .addTokenFilter("lowercase")
+            .addTokenFilter("snowball");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("Failed to find global char filter under [wrong!]", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenCustomConfigWithMisconfiguredCharFilter() {
+        Map<String, Object> noPattern = new HashMap<>();
+        noPattern.put("type", "pattern_replace");
+        noPattern.put("attern", "should have been pattern");
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter(noPattern)
+            .setTokenizer("classic")
+            .addTokenFilter("lowercase")
+            .addTokenFilter("snowball");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("pattern is missing for [_anonymous_charfilter] char filter of type 'pattern_replace'", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenCustomConfigWithInvalidTokenizer() {
+        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
+        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
+        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .setTokenizer("oops!")
+            .addTokenFilter("lowercase")
+            .addTokenFilter("snowball");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("Failed to find global tokenizer under [oops!]", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenNoTokenizer() {
+        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
+        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
+        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffThatBeginsWithADigit = new HashMap<>();
+        ignoreStuffThatBeginsWithADigit.put("type", "pattern_replace");
+        ignoreStuffThatBeginsWithADigit.put("pattern", "^[0-9].*");
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .addTokenFilter("lowercase")
+            .addTokenFilter(ignoreStuffThatBeginsWithADigit)
+            .addTokenFilter("snowball");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("categorization_analyzer that is not a global analyzer must specify a [tokenizer] field", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenCustomConfigWithInvalidTokenFilter() {
+        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
+        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
+        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .setTokenizer("classic")
+            .addTokenFilter("lowercase")
+            .addTokenFilter("oh dear!");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("Failed to find global token filter under [oh dear!]", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenCustomConfigWithMisconfiguredTokenFilter() {
+        Map<String, Object> noPattern = new HashMap<>();
+        noPattern.put("type", "pattern_replace");
+        noPattern.put("attern", "should have been pattern");
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter("html_strip")
+            .setTokenizer("classic")
+            .addTokenFilter("lowercase")
+            .addTokenFilter(noPattern);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("pattern is missing for [_anonymous_tokenfilter] token filter of type 'pattern_replace'", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenAnalyzerAndCharFilter() {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .setAnalyzer("standard")
+            .addCharFilter("html_strip");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("categorization_analyzer that is a global analyzer cannot also specify a [char_filter] field", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenAnalyzerAndTokenizer() {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .setAnalyzer("standard")
+            .setTokenizer("classic");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("categorization_analyzer that is a global analyzer cannot also specify a [tokenizer] field", e.getMessage());
+    }
+
+    public void testVerifyConfigBuilder_GivenAnalyzerAndTokenFilter() {
+        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
+            .setAnalyzer("standard")
+            .addTokenFilter("lowercase");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CategorizationAnalyzer.verifyConfigBuilder(builder, analysisRegistry, environment));
+        assertEquals("categorization_analyzer that is a global analyzer cannot also specify a [filter] field", e.getMessage());
     }
 
     // The default categorization analyzer matches what the analyzer in the ML C++ does

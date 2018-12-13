@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.template;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -677,7 +676,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     "            \"analysis\" : {\n" +
                     "                \"analyzer\" : {\n" +
                     "                    \"custom_1\" : {\n" +
-                    "                        \"tokenizer\" : \"whitespace\"\n" +
+                    "                        \"tokenizer\" : \"standard\"\n" +
                     "                    }\n" +
                     "                }\n" +
                     "            }\n" +

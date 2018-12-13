@@ -17,8 +17,10 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -59,7 +62,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -188,6 +190,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
     @Override
     public void testToXContent() throws IOException {
+        final String clusterUuid = "_cluster";
         final ClusterName clusterName = new ClusterName("_cluster_name");
         final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
         final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
@@ -201,6 +204,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 Version.V_6_0_0_beta1);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
+                                                        .metaData(MetaData.builder()
+                                                            .clusterUUID(clusterUuid)
+                                                            .transientSettings(Settings.builder()
+                                                                .put("cluster.metadata.display_name", "my_prod_cluster")
+                                                                .build())
+                                                            .build())
                                                         .stateUUID("_state_uuid")
                                                         .version(12L)
                                                         .nodes(DiscoveryNodes.builder()
@@ -234,6 +243,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeInfo.getSettings()).thenReturn(Settings.builder()
                                                             .put(NetworkModule.TRANSPORT_TYPE_KEY, "_transport")
                                                             .put(NetworkModule.HTTP_TYPE_KEY, "_http")
+                                                            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "_disco")
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
@@ -247,6 +257,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
+        when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
@@ -286,7 +297,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final ShardId shardId = new ShardId("_index", "_index_id", 7);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, EXISTING_STORE_INSTANCE, unassignedInfo);
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo);
 
         final ShardStats mockShardStats = mock(ShardStats.class);
         when(mockShardStats.getShardRouting()).thenReturn(shardRouting);
@@ -299,6 +311,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
 
         final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
+                                                                            "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
                                                                             emptyList());
@@ -350,6 +363,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + (needToEnableTLS ? ",\"cluster_needs_tls\":true" : "")
                   + "},"
                   + "\"cluster_stats\":{"
+                    + "\"cluster_uuid\":\"_cluster\","
                     + "\"timestamp\":1451606400000,"
                     + "\"status\":\"red\","
                     + "\"indices\":{"
@@ -435,6 +449,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                             + "\"count\":1"
                           + "}"
                         + "],"
+                        + "\"pretty_names\":["
+                          + "{"
+                            + "\"pretty_name\":\"_pretty_os_name\","
+                            + "\"count\":1"
+                          + "}"
+                        + "],"
                         + "\"mem\":{"
                           + "\"total_in_bytes\":100,"
                           + "\"free_in_bytes\":79,"
@@ -494,12 +514,16 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"http_types\":{"
                           + "\"_http\":1"
                         + "}"
+                      + "},"
+                      + "\"discovery_types\":{"
+                        + "\"_disco\":1"
                       + "}"
                     + "}"
                   + "},"
                   + "\"cluster_state\":{"
                     + "\"nodes_hash\":1314980060,"
                     + "\"status\":\"green\","
+                    + "\"cluster_uuid\":\"_cluster\","
                     + "\"version\":12,"
                     + "\"state_uuid\":\"_state_uuid\","
                     + "\"master_node\":\"_node\","
@@ -511,6 +535,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"attributes\":{"
                           + "\"attr\":\"value\""
                         + "}"
+                      + "}"
+                    + "}"
+                  + "},"
+                  + "\"cluster_settings\":{"
+                    + "\"cluster\":{"
+                      + "\"metadata\":{"
+                        + "\"display_name\":\"my_prod_cluster\""
                       + "}"
                     + "}"
                   + "},"

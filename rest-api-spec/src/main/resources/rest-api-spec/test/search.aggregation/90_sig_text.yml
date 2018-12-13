@@ -1,10 +1,6 @@
 ---
 "Default index":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new feature that has been added in 6.0.0
-
   - do:
       indices.create:
           index:  goodbad
@@ -71,12 +67,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
 
   - match: {hits.total: 7}
   
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
         body: {"aggs": {"class": {"terms": {"field": "class"},"aggs": {"sig_text": {"significant_text": {"field": "text"}}}}}}
 
@@ -85,10 +83,6 @@
   
 ---
 "Dedup noise":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new feature that has been added in 6.0.0
 
   - do:
       indices.create:
@@ -156,12 +150,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
 
   - match: {hits.total: 7}
   
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
         body: {"aggs": {"class": {"terms": {"field": "class"},"aggs": {"sig_text": {"significant_text": {"field": "text", "filter_duplicate_text": true}}}}}}
 

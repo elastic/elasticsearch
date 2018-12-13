@@ -33,7 +33,7 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.EQ.eval(null, null), is(true));
         assertThat(CompareCondition.Op.EQ.eval(4, 3.0), is(false));
         assertThat(CompareCondition.Op.EQ.eval(3, 3.0), is(true));
-        assertThat(CompareCondition.Op.EQ.eval(2, new Float(3.0)), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(2, Float.valueOf((float)3.0)), is(false));
         assertThat(CompareCondition.Op.EQ.eval(3, null), is(false));
         assertThat(CompareCondition.Op.EQ.eval(2, "2"), is(true));     // comparing as strings
         assertThat(CompareCondition.Op.EQ.eval(3, "4"), is(false));    // comparing as strings
@@ -59,7 +59,7 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.NOT_EQ.eval(null, null), is(false));
         assertThat(CompareCondition.Op.NOT_EQ.eval(4, 3.0), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(3, 3.0), is(false));
-        assertThat(CompareCondition.Op.NOT_EQ.eval(2, new Float(3.0)), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(2, Float.valueOf((float)3.0)), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(3, null), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(2, "2"), is(false));     // comparing as strings
         assertThat(CompareCondition.Op.NOT_EQ.eval(3, "4"), is(true));    // comparing as strings
@@ -83,7 +83,7 @@ public class CompareConditionTests extends ESTestCase {
     public void testOpEvalGTE() throws Exception {
         assertThat(CompareCondition.Op.GTE.eval(4, 3.0), is(true));
         assertThat(CompareCondition.Op.GTE.eval(3, 3.0), is(true));
-        assertThat(CompareCondition.Op.GTE.eval(2, new Float(3.0)), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(2, Float.valueOf((float)3.0)), is(false));
         assertThat(CompareCondition.Op.GTE.eval(3, null), is(false));
         assertThat(CompareCondition.Op.GTE.eval(3, "2"), is(true));     // comparing as strings
         assertThat(CompareCondition.Op.GTE.eval(3, "4"), is(false));    // comparing as strings
@@ -103,7 +103,7 @@ public class CompareConditionTests extends ESTestCase {
     public void testOpEvalGT() throws Exception {
         assertThat(CompareCondition.Op.GT.eval(4, 3.0), is(true));
         assertThat(CompareCondition.Op.GT.eval(3, 3.0), is(false));
-        assertThat(CompareCondition.Op.GT.eval(2, new Float(3.0)), is(false));
+        assertThat(CompareCondition.Op.GT.eval(2, Float.valueOf((float)3.0)), is(false));
         assertThat(CompareCondition.Op.GT.eval(3, null), is(false));
         assertThat(CompareCondition.Op.GT.eval(3, "2"), is(true));     // comparing as strings
         assertThat(CompareCondition.Op.GT.eval(3, "4"), is(false));    // comparing as strings
@@ -124,7 +124,7 @@ public class CompareConditionTests extends ESTestCase {
     public void testOpEvalLTE() throws Exception {
         assertThat(CompareCondition.Op.LTE.eval(4, 3.0), is(false));
         assertThat(CompareCondition.Op.LTE.eval(3, 3.0), is(true));
-        assertThat(CompareCondition.Op.LTE.eval(2, new Float(3.0)), is(true));
+        assertThat(CompareCondition.Op.LTE.eval(2, Float.valueOf((float) 3.0)), is(true));
         assertThat(CompareCondition.Op.LTE.eval(3, null), is(false));
         assertThat(CompareCondition.Op.LTE.eval(3, "2"), is(false));     // comparing as strings
         assertThat(CompareCondition.Op.LTE.eval(3, "4"), is(true));    // comparing as strings
@@ -144,7 +144,7 @@ public class CompareConditionTests extends ESTestCase {
     public void testOpEvalLT() throws Exception {
         assertThat(CompareCondition.Op.LT.eval(4, 3.0), is(false));
         assertThat(CompareCondition.Op.LT.eval(3, 3.0), is(false));
-        assertThat(CompareCondition.Op.LT.eval(2, new Float(3.0)), is(true));
+        assertThat(CompareCondition.Op.LT.eval(2, Float.valueOf((float) 3.0)), is(true));
         assertThat(CompareCondition.Op.LT.eval(3, null), is(false));
         assertThat(CompareCondition.Op.LT.eval(3, "2"), is(false));     // comparing as strings
         assertThat(CompareCondition.Op.LT.eval(3, "4"), is(true));    // comparing as strings

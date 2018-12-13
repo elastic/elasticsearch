@@ -13,6 +13,11 @@ Upgrading from earlier 5.x versions requires a <<restart-upgrade,
 full cluster restart>>. You must <<reindex-upgrade,reindex to upgrade>> from
 versions prior to 5.x.
 
+WARNING: If the {es} {security-features} are enabled on your 5.x cluster, before
+you can do a rolling upgrade you must encrypt the internode-communication with
+SSL/TLS, which requires a full cluster restart. For more information about this
+requirement and the associated bootstrap check, see <<bootstrap-checks-tls>>.
+
 To perform a rolling upgrade:
 
 . *Disable shard allocation*.
@@ -44,6 +49,10 @@ include::shut-down-node.asciidoc[]
 . *Upgrade the node you shut down.*
 +
 --
+include::remove-xpack.asciidoc[]
+--
++
+--
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -72,21 +81,15 @@ GET _cat/nodes
 +
 --
 
-NOTE: Because <<_precedence_of_settings, transient
-settings take precedence over persistent settings>>, this overrides the
-persistent setting used to disable shard allocation in the first step. If you
-don't explicitly reenable shard allocation after a full cluster restart, the
-persistent setting is used and shard allocation remains disabled.
-
-Once the node has joined the cluster, reenable shard allocation to start using
-the node:
+Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
+setting to enable shard allocation and start using the node:
 
 [source,js]
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
-    "cluster.routing.allocation.enable": "all"
+  "persistent": {
+    "cluster.routing.allocation.enable": null
   }
 }
 --------------------------------------------------
@@ -150,7 +153,7 @@ for each node that needs to be updated.
 
 --
 
-. *Restart machine learning jobs.* 
+. *Restart machine learning jobs.*
 
 [IMPORTANT]
 ====================================================

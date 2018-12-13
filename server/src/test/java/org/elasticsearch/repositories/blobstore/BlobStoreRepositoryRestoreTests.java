@@ -20,15 +20,17 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -48,7 +50,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -72,7 +73,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final int numDocs = scaledRandomIntBetween(1, 500);
             recoverShardFromStore(shard);
             for (int i = 0; i < numDocs; i++) {
-                indexDoc(shard, "doc", Integer.toString(i));
+                indexDoc(shard, "_doc", Integer.toString(i));
                 if (rarely()) {
                     flushShard(shard, false);
                 }
@@ -98,9 +99,17 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             }
 
             // build a new shard using the same store directory as the closed shard
-            ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), EXISTING_STORE_INSTANCE);
-            shard = newShard(shardRouting, shard.shardPath(), shard.indexSettings().getIndexMetaData(), null, null, () -> {},
-                EMPTY_EVENT_LISTENER);
+            ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(),
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE);
+            shard = newShard(
+                    shardRouting,
+                    shard.shardPath(),
+                    shard.indexSettings().getIndexMetaData(),
+                    null,
+                    null,
+                    new InternalEngineFactory(),
+                    () -> {},
+                    EMPTY_EVENT_LISTENER);
 
             // restore the shard
             recoverShardFromSnapshot(shard, snapshot, repository);
@@ -138,7 +147,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final int numDocs = scaledRandomIntBetween(1, 500);
             recoverShardFromStore(shard);
             for (int i = 0; i < numDocs; i++) {
-                indexDoc(shard, "doc", Integer.toString(i));
+                indexDoc(shard, "_doc", Integer.toString(i));
                 if (rarely()) {
                     flushShard(shard, false);
                 }
@@ -166,10 +175,17 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
     }
 
     /** Create a {@link Repository} with a random name **/
-    private Repository createRepository() throws IOException {
+    private Repository createRepository() {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry());
+        final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry()) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually
+            }
+        };
+        repository.start();
+        return repository;
     }
 
     /** Create a {@link Environment} with random path.home and path.repo **/

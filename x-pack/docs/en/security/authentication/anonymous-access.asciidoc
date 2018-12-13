@@ -1,5 +1,6 @@
+[role="xpack"]
 [[anonymous-access]]
-=== Enabling Anonymous Access
+=== Enabling anonymous access
 
 Incoming requests are considered to be _anonymous_ if no authentication token 
 can be extracted from the incoming request. By default, anonymous requests are rejected and an authentication error is returned (status code `401`). 

@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode;
-import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
-import java.sql.JDBCType;
+import java.sql.Types;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,14 +29,14 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
-        SqlQueryResponse response = client().prepareExecute(SqlQueryAction.INSTANCE)
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
                 .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
         int countIndex = dataBeforeCount ? 1 : 0;
-        assertEquals(new ColumnInfo("", "data", "text", JDBCType.VARCHAR, 0), response.columns().get(dataIndex));
-        assertEquals(new ColumnInfo("", "count", "long", JDBCType.BIGINT, 20), response.columns().get(countIndex));
+        assertEquals(new ColumnInfo("", "data", "text", Types.VARCHAR, 0), response.columns().get(dataIndex));
+        assertEquals(new ColumnInfo("", "count", "long", Types.BIGINT, 20), response.columns().get(countIndex));
 
         assertThat(response.rows(), hasSize(2));
         assertEquals("bar", response.rows().get(0).get(dataIndex));

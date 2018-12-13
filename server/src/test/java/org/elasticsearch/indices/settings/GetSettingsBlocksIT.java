@@ -22,7 +22,6 @@ package org.elasticsearch.indices.settings;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;

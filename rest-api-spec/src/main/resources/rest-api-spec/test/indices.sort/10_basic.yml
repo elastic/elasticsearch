@@ -1,10 +1,6 @@
 ---
 "Index Sort":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new feature that has been added in 6.0.0
-
   - do:
       indices.create:
         index: test
@@ -92,6 +88,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -103,6 +100,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -125,6 +123,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: _doc
@@ -142,6 +141,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -158,6 +158,7 @@
   - do:
       catch:      /disabling \[track_total_hits\] is not allowed in a scroll context/
       search:
+        rest_total_hits_as_int: true
         index: test
         scroll: 1m
         body:

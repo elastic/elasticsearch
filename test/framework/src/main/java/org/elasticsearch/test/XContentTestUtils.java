@@ -60,7 +60,7 @@ public final class XContentTestUtils {
 
 
     /**
-     * Compares to maps generated from XContentObjects. The order of elements in arrays is ignored.
+     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
      *
      * @return null if maps are equal or path to the element where the difference was found
      */
@@ -145,7 +145,7 @@ public final class XContentTestUtils {
      * If the xContent output contains objects that should be skipped of such treatment, an optional filtering
      * {@link Predicate} can be supplied that checks xContent paths that should be excluded from this treatment.
      *
-     * This predicate should check the xContent path that we want to insert to and return <tt>true</tt> if the
+     * This predicate should check the xContent path that we want to insert to and return {@code true} if the
      * path should be excluded. Paths are string concatenating field names and array indices, so e.g. in:
      *
      * <pre>

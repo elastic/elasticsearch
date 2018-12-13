@@ -1,8 +1,5 @@
 ---
 "Help":
-  - skip:
-      version: " - 5.99.99"
-      reason: seq no stats were added in 6.0.0
 
   - do:
       cat.shards:
@@ -219,10 +216,6 @@
 
 ---
 "Test cat shards sort":
-  - skip:
-      version: " - 5.0.99"
-      reason:  sorting was introduced in 5.1.0
-
   - do:
       indices.create:
         index: foo

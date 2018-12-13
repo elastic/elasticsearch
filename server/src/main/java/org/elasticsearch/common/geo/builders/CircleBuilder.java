@@ -56,7 +56,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
      */
     public CircleBuilder(StreamInput in) throws IOException {
         center(readFromStream(in));
-        radius(in.readDouble(), DistanceUnit.readFromStream(in));;
+        radius(in.readDouble(), DistanceUnit.readFromStream(in));
     }
 
     @Override
@@ -159,8 +159,13 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
     }
 
     @Override
-    public Circle build() {
+    public Circle buildS4J() {
         return SPATIAL_CONTEXT.makeCircle(center.x, center.y, 360 * radius / unit.getEarthCircumference());
+    }
+
+    @Override
+    public Object buildLucene() {
+        throw new UnsupportedOperationException("CIRCLE geometry is not supported");
     }
 
     @Override

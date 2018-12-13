@@ -1,0 +1,401 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-datetime]]
+=== Date and Time Functions
+
+beta[]
+
+[[sql-functions-datetime-day]]
+==== `DAY_OF_MONTH`/`DOM`/`DAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_OF_MONTH(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the month from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dayOfMonth]
+--------------------------------------------------
+
+[[sql-functions-datetime-dow]]
+==== `DAY_OF_WEEK`/`DAYOFWEEK`/`DOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_OF_WEEK(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the week from a date. Sunday is `1`, Monday is `2`, etc.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dayOfWeek]
+--------------------------------------------------
+
+[[sql-functions-datetime-doy]]
+==== `DAY_OF_YEAR`/`DOY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_OF_YEAR(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the year from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dayOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-dayname]]
+==== `DAY_NAME`/`DAYNAME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_NAME(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: string
+
+.Description:
+
+Extract the day of the week from a datetime in text format (`Monday`, `Tuesday`...).
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dayName]
+--------------------------------------------------
+
+[[sql-functions-datetime-hour]]
+==== `HOUR_OF_DAY`/`HOUR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+HOUR_OF_DAY(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the hour of the day from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[hourOfDay]
+--------------------------------------------------
+
+[[sql-functions-datetime-isodow]]
+==== `ISO_DAY_OF_WEEK`/`ISODAYOFWEEK`/`ISODOW`/`IDOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ISO_DAY_OF_WEEK(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the week from a date, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
+Monday is `1`, Tuesday is `2`, etc.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[isoDayOfWeek]
+--------------------------------------------------
+
+[[sql-functions-datetime-isoweek]]
+==== `ISO_WEEK_OF_YEAR`/`ISOWEEKOFYEAR`/`ISOWEEK`/`IWOY`/`IW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ISO_WEEK_OF_YEAR(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the week of the year from a date, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
+of a year is the first week with a majority (4 or more) of its days in January.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[isoWeekOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-minuteofday]]
+==== `MINUTE_OF_DAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MINUTE_OF_DAY(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the minute of the day from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[minuteOfDay]
+--------------------------------------------------
+
+[[sql-functions-datetime-minute]]
+==== `MINUTE_OF_HOUR`/`MINUTE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MINUTE_OF_HOUR(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the minute of the hour from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[minuteOfHour]
+--------------------------------------------------
+
+[[sql-functions-datetime-month]]
+==== `MONTH_OF_YEAR`/`MONTH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MONTH(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the month of the year from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[monthOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-monthname]]
+==== `MONTH_NAME`/`MONTHNAME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MONTH_NAME(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: string
+
+.Description:
+
+Extract the month from a datetime in text format (`January`, `February`...).
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[monthName]
+--------------------------------------------------
+
+[[sql-functions-datetime-second]]
+==== `SECOND_OF_MINUTE`/`SECOND`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+SECOND_OF_MINUTE(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the second of the minute from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[secondOfMinute]
+--------------------------------------------------
+
+[[sql-functions-datetime-quarter]]
+==== `QUARTER`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+QUARTER(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the year quarter the date falls in.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[quarter]
+--------------------------------------------------
+
+[[sql-functions-datetime-week]]
+==== `WEEK_OF_YEAR`/`WEEK`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+WEEK_OF_YEAR(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the week of the year from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[weekOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-year]]
+==== `YEAR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+YEAR(date_exp<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract the year from a date.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[year]
+--------------------------------------------------
+
+[[sql-functions-datetime-extract]]
+==== `EXTRACT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+EXTRACT(datetime_function<1> FROM date_exp<2>)
+--------------------------------------------------
+
+*Input*:
+
+<1> datetime function name
+<2> date expression
+
+*Output*: integer
+
+.Description:
+
+Extract fields from a datetime by specifying the name of a <<sql-functions-datetime,datetime function>>.
+The following
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[extractDayOfYear]
+--------------------------------------------------
+
+is the equivalent to
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dayOfYear]
+--------------------------------------------------

@@ -63,11 +63,11 @@ public class UserAgentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String userAgent = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
         if (userAgent == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (userAgent == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse user-agent.");
         }
@@ -144,6 +144,7 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, uaDetails);
+        return ingestDocument;
     }
 
     /** To maintain compatibility with logstash-filter-useragent */

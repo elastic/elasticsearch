@@ -59,12 +59,9 @@ setup:
 
 ---
 "Test basic":
-    - skip:
-        version: " - 5.5.99"
-        reason:  parent-join was added in 5.6
-
     - do:
         search:
+          rest_total_hits_as_int: true
           body: { sort: ["join_field", "_id"] }
 
     - match: { hits.total: 6 }
@@ -104,12 +101,9 @@ setup:
 
 ---
 "Test parent_id query":
-    - skip:
-        version: " - 5.5.99"
-        reason:  parent-join was added in 5.6.
-
     - do:
         search:
+          rest_total_hits_as_int: true
           body:
             sort: [ "_id" ]
             query:

@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -22,14 +22,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
@@ -69,16 +68,13 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private final int retries;
     private HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
-    private HttpAuthRegistry authRegistry;
 
-    public ReportingAttachmentParser(Settings settings, HttpClient httpClient,
-                                     TextTemplateEngine templateEngine, HttpAuthRegistry authRegistry) {
+    public ReportingAttachmentParser(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
         this.interval = INTERVAL_SETTING.get(settings);
         this.retries = RETRIES_SETTING.get(settings);
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;
-        this.authRegistry = authRegistry;
-        this.logger = Loggers.getLogger(getClass());
+        this.logger = LogManager.getLogger(getClass());
     }
 
     @Override
@@ -89,13 +85,13 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     @Override
     public ReportingAttachment parse(String id, XContentParser parser) throws IOException {
         Builder builder = new Builder(id);
-        PARSER.parse(parser, builder, new AuthParseContext(authRegistry));
+        PARSER.parse(parser, builder, new AuthParseContext());
         return builder.build();
     }
 
     @Override
     public Attachment toAttachment(WatchExecutionContext context, Payload payload, ReportingAttachment attachment) throws IOException {
-        Map<String, Object> model = Variables.createCtxModel(context, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
 
         String initialUrl = templateEngine.render(new TextTemplate(attachment.url()), model);
 
@@ -222,15 +218,9 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      */
     private static class AuthParseContext {
 
-        private final HttpAuthRegistry authRegistry;
-
-        AuthParseContext(HttpAuthRegistry authRegistry) {
-            this.authRegistry = authRegistry;
-        }
-
-        HttpAuth parseAuth(XContentParser parser) {
+        BasicAuth parseAuth(XContentParser parser) {
             try {
-                return authRegistry.parse(parser);
+                return BasicAuth.parse(parser);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -273,7 +263,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         private String url;
         private TimeValue interval;
         private Integer retries;
-        private HttpAuth auth;
+        private BasicAuth auth;
         private HttpProxy proxy;
 
         Builder(String id) {
@@ -301,7 +291,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
             return this;
         }
 
-        Builder auth(HttpAuth auth) {
+        Builder auth(BasicAuth auth) {
             this.auth = auth;
             return this;
         }

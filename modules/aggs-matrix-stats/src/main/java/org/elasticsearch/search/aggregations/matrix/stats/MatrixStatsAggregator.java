@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -30,7 +31,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.MultiValuesSource.NumericMultiValuesSource;
+import org.elasticsearch.search.aggregations.support.ArrayValuesSource.NumericArrayValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -43,7 +44,7 @@ import java.util.Map;
  **/
 final class MatrixStatsAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
-    private final NumericMultiValuesSource valuesSources;
+    private final NumericArrayValuesSource valuesSources;
 
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
@@ -53,7 +54,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
                                  Map<String,Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         if (valuesSources != null && !valuesSources.isEmpty()) {
-            this.valuesSources = new NumericMultiValuesSource(valuesSources, multiValueMode);
+            this.valuesSources = new NumericArrayValuesSource(valuesSources, multiValueMode);
             stats = context.bigArrays().newObjectArray(1);
         } else {
             this.valuesSources = null;
@@ -61,8 +62,8 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return (valuesSources == null) ? false : valuesSources.needsScores();
+    public ScoreMode scoreMode() {
+        return (valuesSources != null && valuesSources.needsScores()) ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

@@ -26,6 +26,7 @@ on the 10th of each month at noon:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 NOTE: You can also specify the day and time with the `day` and `time` attributes,
       they are interchangeable with `on` and `at`.
@@ -50,6 +51,7 @@ schedule triggers at 12:00 PM on the 10th of each month and at 5:00 PM on the
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Alternatively, you can specify days and times in an object that has `on` and `at`
 attributes that contain an array of values. For example, the following `monthly`
@@ -68,3 +70,4 @@ schedule triggers at 12:00 AM and 12:00 PM on the 10th and 20th of each month.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

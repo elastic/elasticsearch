@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.condition;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.watcher.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentUtils;
+import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -69,7 +69,6 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
         String path = null;
         Op op = null;
         Object value = null;
-        boolean haveValue = false;
         Quantifier quantifier = null;
 
         XContentParser.Token token;
@@ -86,11 +85,6 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                             parser.nextToken();
                             path = parser.text();
                         } else {
-                            if (op != null) {
-                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. encountered " +
-                                        "duplicate comparison operator, but already saw [{}].", TYPE, watchId, parser.currentName(), op
-                                        .id());
-                            }
                             try {
                                 op = Op.resolve(parser.currentName());
                             } catch (IllegalArgumentException iae) {
@@ -102,11 +96,6 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                     if (token == XContentParser.Token.FIELD_NAME) {
                                         if (parser.currentName().equals("value")) {
-                                            if (haveValue) {
-                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
-                                                        "encountered duplicate field \"value\", but already saw value [{}].", TYPE,
-                                                        watchId, value);
-                                            }
                                             token = parser.nextToken();
                                             if (!op.supportsStructures() && !token.isValue() && token != XContentParser.Token.VALUE_NULL) {
                                                 throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
@@ -115,13 +104,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                                         op.name().toLowerCase(Locale.ROOT), token);
                                             }
                                             value = XContentUtils.readValue(parser, token);
-                                            haveValue = true;
                                         } else if (parser.currentName().equals("quantifier")) {
-                                            if (quantifier != null) {
-                                                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
-                                                        "encountered duplicate field \"quantifier\", but already saw quantifier [{}].",
-                                                        TYPE, watchId, quantifier.id());
-                                            }
                                             parser.nextToken();
                                             try {
                                                 quantifier = Quantifier.resolve(parser.text());

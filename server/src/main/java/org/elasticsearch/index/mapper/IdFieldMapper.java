@@ -28,8 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -86,7 +84,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+                                                 ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
@@ -159,7 +158,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache, breakerService, mapperService);
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
+                        breakerService, mapperService);
                     return new IndexFieldData<AtomicFieldData>() {
 
                         @Override
@@ -184,7 +184,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
+                                sortMode, nested);
                             return new SortField(getFieldName(), source, reverse);
                         }
 

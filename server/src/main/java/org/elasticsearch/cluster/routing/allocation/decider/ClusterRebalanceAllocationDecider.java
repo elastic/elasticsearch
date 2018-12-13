@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import java.util.Locale;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,20 +34,22 @@ import org.elasticsearch.common.settings.Settings;
  * This {@link AllocationDecider} controls re-balancing operations based on the
  * cluster wide active shard state. This decided can not be configured in
  * real-time and should be pre-cluster start via
- * <tt>cluster.routing.allocation.allow_rebalance</tt>. This setting respects the following
+ * {@code cluster.routing.allocation.allow_rebalance}. This setting respects the following
  * values:
  * <ul>
- * <li><tt>indices_primaries_active</tt> - Re-balancing is allowed only once all
+ * <li>{@code indices_primaries_active} - Re-balancing is allowed only once all
  * primary shards on all indices are active.</li>
  *
- * <li><tt>indices_all_active</tt> - Re-balancing is allowed only once all
+ * <li>{@code indices_all_active} - Re-balancing is allowed only once all
  * shards on all indices are active.</li>
  *
- * <li><tt>always</tt> - Re-balancing is allowed once a shard replication group
+ * <li>{@code always} - Re-balancing is allowed once a shard replication group
  * is active</li>
  * </ul>
  */
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
+
+    private static final Logger logger = LogManager.getLogger(ClusterRebalanceAllocationDecider.class);
 
     public static final String NAME = "cluster_rebalance";
     private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
@@ -91,7 +95,6 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     private volatile ClusterRebalanceType type;
 
     public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         try {
             type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
         } catch (IllegalStateException e) {

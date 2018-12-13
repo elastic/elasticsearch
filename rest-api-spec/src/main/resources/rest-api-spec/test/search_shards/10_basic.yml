@@ -13,10 +13,6 @@
 
 ---
 "Search shards aliases with and without filters":
-  - skip:
-      version: " - 5.4.0"
-      reason: "#24489 fixed a bug that not all aliases where added in 5.4.1 - indices section was added in 5.1.0"
-
   - do:
       indices.create:
         index: test_index

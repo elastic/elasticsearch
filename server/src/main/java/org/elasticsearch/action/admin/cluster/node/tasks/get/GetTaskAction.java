@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for retrieving a list of currently running tasks
  */
-public class GetTaskAction extends Action<GetTaskRequest, GetTaskResponse, GetTaskRequestBuilder> {
+public class GetTaskAction extends Action<GetTaskResponse> {
+    public static final String TASKS_ORIGIN = "tasks";
 
     public static final GetTaskAction INSTANCE = new GetTaskAction();
     public static final String NAME = "cluster:monitor/task/get";
@@ -37,10 +37,5 @@ public class GetTaskAction extends Action<GetTaskRequest, GetTaskResponse, GetTa
     @Override
     public GetTaskResponse newResponse() {
         return new GetTaskResponse();
-    }
-
-    @Override
-    public GetTaskRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetTaskRequestBuilder(client, this);
     }
 }

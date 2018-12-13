@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Point;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
@@ -85,8 +85,13 @@ public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     }
 
     @Override
-    public Point build() {
+    public Point buildS4J() {
         return SPATIAL_CONTEXT.makePoint(coordinates.get(0).x, coordinates.get(0).y);
+    }
+
+    @Override
+    public GeoPoint buildLucene() {
+        return new GeoPoint(coordinates.get(0).y, coordinates.get(0).x);
     }
 
     @Override

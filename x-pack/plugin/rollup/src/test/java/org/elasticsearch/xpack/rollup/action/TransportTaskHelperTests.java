@@ -9,7 +9,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
@@ -18,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupJobConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 public class TransportTaskHelperTests extends ESTestCase {
 
     public void testProcessRequestOneMatching() {
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo").build();
+        RollupJobConfig job = randomRollupJobConfig(random(), "foo");
         TaskManager taskManager = mock(TaskManager.class);
         RollupJobTask task = mock(RollupJobTask.class);
         when(task.getDescription()).thenReturn("rollup_foo");
@@ -58,13 +58,13 @@ public class TransportTaskHelperTests extends ESTestCase {
         Map<Long, Task> tasks = getRandomTasks();
         when(taskManager.getTasks()).thenReturn(tasks);
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo").build();
+        RollupJobConfig job = randomRollupJobConfig(random(), "foo");
         RollupJobTask task = mock(RollupJobTask.class);
         when(task.getDescription()).thenReturn("rollup_foo");
         when(task.getConfig()).thenReturn(job);
         tasks.put(1L, task);
 
-        RollupJobConfig job2 = ConfigTestHelpers.getRollupJob("foo").build();
+        RollupJobConfig job2 = randomRollupJobConfig(random(), "foo");
         RollupJobTask task2 = mock(RollupJobTask.class);
         when(task2.getDescription()).thenReturn("rollup_foo");
         when(task2.getConfig()).thenReturn(job2);

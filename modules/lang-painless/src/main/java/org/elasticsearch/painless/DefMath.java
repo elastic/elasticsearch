@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,38 +30,38 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Dynamic operators for painless. 
+ * Dynamic operators for painless.
  * <p>
  * Each operator must "support" the following types:
- * {@code int,long,float,double,boolean,Object}. Operators can throw exceptions if 
+ * {@code int,long,float,double,boolean,Object}. Operators can throw exceptions if
  * the type is illegal. The {@code Object} type must be a "generic" handler that
  * handles all legal types: it must be convertible to every possible legal signature.
  */
 @SuppressWarnings("unused")
 public class DefMath {
-    
+
     // Unary not: only applicable to integral types
 
     private static int not(int v) {
         return ~v;
     }
-    
+
     private static long not(long v) {
         return ~v;
     }
-    
+
     private static float not(float v) {
         throw new ClassCastException("Cannot apply not [~] to type [float]");
     }
-    
+
     private static double not(double v) {
         throw new ClassCastException("Cannot apply not [~] to type [double]");
     }
-    
+
     private static boolean not(boolean v) {
         throw new ClassCastException("Cannot apply not [~] to type [boolean]");
     }
-    
+
     private static Object not(Object unary) {
         if (unary instanceof Long) {
             return ~(Long)unary;
@@ -79,29 +78,29 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [~] operation to type " +
                 "[" + unary.getClass().getCanonicalName() + "].");
     }
-    
+
     // unary negation and plus: applicable to all numeric types
 
     private static int neg(int v) {
         return -v;
     }
-    
+
     private static long neg(long v) {
         return -v;
     }
-    
+
     private static float neg(float v) {
         return -v;
     }
-    
+
     private static double neg(double v) {
         return -v;
     }
-    
+
     private static boolean neg(boolean v) {
         throw new ClassCastException("Cannot apply [-] operation to type [boolean]");
     }
-    
+
     private static Object neg(final Object unary) {
         if (unary instanceof Double) {
             return -(double)unary;
@@ -122,27 +121,27 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [-] operation to type " +
                 "[" + unary.getClass().getCanonicalName() + "].");
     }
-    
+
     private static int plus(int v) {
         return +v;
     }
-    
+
     private static long plus(long v) {
         return +v;
     }
-    
+
     private static float plus(float v) {
         return +v;
     }
-    
+
     private static double plus(double v) {
         return +v;
     }
-    
+
     private static boolean plus(boolean v) {
         throw new ClassCastException("Cannot apply [+] operation to type [boolean]");
     }
-    
+
     private static Object plus(final Object unary) {
         if (unary instanceof Double) {
             return +(double)unary;
@@ -163,29 +162,29 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [+] operation to type " +
                 "[" + unary.getClass().getCanonicalName() + "].");
     }
-    
+
     // multiplication/division/remainder/subtraction: applicable to all integer types
-    
+
     private static int mul(int a, int b) {
         return a * b;
     }
-    
+
     private static long mul(long a, long b) {
         return a * b;
     }
-    
+
     private static float mul(float a, float b) {
         return a * b;
     }
-    
+
     private static double mul(double a, double b) {
         return a * b;
     }
-    
+
     private static boolean mul(boolean a, boolean b) {
         throw new ClassCastException("Cannot apply [*] operation to type [boolean]");
     }
-    
+
     private static Object mul(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -228,27 +227,27 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [*] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     private static int div(int a, int b) {
         return a / b;
     }
-    
+
     private static long div(long a, long b) {
         return a / b;
     }
-    
+
     private static float div(float a, float b) {
         return a / b;
     }
-    
+
     private static double div(double a, double b) {
         return a / b;
     }
-    
+
     private static boolean div(boolean a, boolean b) {
         throw new ClassCastException("Cannot apply [/] operation to type [boolean]");
     }
-    
+
     private static Object div(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -291,27 +290,27 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [/] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     private static int rem(int a, int b) {
         return a % b;
     }
-    
+
     private static long rem(long a, long b) {
         return a % b;
     }
-    
+
     private static float rem(float a, float b) {
         return a % b;
     }
-    
+
     private static double rem(double a, double b) {
         return a % b;
     }
-    
+
     private static boolean rem(boolean a, boolean b) {
         throw new ClassCastException("Cannot apply [%] operation to type [boolean]");
     }
-    
+
     private static Object rem(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -354,30 +353,30 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [%] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     // addition: applicable to all numeric types.
     // additionally, if either type is a string, the other type can be any arbitrary type (including null)
-    
+
     private static int add(int a, int b) {
         return a + b;
     }
-    
+
     private static long add(long a, long b) {
         return a + b;
     }
-    
+
     private static float add(float a, float b) {
         return a + b;
     }
-    
+
     private static double add(double a, double b) {
         return a + b;
     }
-    
+
     private static boolean add(boolean a, boolean b) {
         throw new ClassCastException("Cannot apply [+] operation to type [boolean]");
     }
-    
+
     private static Object add(Object left, Object right) {
         if (left instanceof String) {
             return (String) left + right;
@@ -424,27 +423,27 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [+] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     private static int sub(int a, int b) {
         return a - b;
     }
-    
+
     private static long sub(long a, long b) {
         return a - b;
     }
-    
+
     private static float sub(float a, float b) {
         return a - b;
     }
-    
+
     private static double sub(double a, double b) {
         return a - b;
     }
-    
+
     private static boolean sub(boolean a, boolean b) {
         throw new ClassCastException("Cannot apply [-] operation to type [boolean]");
     }
-    
+
     private static Object sub(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -487,29 +486,29 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [-] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     // eq: applicable to any arbitrary type, including nulls for both arguments!!!
 
     private static boolean eq(int a, int b) {
         return a == b;
     }
-    
+
     private static boolean eq(long a, long b) {
         return a == b;
     }
-    
+
     private static boolean eq(float a, float b) {
         return a == b;
     }
-    
+
     private static boolean eq(double a, double b) {
         return a == b;
     }
-    
+
     private static boolean eq(boolean a, boolean b) {
         return a == b;
     }
-    
+
     private static boolean eq(Object left, Object right) {
         if (left != null && right != null) {
             if (left instanceof Double) {
@@ -565,29 +564,29 @@ public class DefMath {
 
         return left == null && right == null;
     }
-    
+
     // comparison operators: applicable for any numeric type
 
     private static boolean lt(int a, int b) {
         return a < b;
     }
-    
+
     private static boolean lt(long a, long b) {
         return a < b;
     }
-    
+
     private static boolean lt(float a, float b) {
         return a < b;
     }
-    
+
     private static boolean lt(double a, double b) {
         return a < b;
     }
-    
+
     private static boolean lt(boolean a, boolean b) {
-        throw new ClassCastException("Cannot apply [<] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [<] operation to type [boolean]");
     }
-    
+
     private static boolean lt(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -634,23 +633,23 @@ public class DefMath {
     private static boolean lte(int a, int b) {
         return a <= b;
     }
-    
+
     private static boolean lte(long a, long b) {
         return a <= b;
     }
-    
+
     private static boolean lte(float a, float b) {
         return a <= b;
     }
-    
+
     private static boolean lte(double a, double b) {
         return a <= b;
     }
-    
+
     private static boolean lte(boolean a, boolean b) {
-        throw new ClassCastException("Cannot apply [<=] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [<=] operation to type [boolean]");
     }
-    
+
     private static boolean lte(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -697,23 +696,23 @@ public class DefMath {
     private static boolean gt(int a, int b) {
         return a > b;
     }
-    
+
     private static boolean gt(long a, long b) {
         return a > b;
     }
-    
+
     private static boolean gt(float a, float b) {
         return a > b;
     }
-    
+
     private static boolean gt(double a, double b) {
         return a > b;
     }
-    
+
     private static boolean gt(boolean a, boolean b) {
-        throw new ClassCastException("Cannot apply [>] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [>] operation to type [boolean]");
     }
-    
+
     private static boolean gt(Object left, Object right) {
         if (left instanceof Number) {
             if (right instanceof Number) {
@@ -756,25 +755,25 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [>] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     private static boolean gte(int a, int b) {
         return a >= b;
     }
-    
+
     private static boolean gte(long a, long b) {
         return a >= b;
     }
-    
+
     private static boolean gte(float a, float b) {
         return a >= b;
     }
-    
+
     private static boolean gte(double a, double b) {
         return a >= b;
     }
-    
+
     private static boolean gte(boolean a, boolean b) {
-        throw new ClassCastException("Cannot apply [>=] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [>=] operation to type [boolean]");
     }
 
     private static boolean gte(Object left, Object right) {
@@ -819,10 +818,10 @@ public class DefMath {
         throw new ClassCastException("Cannot apply [>] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
-    
+
     // helper methods to convert an integral according to numeric promotion
     // this is used by the generic code for bitwise and shift operators
-    
+
     private static long longIntegralValue(Object o) {
         if (o instanceof Long) {
             return (long)o;
@@ -834,7 +833,7 @@ public class DefMath {
             throw new ClassCastException("Cannot convert [" + o.getClass().getCanonicalName() + "] to an integral value.");
         }
     }
-    
+
     private static int intIntegralValue(Object o) {
         if (o instanceof Integer || o instanceof Short || o instanceof Byte) {
             return ((Number)o).intValue();
@@ -844,29 +843,29 @@ public class DefMath {
             throw new ClassCastException("Cannot convert [" + o.getClass().getCanonicalName() + "] to an integral value.");
         }
     }
-    
+
     // bitwise operators: valid only for integral types
 
     private static int and(int a, int b) {
         return a & b;
     }
-    
+
     private static long and(long a, long b) {
         return a & b;
     }
-    
+
     private static float and(float a, float b) {
-        throw new ClassCastException("Cannot apply [&] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [&] operation to type [float]");
     }
-    
+
     private static double and(double a, double b) {
-        throw new ClassCastException("Cannot apply [&] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [&] operation to type [float]");
     }
-    
+
     private static boolean and(boolean a, boolean b) {
         return a & b;
     }
-    
+
     private static Object and(Object left, Object right) {
         if (left instanceof Boolean && right instanceof Boolean) {
             return (boolean)left & (boolean)right;
@@ -876,23 +875,23 @@ public class DefMath {
             return intIntegralValue(left) & intIntegralValue(right);
         }
     }
-    
+
     private static int xor(int a, int b) {
         return a ^ b;
     }
-    
+
     private static long xor(long a, long b) {
         return a ^ b;
     }
-    
+
     private static float xor(float a, float b) {
-        throw new ClassCastException("Cannot apply [^] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [^] operation to type [float]");
     }
-    
+
     private static double xor(double a, double b) {
-        throw new ClassCastException("Cannot apply [^] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [^] operation to type [float]");
     }
-    
+
     private static boolean xor(boolean a, boolean b) {
         return a ^ b;
     }
@@ -910,23 +909,23 @@ public class DefMath {
     private static int or(int a, int b) {
         return a | b;
     }
-    
+
     private static long or(long a, long b) {
         return a | b;
     }
-    
+
     private static float or(float a, float b) {
-        throw new ClassCastException("Cannot apply [|] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [|] operation to type [float]");
     }
-    
+
     private static double or(double a, double b) {
-        throw new ClassCastException("Cannot apply [|] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [|] operation to type [float]");
     }
-    
+
     private static boolean or(boolean a, boolean b) {
         return a | b;
     }
-    
+
     private static Object or(Object left, Object right) {
         if (left instanceof Boolean && right instanceof Boolean) {
             return (boolean)left | (boolean)right;
@@ -936,30 +935,30 @@ public class DefMath {
             return intIntegralValue(left) | intIntegralValue(right);
         }
     }
-    
+
     // shift operators, valid for any integral types, but does not promote.
     // we implement all shifts as long shifts, because the extra bits are ignored anyway.
-    
+
     private static int lsh(int a, long b) {
         return a << b;
     }
-    
+
     private static long lsh(long a, long b) {
         return a << b;
     }
-    
+
     private static float lsh(float a, long b) {
-        throw new ClassCastException("Cannot apply [<<] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [<<] operation to type [float]");
     }
-    
+
     private static double lsh(double a, long b) {
-        throw new ClassCastException("Cannot apply [<<] operation to type [double]");    
+        throw new ClassCastException("Cannot apply [<<] operation to type [double]");
     }
-    
+
     private static boolean lsh(boolean a, long b) {
-        throw new ClassCastException("Cannot apply [<<] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [<<] operation to type [boolean]");
     }
-    
+
     public static Object lsh(Object left, long right) {
         if (left instanceof Long) {
             return (long)(left) << right;
@@ -967,25 +966,25 @@ public class DefMath {
             return intIntegralValue(left) << right;
         }
     }
-    
+
     private static int rsh(int a, long b) {
         return a >> b;
     }
-    
+
     private static long rsh(long a, long b) {
         return a >> b;
     }
-    
+
     private static float rsh(float a, long b) {
-        throw new ClassCastException("Cannot apply [>>] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [>>] operation to type [float]");
     }
-    
+
     private static double rsh(double a, long b) {
-        throw new ClassCastException("Cannot apply [>>] operation to type [double]");    
+        throw new ClassCastException("Cannot apply [>>] operation to type [double]");
     }
-    
+
     private static boolean rsh(boolean a, long b) {
-        throw new ClassCastException("Cannot apply [>>] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [>>] operation to type [boolean]");
     }
 
     public static Object rsh(Object left, long right) {
@@ -995,25 +994,25 @@ public class DefMath {
             return intIntegralValue(left) >> right;
         }
     }
-    
+
     private static int ush(int a, long b) {
         return a >>> b;
     }
-    
+
     private static long ush(long a, long b) {
         return a >>> b;
     }
-    
+
     private static float ush(float a, long b) {
-        throw new ClassCastException("Cannot apply [>>>] operation to type [float]");    
+        throw new ClassCastException("Cannot apply [>>>] operation to type [float]");
     }
-    
+
     private static double ush(double a, long b) {
-        throw new ClassCastException("Cannot apply [>>>] operation to type [double]");    
+        throw new ClassCastException("Cannot apply [>>>] operation to type [double]");
     }
-    
+
     private static boolean ush(boolean a, long b) {
-        throw new ClassCastException("Cannot apply [>>>] operation to type [boolean]");    
+        throw new ClassCastException("Cannot apply [>>>] operation to type [boolean]");
     }
 
     public static Object ush(Object left, long right) {
@@ -1023,15 +1022,15 @@ public class DefMath {
             return intIntegralValue(left) >>> right;
         }
     }
-    
-    /** 
-     * unboxes a class to its primitive type, or returns the original 
+
+    /**
+     * unboxes a class to its primitive type, or returns the original
      * class if its not a boxed type.
      */
     private static Class<?> unbox(Class<?> clazz) {
         return MethodType.methodType(clazz).unwrap().returnType();
     }
-    
+
     /** Unary promotion. All Objects are promoted to Object. */
     private static Class<?> promote(Class<?> clazz) {
         // if either is a non-primitive type -> Object.
@@ -1039,25 +1038,25 @@ public class DefMath {
             return Object.class;
         }
         // always promoted to integer
-        if (clazz == byte.class || clazz == short.class || clazz == char.class || clazz == int.class) { 
-            return int.class; 
-        } else { 
-            return clazz; 
-        } 
+        if (clazz == byte.class || clazz == short.class || clazz == char.class || clazz == int.class) {
+            return int.class;
+        } else {
+            return clazz;
+        }
     }
-    
+
     /** Binary promotion. */
     private static Class<?> promote(Class<?> a, Class<?> b) {
         // if either is a non-primitive type -> Object.
         if (a.isPrimitive() == false || b.isPrimitive() == false) {
             return Object.class;
         }
-        
+
         // boolean -> boolean
         if (a == boolean.class && b == boolean.class) {
             return boolean.class;
         }
-        
+
         // ordinary numeric promotion
         if (a == double.class || b == double.class) {
             return double.class;
@@ -1069,8 +1068,8 @@ public class DefMath {
             return int.class;
         }
     }
-    
-    private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+    private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
     private static final Map<Class<?>,Map<String,MethodHandle>> TYPE_OP_MAPPING = Collections.unmodifiableMap(
         Stream.of(boolean.class, int.class, long.class, float.class, double.class, Object.class)
@@ -1081,33 +1080,33 @@ public class DefMath {
                     MethodType binary = MethodType.methodType(type, type, type);
                     MethodType comparison = MethodType.methodType(boolean.class, type, type);
                     MethodType shift = MethodType.methodType(type, type, long.class);
-                    Class<?> clazz = PRIV_LOOKUP.lookupClass();
-                    map.put("not",   PRIV_LOOKUP.findStatic(clazz, "not",  unary));
-                    map.put("neg",   PRIV_LOOKUP.findStatic(clazz, "neg",  unary));
-                    map.put("plus",  PRIV_LOOKUP.findStatic(clazz, "plus", unary));
-                    map.put("mul",   PRIV_LOOKUP.findStatic(clazz, "mul",  binary));
-                    map.put("div",   PRIV_LOOKUP.findStatic(clazz, "div",  binary));
-                    map.put("rem",   PRIV_LOOKUP.findStatic(clazz, "rem",  binary));
-                    map.put("add",   PRIV_LOOKUP.findStatic(clazz, "add",  binary));
-                    map.put("sub",   PRIV_LOOKUP.findStatic(clazz, "sub",  binary));
-                    map.put("and",   PRIV_LOOKUP.findStatic(clazz, "and",  binary));
-                    map.put("or",    PRIV_LOOKUP.findStatic(clazz, "or",   binary));
-                    map.put("xor",   PRIV_LOOKUP.findStatic(clazz, "xor",  binary));
-                    map.put("eq",    PRIV_LOOKUP.findStatic(clazz, "eq",   comparison));
-                    map.put("lt",    PRIV_LOOKUP.findStatic(clazz, "lt",   comparison));
-                    map.put("lte",   PRIV_LOOKUP.findStatic(clazz, "lte",  comparison));
-                    map.put("gt",    PRIV_LOOKUP.findStatic(clazz, "gt",   comparison));
-                    map.put("gte",   PRIV_LOOKUP.findStatic(clazz, "gte",  comparison));
-                    map.put("lsh",   PRIV_LOOKUP.findStatic(clazz, "lsh",  shift));
-                    map.put("rsh",   PRIV_LOOKUP.findStatic(clazz, "rsh",  shift));
-                    map.put("ush",   PRIV_LOOKUP.findStatic(clazz, "ush",  shift));
+                    Class<?> clazz = PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass();
+                    map.put("not",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "not",  unary));
+                    map.put("neg",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "neg",  unary));
+                    map.put("plus",  PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "plus", unary));
+                    map.put("mul",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "mul",  binary));
+                    map.put("div",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "div",  binary));
+                    map.put("rem",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rem",  binary));
+                    map.put("add",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "add",  binary));
+                    map.put("sub",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "sub",  binary));
+                    map.put("and",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "and",  binary));
+                    map.put("or",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "or",   binary));
+                    map.put("xor",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "xor",  binary));
+                    map.put("eq",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "eq",   comparison));
+                    map.put("lt",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lt",   comparison));
+                    map.put("lte",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lte",  comparison));
+                    map.put("gt",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gt",   comparison));
+                    map.put("gte",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gte",  comparison));
+                    map.put("lsh",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lsh",  shift));
+                    map.put("rsh",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rsh",  shift));
+                    map.put("ush",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "ush",  shift));
                     return map;
                 } catch (ReflectiveOperationException e) {
                     throw new AssertionError(e);
                 }
             }))
     );
-    
+
     /** Returns an appropriate method handle for a unary or shift operator, based only on the receiver (LHS) */
     public static MethodHandle lookupUnary(Class<?> receiverClass, String name) {
         MethodHandle handle = TYPE_OP_MAPPING.get(promote(unbox(receiverClass))).get(name);
@@ -1116,7 +1115,7 @@ public class DefMath {
         }
         return handle;
     }
-    
+
     /** Returns an appropriate method handle for a binary operator, based on promotion of the LHS and RHS arguments */
     public static MethodHandle lookupBinary(Class<?> classA, Class<?> classB, String name) {
         MethodHandle handle = TYPE_OP_MAPPING.get(promote(promote(unbox(classA)), promote(unbox(classB)))).get(name);
@@ -1125,7 +1124,7 @@ public class DefMath {
         }
         return handle;
     }
-    
+
     /** Returns a generic method handle for any operator, that can handle all valid signatures, nulls, corner cases */
     public static MethodHandle lookupGeneric(String name) {
         return TYPE_OP_MAPPING.get(Object.class).get(name);
@@ -1143,7 +1142,7 @@ public class DefMath {
             return returnValue;
         }
     }
-    
+
     /**
      * Slow dynamic cast: casts {@code value} to an instance of {@code clazz}
      * based upon inspection. If {@code lhs} is null, no cast takes place.
@@ -1173,7 +1172,7 @@ public class DefMath {
             return value;
         }
     }
-    
+
     /** Slowly returns a Number for o. Just for supporting dynamicCast */
     static Number getNumber(Object o) {
         if (o instanceof Number) {
@@ -1184,18 +1183,18 @@ public class DefMath {
             throw new ClassCastException("Cannot convert [" + o.getClass() + "] to a Number");
         }
     }
-    
+
     private static final MethodHandle DYNAMIC_CAST;
     private static final MethodHandle DYNAMIC_RECEIVER_CAST;
     static {
-        final Lookup lookup = MethodHandles.lookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
         try {
-            DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(), 
-                                            "dynamicCast", 
-                                            MethodType.methodType(Object.class, Class.class, Object.class));
-            DYNAMIC_RECEIVER_CAST = lookup.findStatic(lookup.lookupClass(), 
-                                                     "dynamicReceiverCast", 
-                                                     MethodType.methodType(Object.class, Object.class, Object.class));
+            DYNAMIC_CAST = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(),
+                                                          "dynamicCast",
+                                                          MethodType.methodType(Object.class, Class.class, Object.class));
+            DYNAMIC_RECEIVER_CAST = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(),
+                                                                   "dynamicReceiverCast",
+                                                                   MethodType.methodType(Object.class, Object.class, Object.class));
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
@@ -1204,7 +1203,7 @@ public class DefMath {
     /** Looks up generic method, with a dynamic cast to the receiver's type. (compound assignment) */
     public static MethodHandle dynamicCast(MethodHandle target) {
         // adapt dynamic receiver cast to the generic method
-        MethodHandle cast = DYNAMIC_RECEIVER_CAST.asType(MethodType.methodType(target.type().returnType(), 
+        MethodHandle cast = DYNAMIC_RECEIVER_CAST.asType(MethodType.methodType(target.type().returnType(),
                                                                       target.type().returnType(),
                                                                       target.type().parameterType(0)));
         // drop the RHS parameter
@@ -1212,7 +1211,7 @@ public class DefMath {
         // combine: f(x,y) -> g(f(x,y), x, y);
         return MethodHandles.foldArguments(cast, target);
     }
-    
+
     /** Looks up generic method, with a dynamic cast to the specified type. (explicit assignment) */
     public static MethodHandle dynamicCast(MethodHandle target, Class<?> desired) {
         // adapt dynamic cast to the generic method
@@ -1221,23 +1220,23 @@ public class DefMath {
         MethodHandle cast = DYNAMIC_CAST.bindTo(desired);
         return MethodHandles.filterReturnValue(target, cast);
     }
-    
+
     /** Forces a cast to class A for target (only if types differ) */
     public static MethodHandle cast(Class<?> classA, MethodHandle target) {
         MethodType newType = MethodType.methodType(classA).unwrap();
         MethodType targetType = MethodType.methodType(target.type().returnType()).unwrap();
-        
+
         // don't do a conversion if types are the same. explicitCastArguments has this opto,
         // but we do it explicitly, to make the boolean check simpler
         if (newType.returnType() == targetType.returnType()) {
             return target;
         }
-        
+
         // we don't allow the to/from boolean conversions of explicitCastArguments
         if (newType.returnType() == boolean.class || targetType.returnType() == boolean.class) {
             throw new ClassCastException("Cannot cast " + targetType.returnType() + " to " + newType.returnType());
         }
-        
+
         // null return values are not possible for our arguments.
         return MethodHandles.explicitCastArguments(target, target.type().changeReturnType(newType.returnType()));
     }

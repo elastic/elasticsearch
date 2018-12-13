@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.List;
 
 /**
  * Find the arithmatic mean of a field.
@@ -41,6 +41,6 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return DataType.DOUBLE;
     }
 }

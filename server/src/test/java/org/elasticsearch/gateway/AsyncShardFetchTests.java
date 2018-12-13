@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -292,7 +292,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         private AtomicInteger reroute = new AtomicInteger();
 
         TestFetch(ThreadPool threadPool) {
-            super(Loggers.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), null);
+            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), null);
             this.threadPool = threadPool;
         }
 

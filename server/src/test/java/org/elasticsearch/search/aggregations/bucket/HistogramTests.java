@@ -33,7 +33,7 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
 
     @Override
     protected HistogramAggregationBuilder createTestAggregatorBuilder() {
-        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         factory.field(INT_FIELD_NAME);
         factory.interval(randomDouble() * 1000);
         if (randomBoolean()) {

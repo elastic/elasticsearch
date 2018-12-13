@@ -26,7 +26,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -47,7 +47,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -220,11 +219,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = in.readEnum(XContentType.class);
-                } else {
-                    xContentType = XContentHelper.xContentType(doc);
-                }
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 id = in.readString();
             }
@@ -242,9 +237,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    out.writeEnum(xContentType);
-                }
+                out.writeEnum(xContentType);
             } else {
                 out.writeString(id);
             }
@@ -593,7 +586,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the maximum number of query terms that will be included in any generated query.
-     * Defaults to <tt>25</tt>.
+     * Defaults to {@code 25}.
      */
     public MoreLikeThisQueryBuilder maxQueryTerms(int maxQueryTerms) {
         this.maxQueryTerms = maxQueryTerms;
@@ -606,7 +599,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * The frequency below which terms will be ignored in the source doc. The default
-     * frequency is <tt>2</tt>.
+     * frequency is {@code 2}.
      */
     public MoreLikeThisQueryBuilder minTermFreq(int minTermFreq) {
         this.minTermFreq = minTermFreq;
@@ -619,7 +612,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the frequency at which words will be ignored which do not occur in at least this
-     * many docs. Defaults to <tt>5</tt>.
+     * many docs. Defaults to {@code 5}.
      */
     public MoreLikeThisQueryBuilder minDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
@@ -645,7 +638,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the minimum word length below which words will be ignored. Defaults
-     * to <tt>0</tt>.
+     * to {@code 0}.
      */
     public MoreLikeThisQueryBuilder minWordLength(int minWordLength) {
         this.minWordLength = minWordLength;
@@ -658,7 +651,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the maximum word length above which words will be ignored. Defaults to
-     * unbounded (<tt>0</tt>).
+     * unbounded ({@code 0}).
      */
     public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
         this.maxWordLength = maxWordLength;
@@ -707,7 +700,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     * common syntax for minimum should match. Defaults to {@code 30%}.
      *
      * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
@@ -724,7 +717,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Sets the boost factor to use when boosting terms. Defaults to <tt>0</tt> (deactivated).
+     * Sets the boost factor to use when boosting terms. Defaults to {@code 0} (deactivated).
      */
     public MoreLikeThisQueryBuilder boostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
@@ -736,7 +729,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Whether to include the input documents. Defaults to <tt>false</tt>
+     * Whether to include the input documents. Defaults to {@code false}
      */
     public MoreLikeThisQueryBuilder include(boolean include) {
         this.include = include;
@@ -757,21 +750,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     public boolean failOnUnsupportedField() {
         return failOnUnsupportedField;
-    }
-
-    /**
-     * Converts an array of String ids to and Item[].
-     * @param ids the ids to convert
-     * @return the new items array
-     * @deprecated construct the items array externally and use it in the constructor / setter
-     */
-    @Deprecated
-    public static Item[] ids(String... ids) {
-        Item[] items = new Item[ids.length];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = new Item(null, null, ids[i]);
-        }
-        return items;
     }
 
     @Override
@@ -1118,6 +1096,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         for (MultiTermVectorsItemResponse response : responses) {
             if (response.isFailed()) {
+                checkRoutingMissingException(response);
                 continue;
             }
             TermVectorsResponse getResponse = response.getResponse();
@@ -1127,6 +1106,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             likeFields.add(getResponse.getFields());
         }
         return likeFields.toArray(Fields.EMPTY_ARRAY);
+    }
+
+    private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
+        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
+        if (cause != null) {
+            throw ((RoutingMissingException) cause);
+        }
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {

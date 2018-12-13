@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -98,9 +99,9 @@ public abstract class AggregatorBase extends Aggregator {
                 badState();
             }
             @Override
-            public boolean needsScores() {
+            public ScoreMode scoreMode() {
                 badState();
-                return false; // unreachable
+                return ScoreMode.COMPLETE; // unreachable
             }
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
@@ -137,13 +138,13 @@ public abstract class AggregatorBase extends Aggregator {
      * your aggregator needs them.
      */
     @Override
-    public boolean needsScores() {
+    public ScoreMode scoreMode() {
         for (Aggregator agg : subAggregators) {
-            if (agg.needsScores()) {
-                return true;
+            if (agg.scoreMode().needsScores()) {
+                return ScoreMode.COMPLETE;
             }
         }
-        return false;
+        return ScoreMode.COMPLETE_NO_SCORES;
     }
 
     public Map<String, Object> metaData() {
@@ -183,7 +184,7 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public final void preCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = BucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
         doPreCollection();
         collectableSubAggregators.preCollection();
     }

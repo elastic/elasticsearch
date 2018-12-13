@@ -11,31 +11,29 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,29 +46,25 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportGetJobsStatsAction extends TransportTasksAction<TransportOpenJobAction.JobTask, GetJobsStatsAction.Request,
-        GetJobsStatsAction.Response, QueryPage<GetJobsStatsAction.Response.JobStats>> {
+        GetJobsStatsAction.Response, QueryPage<JobStats>> {
 
     private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
-    public TransportGetJobsStatsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, ClusterService clusterService,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                       AutodetectProcessManager processManager, JobProvider jobProvider) {
-        super(settings, GetJobsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
-                ThreadPool.Names.MANAGEMENT);
+    public TransportGetJobsStatsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
+                                       AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider) {
+        super(GetJobsStatsAction.NAME, clusterService, transportService, actionFilters, GetJobsStatsAction.Request::new,
+            GetJobsStatsAction.Response::new, in -> new QueryPage<>(in, JobStats::new), ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> listener) {
-        MlMetadata clusterMlMetadata = clusterService.state().metaData().custom(MLMetadataField.TYPE);
-        MlMetadata mlMetadata = (clusterMlMetadata == null) ? MlMetadata.EMPTY_METADATA : clusterMlMetadata;
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         request.setExpandedJobsIds(new ArrayList<>(mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs())));
         ActionListener<GetJobsStatsAction.Response> finalListener = listener;
         listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(mlMetadata,
@@ -80,11 +74,11 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     @Override
     protected GetJobsStatsAction.Response newResponse(GetJobsStatsAction.Request request,
-                                                      List<QueryPage<GetJobsStatsAction.Response.JobStats>> tasks,
+                                                      List<QueryPage<JobStats>> tasks,
                                                       List<TaskOperationFailure> taskOperationFailures,
                                                       List<FailedNodeException> failedNodeExceptions) {
-        List<GetJobsStatsAction.Response.JobStats> stats = new ArrayList<>();
-        for (QueryPage<GetJobsStatsAction.Response.JobStats> task : tasks) {
+        List<JobStats> stats = new ArrayList<>();
+        for (QueryPage<JobStats> task : tasks) {
             stats.addAll(task.results());
         }
         return new GetJobsStatsAction.Response(taskOperationFailures, failedNodeExceptions, new QueryPage<>(stats, stats.size(),
@@ -92,27 +86,25 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     }
 
     @Override
-    protected QueryPage<GetJobsStatsAction.Response.JobStats> readTaskResponse(StreamInput in) throws IOException {
-        return new QueryPage<>(in, GetJobsStatsAction.Response.JobStats::new);
-    }
-
-    @Override
     protected void taskOperation(GetJobsStatsAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<QueryPage<GetJobsStatsAction.Response.JobStats>> listener) {
+                                 ActionListener<QueryPage<JobStats>> listener) {
         String jobId = task.getJobId();
         logger.debug("Get stats for job [{}]", jobId);
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
-            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
-            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
             TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
-            GetJobsStatsAction.Response.JobStats jobStats = new GetJobsStatsAction.Response.JobStats(jobId, stats.get().v1(),
-                    stats.get().v2(), jobState, node, assignmentExplanation, openTime);
-            listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
+            gatherForecastStats(jobId, forecastStats -> {
+                JobStats jobStats = new JobStats(jobId, stats.get().v1(),
+                        stats.get().v2(), forecastStats, jobState, node, assignmentExplanation, openTime);
+                listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
+            }, listener::onFailure);
+
         } else {
             listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
         }
@@ -130,34 +122,40 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         }
 
         AtomicInteger counter = new AtomicInteger(jobIds.size());
-        AtomicArray<GetJobsStatsAction.Response.JobStats> jobStats = new AtomicArray<>(jobIds.size());
+        AtomicArray<JobStats> jobStats = new AtomicArray<>(jobIds.size());
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         for (int i = 0; i < jobIds.size(); i++) {
             int slot = i;
             String jobId = jobIds.get(i);
-            gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
-                JobState jobState = MlMetadata.getJobState(jobId, tasks);
-                PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
-                String assignmentExplanation = null;
-                if (pTask != null) {
-                    assignmentExplanation = pTask.getAssignment().getExplanation();
-                }
-                jobStats.set(slot, new GetJobsStatsAction.Response.JobStats(jobId, dataCounts, modelSizeStats, jobState, null,
-                        assignmentExplanation, null));
-                if (counter.decrementAndGet() == 0) {
-                    List<GetJobsStatsAction.Response.JobStats> results = response.getResponse().results();
-                    results.addAll(jobStats.asList());
-                    listener.onResponse(new GetJobsStatsAction.Response(response.getTaskFailures(), response.getNodeFailures(),
-                            new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
-                }
+            gatherForecastStats(jobId, forecastStats -> {
+                gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
+                    JobState jobState = MlTasks.getJobState(jobId, tasks);
+                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+                    String assignmentExplanation = null;
+                    if (pTask != null) {
+                        assignmentExplanation = pTask.getAssignment().getExplanation();
+                    }
+                    jobStats.set(slot, new JobStats(jobId, dataCounts, modelSizeStats, forecastStats, jobState,
+                            null, assignmentExplanation, null));
+                    if (counter.decrementAndGet() == 0) {
+                        List<JobStats> results = response.getResponse().results();
+                        results.addAll(jobStats.asList());
+                        listener.onResponse(new GetJobsStatsAction.Response(response.getTaskFailures(), response.getNodeFailures(),
+                                new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
+                    }
+                }, listener::onFailure);
             }, listener::onFailure);
         }
     }
 
+    void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
+        jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
+    }
+
     void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
                                                    Consumer<Exception> errorHandler) {
-        jobProvider.dataCounts(jobId, dataCounts -> {
-            jobProvider.modelSizeStats(jobId, modelSizeStats -> {
+        jobResultsProvider.dataCounts(jobId, dataCounts -> {
+            jobResultsProvider.modelSizeStats(jobId, modelSizeStats -> {
                 handler.accept(dataCounts, modelSizeStats);
             }, errorHandler);
         }, errorHandler);
@@ -173,9 +171,9 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     static List<String> determineNonDeletedJobIdsWithoutLiveStats(MlMetadata mlMetadata,
                                                                   List<String> requestedJobIds,
-                                                                  List<GetJobsStatsAction.Response.JobStats> stats) {
-        Set<String> excludeJobIds = stats.stream().map(GetJobsStatsAction.Response.JobStats::getJobId).collect(Collectors.toSet());
+                                                                  List<JobStats> stats) {
+        Set<String> excludeJobIds = stats.stream().map(JobStats::getJobId).collect(Collectors.toSet());
         return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId) &&
-                !mlMetadata.isJobDeleted(jobId)).collect(Collectors.toList());
+                !mlMetadata.isJobDeleting(jobId)).collect(Collectors.toList());
     }
 }

@@ -32,11 +32,13 @@ public class GceInstancesServiceMock extends GceInstancesServiceImpl {
 
     public GceInstancesServiceMock(Settings settings) {
         super(settings);
-        this.mockHttpTransport = GceMockUtils.configureMock();
     }
 
     @Override
     protected HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
+        if (this.mockHttpTransport == null) {
+            this.mockHttpTransport = GceMockUtils.configureMock();
+        }
         return this.mockHttpTransport;
     }
 }

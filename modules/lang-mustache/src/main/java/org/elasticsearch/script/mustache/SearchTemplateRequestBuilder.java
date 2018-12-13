@@ -27,7 +27,7 @@ import org.elasticsearch.script.ScriptType;
 import java.util.Map;
 
 public class SearchTemplateRequestBuilder
-        extends ActionRequestBuilder<SearchTemplateRequest, SearchTemplateResponse, SearchTemplateRequestBuilder> {
+        extends ActionRequestBuilder<SearchTemplateRequest, SearchTemplateResponse> {
 
     SearchTemplateRequestBuilder(ElasticsearchClient client, SearchTemplateAction action) {
         super(client, action, new SearchTemplateRequest());

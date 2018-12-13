@@ -26,10 +26,10 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -99,7 +99,8 @@ public class NaNSortingIT extends ESIntegTestCase {
 
         public String name;
 
-        public abstract ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>> builder();
+        public abstract ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric,
+                ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>> builder();
 
         public String sortKey() {
             return name;
@@ -115,11 +116,12 @@ public class NaNSortingIT extends ESIntegTestCase {
         final int numDocs = randomIntBetween(2, 10);
         for (int i = 0; i < numDocs; ++i) {
             final long value = randomInt(5);
-            XContentBuilder source = jsonBuilder().startObject().field("long_value", value).field("double_value", value + 0.05).field("string_value", "str_" + value);
+            XContentBuilder source = jsonBuilder().startObject().field("long_value", value).field("double_value", value + 0.05)
+                    .field("string_value", "str_" + value);
             if (randomBoolean()) {
                 source.field("numeric_value", randomDouble());
             }
-            client().prepareIndex("idx", "type").setSource(source.endObject()).execute().actionGet();
+            client().prepareIndex("idx", "type").setSource(source.endObject()).get();
         }
         refresh();
         ensureSearchable();
@@ -151,8 +153,9 @@ public class NaNSortingIT extends ESIntegTestCase {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field(fieldName).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
-                .execute().actionGet();
+                .addAggregation(terms("terms").field(fieldName).collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
+                .get();
 
         assertSearchResponse(response);
         final Terms terms = response.getAggregations().get("terms");
@@ -176,8 +179,9 @@ public class NaNSortingIT extends ESIntegTestCase {
         SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo")
-                        .field("long_value").interval(randomIntBetween(1, 2)).subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
-                .execute().actionGet();
+                        .field("long_value").interval(randomIntBetween(1, 2))
+                        .subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
+                .get();
 
         assertSearchResponse(response);
         final Histogram histo = response.getAggregations().get("histo");

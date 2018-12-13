@@ -44,7 +44,8 @@ public class GroupByDateKey extends GroupByKey {
         return new DateHistogramValuesSourceBuilder(id())
                 .field(fieldName())
                 .dateHistogramInterval(new DateHistogramInterval(interval))
-                .timeZone(DateTimeZone.forTimeZone(timeZone));
+                .timeZone(DateTimeZone.forTimeZone(timeZone))
+                .missingBucket(true);
     }
 
     @Override

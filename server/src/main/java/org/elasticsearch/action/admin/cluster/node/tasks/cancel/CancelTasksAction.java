@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Action for cancelling running tasks
  */
-public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
+public class CancelTasksAction extends Action<CancelTasksResponse> {
 
     public static final CancelTasksAction INSTANCE = new CancelTasksAction();
     public static final String NAME = "cluster:admin/tasks/cancel";
@@ -36,11 +36,11 @@ public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksRes
 
     @Override
     public CancelTasksResponse newResponse() {
-        return new CancelTasksResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public CancelTasksRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new CancelTasksRequestBuilder(client, this);
+    public Writeable.Reader<CancelTasksResponse> getResponseReader() {
+        return CancelTasksResponse::new;
     }
 }

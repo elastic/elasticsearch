@@ -1,8 +1,6 @@
 [[search-aggregations-bucket-significanttext-aggregation]]
 === Significant Text Aggregation
 
-experimental[]
-
 An aggregation that returns interesting or unusual occurrences of free-text terms in a set.
 It is like the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation but differs in that:
 
@@ -26,8 +24,6 @@ very boring (_and, of, the, we, I, they_ ...).
 The significant words are the ones that have undergone a significant change in popularity measured between a _foreground_ and _background_ set.
 If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user's search results
 that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
-
-experimental[The `significant_text` aggregation is new and may change in non-backwards compatible ways if we add further text-analysis features e.g. phrase detection]
 
 ==== Basic use
 
@@ -89,7 +85,7 @@ Response:
     }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[skip:historically skipped]
 
 The results show that "h5n1" is one of several terms strongly associated with bird flu.
 It only occurs 5 times in our index as a whole (see the `bg_count`) and yet 4 of these 

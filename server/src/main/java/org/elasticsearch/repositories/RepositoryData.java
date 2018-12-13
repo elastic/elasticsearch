@@ -230,13 +230,6 @@ public final class RepositoryData {
         return snapshotIds;
     }
 
-    /**
-     * Initializes the indices in the repository metadata; returns a new instance.
-     */
-    public RepositoryData initIndices(final Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds);
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -245,7 +238,7 @@ public final class RepositoryData {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked") RepositoryData that = (RepositoryData) obj;
+        RepositoryData that = (RepositoryData) obj;
         return snapshotIds.equals(that.snapshotIds)
                    && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)
@@ -352,9 +345,10 @@ public final class RepositoryData {
      * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
      */
     public static RepositoryData snapshotsFromXContent(final XContentParser parser, long genId) throws IOException {
-        Map<String, SnapshotId> snapshots = new HashMap<>();
-        Map<String, SnapshotState> snapshotStates = new HashMap<>();
-        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        final Map<String, SnapshotId> snapshots = new HashMap<>();
+        final Map<String, SnapshotState> snapshotStates = new HashMap<>();
+        final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String field = parser.currentName();
@@ -397,17 +391,18 @@ public final class RepositoryData {
                         throw new ElasticsearchParseException("start object expected [indices]");
                     }
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                        String indexName = parser.currentName();
-                        String indexId = null;
-                        Set<SnapshotId> snapshotIds = new LinkedHashSet<>();
+                        final String indexName = parser.currentName();
+                        final Set<SnapshotId> snapshotIds = new LinkedHashSet<>();
+
+                        IndexId indexId = null;
                         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                             throw new ElasticsearchParseException("start object expected index[" + indexName + "]");
                         }
                         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                            String indexMetaFieldName = parser.currentName();
+                            final String indexMetaFieldName = parser.currentName();
                             parser.nextToken();
                             if (INDEX_ID.equals(indexMetaFieldName)) {
-                                indexId = parser.text();
+                                indexId = new IndexId(indexName, parser.text());
                             } else if (SNAPSHOTS.equals(indexMetaFieldName)) {
                                 if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
                                     throw new ElasticsearchParseException("start array expected [snapshots]");
@@ -428,12 +423,22 @@ public final class RepositoryData {
                                         // since we already have the name/uuid combo in the snapshots array
                                         uuid = parser.text();
                                     }
-                                    snapshotIds.add(snapshots.get(uuid));
+
+                                    SnapshotId snapshotId = snapshots.get(uuid);
+                                    if (snapshotId != null) {
+                                        snapshotIds.add(snapshotId);
+                                    } else {
+                                        // A snapshotted index references a snapshot which does not exist in
+                                        // the list of snapshots. This can happen when multiple clusters in
+                                        // different versions create or delete snapshot in the same repository.
+                                        throw new ElasticsearchParseException("Detected a corrupted repository, index " + indexId
+                                            + " references an unknown snapshot uuid [" + uuid + "]");
+                                    }
                                 }
                             }
                         }
                         assert indexId != null;
-                        indexSnapshots.put(new IndexId(indexName, indexId), snapshotIds);
+                        indexSnapshots.put(indexId, snapshotIds);
                     }
                 } else {
                     throw new ElasticsearchParseException("unknown field name  [" + field + "]");

@@ -19,18 +19,17 @@
 
 package org.elasticsearch.smoketest;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
@@ -69,7 +68,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
 
-    protected static final Logger logger = ESLoggerFactory.getLogger(ESSmokeClientTestCase.class.getName());
+    protected static final Logger logger = LogManager.getLogger(ESSmokeClientTestCase.class);
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;
@@ -82,16 +81,8 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
             .put("client.transport.ignore_cluster_name", true)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         final Collection<Class<? extends Plugin>> plugins;
-        boolean usNio = random().nextBoolean();
-        String transportKey;
-        Class<? extends Plugin> transportPlugin;
-        if (usNio) {
-            transportKey = MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
-            transportPlugin = MockNioTransportPlugin.class;
-        } else {
-            transportKey = MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
-            transportPlugin = MockTcpTransportPlugin.class;
-        }
+        String transportKey = MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
+        Class<? extends Plugin> transportPlugin = MockNioTransportPlugin.class;
         if (random().nextBoolean()) {
             builder.put(NetworkModule.TRANSPORT_TYPE_KEY, transportKey);
             plugins = Collections.singleton(transportPlugin);

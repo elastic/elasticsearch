@@ -27,9 +27,6 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -48,7 +45,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,19 +60,18 @@ public class HttpClientTests extends ESTestCase {
 
     private MockWebServer webServer = new MockWebServer();
     private HttpClient httpClient;
-    private HttpAuthRegistry authRegistry;
     private Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
     @Before
     public void init() throws Exception {
-        authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         webServer.start();
-        httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(environment.settings(), environment));
+        httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null);
     }
 
     @After
-    public void shutdown() {
+    public void shutdown() throws IOException {
         webServer.close();
+        httpClient.close();
     }
 
     public void testBasics() throws Exception {
@@ -168,64 +163,75 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testHttps() throws Exception {
-        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.jks");
+        Path trustedCertPath = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.crt");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.http.ssl.truststore.secure_password", "truststore-testnode-only");
         Settings settings = Settings.builder()
-                .put("xpack.http.ssl.truststore.path", resource.toString())
-                .setSecureSettings(secureSettings)
-                .build();
-        httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
-        secureSettings = new MockSecureSettings();
-        // We can't use the client created above for the server since it is only a truststore
-        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
-        Settings settings2 = Settings.builder()
-                .put("xpack.http.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+            .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
+            .setSecureSettings(secureSettings)
+            .build();
+        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            secureSettings = new MockSecureSettings();
+            // We can't use the client created above for the server since it is only a truststore
+            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
+            Settings settings2 = Settings.builder()
+                .put("xpack.security.transport.ssl.key", keyPath)
+                .put("xpack.security.transport.ssl.certificate", certPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
-        TestsSSLService sslService = new TestsSSLService(settings2, environment);
-        testSslMockWebserver(sslService.sslContext(settings2.getByPrefix("xpack.http.ssl.")), false);
+            TestsSSLService sslService = new TestsSSLService(settings2, environment);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.transport.ssl"), false);
+        }
     }
 
     public void testHttpsDisableHostnameVerification() throws Exception {
-        Path resource = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
-        MockSecureSettings serverSecureSettings = new MockSecureSettings();
-        serverSecureSettings.setString("xpack.http.ssl.truststore.secure_password", "testnode-no-subjaltname");
-        final Settings settings = Settings.builder()
-                .put("xpack.http.ssl.truststore.path", resource.toString())
-                .put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
-                .setSecureSettings(serverSecureSettings)
-                .build();
-        httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        // We can't use the client created above for the server since it only defines a truststore
-        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode-no-subjaltname");
-        Settings settings2 = Settings.builder()
-                .put("xpack.http.ssl.keystore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks"))
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
+        Settings settings;
+        Settings.Builder builder = Settings.builder()
+            .put("xpack.http.ssl.certificate_authorities", certPath);
+        if (inFipsJvm()) {
+            //Can't use TrustAllConfig in FIPS mode
+            builder.put("xpack.http.ssl.verification_mode", VerificationMode.CERTIFICATE);
+        } else {
+            builder.put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE));
+        }
+        settings = builder.build();
+        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            // We can't use the client created above for the server since it only defines a truststore
+            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname");
+            Settings settings2 = Settings.builder()
+                .put("xpack.security.transport.ssl.key", keyPath)
+                .put("xpack.security.transport.ssl.certificate", certPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
-        TestsSSLService sslService = new TestsSSLService(settings2, environment);
-        testSslMockWebserver(sslService.sslContext(settings2.getByPrefix("xpack.http.ssl.")), false);
+            TestsSSLService sslService = new TestsSSLService(settings2, environment);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.transport.ssl"), false);
+        }
     }
 
     public void testHttpsClientAuth() throws Exception {
-        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.http.ssl.keystore.path", resource.toString())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.http.ssl.key", keyPath)
+            .put("xpack.http.ssl.certificate", certPath)
+            .setSecureSettings(secureSettings)
+            .build();
 
         TestsSSLService sslService = new TestsSSLService(settings, environment);
-        httpClient = new HttpClient(settings, authRegistry, sslService);
-        testSslMockWebserver(sslService.sslContext(settings.getByPrefix("xpack.http.ssl.")), true);
+        try (HttpClient client = new HttpClient(settings, sslService, null)) {
+            testSslMockWebserver(client, sslService.sslContext("xpack.http.ssl"), true);
+        }
     }
 
-    private void testSslMockWebserver(SSLContext sslContext, boolean needClientAuth) throws IOException {
+    private void testSslMockWebserver(HttpClient client, SSLContext sslContext, boolean needClientAuth) throws IOException {
         try (MockWebServer mockWebServer = new MockWebServer(sslContext, needClientAuth)) {
             mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
             mockWebServer.start();
@@ -233,7 +239,7 @@ public class HttpClientTests extends ESTestCase {
             HttpRequest.Builder request = HttpRequest.builder("localhost", mockWebServer.getPort())
                     .scheme(Scheme.HTTPS)
                     .path("/test");
-            HttpResponse response = httpClient.execute(request.build());
+            HttpResponse response = client.execute(request.build());
             assertThat(response.status(), equalTo(200));
             assertThat(response.body().utf8ToString(), equalTo("body"));
 
@@ -268,14 +274,14 @@ public class HttpClientTests extends ESTestCase {
 
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(Settings.EMPTY, environment));
-
-        // Known server with a valid cert from a commercial CA
-        HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
-        HttpResponse response = httpClient.execute(request.build());
-        assertThat(response.status(), equalTo(200));
-        assertThat(response.hasContent(), is(true));
-        assertThat(response.body(), notNullValue());
+        try (HttpClient client = new HttpClient(Settings.EMPTY, new SSLService(Settings.EMPTY, environment), null)) {
+            // Known server with a valid cert from a commercial CA
+            HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
+            HttpResponse response = client.execute(request.build());
+            assertThat(response.status(), equalTo(200));
+            assertThat(response.hasContent(), is(true));
+            assertThat(response.body(), notNullValue());
+        }
     }
 
     public void testThatProxyCanBeConfigured() throws Exception {
@@ -287,15 +293,16 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
                     .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
                     .path("/");
 
-            HttpResponse response = httpClient.execute(requestBuilder.build());
-            assertThat(response.status(), equalTo(200));
-            assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+                HttpResponse response = client.execute(requestBuilder.build());
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+            }
 
             // ensure we hit the proxyServer and not the webserver
             assertThat(webServer.requests(), hasSize(0));
@@ -340,42 +347,42 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testProxyCanHaveDifferentSchemeThanRequest() throws Exception {
+        Path trustedCertPath = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.crt");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
         // on top of that the proxy request is HTTPS but the real request is HTTP only
         MockSecureSettings serverSecureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it is only a truststore
-        serverSecureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
+        serverSecureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
         Settings serverSettings = Settings.builder()
-                .put("xpack.http.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
-                .setSecureSettings(serverSecureSettings)
-                .build();
+            .put("xpack.http.ssl.key", keyPath)
+            .put("xpack.http.ssl.certificate", certPath)
+            .setSecureSettings(serverSecureSettings)
+            .build();
         TestsSSLService sslService = new TestsSSLService(serverSettings, environment);
 
         try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(serverSettings.getByPrefix("xpack.http.ssl.")), false)) {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
 
-            Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.jks");
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "truststore-testnode-only");
             Settings settings = Settings.builder()
                     .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
                     .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
                     .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
-                    .put("xpack.http.ssl.truststore.path", resource.toString())
-                    .setSecureSettings(secureSettings)
+                .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
                     .build();
-
-            HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
                     .scheme(Scheme.HTTP)
                     .path("/");
 
-            HttpResponse response = httpClient.execute(requestBuilder.build());
-            assertThat(response.status(), equalTo(200));
-            assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+                HttpResponse response = client.execute(requestBuilder.build());
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+            }
 
             // ensure we hit the proxyServer and not the webserver
             assertThat(webServer.requests(), hasSize(0));
@@ -393,16 +400,17 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort() + 1)
                     .put(HttpSettings.PROXY_HOST.getKey(), "https")
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
                     .proxy(new HttpProxy("localhost", proxyServer.getPort(), Scheme.HTTP))
                     .path("/");
 
-            HttpResponse response = httpClient.execute(requestBuilder.build());
-            assertThat(response.status(), equalTo(200));
-            assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+                HttpResponse response = client.execute(requestBuilder.build());
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+            }
 
             // ensure we hit the proxyServer and not the webserver
             assertThat(webServer.requests(), hasSize(0));
@@ -419,7 +427,7 @@ public class HttpClientTests extends ESTestCase {
         }
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new HttpClient(settings.build(), authRegistry, new SSLService(settings.build(), environment)));
+                () -> new HttpClient(settings.build(), new SSLService(settings.build(), environment), null));
         assertThat(e.getMessage(),
                 containsString("HTTP proxy requires both settings: [xpack.http.proxy.host] and [xpack.http.proxy.port]"));
     }
@@ -483,7 +491,7 @@ public class HttpClientTests extends ESTestCase {
                 try (Socket socket = serverSocket.accept()) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
                     in.readLine();
-                    socket.getOutputStream().write("This is not a HTTP response".getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().write("This is not an HTTP response".getBytes(StandardCharsets.UTF_8));
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);
@@ -492,7 +500,7 @@ public class HttpClientTests extends ESTestCase {
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
             expectThrows(ClientProtocolException.class, () -> httpClient.execute(request));
-            assertThat("A server side exception occured, but shouldn't", hasExceptionHappened.get(), is(nullValue()));
+            assertThat("A server side exception occurred, but shouldn't", hasExceptionHappened.get(), is(nullValue()));
         } finally {
             terminate(executor);
         }
@@ -515,12 +523,13 @@ public class HttpClientTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
                 .build();
-        HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(environment.settings(), environment));
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
 
-        IOException e = expectThrows(IOException.class, () -> httpClient.execute(requestBuilder.build()));
-        assertThat(e.getMessage(), startsWith("Maximum limit of"));
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null)) {
+            IOException e = expectThrows(IOException.class, () -> client.execute(requestBuilder.build()));
+            assertThat(e.getMessage(), startsWith("Maximum limit of"));
+        }
     }
 
     public void testThatGetRedirectIsFollowed() throws Exception {

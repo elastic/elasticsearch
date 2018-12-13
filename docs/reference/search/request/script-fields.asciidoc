@@ -15,13 +15,13 @@ GET /_search
         "test1" : {
             "script" : {
                 "lang": "painless",
-                "source": "doc['my_field_name'].value * 2"
+                "source": "doc['price'].value * 2"
             }
         },
         "test2" : {
             "script" : {
                 "lang": "painless",
-                "source": "doc['my_field_name'].value * params.factor",
+                "source": "doc['price'].value * params.factor",
                 "params" : {
                     "factor"  : 2.0
                 }
@@ -31,7 +31,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
+// TEST[setup:sales]
 
 Script fields can work on fields that are not stored (`my_field_name` in
 the above case), and allow to return custom values to be returned (the

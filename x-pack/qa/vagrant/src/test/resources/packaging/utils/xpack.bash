@@ -15,30 +15,18 @@ verify_xpack_installation() {
     #assert_file "$ESHOME/bin" d $user $group 755
     local binaryFiles=(
         'elasticsearch-certgen'
-        'elasticsearch-certgen.bat'
         'elasticsearch-certutil'
-        'elasticsearch-certutil.bat'
         'elasticsearch-croneval'
-        'elasticsearch-croneval.bat'
         'elasticsearch-migrate'
-        'elasticsearch-migrate.bat'
         'elasticsearch-saml-metadata'
-        'elasticsearch-saml-metadata.bat'	
         'elasticsearch-setup-passwords'
-        'elasticsearch-setup-passwords.bat'
         'elasticsearch-sql-cli'
-        'elasticsearch-sql-cli.bat'
         "elasticsearch-sql-cli-$(cat version).jar" # This jar is executable so we pitch it in bin so folks will find it
         'elasticsearch-syskeygen'
-        'elasticsearch-syskeygen.bat'
         'elasticsearch-users'
-        'elasticsearch-users.bat'
         'x-pack-env'
-        'x-pack-env.bat'
         'x-pack-security-env'
-        'x-pack-security-env.bat'
         'x-pack-watcher-env'
-        'x-pack-watcher-env.bat'
     )
 
     local binaryFilesCount=5 # start with oss distro number
@@ -69,15 +57,6 @@ verify_xpack_installation() {
     done
     # nocommit: decide whether to check the files added by the distribution, not part of xpack...
     #assert_number_of_files "$ESCONFIG/" $configFilesCount
-
-    # Read the $name.expected file that contains all the expected
-    # plugins for the meta plugin
-    while read plugin; do
-        assert_module_or_plugin_directory "$ESMODULES/$name/$plugin"
-        assert_file_exist "$ESMODULES/$name/$plugin/$plugin"*".jar"
-        assert_file_exist "$ESMODULES/$name/$plugin/plugin-descriptor.properties"
-        assert_file_exist "$ESMODULES/$name/$plugin/plugin-security.policy"
-    done </project/build/plugins/$name.expected
 }
 
 assert_number_of_files() {

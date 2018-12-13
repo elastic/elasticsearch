@@ -20,11 +20,18 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,10 +73,10 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                         "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n" +
                         "\n" +
                         "---\n" +
-                        "\"Get type mapping - pre 5.0\":\n" +
+                        "\"Get type mapping - pre 6.0\":\n" +
                         "\n" +
                         "  - skip:\n" +
-                        "      version:     \"5.0.0 - \"\n" +
+                        "      version:     \"6.0.0 - \"\n" +
                         "      reason:      \"for newer versions the index name is always returned\"\n" +
                         "\n" +
                         "  - do:\n" +
@@ -89,23 +96,28 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         if (includeSetup) {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
             assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(true));
-            assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(1));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.create"));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"),
+            assertThat(restTestSuite.getSetupSection().getExecutableSections().size(), equalTo(1));
+            final ExecutableSection maybeDoSection = restTestSuite.getSetupSection().getExecutableSections().get(0);
+            assertThat(maybeDoSection, instanceOf(DoSection.class));
+            final DoSection doSection = (DoSection) maybeDoSection;
+            assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.create"));
+            assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
+            assertThat(doSection.getApiCallSection().getParams().get("index"),
                     equalTo("test_index"));
         } else {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
         }
-        
+
         assertThat(restTestSuite.getTeardownSection(), notNullValue());
         if (includeTeardown) {
             assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(false));
             assertThat(restTestSuite.getTeardownSection().getSkipSection().isEmpty(), equalTo(true));
             assertThat(restTestSuite.getTeardownSection().getDoSections().size(), equalTo(1));
-            assertThat(restTestSuite.getTeardownSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.delete"));
-            assertThat(restTestSuite.getTeardownSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
-            assertThat(restTestSuite.getTeardownSection().getDoSections().get(0).getApiCallSection().getParams().get("index"),
+            assertThat(((DoSection)restTestSuite.getTeardownSection().getDoSections().get(0)).getApiCallSection().getApi(),
+                equalTo("indices.delete"));
+            assertThat(((DoSection)restTestSuite.getTeardownSection().getDoSections().get(0)).getApiCallSection().getParams().size(),
+                equalTo(1));
+            assertThat(((DoSection)restTestSuite.getTeardownSection().getDoSections().get(0)).getApiCallSection().getParams().get("index"),
                 equalTo("test_index"));
         } else {
             assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(true));
@@ -131,12 +143,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
 
         assertThat(restTestSuite.getTestSections().get(1).getName(),
-                equalTo("Get type mapping - pre 5.0"));
+                equalTo("Get type mapping - pre 6.0"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
                 equalTo("for newer versions the index name is always returned"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(),
-                equalTo(Version.V_5_0_0));
+                equalTo(Version.V_6_0_0));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
@@ -374,5 +386,189 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(ParsingException.class, () ->
             ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser));
         assertThat(e.getMessage(), containsString("duplicate test section"));
+    }
+
+    public void testAddingDoWithoutSkips() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
+            SkipSection.EMPTY, Collections.singletonList(doSection));
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY,
+            Collections.singletonList(section));
+        clientYamlTestSuite.validate();
+    }
+
+    public void testAddingDoWithWarningWithoutSkipWarnings() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setExpectedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [warnings] section without a corresponding " +
+            "[\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test " +
+            "at line [" + lineNumber + "]"));
+    }
+
+    public void testAddingDoWithHeaderWithoutSkipHeaders() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCallSection = new ApiCallSection("test");
+        apiCallSection.addHeaders(Collections.singletonMap("header", "value"));
+        doSection.setApiCallSection(apiCallSection);
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [headers] section without a corresponding " +
+            "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at line ["
+            + lineNumber + "]"));
+    }
+
+    public void testAddingDoWithNodeSelectorWithoutSkipNodeSelector() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCall = new ApiCallSection("test");
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+        doSection.setApiCallSection(apiCall);
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [node_selector] section without a " +
+            "corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can " +
+            "skip the test at line [" + lineNumber + "]"));
+    }
+
+    public void testAddingContainsWithoutSkipContains() {
+        int lineNumber = between(1, 10000);
+        ContainsAssertion containsAssertion = new ContainsAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble());
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, containsAssertion);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [contains] assertion without a corresponding " +
+            "[\"skip\": \"features\": \"contains\"] so runners that do not support the [contains] assertion " +
+            "can skip the test at line [" + lineNumber + "]"));
+    }
+
+    public void testMultipleValidationErrors() {
+        int firstLineNumber = between(1, 10000);
+        List<ClientYamlTestSection> sections = new ArrayList<>();
+        {
+            ContainsAssertion containsAssertion = new ContainsAssertion(
+                new XContentLocation(firstLineNumber, 0),
+                randomAlphaOfLength(randomIntBetween(3, 30)),
+                randomDouble());
+            sections.add(new ClientYamlTestSection(
+                new XContentLocation(0, 0), "section1", SkipSection.EMPTY, Collections.singletonList(containsAssertion)));
+        }
+        int secondLineNumber = between(1, 10000);
+        int thirdLineNumber = between(1, 10000);
+        List<ExecutableSection> doSections = new ArrayList<>();
+        {
+            DoSection doSection = new DoSection(new XContentLocation(secondLineNumber, 0));
+            doSection.setExpectedWarningHeaders(singletonList("foo"));
+            doSection.setApiCallSection(new ApiCallSection("test"));
+            doSections.add(doSection);
+        }
+        {
+            DoSection doSection = new DoSection(new XContentLocation(thirdLineNumber, 0));
+            ApiCallSection apiCall = new ApiCallSection("test");
+            apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+            doSection.setApiCallSection(apiCall);
+            doSections.add(doSection);
+        }
+        sections.add(new ClientYamlTestSection(new XContentLocation(0, 0), "section2", SkipSection.EMPTY, doSections));
+
+        ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\n" +
+            "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners " +
+                "that do not support the [contains] assertion can skip the test at line [" + firstLineNumber + "],\n" +
+            "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so " +
+                "runners that do not support the [warnings] section can skip the test at line [" + secondLineNumber + "],\n" +
+            "attempted to add a [do] with a [node_selector] section without a corresponding [\"skip\": \"features\": \"node_selector\"] " +
+                "so runners that do not support the [node_selector] section can skip the test at line [" + thirdLineNumber + "]",
+            e.getMessage());
+    }
+
+    public void testAddingDoWithWarningWithSkip() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setExpectedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), null);
+        createTestSuite(skipSection, doSection).validate();
+    }
+
+    public void testAddingDoWithNodeSelectorWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), null);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCall = new ApiCallSection("test");
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+        doSection.setApiCallSection(apiCall);
+        createTestSuite(skipSection, doSection).validate();
+    }
+
+    public void testAddingDoWithHeadersWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("headers"), null);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCallSection = new ApiCallSection("test");
+        apiCallSection.addHeaders(singletonMap("foo", "bar"));
+        doSection.setApiCallSection(apiCallSection);
+        createTestSuite(skipSection, doSection).validate();
+    }
+
+    public void testAddingContainsWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("contains"), null);
+        ContainsAssertion containsAssertion = new ContainsAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble());
+        createTestSuite(skipSection, containsAssertion).validate();
+    }
+
+    private static ClientYamlTestSuite createTestSuite(SkipSection skipSection, ExecutableSection executableSection) {
+        final SetupSection setupSection;
+        final TeardownSection teardownSection;
+        final ClientYamlTestSection clientYamlTestSection;
+        switch(randomIntBetween(0, 4)) {
+            case 0:
+                setupSection = new SetupSection(skipSection, Collections.emptyList());
+                teardownSection = TeardownSection.EMPTY;
+                clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
+                break;
+            case 1:
+                setupSection = SetupSection.EMPTY;
+                teardownSection = new TeardownSection(skipSection, Collections.emptyList());
+                clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
+                break;
+            case 2:
+                setupSection = SetupSection.EMPTY;
+                teardownSection = TeardownSection.EMPTY;
+                clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
+                    skipSection, Collections.singletonList(executableSection));
+                break;
+            case 3:
+                setupSection = new SetupSection(skipSection, Collections.singletonList(executableSection));
+                teardownSection = TeardownSection.EMPTY;
+                clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
+                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection));
+                break;
+            case 4:
+                setupSection = SetupSection.EMPTY;
+                teardownSection = new TeardownSection(skipSection, Collections.singletonList(executableSection));
+                clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
+                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection));
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+        return new ClientYamlTestSuite("api", "name", setupSection, teardownSection,
+            Collections.singletonList(clientYamlTestSection));
     }
 }

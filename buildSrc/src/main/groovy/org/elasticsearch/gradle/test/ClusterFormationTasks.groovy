@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import java.util.stream.Collectors
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -92,7 +93,8 @@ class ClusterFormationTasks {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
-        if (config.numBwcNodes > 0) {
+        boolean hasBwcNodes = config.numBwcNodes > 0
+        if (hasBwcNodes) {
             if (config.bwcVersion == null) {
                 throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
             }
@@ -129,11 +131,23 @@ class ClusterFormationTasks {
             Object dependsOn
             if (node.nodeVersion.onOrAfter("6.5.0")) {
                 writeConfigSetup = { Map esConfig ->
-                    // Don't force discovery provider if one is set by the test cluster specs already
-                    if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
-                        esConfig['discovery.zen.hosts_provider'] = 'file'
+                    if (config.getAutoSetHostsProvider()) {
+                        // Don't force discovery provider if one is set by the test cluster specs already
+                        if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
+                            esConfig['discovery.zen.hosts_provider'] = 'file'
+                        }
+                        esConfig['discovery.zen.ping.unicast.hosts'] = []
                     }
-                    esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
+                    if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
+                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                            if (n.config.settings['node.name'] == null) {
+                                return "node-" + n.nodeNum
+                            } else {
+                                return n.config.settings['node.name']
+                            }
+                        }).collect(Collectors.toList())
+                    }
                     esConfig
                 }
                 dependsOn = startDependencies

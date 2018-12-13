@@ -23,9 +23,14 @@ import java.util.Objects;
 public class DeprecationIssue implements Writeable, ToXContentObject {
 
     public enum Level implements Writeable {
-        NONE,
-        INFO,
+        /**
+         * Resolving this issue is advised but not required to upgrade. There may be undesired changes in behavior unless this issue is
+         * resolved before upgrading.
+         */
         WARNING,
+        /**
+         * This issue must be resolved to upgrade. Failures will occur unless this is resolved before upgrading.
+         */
         CRITICAL
         ;
 

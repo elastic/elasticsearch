@@ -234,7 +234,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, totalHits, maxScore, Arrays.hashCode(hits));
+        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits));
     }
 
     public static TotalHits parseTotalHitsFragment(XContentParser parser) throws IOException {

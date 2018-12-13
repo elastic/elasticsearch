@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class BootstrapConfigurationTests extends ESTestCase {
 
     public void testEqualsHashcodeSerialization() {
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomBootstrapConfiguration(),
                 (CopyFunction<BootstrapConfiguration>) bootstrapConfiguration -> copyWriteable(bootstrapConfiguration, writableRegistry(),
                         BootstrapConfiguration::new),

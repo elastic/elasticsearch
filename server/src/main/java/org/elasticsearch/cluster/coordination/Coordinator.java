@@ -32,8 +32,9 @@ import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -74,17 +76,19 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
+
+    public static final long ZEN1_BWC_TERM = 0;
+
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
     // the timeout for the publication of each value
@@ -98,6 +102,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
+    private final DiscoverySettings discoverySettings;
     // TODO: the following two fields are package-private as some tests require access to them
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
@@ -120,7 +125,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private long maxTermSeen;
     private final Reconfigurator reconfigurator;
     private final ClusterBootstrapService clusterBootstrapService;
+    private final DiscoveryUpgradeService discoveryUpgradeService;
     private final LagDetector lagDetector;
+    private final ClusterFormationFailureHelper clusterFormationFailureHelper;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -128,7 +135,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
-    private final Set<Consumer<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
+    private final Set<ActionListener<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
 
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
@@ -141,6 +148,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
         this.persistedStateSupplier = persistedStateSupplier;
+        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
@@ -159,8 +167,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
+            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
+        this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
+            transportService.getThreadPool());
+    }
+
+    private ClusterFormationState getClusterFormationState() {
+        return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
+            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()));
     }
 
     private Runnable getOnLeaderFailure() {
@@ -191,8 +208,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
+    void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
         synchronized (mutex) {
+            final long previousTerm = getCurrentTerm();
             ensureTermAtLeast(followerCheckRequest.getSender(), followerCheckRequest.getTerm());
 
             if (getCurrentTerm() != followerCheckRequest.getTerm()) {
@@ -201,7 +219,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + getCurrentTerm() + "], rejecting " + followerCheckRequest);
             }
 
-            becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            if (previousTerm != getCurrentTerm()) {
+                becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            }
         }
     }
 
@@ -247,6 +267,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
             }
 
+            if (publishRequest.getAcceptedState().term() == ZEN1_BWC_TERM && getCurrentTerm() == ZEN1_BWC_TERM
+                && mode == Mode.FOLLOWER && Optional.of(sourceNode).equals(lastKnownLeader) == false) {
+
+                logger.debug("received cluster state from {} but currently following {}, rejecting", sourceNode, lastKnownLeader);
+                throw new CoordinationStateRejectedException("received cluster state from " + sourceNode + " but currently following "
+                    + lastKnownLeader + ", rejecting");
+            }
+
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
@@ -254,6 +282,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 preVoteCollector.update(getPreVoteResponse(), getLocalNode());
             } else {
                 becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
+            }
+
+            if (isInitialConfigurationSet()) {
+                for (final ActionListener<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                    discoveredNodesListener.onFailure(new ClusterAlreadyBootstrappedException());
+                }
             }
 
             return new PublishWithJoinResponse(publishResponse,
@@ -314,7 +348,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
-                getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+                getDiscoveredNodes().forEach(node -> {
+                    if (isZen1Node(node) == false) {
+                        joinHelper.sendStartJoinRequest(startJoinRequest, node);
+                    }
+                });
             }
         }
     }
@@ -374,6 +412,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
+            clusterFormationFailureHelper.start();
+
+            if (getCurrentTerm() == ZEN1_BWC_TERM) {
+                discoveryUpgradeService.activate(lastKnownLeader);
+            }
+
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 
@@ -404,6 +448,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
+        discoveryUpgradeService.deactivate();
+        clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
@@ -428,6 +474,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
+        discoveryUpgradeService.deactivate();
+        clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         cancelActivePublication();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
@@ -482,7 +530,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                    .addGlobalBlock(NO_MASTER_BLOCK_WRITES)) // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
+                    .addGlobalBlock(discoverySettings.getNoMasterBlock()))
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
             applierState = initialState;
@@ -501,7 +549,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             becomeCandidate("startInitialJoin");
         }
 
-        clusterBootstrapService.start();
+        if (isInitialConfigurationSet() == false) {
+            clusterBootstrapService.start();
+        }
     }
 
     @Override
@@ -520,7 +570,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
-            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
+            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID);
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -541,6 +591,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
+                assert clusterFormationFailureHelper.isRunning() == false;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingMaster && activePublication == false) {
@@ -580,6 +631,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
+                assert clusterFormationFailureHelper.isRunning() == false;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -592,6 +644,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert applierState.nodes().getMasterNodeId() == null;
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader() == null : preVoteCollector;
+                assert clusterFormationFailureHelper.isRunning();
             }
         }
     }
@@ -630,9 +683,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return false;
             }
 
-            assert currentState.term() == 0 : currentState;
-            assert currentState.version() == 0 : currentState;
-
             if (mode != Mode.CANDIDATE) {
                 throw new CoordinationStateRejectedException("Cannot set initial configuration in mode " + mode);
             }
@@ -652,7 +702,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 .lastCommittedConfiguration(votingConfiguration)
                 .build();
 
-            MetaData.Builder metaDataBuilder = MetaData.builder();
+            MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
             metaDataBuilder.coordinationMetaData(coordinationMetaData);
@@ -664,12 +714,55 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    private void unsafelySetConfigurationForUpgrade(VotingConfiguration votingConfiguration) {
+        assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this method once unsafe upgrades are no longer needed";
+        synchronized (mutex) {
+            if (mode != Mode.CANDIDATE) {
+                throw new IllegalStateException("Cannot overwrite configuration in mode " + mode);
+            }
+
+            if (isInitialConfigurationSet()) {
+                throw new IllegalStateException("Cannot overwrite configuration: configuration is already set to "
+                    + getLastAcceptedState().getLastAcceptedConfiguration());
+            }
+
+            if (lastKnownLeader.map(Coordinator::isZen1Node).orElse(false) == false) {
+                throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
+            }
+
+            if (getCurrentTerm() != ZEN1_BWC_TERM) {
+                throw new IllegalStateException("Cannot upgrade, term is " + getCurrentTerm());
+            }
+
+            logger.info("automatically bootstrapping during rolling upgrade, using initial configuration {}", votingConfiguration);
+
+            final ClusterState currentState = getStateForMasterService();
+            final Builder builder = masterService.incrementVersion(currentState);
+            builder.metaData(MetaData.builder(currentState.metaData()).coordinationMetaData(
+                CoordinationMetaData.builder(currentState.metaData().coordinationMetaData())
+                    .term(1)
+                    .lastAcceptedConfiguration(votingConfiguration)
+                    .lastCommittedConfiguration(votingConfiguration)
+                    .build()));
+            final ClusterState newClusterState = builder.build();
+
+            coordinationState.get().handleStartJoin(new StartJoinRequest(getLocalNode(), newClusterState.term()));
+            coordinationState.get().handlePublishRequest(new PublishRequest(newClusterState));
+
+            followersChecker.clearCurrentNodes();
+            followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+
+            peerFinder.deactivate(getLocalNode());
+            peerFinder.activate(newClusterState.nodes());
+        }
+    }
+
     // Package-private for testing
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+            .filter(this::hasJoinVoteFrom).filter(discoveryNode -> isZen1Node(discoveryNode) == false).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
             clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
             clusterState.getLastAcceptedConfiguration());
@@ -782,11 +875,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private ClusterState clusterStateWithNoMasterBlock(ClusterState clusterState) {
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID) == false :
+            assert clusterState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID) == false :
                 "NO_MASTER_BLOCK should only be added by Coordinator";
-            // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
             final ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks()).addGlobalBlock(
-                NO_MASTER_BLOCK_WRITES).build();
+                discoverySettings.getNoMasterBlock()).build();
             final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
             return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(discoveryNodes).build();
         } else {
@@ -821,7 +913,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     Strings.toString(clusterChangedEvent.previousState()).equals(
                         Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
                     : Strings.toString(clusterChangedEvent.previousState()) + " vs "
-                        + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+                    + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 
@@ -927,8 +1019,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }
 
-            for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
-                discoveredNodesListener.accept(foundPeers);
+            for (final ActionListener<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                discoveredNodesListener.onResponse(foundPeers);
             }
         }
     }
@@ -950,7 +1042,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             prevotingRound.close();
                         }
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-                        prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
+                        final List<DiscoveryNode> discoveredNodes
+                            = getDiscoveredNodes().stream().filter(n -> isZen1Node(n) == false).collect(Collectors.toList());
+                        prevotingRound = preVoteCollector.start(lastAcceptedState, discoveredNodes);
                     }
                 }
             }
@@ -962,7 +1056,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         });
     }
 
-    public Releasable withDiscoveryListener(Consumer<Iterable<DiscoveryNode>> listener) {
+    public Releasable withDiscoveryListener(ActionListener<Iterable<DiscoveryNode>> listener) {
         discoveredNodesListeners.add(listener);
         return () -> {
             boolean removed = discoveredNodesListeners.remove(listener);
@@ -1159,13 +1253,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
-    public static Settings.Builder addZen1Attribute(Settings.Builder builder) {
-        return builder.put("node.attr.zen1", true);
+    public static Settings.Builder addZen1Attribute(boolean isZen1Node, Settings.Builder builder) {
+        return builder.put("node.attr.zen1", isZen1Node);
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
         return discoveryNode.getVersion().before(Version.V_7_0_0) ||
-            discoveryNode.getAttributes().containsKey("zen1");
+            (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));
     }
 }

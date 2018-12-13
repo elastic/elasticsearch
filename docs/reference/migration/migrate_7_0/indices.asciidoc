@@ -3,6 +3,11 @@
 === Indices changes
 
 [float]
+==== Index creation no longer defaults to five shards
+Previous versions of Elasticsearch defaulted to creating five shards per index.
+Starting with 7.0.0, the default is now one shard per index.
+
+[float]
 ==== `:` is no longer allowed in index name
 
 Due to cross-cluster search using `:` to separate a cluster and index name,
@@ -86,6 +91,13 @@ The parent circuit breaker defines a new setting `indices.breaker.total.use_real
 heap memory instead of only considering the reserved memory by child circuit breakers. When this
 setting is `true`, the default parent breaker limit also changes from 70% to 95% of the JVM heap size.
 The previous behavior can be restored by setting `indices.breaker.total.use_real_memory` to `false`.
+
+[float]
+==== Field data circuit breaker changes
+As doc values have been enabled by default in earlier versions of Elasticsearch,
+there is less need for fielddata. Therefore, the default value of the setting
+`indices.breaker.fielddata.limit` has been lowered from 60% to 40% of the JVM
+heap size.
 
 [float]
 ==== `fix` value for `index.shard.check_on_startup` is removed

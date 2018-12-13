@@ -38,6 +38,7 @@ public class MessagesTests extends ESTestCase {
         Join initialJoin = new Join(createNode(randomAlphaOfLength(10)), createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialJoin,
             (CopyFunction<Join>) join -> copyWriteable(join, writableRegistry(), Join::new),
             join -> {
@@ -80,6 +81,7 @@ public class MessagesTests extends ESTestCase {
 
     public void testPublishResponseEqualsHashCodeSerialization() {
         PublishResponse initialPublishResponse = new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPublishResponse,
             (CopyFunction<PublishResponse>) publishResponse -> copyWriteable(publishResponse, writableRegistry(), PublishResponse::new),
             publishResponse -> {
@@ -105,6 +107,7 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong());
         PublishWithJoinResponse initialPublishWithJoinResponse = new PublishWithJoinResponse(initialPublishResponse,
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin));
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPublishWithJoinResponse,
                 (CopyFunction<PublishWithJoinResponse>) publishWithJoinResponse -> copyWriteable(publishWithJoinResponse,
                         writableRegistry(), PublishWithJoinResponse::new),
@@ -128,6 +131,7 @@ public class MessagesTests extends ESTestCase {
 
     public void testStartJoinRequestEqualsHashCodeSerialization() {
         StartJoinRequest initialStartJoinRequest = new StartJoinRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialStartJoinRequest,
                 (CopyFunction<StartJoinRequest>) startJoinRequest -> copyWriteable(startJoinRequest, writableRegistry(),
                         StartJoinRequest::new),
@@ -149,6 +153,7 @@ public class MessagesTests extends ESTestCase {
     public void testApplyCommitEqualsHashCodeSerialization() {
         ApplyCommitRequest initialApplyCommit = new ApplyCommitRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
             randomNonNegativeLong());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialApplyCommit,
                 (CopyFunction<ApplyCommitRequest>) applyCommit -> copyWriteable(applyCommit, writableRegistry(), ApplyCommitRequest::new),
             applyCommit -> {
@@ -175,6 +180,7 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong(), randomNonNegativeLong());
         JoinRequest initialJoinRequest = new JoinRequest(initialJoin.getSourceNode(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin));
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialJoinRequest,
                 (CopyFunction<JoinRequest>) joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
             joinRequest -> {
@@ -203,6 +209,7 @@ public class MessagesTests extends ESTestCase {
 
     public void testPreVoteRequestEqualsHashCodeSerialization() {
         PreVoteRequest initialPreVoteRequest = new PreVoteRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteRequest,
                 (CopyFunction<PreVoteRequest>) preVoteRequest -> copyWriteable(preVoteRequest, writableRegistry(), PreVoteRequest::new),
             preVoteRequest -> {
@@ -218,6 +225,7 @@ public class MessagesTests extends ESTestCase {
         long currentTerm = randomNonNegativeLong();
         PreVoteResponse initialPreVoteResponse
             = new PreVoteResponse(currentTerm, randomLongBetween(1, currentTerm), randomNonNegativeLong());
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteResponse,
                 (CopyFunction<PreVoteResponse>) preVoteResponse -> copyWriteable(preVoteResponse, writableRegistry(), PreVoteResponse::new),
             preVoteResponse -> {

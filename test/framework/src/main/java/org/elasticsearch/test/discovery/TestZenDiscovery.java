@@ -19,10 +19,7 @@
 
 package org.elasticsearch.test.discovery;
 
-import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -81,20 +78,10 @@ public class TestZenDiscovery extends ZenDiscovery {
             Settings fixedSettings = Settings.builder().put(settings).putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()).build();
             return Collections.singletonMap("test-zen", () -> {
                 if (USE_ZEN2.get(settings)) {
-                    Supplier<CoordinationState.PersistedState> persistedStateSupplier = () -> {
-                        gatewayMetaState.applyClusterStateUpdaters();
-                        if (DiscoveryNode.isMasterNode(settings) == false) {
-                            // use Zen1 way of writing cluster state for non-master-eligible nodes
-                            // this avoids concurrent manipulating of IndexMetadata with IndicesStore
-                            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
-                            return new InMemoryPersistedState(gatewayMetaState.getCurrentTerm(), gatewayMetaState.getLastAcceptedState());
-                        }
-                        return gatewayMetaState;
-                    };
-
                     return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
-                        allocationService, masterService, persistedStateSupplier, hostsProvider, clusterApplier,
-                        new Random(Randomness.get().nextLong()));
+                        allocationService, masterService,
+                        () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), hostsProvider,
+                        clusterApplier, new Random(Randomness.get().nextLong()));
                 } else {
                     return new TestZenDiscovery(fixedSettings, threadPool, transportService, namedWriteableRegistry, masterService,
                         clusterApplier, clusterSettings, hostsProvider, allocationService, gatewayMetaState);

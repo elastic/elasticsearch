@@ -522,7 +522,7 @@ public class JobResultsProvider {
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.source(query.build());
+        searchRequest.source(query.build().trackTotalHits(true));
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -658,6 +658,7 @@ public class JobResultsProvider {
         } else {
             throw new IllegalStateException("Both categoryId and pageParams are not specified");
         }
+        sourceBuilder.trackTotalHits(true);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
@@ -706,7 +707,7 @@ public class JobResultsProvider {
         SearchSourceBuilder searchSourceBuilder = recordsQueryBuilder.build();
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
-        searchRequest.source(recordsQueryBuilder.build());
+        searchRequest.source(recordsQueryBuilder.build().trackTotalHits(true));
 
         LOGGER.trace("ES API CALL: search all of records from index {} with query {}", indexName, searchSourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -756,7 +757,7 @@ public class JobResultsProvider {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         FieldSortBuilder sb = query.getSortField() == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
                 : new FieldSortBuilder(query.getSortField()).order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
-        searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb));
+        searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb).trackTotalHits(true));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(response -> {
@@ -877,6 +878,7 @@ public class JobResultsProvider {
         sourceBuilder.query(finalQuery);
         sourceBuilder.from(from);
         sourceBuilder.size(size);
+        sourceBuilder.trackTotalHits(true);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
@@ -901,6 +903,7 @@ public class JobResultsProvider {
                     .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
                     .setFrom(from).setSize(size)
+                    .setTrackTotalHits(true)
                     .get();
         }
 
@@ -1088,7 +1091,8 @@ public class JobResultsProvider {
     public void scheduledEvents(ScheduledEventsQueryBuilder query, ActionListener<QueryPage<ScheduledEvent>> handler) {
         SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(query.build());
+                .setSource(query.build())
+                .setTrackTotalHits(true);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request.request(),
                 ActionListener.<SearchResponse>wrap(
@@ -1138,6 +1142,7 @@ public class JobResultsProvider {
         sourceBuilder.aggregation(
                 AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));
         sourceBuilder.size(0);
+        sourceBuilder.trackTotalHits(true);
 
         searchRequest.source(sourceBuilder);
 
@@ -1211,6 +1216,7 @@ public class JobResultsProvider {
     public void calendars(CalendarQueryBuilder queryBuilder, ActionListener<QueryPage<Calendar>> listener) {
         SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.INDEX_NAME)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setTrackTotalHits(true)
                 .setSource(queryBuilder.build()).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -1222,7 +1228,7 @@ public class JobResultsProvider {
                                 calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER, listener::onFailure).build());
                             }
 
-                            listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits().value,
+                            listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));
                         },
                         listener::onFailure)

@@ -323,7 +323,7 @@ public class CcrStatsResponseTests extends ESTestCase {
         );
     }
 
-    private static IndicesFollowStats randomIndicesFollowStats() {
+    static IndicesFollowStats randomIndicesFollowStats() {
         int numIndices = randomIntBetween(0, 16);
         NavigableMap<String, List<ShardFollowStats>> shardFollowStats = new TreeMap<>();
         for (int i = 0; i < numIndices; i++) {

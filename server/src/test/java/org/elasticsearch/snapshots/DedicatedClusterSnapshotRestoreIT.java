@@ -594,7 +594,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 equalTo(SnapshotState.PARTIAL));
         }
 
-        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all").execute().actionGet());
+        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all"));
 
         logger.info("--> restore incomplete snapshot - should fail");
         assertThrows(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)

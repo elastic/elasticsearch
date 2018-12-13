@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
@@ -58,6 +60,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -77,6 +80,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -92,6 +96,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
@@ -179,8 +185,11 @@ public class ClusterStateChanges {
                 return indexMetaData;
             }
         };
+
+        TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction = new TransportVerifyShardBeforeCloseAction(SETTINGS,
+            transportService, clusterService, indicesService, threadPool, null, actionFilters, indexNameExpressionResolver);
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(clusterService, allocationService,
-            metaDataIndexUpgradeService, indicesService, threadPool);
+            metaDataIndexUpgradeService, indicesService, threadPool, transportVerifyShardBeforeCloseAction);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
@@ -210,7 +219,15 @@ public class ClusterStateChanges {
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
-        return execute(transportCloseIndexAction, request, state);
+        final Index[] concreteIndices = Arrays.stream(request.indices())
+            .map(index -> state.metaData().index(index).getIndex()).toArray(Index[]::new);
+
+        final Set<Index> blockedIndices = new HashSet<>();
+        ClusterState newState = MetaDataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, state, blockedIndices);
+
+        newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, blockedIndices.stream()
+            .collect(Collectors.toMap(Function.identity(), index -> new AcknowledgedResponse(true))));
+        return allocationService.reroute(newState, "indices closed");
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {

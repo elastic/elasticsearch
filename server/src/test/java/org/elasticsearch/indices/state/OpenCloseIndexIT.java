@@ -72,39 +72,11 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened("test1");
     }
 
-    public void testSimpleCloseMissingIndex() {
-        Client client = client();
-        Exception e = expectThrows(IndexNotFoundException.class, () ->
-            client.admin().indices().prepareClose("test1").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index [test1]"));
-    }
-
     public void testSimpleOpenMissingIndex() {
         Client client = client();
         Exception e = expectThrows(IndexNotFoundException.class, () ->
             client.admin().indices().prepareOpen("test1").execute().actionGet());
         assertThat(e.getMessage(), is("no such index [test1]"));
-    }
-
-    public void testCloseOneMissingIndex() {
-        Client client = client();
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-        Exception e = expectThrows(IndexNotFoundException.class, () ->
-            client.admin().indices().prepareClose("test1", "test2").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index [test2]"));
-    }
-
-    public void testCloseOneMissingIndexIgnoreMissing() {
-        Client client = client();
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1", "test2")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosed("test1");
     }
 
     public void testOpenOneMissingIndex() {
@@ -200,20 +172,6 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
-    public void testCloseNoIndex() {
-        Client client = client();
-        Exception e = expectThrows(ActionRequestValidationException.class, () ->
-            client.admin().indices().prepareClose().execute().actionGet());
-        assertThat(e.getMessage(), containsString("index is missing"));
-    }
-
-    public void testCloseNullIndex() {
-        Client client = client();
-        Exception e = expectThrows(ActionRequestValidationException.class, () ->
-            client.admin().indices().prepareClose((String[])null).execute().actionGet());
-        assertThat(e.getMessage(), containsString("index is missing"));
-    }
-
     public void testOpenNoIndex() {
         Client client = client();
         Exception e = expectThrows(ActionRequestValidationException.class, () ->
@@ -239,23 +197,6 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(openIndexResponse1.isAcknowledged(), equalTo(true));
         assertThat(openIndexResponse1.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
-    }
-
-    public void testCloseAlreadyClosedIndex() {
-        Client client = client();
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-
-        //closing the index
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosed("test1");
-
-        //no problem if we try to close an index that's already in close state
-        closeIndexResponse = client.admin().indices().prepareClose("test1").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosed("test1");
     }
 
     public void testSimpleCloseOpenAlias() {

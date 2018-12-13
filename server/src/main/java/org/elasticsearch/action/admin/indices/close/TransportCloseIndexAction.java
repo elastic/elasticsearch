@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -105,19 +104,21 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             listener.onResponse(new AcknowledgedResponse(true));
             return;
         }
-        CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices);
 
-        indexStateService.closeIndices(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest()
+            .ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .indices(concreteIndices);
+
+        indexStateService.closeIndices(closeRequest, new ActionListener<AcknowledgedResponse>() {
 
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+            public void onResponse(final AcknowledgedResponse response) {
+                listener.onResponse(response);
             }
 
             @Override
-            public void onFailure(Exception t) {
+            public void onFailure(final Exception t) {
                 logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }

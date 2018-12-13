@@ -72,7 +72,7 @@ manage index templates, you need to configure soft deletes on a custom Logstash
 index template. To configure soft deletes on the underlying index template,
 incorporate the following change to a custom Logstash template.
 
-["source","json"]
+["source","js"]
 ----------------------------------------------------------------------
 {
   "settings" : {

@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
@@ -29,7 +30,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
 
     private static final String NAME = "xpack/data_frame/jobconfig";
-    private static final ParseField ID = new ParseField("id");
     private static final ParseField INDEX_PATTERN = new ParseField("index_pattern");
     private static final ParseField DESTINATION_INDEX = new ParseField("destination_index");
     private static final ParseField SOURCES = new ParseField("sources");
@@ -52,7 +52,7 @@ public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
             });
 
     static {
-        PARSER.declareString(optionalConstructorArg(), ID);
+        PARSER.declareString(optionalConstructorArg(), DataFrameField.ID);
         PARSER.declareString(constructorArg(), INDEX_PATTERN);
         PARSER.declareString(constructorArg(), DESTINATION_INDEX);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p), SOURCES);
@@ -64,7 +64,7 @@ public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
                                         final String destinationIndex,
                                         final SourceConfig sourceConfig,
                                         final AggregationConfig aggregationConfig) {
-        this.id = ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
+        this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         this.indexPattern = ExceptionsHelper.requireNonNull(indexPattern, INDEX_PATTERN.getPreferredName());
         this.destinationIndex = ExceptionsHelper.requireNonNull(destinationIndex, DESTINATION_INDEX.getPreferredName());
 
@@ -115,7 +115,7 @@ public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
 
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
+        builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
         builder.field(DESTINATION_INDEX.getPreferredName(), destinationIndex);
         if (sourceConfig != null) {

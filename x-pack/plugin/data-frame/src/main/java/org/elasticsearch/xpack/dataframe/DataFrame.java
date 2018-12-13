@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsAction;
@@ -73,9 +74,6 @@ import static java.util.Collections.emptyList;
 public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "data_frame";
-    public static final String TASK_NAME = "data_frame/jobs";
-    public static final String BASE_PATH = "/_data_frame/";
-    public static final String BASE_PATH_JOBS_BY_ID = BASE_PATH + "jobs/{id}/";
     public static final String TASK_THREAD_POOL_NAME = "data_frame_indexing";
 
     // list of headers that will be stored when a job is created
@@ -172,7 +170,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
         return  Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TASK_NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
                         DataFrameJob::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameJobState.NAME),
                         DataFrameJobState::fromXContent),

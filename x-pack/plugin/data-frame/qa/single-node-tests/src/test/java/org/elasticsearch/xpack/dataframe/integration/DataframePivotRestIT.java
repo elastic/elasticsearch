@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.junit.AfterClass;
 import org.junit.Before;
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataframePivotRestIT extends ESRestTestCase {
 
-    private static final String DATAFRAME_ENDPOINT = DataFrame.BASE_PATH + "jobs/";
+    private static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "jobs/";
     private boolean indicesCreated = false;
 
     // preserve indices in order to reuse source indices in several test cases
@@ -236,7 +236,7 @@ public class DataframePivotRestIT extends ESRestTestCase {
     }
 
     private static void waitForPendingDataFrameTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrame.TASK_NAME) == false);
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrameField.TASK_NAME) == false);
     }
 
     private static void wipeIndices() throws IOException {

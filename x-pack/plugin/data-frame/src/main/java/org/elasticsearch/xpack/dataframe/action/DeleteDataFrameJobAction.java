@@ -20,8 +20,8 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,7 +46,7 @@ public class DeleteDataFrameJobAction extends Action<DeleteDataFrameJobAction.Re
         private String id;
 
         public Request(String id) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameJob.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         }
 
         public Request() {
@@ -63,7 +63,7 @@ public class DeleteDataFrameJobAction extends Action<DeleteDataFrameJobAction.Re
 
         @Override
         public boolean match(Task task) {
-            return task.getDescription().equals(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
+            return task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         @Override
@@ -79,7 +79,7 @@ public class DeleteDataFrameJobAction extends Action<DeleteDataFrameJobAction.Re
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameJob.ID.getPreferredName(), id);
+            builder.field(DataFrameField.ID.getPreferredName(), id);
             return builder;
         }
 

@@ -95,13 +95,15 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     private static void overrideDnsCachePolicyProperties() {
         for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
-            final String override = System.getProperty("es." + property);
-            if (override != null) {
-                // round-trip the property to an integer and back to a string to ensure that it parses properly
+            final String overrideProperty = "es." + property;
+            final String overrideValue = System.getProperty(overrideProperty);
+            if (overrideValue != null) {
                 try {
-                    Security.setProperty(property, Integer.toString(Integer.valueOf(override)));
+                    // round-trip the property to an integer and back to a string to ensure that it parses properly
+                    Security.setProperty(property, Integer.toString(Integer.valueOf(overrideValue)));
                 } catch (final NumberFormatException e) {
-                    throw new IllegalArgumentException("failed to parse [es." + property + "] with value [" + override + "]", e);
+                    throw new IllegalArgumentException(
+                            "failed to parse [" + overrideProperty + "] with value [" + overrideValue + "]", e);
                 }
             }
         }

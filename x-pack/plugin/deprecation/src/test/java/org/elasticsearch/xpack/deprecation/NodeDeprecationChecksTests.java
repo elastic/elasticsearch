@@ -68,6 +68,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
     }
 
+    public void testIndexThreadPoolCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Index thread pool removed in favor of combined write thread pool",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#_index_thread_pool",
+            "nodes with index thread pool settings: [node_check]");
+        assertSettingsAndIssue("thread_pool.index.size", Integer.toString(randomIntBetween(1, 20000)), expected);
+        assertSettingsAndIssue("thread_pool.index.queue_size", Integer.toString(randomIntBetween(1, 20000)), expected);
+    }
+
     public void testTribeNodeCheck() {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -76,6 +86,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "#_tribe_node_removed",
             "nodes with tribe node settings: [node_check]");
         assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
+    }
+
+    public void testHttpPipeliningCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "HTTP pipelining setting removed as pipelining is now mandatory",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#remove-http-pipelining-setting",
+            "nodes with http.pipelining set: [node_check]");
+        assertSettingsAndIssue("http.pipelining", Boolean.toString(randomBoolean()), expected);
     }
 
     public void testAzurePluginCheck() {

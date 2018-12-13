@@ -1254,6 +1254,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
+        // add logging to get more info about why https://github.com/elastic/elasticsearch/issues/35644 is failing
+        // TODO remove this once #35644 is fixed
+        if (countResponse.getCount() != 12) {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().size(20));
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            logger.info("Unexpected hit count, was expecting 12 hits but got: " + searchResponse.toString());
+        }
         assertEquals(12, countResponse.getCount());
     }
 

@@ -192,7 +192,7 @@ public final class NodeEnvironment  implements Closeable {
                         final Environment environment,
                         final CheckedFunction<Path, Boolean, IOException> pathFunction) throws IOException {
             this.nodeId = nodeId;
-            nodePaths = new NodePath[environment.dataWithClusterFiles().length];
+            nodePaths = new NodePath[environment.dataFiles().length];
             locks = new Lock[nodePaths.length];
             try {
                 final Path[] dataPaths = environment.dataFiles();
@@ -285,7 +285,7 @@ public final class NodeEnvironment  implements Closeable {
                     Locale.ROOT,
                     "failed to obtain node locks, tried [%s] with lock id%s;" +
                         " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
-                    Arrays.toString(environment.dataWithClusterFiles()),
+                    Arrays.toString(environment.dataFiles()),
                     maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
                     MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                     maxLocalStorageNodes);

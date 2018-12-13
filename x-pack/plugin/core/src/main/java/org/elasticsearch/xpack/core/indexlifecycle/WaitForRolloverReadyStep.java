@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
@@ -24,6 +26,7 @@ import java.util.Objects;
  * Waits for at least one rollover condition to be satisfied, using the Rollover API's dry_run option.
  */
 public class WaitForRolloverReadyStep extends AsyncWaitStep {
+    private static final Logger logger = LogManager.getLogger(WaitForRolloverReadyStep.class);
 
     public static final String NAME = "check-rollover-ready";
 
@@ -54,6 +57,21 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
                 indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());
+        if (indexingComplete) {
+            logger.trace(indexMetaData.getIndex() + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
+            Boolean isWriteIndex = indexMetaData.getAliases().get(rolloverAlias).writeIndex();
+            if (Boolean.TRUE.equals(isWriteIndex)) {
+                listener.onFailure(new IllegalStateException(String.format(Locale.ROOT,
+                    "index [%s] has [%s] set to [true], but is still the write index for alias [%s]",
+                    indexMetaData.getIndex().getName(), LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, rolloverAlias)));
+                return;
+            }
+
+            listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
             return;
         }
 

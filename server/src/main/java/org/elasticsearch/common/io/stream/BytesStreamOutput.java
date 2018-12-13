@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 
@@ -58,7 +59,7 @@ public class BytesStreamOutput extends BytesStream {
 
     protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bytes = bigArrays.newByteArray(expectedSize);
+        this.bytes = bigArrays.newByteArray(expectedSize, false);
     }
 
     @Override
@@ -98,8 +99,8 @@ public class BytesStreamOutput extends BytesStream {
     @Override
     public void reset() {
         // shrink list of pages
-        if (bytes.size() > BigArrays.PAGE_SIZE_IN_BYTES) {
-            bytes = bigArrays.resize(bytes, BigArrays.PAGE_SIZE_IN_BYTES);
+        if (bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+            bytes = bigArrays.resize(bytes, PageCacheRecycler.PAGE_SIZE_IN_BYTES);
         }
 
         // go back to start

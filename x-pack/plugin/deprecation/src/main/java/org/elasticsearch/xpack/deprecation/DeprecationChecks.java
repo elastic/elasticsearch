@@ -52,7 +52,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::delimitedPayloadFilterCheck,
             IndexDeprecationChecks::percolatorUnmappedFieldsAsStringCheck,
-            IndexDeprecationChecks::indexNameCheck
+            IndexDeprecationChecks::indexNameCheck,
+            IndexDeprecationChecks::classicSimilarityCheck
             ));
 
     /**

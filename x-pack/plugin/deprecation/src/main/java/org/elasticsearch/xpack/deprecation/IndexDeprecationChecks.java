@@ -129,4 +129,19 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue classicSimilarityCheck(IndexMetaData indexMetaData) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+                property -> "classic".equals(property.get("similarity"))))));
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Classic similarity has been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "#_the_literal_classic_literal_similarity_has_been_removed",
+                "Fields which use classic similarity: " + issues.toString());
+        }
+        return null;
+    }
 }

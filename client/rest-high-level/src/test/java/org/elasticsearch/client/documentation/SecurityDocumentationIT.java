@@ -167,7 +167,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             GetUsersRequest request = new GetUsersRequest(usernames[0]);
             ActionListener<GetUsersResponse> listener;
 
-            //tag::get-roles-execute-listener
+            //tag::get-users-execute-listener
             listener = new ActionListener<GetUsersResponse>() {
                 @Override
                 public void onResponse(GetUsersResponse getRolesResponse) {

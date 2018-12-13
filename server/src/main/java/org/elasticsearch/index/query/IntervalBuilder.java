@@ -122,7 +122,7 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
-    public static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
+    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
         if (sources.size() == 0) {
             return NO_INTERVALS;
         }
@@ -218,7 +218,7 @@ public class IntervalBuilder {
         return clauses;
     }
 
-    public static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
+    private static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
 
         @Override
         public IntervalIterator intervals(String field, LeafReaderContext ctx) {

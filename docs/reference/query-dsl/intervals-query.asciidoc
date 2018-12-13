@@ -5,7 +5,7 @@ An `intervals` query allows fine-grained control over the order and proximity of
 matching terms.  Matching rules are constructed from a small set of definitions,
 and the rules are then applied to terms from a particular `field`.
 
-The definitions produce sequences of intervals that span terms in a
+The definitions produce sequences of minimal intervals that span terms in a
 body of text.  These intervals can be further combined and filtered by
 parent sources.
 
@@ -153,3 +153,108 @@ Produces intervals that do not contain an interval from the filter rule
 Produces intervals that are not contained by an interval from the filter rule
 `not_overlapping`::
 Produces intervals that do not overlap with an interval from the filter rule
+
+[[interval-minimization]]
+==== Minimization
+
+The intervals query always minimizes intervals, to ensure that queries can
+run in linear time.  This can sometimes cause surprising results, particularly
+when using `max_gaps` restrictions or filters.  For example, take the
+following query, searching for `salty` contained within the phrase `hot
+porridge`:
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+  "query": {
+    "intervals" : {
+      "my_text" : {
+        "match" : {
+          "query" : "salty",
+          "filter" : {
+            "contained_by" : {
+              "match" : {
+                "query" : "hot porridge"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+This query will *not* match a document containing the phrase `hot porridge is
+salty porridge`, because the intervals returned by the match query for `hot
+porridge` only cover the initial two terms in this document, and these do not
+overlap the intervals covering `salty`.
+
+Another restriction to be aware of is the case of `any_of` rules that contain
+sub-rules which overlap.  In particular, if one of the rules is a strict
+prefix of the other, then the longer rule will never be matched, which can
+cause surprises when used in combination with `max_gaps`.  Consider the
+following query, searching for `the` immediately followed by `big` or `big bad`,
+immediately followed by `wolf`:
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+  "query": {
+    "intervals" : {
+      "my_text" : {
+        "all_of" : {
+          "rules" : [
+            { "match" : { "query" : "the" } },
+            { "any_of" : {
+                "rules" : [
+                    { "match" : { "query" : "big" } },
+                    { "match" : { "query" : "big bad" } }
+                ] } },
+            { "match" : { "query" : "wolf" } }
+          ],
+          "max_gaps" : 0,
+          "ordered" : true
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Counter-intuitively, this query *will not* match the document `the big bad
+wolf`, because the `any_of` rule in the middle will only produce intervals
+for `big` - intervals for `big bad` being longer than those for `big`, while
+starting at the same position, and so being minimized away.  In these cases,
+it's better to rewrite the query so that all of the options are explicitly
+laid out at the top level:
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+  "query": {
+    "intervals" : {
+      "my_text" : {
+        "any_of" : {
+          "rules" : [
+            { "match" : {
+                "query" : "the big bad wolf",
+                "ordered" : true,
+                "max_gaps" : 0 } },
+            { "match" : {
+                "query" : "the big wolf",
+                "ordered" : true,
+                "max_gaps" : 0 } },
+           ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE

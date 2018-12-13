@@ -20,9 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.apache.lucene.search.intervals.Intervals;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -245,15 +247,12 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
-    public void testNonIndexedFields() {
+    public void testNonIndexedFields() throws IOException {
         IntervalsSourceProvider provider = createRandomSource();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            IntervalQueryBuilder builder = new IntervalQueryBuilder("no_such_field", provider);
-            builder.doToQuery(createShardContext());
-        });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over non-existent field [no_such_field]"));
+        IntervalQueryBuilder b = new IntervalQueryBuilder("no_such_field", provider);
+        assertThat(b.toQuery(createShardContext()), equalTo(new MatchNoDocsQuery()));
 
-        e = expectThrows(IllegalArgumentException.class, () -> {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = new IntervalQueryBuilder(INT_FIELD_NAME, provider);
             builder.doToQuery(createShardContext());
         });
@@ -265,5 +264,17 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         });
         assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field ["
             + STRING_FIELD_NAME_2 + "] with no indexed positions"));
+    }
+
+    public void testMultipleProviders() {
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"boost\" : 1," +
+            "\"match\" : { \"query\" : \"term1\" }," +
+            "\"all_of\" : { \"intervals\" : [ { \"query\" : \"term2\" } ] } }";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            parseQuery(json);
+        });
+        assertThat(e.getMessage(), equalTo("Only one interval rule can be specified, found [match] and [all_of]"));
     }
 }

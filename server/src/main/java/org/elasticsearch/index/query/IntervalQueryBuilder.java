@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.elasticsearch.common.ParsingException;
@@ -81,6 +82,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         String name = null;
         float boost = 1;
         IntervalsSourceProvider provider = null;
+        String providerName = null;
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(),
@@ -96,6 +98,11 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                     boost = parser.floatValue();
                     break;
                 default:
+                    if (providerName != null) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]");
+                    }
+                    providerName = parser.currentName();
                     provider = IntervalsSourceProvider.fromXContent(parser);
 
             }
@@ -118,7 +125,8 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            throw new IllegalArgumentException("Cannot create IntervalQuery over non-existent field [" + field + "]");
+            // Be lenient with unmapped fields so that cross-index search will work nicely
+            return new MatchNoDocsQuery();
         }
         if (fieldType.tokenized() == false ||
             fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {

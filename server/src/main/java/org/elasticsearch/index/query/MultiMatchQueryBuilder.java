@@ -257,7 +257,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalBoolean(null); //
+            out.writeOptionalBoolean(null);
         }
         out.writeOptionalFloat(tieBreaker);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {

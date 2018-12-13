@@ -611,9 +611,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())))
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().size(), equalTo(2));
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().get("remote1"), notNullValue());
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().get("remote2"), notNullValue());
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
         // Remove patterns 1 and 3:
         patterns.remove("pattern1");
         patterns.remove("pattern3");
@@ -622,8 +622,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())))
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().size(), equalTo(1));
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().get("remote2"), notNullValue());
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(1));
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
         // Add pattern 4:
         patterns.put("pattern4", new AutoFollowPattern("remote1", Collections.singletonList("metrics-*"), null, null, null,
             null, null, null, null, null, null, null, null));
@@ -632,9 +632,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())))
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().size(), equalTo(2));
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().get("remote1"), notNullValue());
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().get("remote2"), notNullValue());
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
         // Remove patterns 2 and 4:
         patterns.remove("pattern2");
         patterns.remove("pattern4");
@@ -643,7 +643,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())))
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().size(), equalTo(0));
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
     public void testUpdateAutoFollowersNoPatterns() {
@@ -657,7 +657,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())))
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().size(), equalTo(0));
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
     public void testUpdateAutoFollowersNoAutoFollowMetadata() {
@@ -668,7 +668,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             () -> 1L);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
-        assertThat(autoFollowCoordinator.getStats().getTrackingRemoteClusters().size(), equalTo(0));
+        assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
     public void testWaitForMetadataVersion() {

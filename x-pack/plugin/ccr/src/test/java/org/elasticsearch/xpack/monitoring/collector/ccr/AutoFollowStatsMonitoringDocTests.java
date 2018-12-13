@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -117,7 +118,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                                 + "}"
                             + "}"
                         + "],"
-                        + "\"tracking_remote_clusters\":["
+                        + "\"auto_followed_clusters\":["
                             + "{"
                                 + "\"cluster_name\":\"" + trackingClusters.keySet().iterator().next() + "\","
                                 + "\"time_since_last_auto_follow_started_millis\":"  +
@@ -162,24 +163,29 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                 assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
                     anyOf(equalTo("keyword"), equalTo("text")));
             } else {
+                Map<?, ?> innerFieldValue = (Map<?, ?>) ((List) fieldValue).get(0);
                 // Manual test specific object fields and if not just fail:
                 if (fieldName.equals("recent_auto_follow_errors")) {
                     assertThat(fieldType, equalTo("nested"));
-                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(2));
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(innerFieldValue.size()));
                     assertThat(XContentMapValues.extractValue("properties.leader_index.type", fieldMapping), equalTo("keyword"));
                     assertThat(XContentMapValues.extractValue("properties.auto_follow_exception.type", fieldMapping), equalTo("object"));
 
+                    innerFieldValue = (Map<?, ?>) innerFieldValue.get("auto_follow_exception");
                     Map<?, ?> exceptionFieldMapping =
                         (Map<?, ?>) XContentMapValues.extractValue("properties.auto_follow_exception.properties", fieldMapping);
-                    assertThat(exceptionFieldMapping.size(), equalTo(2));
+                    assertThat(exceptionFieldMapping.size(), equalTo(innerFieldValue.size()));
                     assertThat(XContentMapValues.extractValue("type.type", exceptionFieldMapping), equalTo("keyword"));
                     assertThat(XContentMapValues.extractValue("reason.type", exceptionFieldMapping), equalTo("text"));
-                } else if (fieldName.equals("tracking_remote_clusters")) {
+                } else if (fieldName.equals("auto_followed_clusters")) {
                     assertThat(fieldType, equalTo("nested"));
-                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(2));
-                    assertThat(XContentMapValues.extractValue("properties.cluster_name.type", fieldMapping), equalTo("keyword"));
-                    assertThat(XContentMapValues.extractValue("properties.time_since_last_auto_follow_started_millis.type", fieldMapping),
+                    Map<?, ?> innerFieldMapping = ((Map<?, ?>) fieldMapping.get("properties"));
+                    assertThat(innerFieldMapping.size(), equalTo(innerFieldValue.size()));
+
+                    assertThat(XContentMapValues.extractValue("cluster_name.type", innerFieldMapping), equalTo("keyword"));
+                    assertThat(XContentMapValues.extractValue("time_since_last_auto_follow_started_millis.type", innerFieldMapping),
                         equalTo("long"));
+                    assertThat(XContentMapValues.extractValue("last_seen_metadata_version.type", innerFieldMapping), equalTo("long"));
                 } else {
                     fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
                 }

@@ -35,7 +35,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     private static final ParseField RECENT_AUTO_FOLLOW_ERRORS = new ParseField("recent_auto_follow_errors");
     private static final ParseField LEADER_INDEX = new ParseField("leader_index");
     private static final ParseField AUTO_FOLLOW_EXCEPTION = new ParseField("auto_follow_exception");
-    private static final ParseField TRACKING_REMOTE_CLUSTERS = new ParseField("tracking_remote_clusters");
+    private static final ParseField AUTO_FOLLOWED_CLUSTERS = new ParseField("auto_followed_clusters");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS =
         new ParseField("time_since_last_auto_follow_started_millis");
@@ -61,9 +61,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             "auto_follow_stats_errors",
             args -> new AbstractMap.SimpleEntry<>((String) args[0], (ElasticsearchException) args[1]));
 
-    private static final ConstructingObjectParser<Map.Entry<String, AutoFollowedCluster>, Void> TRACKING_REMOTE_CLUSTERS_PARSER =
+    private static final ConstructingObjectParser<Map.Entry<String, AutoFollowedCluster>, Void> AUTO_FOLLOWED_CLUSTERS_PARSER =
         new ConstructingObjectParser<>(
-            "tracking_remote_clusters",
+            "auto_followed_clusters",
             args -> new AbstractMap.SimpleEntry<>((String) args[0], new AutoFollowedCluster((Long) args[1], (Long) args[2])));
 
     static {
@@ -72,17 +72,17 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ElasticsearchException.fromXContent(p),
             AUTO_FOLLOW_EXCEPTION);
-        TRACKING_REMOTE_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
-        TRACKING_REMOTE_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS);
-        TRACKING_REMOTE_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SEEN_METADATA_VERSION);
+        AUTO_FOLLOWED_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
+        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS);
+        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SEEN_METADATA_VERSION);
 
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED);
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS);
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED);
         STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOW_EXCEPTIONS_PARSER,
             RECENT_AUTO_FOLLOW_ERRORS);
-        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), TRACKING_REMOTE_CLUSTERS_PARSER,
-            TRACKING_REMOTE_CLUSTERS);
+        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOWED_CLUSTERS_PARSER,
+            AUTO_FOLLOWED_CLUSTERS);
     }
 
     public static AutoFollowStats fromXContent(final XContentParser parser) {
@@ -93,20 +93,20 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     private final long numberOfFailedRemoteClusterStateRequests;
     private final long numberOfSuccessfulFollowIndices;
     private final NavigableMap<String, ElasticsearchException> recentAutoFollowErrors;
-    private final NavigableMap<String, AutoFollowedCluster> trackingRemoteClusters;
+    private final NavigableMap<String, AutoFollowedCluster> autoFollowedClusters;
 
     public AutoFollowStats(
         long numberOfFailedFollowIndices,
         long numberOfFailedRemoteClusterStateRequests,
         long numberOfSuccessfulFollowIndices,
         NavigableMap<String, ElasticsearchException> recentAutoFollowErrors,
-        NavigableMap<String, AutoFollowedCluster> trackingRemoteClusters
+        NavigableMap<String, AutoFollowedCluster> autoFollowedClusters
     ) {
         this.numberOfFailedFollowIndices = numberOfFailedFollowIndices;
         this.numberOfFailedRemoteClusterStateRequests = numberOfFailedRemoteClusterStateRequests;
         this.numberOfSuccessfulFollowIndices = numberOfSuccessfulFollowIndices;
         this.recentAutoFollowErrors = recentAutoFollowErrors;
-        this.trackingRemoteClusters = trackingRemoteClusters;
+        this.autoFollowedClusters = autoFollowedClusters;
     }
 
     public AutoFollowStats(StreamInput in) throws IOException {
@@ -115,9 +115,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         numberOfSuccessfulFollowIndices = in.readVLong();
         recentAutoFollowErrors = new TreeMap<>(in.readMap(StreamInput::readString, StreamInput::readException));
         if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            trackingRemoteClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
+            autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
         } else {
-            trackingRemoteClusters = Collections.emptyNavigableMap();
+            autoFollowedClusters = Collections.emptyNavigableMap();
         }
     }
 
@@ -128,7 +128,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         out.writeVLong(numberOfSuccessfulFollowIndices);
         out.writeMap(recentAutoFollowErrors, StreamOutput::writeString, StreamOutput::writeException);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeMap(trackingRemoteClusters, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(autoFollowedClusters, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
     }
 
@@ -148,8 +148,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         return recentAutoFollowErrors;
     }
 
-    public NavigableMap<String, AutoFollowedCluster> getTrackingRemoteClusters() {
-        return trackingRemoteClusters;
+    public NavigableMap<String, AutoFollowedCluster> getAutoFollowedClusters() {
+        return autoFollowedClusters;
     }
 
     @Override
@@ -183,9 +183,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             }
         }
         builder.endArray();
-        builder.startArray(TRACKING_REMOTE_CLUSTERS.getPreferredName());
+        builder.startArray(AUTO_FOLLOWED_CLUSTERS.getPreferredName());
         {
-            for (final Map.Entry<String, AutoFollowedCluster> entry : trackingRemoteClusters.entrySet()) {
+            for (final Map.Entry<String, AutoFollowedCluster> entry : autoFollowedClusters.entrySet()) {
                 builder.startObject();
                 {
                     builder.field(CLUSTER_NAME.getPreferredName(), entry.getKey());
@@ -215,7 +215,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
              */
             recentAutoFollowErrors.keySet().equals(that.recentAutoFollowErrors.keySet()) &&
             getFetchExceptionMessages(this).equals(getFetchExceptionMessages(that)) &&
-            Objects.equals(trackingRemoteClusters, that.trackingRemoteClusters);
+            Objects.equals(autoFollowedClusters, that.autoFollowedClusters);
     }
 
     @Override
@@ -230,7 +230,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
              */
             recentAutoFollowErrors.keySet(),
             getFetchExceptionMessages(this),
-            trackingRemoteClusters
+            autoFollowedClusters
         );
     }
 
@@ -245,7 +245,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             ", numberOfFailedRemoteClusterStateRequests=" + numberOfFailedRemoteClusterStateRequests +
             ", numberOfSuccessfulFollowIndices=" + numberOfSuccessfulFollowIndices +
             ", recentAutoFollowErrors=" + recentAutoFollowErrors +
-            ", trackingRemoteClusters=" + trackingRemoteClusters +
+            ", autoFollowedClusters=" + autoFollowedClusters +
             '}';
     }
 

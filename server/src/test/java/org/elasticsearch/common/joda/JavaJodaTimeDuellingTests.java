@@ -28,7 +28,6 @@ import org.joda.time.DateTimeZone;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
@@ -519,7 +518,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
         DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
-        DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
-        assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
+        IllegalArgumentException dateTimeParseException =
+            expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+        assertThat(dateTimeParseException.getCause().getMessage(), startsWith(expectedMessage));
     }
 }

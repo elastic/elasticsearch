@@ -72,13 +72,13 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public TemporalAccessor parse(String input) {
-        DateTimeParseException failure = null;
+        IllegalArgumentException failure = null;
         for (int i = 0; i < parsers.length; i++) {
             try {
                 return parsers[i].parse(input);
             } catch (DateTimeParseException e) {
                 if (failure == null) {
-                    failure = e;
+                    failure = new IllegalArgumentException(e);
                 } else {
                     failure.addSuppressed(e);
                 }

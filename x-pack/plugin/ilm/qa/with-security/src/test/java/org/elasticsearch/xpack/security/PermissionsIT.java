@@ -119,6 +119,13 @@ public class PermissionsIT extends ESRestTestCase {
         });
     }
 
+    public void testCanViewExplainOnUnmanagedIndex() throws Exception {
+        createIndexAsAdmin("view-only-ilm", indexSettingsWithPolicy, "");
+        Request request = new Request("GET", "/view-only-ilm/_ilm/explain");
+        // test_ilm user has permissions to view
+        assertOK(client().performRequest(request));
+    }
+
     private void createNewSingletonPolicy(String policy, String phaseName, LifecycleAction action) throws IOException {
         Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));

@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "all_access"
         body:  >
             {
@@ -19,7 +19,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -31,12 +31,12 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "all_access"
         ignore: 404
 
@@ -73,11 +73,13 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: ".security"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: ".secu*rity"
   - match: { hits.total: 0 }
 

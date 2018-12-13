@@ -48,8 +48,8 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
 
     GeoHashGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
-            int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;

@@ -376,10 +376,10 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Verify that the proper block is applied when nodes loose their master
+     * Verify that the proper block is applied when nodes lose their master
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        startCluster(3);
+        internalCluster().startNodes(3);
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -511,7 +511,13 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             assertTrue(
                     "node [" + node + "] is still joining master",
                     awaitBusy(
-                            () -> !((ZenDiscovery) internalCluster().getInstance(Discovery.class, node)).joiningCluster(),
+                            () -> {
+                                final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
+                                if (discovery instanceof ZenDiscovery) {
+                                    return !((ZenDiscovery) discovery).joiningCluster();
+                                }
+                                return true;
+                            },
                             30,
                             TimeUnit.SECONDS
                     )

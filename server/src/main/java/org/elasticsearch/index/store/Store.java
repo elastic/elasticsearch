@@ -1404,9 +1404,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
-    public void createEmpty() throws IOException {
+    public void createEmpty(Version luceneVersion) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.CREATE, directory, null)) {
+        try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1443,7 +1443,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory(long maxSeqNo) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
@@ -1461,7 +1461,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void associateIndexWithNewTranslog(final String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
@@ -1480,7 +1480,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void ensureIndexHasHistoryUUID() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             final Map<String, String> userData = getUserData(writer);
             if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
                 updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
@@ -1546,7 +1546,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + translogUUID + "]");
             }
             if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
-                try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, startingIndexCommit)) {
+                try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
                     // - deletes any other commit (by lucene standard deletion policy)
@@ -1578,19 +1578,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return userData;
     }
 
-    private static IndexWriter newIndexWriter(final IndexWriterConfig.OpenMode openMode, final Directory dir, final IndexCommit commit)
-        throws IOException {
-        assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
-        IndexWriterConfig iwc = new IndexWriterConfig(null)
-            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setCommitOnClose(false)
+    private static IndexWriter newAppendingIndexWriter(final Directory dir, final IndexCommit commit) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig()
             .setIndexCommit(commit)
-            // we don't want merges to happen here - we call maybe merge on the engine
-            // later once we stared it up otherwise we would need to wait for it here
-            // we also don't specify a codec here and merges should use the engines for this index
-            .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(openMode);
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         return new IndexWriter(dir, iwc);
+    }
+
+    private static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig()
+            .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+            .setIndexCreatedVersionMajor(luceneVersion.major);
+        return new IndexWriter(dir, iwc);
+    }
+
+    private static IndexWriterConfig newIndexWriterConfig() {
+        return new IndexWriterConfig(null)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE);
     }
 
 }

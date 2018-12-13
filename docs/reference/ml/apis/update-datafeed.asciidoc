@@ -10,7 +10,7 @@ Updates certain properties of a {dfeed}.
 
 ==== Request
 
-`POST _xpack/ml/datafeeds/<feed_id>/_update`
+`POST _ml/datafeeds/<feed_id>/_update`
 
 //===== Description
 
@@ -97,7 +97,7 @@ The following example updates the query for the `datafeed-total-requests`
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-total-requests/_update
+POST _ml/datafeeds/datafeed-total-requests/_update
 {
   "query": {
     "term": {

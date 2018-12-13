@@ -1035,7 +1035,7 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
-            store.createEmpty();
+            store.createEmpty(Version.LATEST);
 
             // remove the history uuid
             IndexWriterConfig iwc = new IndexWriterConfig(null)
@@ -1067,7 +1067,7 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
-            store.createEmpty();
+            store.createEmpty(Version.LATEST);
 
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));

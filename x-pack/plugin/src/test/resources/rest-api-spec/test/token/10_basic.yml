@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "token_user"
         body:  >
           {
@@ -20,7 +20,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "token_user"
         ignore: 404
 
@@ -28,7 +28,7 @@ teardown:
 "Test get and use token":
 
   - do:
-      xpack.security.get_token:
+      security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -43,7 +43,7 @@ teardown:
   - do:
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
@@ -53,7 +53,7 @@ teardown:
 "Test invalidate token":
 
   - do:
-      xpack.security.get_token:
+      security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -68,14 +68,14 @@ teardown:
   - do:
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
   - match: { full_name: "Token User" }
 
   - do:
-      xpack.security.invalidate_token:
+      security.invalidate_token:
         body:
           token: $token
 
@@ -85,4 +85,4 @@ teardown:
       catch: unauthorized
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}

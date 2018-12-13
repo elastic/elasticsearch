@@ -212,7 +212,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             assertReturnedIndices(searchResponse, "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             Exception exception = multiSearchResponse.getResponses()[1].getFailure();
@@ -227,7 +227,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             assertReturnedIndices(searchResponse, "test1", "test2", "test3");
             assertFalse(multiSearchResponse.getResponses()[1].isFailure());
             assertNoSearchHits(multiSearchResponse.getResponses()[1].getResponse());
@@ -243,7 +243,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             assertReturnedIndices(searchResponse, "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             Exception exception = multiSearchResponse.getResponses()[1].getFailure();
@@ -258,7 +258,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             assertReturnedIndices(searchResponse, "test1", "test2", "test3");
             assertFalse(multiSearchResponse.getResponses()[1].isFailure());
             assertNoSearchHits(multiSearchResponse.getResponses()[1].getResponse());
@@ -298,7 +298,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             assertReturnedIndices(searchResponse, "test1", "test2", "test3");
             assertNoSearchHits(multiSearchResponse.getResponses()[1].getResponse());
         }
@@ -309,7 +309,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             assertReturnedIndices(searchResponse, "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             Exception exception = multiSearchResponse.getResponses()[1].getFailure();

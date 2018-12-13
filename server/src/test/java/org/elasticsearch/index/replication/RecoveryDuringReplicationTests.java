@@ -22,6 +22,7 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -37,9 +38,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -64,13 +67,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -724,6 +730,64 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 thread.join();
             }
             assertBusy(() -> assertThat(getDocIdAndSeqNos(newReplica), equalTo(getDocIdAndSeqNos(shards.getPrimary()))));
+        }
+    }
+
+    public void testRollbackOnPromotion() throws Exception {
+        try (ReplicationGroup shards = createGroup(between(2, 3))) {
+            shards.startAll();
+            IndexShard newPrimary = randomFrom(shards.getReplicas());
+            int initDocs = shards.indexDocs(randomInt(100));
+            int inFlightOpsOnNewPrimary = 0;
+            int inFlightOps = scaledRandomIntBetween(10, 200);
+            for (int i = 0; i < inFlightOps; i++) {
+                String id = "extra-" + i;
+                IndexRequest primaryRequest = new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON);
+                BulkShardRequest replicationRequest = indexOnPrimary(primaryRequest, shards.getPrimary());
+                for (IndexShard replica : shards.getReplicas()) {
+                    if (randomBoolean()) {
+                        indexOnReplica(replicationRequest, shards, replica);
+                        if (replica == newPrimary) {
+                            inFlightOpsOnNewPrimary++;
+                        }
+                    }
+                }
+                if (randomBoolean()) {
+                    shards.syncGlobalCheckpoint();
+                }
+                if (rarely()) {
+                    shards.flush();
+                }
+            }
+            shards.refresh("test");
+            List<DocIdSeqNoAndTerm> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
+                .stream().filter(doc -> doc.getSeqNo() <= newPrimary.getGlobalCheckpoint()).collect(Collectors.toList());
+            CountDownLatch latch = new CountDownLatch(1);
+            final AtomicBoolean done = new AtomicBoolean();
+            Thread thread = new Thread(() -> {
+                List<IndexShard> replicas = new ArrayList<>(shards.getReplicas());
+                replicas.remove(newPrimary);
+                latch.countDown();
+                while (done.get() == false) {
+                    try {
+                        List<DocIdSeqNoAndTerm> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
+                        assertThat(docsBelowGlobalCheckpoint, everyItem(isIn(exposedDocs)));
+                        assertThat(randomFrom(replicas).getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
+                    } catch (AlreadyClosedException ignored) {
+                        // replica swaps engine during rollback
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread.start();
+            latch.await();
+            shards.promoteReplicaToPrimary(newPrimary).get();
+            shards.assertAllEqual(initDocs + inFlightOpsOnNewPrimary);
+            int moreDocsAfterRollback = shards.indexDocs(scaledRandomIntBetween(1, 20));
+            shards.assertAllEqual(initDocs + inFlightOpsOnNewPrimary + moreDocsAfterRollback);
+            done.set(true);
+            thread.join();
         }
     }
 

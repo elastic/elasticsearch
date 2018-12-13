@@ -51,6 +51,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test1
         body:
           suggest:
@@ -61,6 +62,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test1
         body:
           suggest:
@@ -71,6 +73,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           sort: [ "bar", "baz" ]
 

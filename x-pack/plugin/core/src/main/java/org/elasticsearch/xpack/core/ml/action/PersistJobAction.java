@@ -27,7 +27,12 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends JobTaskRequest<PersistJobAction.Request> {
@@ -80,24 +85,15 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        boolean persisted;
-
-        public Response() {
-            super(null, null);
-        }
+        private final boolean persisted;
 
         public Response(boolean persisted) {
             super(null, null);
             this.persisted = persisted;
         }
 
-        public boolean isPersisted() {
-            return persisted;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             persisted = in.readBoolean();
         }
 
@@ -105,6 +101,10 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(persisted);
+        }
+
+        public boolean isPersisted() {
+            return persisted;
         }
 
         @Override

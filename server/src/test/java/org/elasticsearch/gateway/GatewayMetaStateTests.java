@@ -19,12 +19,14 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,143 +34,113 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.TestCustomMetaData;
+import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
-/**
- * Test IndexMetaState for master and data only nodes return correct list of indices to write
- * There are many parameters:
- * - meta state is not in memory
- * - meta state is in memory with old version/ new version
- * - meta state is in memory with new version
- * - version changed in cluster state event/ no change
- * - node is data only node
- * - node is master eligible
- * for data only nodes: shard initializing on shard
- */
 public class GatewayMetaStateTests extends ESAllocationTestCase {
 
-    ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
-        //ridiculous settings to make sure we don't run into uninitialized because fo default
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
-                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
-                .build());
-        ClusterState newClusterState, previousClusterState;
-        MetaData metaDataOldClusterState = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
-                .build();
+    private ClusterState noIndexClusterState(boolean masterEligible) {
+        MetaData metaData = MetaData.builder().build();
+        RoutingTable routingTable = RoutingTable.builder().build();
 
-        RoutingTable routingTableOldClusterState = RoutingTable.builder()
-                .addAsNew(metaDataOldClusterState.index("test"))
-                .build();
-
-        // assign all shards
-        ClusterState init = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaDataOldClusterState)
-                .routingTable(routingTableOldClusterState)
+        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metaData(metaData)
+                .routingTable(routingTable)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        // new cluster state will have initializing shards on node 1
-        RoutingTable routingTableNewClusterState = strategy.reroute(init, "reroute").routingTable();
-        if (initializing == false) {
-            // pretend all initialized, nothing happened
-            ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState)
-                    .metaData(metaDataOldClusterState).build();
-            routingTableNewClusterState = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING))
-                    .routingTable();
-            routingTableOldClusterState = routingTableNewClusterState;
-
-        } else {
-            // nothing to do, we have one routing table with unassigned and one with initializing
-        }
-
-        // create new meta data either with version changed or not
-        MetaData metaDataNewClusterState = MetaData.builder()
-                .put(init.metaData().index("test"), versionChanged)
-                .build();
-
-
-        // create the cluster states with meta data and routing tables as computed before
-        previousClusterState = ClusterState.builder(init)
-                .metaData(metaDataOldClusterState)
-                .routingTable(routingTableOldClusterState)
-                .nodes(generateDiscoveryNodes(masterEligible))
-                .build();
-        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState)
-                .metaData(metaDataNewClusterState).version(previousClusterState.getVersion() + 1).build();
-
-        ClusterChangedEvent event = new ClusterChangedEvent("test", newClusterState, previousClusterState);
-        assertThat(event.state().version(), equalTo(event.previousState().version() + 1));
-        return event;
     }
 
-    ClusterChangedEvent generateCloseEvent(boolean masterEligible) {
-        //ridiculous settings to make sure we don't run into uninitialized because fo default
+    private ClusterState clusterStateWithUnassignedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
+        MetaData metaData = MetaData.builder()
+                .put(indexMetaData, false)
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .build();
+
+        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metaData(metaData)
+                .routingTable(routingTable)
+                .nodes(generateDiscoveryNodes(masterEligible))
+                .build();
+    }
+
+    private ClusterState clusterStateWithAssignedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
                 .build());
-        ClusterState newClusterState, previousClusterState;
-        MetaData metaDataIndexCreated = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
+
+        ClusterState oldClusterState = clusterStateWithUnassignedIndex(indexMetaData, masterEligible);
+        RoutingTable routingTable = strategy.reroute(oldClusterState, "reroute").routingTable();
+
+        MetaData metaDataNewClusterState = MetaData.builder()
+                .put(oldClusterState.metaData().index("test"), false)
                 .build();
 
-        RoutingTable routingTableIndexCreated = RoutingTable.builder()
-                .addAsNew(metaDataIndexCreated.index("test"))
-                .build();
+        return ClusterState.builder(oldClusterState).routingTable(routingTable)
+                .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
+    }
 
-        // assign all shards
-        ClusterState init = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaDataIndexCreated)
-                .routingTable(routingTableIndexCreated)
-                .nodes(generateDiscoveryNodes(masterEligible))
-                .build();
-        RoutingTable routingTableInitializing = strategy.reroute(init, "reroute").routingTable();
-        ClusterState temp = ClusterState.builder(init).routingTable(routingTableInitializing).build();
-        RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
+    private ClusterState clusterStateWithClosedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
+        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetaData, masterEligible);
 
-        // create new meta data either with version changed or not
-        MetaData metaDataStarted = MetaData.builder()
-                .put(init.metaData().index("test"), true)
-                .build();
-
-        // create the cluster states with meta data and routing tables as computed before
-        MetaData metaDataClosed = MetaData.builder()
+        MetaData metaDataNewClusterState = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.CLOSE)
-                        .numberOfShards(5).numberOfReplicas(2)).version(metaDataStarted.version() + 1)
+                        .numberOfShards(5).numberOfReplicas(2))
+                .version(oldClusterState.metaData().version() + 1)
                 .build();
-        previousClusterState = ClusterState.builder(init)
-                .metaData(metaDataStarted)
-                .routingTable(routingTableStarted)
-                .nodes(generateDiscoveryNodes(masterEligible))
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaDataNewClusterState.index("test"))
                 .build();
-        newClusterState = ClusterState.builder(previousClusterState)
-                .routingTable(routingTableIndexCreated)
-                .metaData(metaDataClosed)
-                .version(previousClusterState.getVersion() + 1).build();
 
-        ClusterChangedEvent event = new ClusterChangedEvent("test", newClusterState, previousClusterState);
-        assertThat(event.state().version(), equalTo(event.previousState().version() + 1));
-        return event;
+        return ClusterState.builder(oldClusterState).routingTable(routingTable)
+                .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
+    }
+
+    private ClusterState clusterStateWithJustOpenedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
+        ClusterState oldClusterState = clusterStateWithClosedIndex(indexMetaData, masterEligible);
+
+        MetaData metaDataNewClusterState = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.OPEN)
+                        .numberOfShards(5).numberOfReplicas(2))
+                .version(oldClusterState.metaData().version() + 1)
+                .build();
+
+        return ClusterState.builder(oldClusterState)
+                .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
     private DiscoveryNodes.Builder generateDiscoveryNodes(boolean masterEligible) {
@@ -177,80 +149,280 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .add(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
     }
 
-    public void assertState(ClusterChangedEvent event,
-                            boolean stateInMemory,
-                            boolean expectMetaData) throws Exception {
-        MetaData inMemoryMetaData = null;
-        Set<Index> oldIndicesList = emptySet();
-        if (stateInMemory) {
-            inMemoryMetaData = event.previousState().metaData();
-            oldIndicesList = GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList);
-        }
-        Set<Index> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
-        // third, get the actual write info
-        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList,
-                inMemoryMetaData, event.state().metaData()).iterator();
-
-        if (expectMetaData) {
-            assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().getIndex().getName(), equalTo("test"));
-            assertThat(indices.hasNext(), equalTo(false));
+    private Set<Index> randomPrevWrittenIndices(IndexMetaData indexMetaData) {
+        if (randomBoolean()) {
+            return Collections.singleton(indexMetaData.getIndex());
         } else {
-            assertThat(indices.hasNext(), equalTo(false));
+            return Collections.emptySet();
         }
     }
 
-    public void testVersionChangeIsAlwaysWritten() throws Exception {
-        // test that version changes are always written
-        boolean initializing = randomBoolean();
-        boolean versionChanged = true;
-        boolean stateInMemory = randomBoolean();
-        boolean masterEligible = randomBoolean();
-        boolean expectMetaData = true;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
-        assertState(event, stateInMemory, expectMetaData);
+    private IndexMetaData createIndexMetaData(String name) {
+        return IndexMetaData.builder(name).
+                settings(settings(Version.CURRENT)).
+                numberOfShards(5).
+                numberOfReplicas(2).
+                build();
     }
 
-    public void testNewShardsAlwaysWritten() throws Exception {
-        // make sure new shards on data only node always written
-        boolean initializing = true;
-        boolean versionChanged = randomBoolean();
-        boolean stateInMemory = randomBoolean();
-        boolean masterEligible = false;
-        boolean expectMetaData = true;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
-        assertState(event, stateInMemory, expectMetaData);
+    public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
+        Set<Index> indices = GatewayMetaState.getRelevantIndices(
+                clusterStateWithUnassignedIndex(indexMetaData, true),
+                noIndexClusterState(true),
+                randomPrevWrittenIndices(indexMetaData));
+        assertThat(indices.size(), equalTo(1));
     }
 
-    public void testAllUpToDateNothingWritten() throws Exception {
-        // make sure state is not written again if we wrote already
-        boolean initializing = false;
-        boolean versionChanged = false;
-        boolean stateInMemory = true;
-        boolean masterEligible = randomBoolean();
-        boolean expectMetaData = false;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
-        assertState(event, stateInMemory, expectMetaData);
+    public void testGetRelevantIndicesWithUnassignedShardsOnDataOnlyNode() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
+        Set<Index> indices = GatewayMetaState.getRelevantIndices(
+                clusterStateWithUnassignedIndex(indexMetaData, false),
+                noIndexClusterState(false),
+                randomPrevWrittenIndices(indexMetaData));
+        assertThat(indices.size(), equalTo(0));
     }
 
-    public void testNoWriteIfNothingChanged() throws Exception {
-        boolean initializing = false;
-        boolean versionChanged = false;
-        boolean stateInMemory = true;
+    public void testGetRelevantIndicesWithAssignedShards() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
         boolean masterEligible = randomBoolean();
-        boolean expectMetaData = false;
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged, masterEligible);
-        ClusterChangedEvent newEventWithNothingChanged = new ClusterChangedEvent("test cluster state", event.state(), event.state());
-        assertState(newEventWithNothingChanged, stateInMemory, expectMetaData);
+        Set<Index> indices = GatewayMetaState.getRelevantIndices(
+                clusterStateWithAssignedIndex(indexMetaData, masterEligible),
+                clusterStateWithUnassignedIndex(indexMetaData, masterEligible),
+                randomPrevWrittenIndices(indexMetaData));
+        assertThat(indices.size(), equalTo(1));
     }
 
-    public void testWriteClosedIndex() throws Exception {
-        // test that the closing of an index is written also on data only node
-        boolean masterEligible = randomBoolean();
-        boolean expectMetaData = true;
-        boolean stateInMemory = true;
-        ClusterChangedEvent event = generateCloseEvent(masterEligible);
-        assertState(event, stateInMemory, expectMetaData);
+    public void testGetRelevantIndicesForClosedPrevWrittenIndexOnDataOnlyNode() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
+        Set<Index> indices = GatewayMetaState.getRelevantIndices(
+                clusterStateWithClosedIndex(indexMetaData, false),
+                clusterStateWithAssignedIndex(indexMetaData, false),
+                Collections.singleton(indexMetaData.getIndex()));
+        assertThat(indices.size(), equalTo(1));
+    }
+
+    public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
+        Set<Index> indices = GatewayMetaState.getRelevantIndices(
+                clusterStateWithJustOpenedIndex(indexMetaData, false),
+                clusterStateWithClosedIndex(indexMetaData, false),
+                Collections.emptySet());
+        assertThat(indices.size(), equalTo(0));
+    }
+
+    public void testGetRelevantIndicesForWasClosedPrevWrittenIndexOnDataOnlyNode() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
+        Set<Index> indices = GatewayMetaState.getRelevantIndices(
+                clusterStateWithJustOpenedIndex(indexMetaData, false),
+                clusterStateWithClosedIndex(indexMetaData, false),
+                Collections.singleton(indexMetaData.getIndex()));
+        assertThat(indices.size(), equalTo(1));
+    }
+
+    public void testResolveStatesToBeWritten() throws WriteStateException {
+        Map<Index, Long> indices = new HashMap<>();
+        Set<Index> relevantIndices = new HashSet<>();
+
+        IndexMetaData removedIndex = createIndexMetaData("removed_index");
+        indices.put(removedIndex.getIndex(), 1L);
+
+        IndexMetaData versionChangedIndex = createIndexMetaData("version_changed_index");
+        indices.put(versionChangedIndex.getIndex(), 2L);
+        relevantIndices.add(versionChangedIndex.getIndex());
+
+        IndexMetaData notChangedIndex = createIndexMetaData("not_changed_index");
+        indices.put(notChangedIndex.getIndex(), 3L);
+        relevantIndices.add(notChangedIndex.getIndex());
+
+        IndexMetaData newIndex = createIndexMetaData("new_index");
+        relevantIndices.add(newIndex.getIndex());
+
+        MetaData oldMetaData = MetaData.builder()
+                .put(removedIndex, false)
+                .put(versionChangedIndex, false)
+                .put(notChangedIndex, false)
+                .build();
+
+        MetaData newMetaData = MetaData.builder()
+                .put(versionChangedIndex, true)
+                .put(notChangedIndex, false)
+                .put(newIndex, false)
+                .build();
+
+        IndexMetaData newVersionChangedIndex = newMetaData.index(versionChangedIndex.getIndex());
+
+        List<GatewayMetaState.IndexMetaDataAction> actions =
+                GatewayMetaState.resolveIndexMetaDataActions(indices, relevantIndices, oldMetaData, newMetaData);
+
+        assertThat(actions, hasSize(3));
+
+        for (GatewayMetaState.IndexMetaDataAction action : actions) {
+            if (action instanceof GatewayMetaState.KeepPreviousGeneration) {
+                assertThat(action.getIndex(), equalTo(notChangedIndex.getIndex()));
+                GatewayMetaState.AtomicClusterStateWriter writer = mock(GatewayMetaState.AtomicClusterStateWriter.class);
+                assertThat(action.execute(writer), equalTo(3L));
+                verifyZeroInteractions(writer);
+            }
+            if (action instanceof GatewayMetaState.WriteNewIndexMetaData) {
+                assertThat(action.getIndex(), equalTo(newIndex.getIndex()));
+                GatewayMetaState.AtomicClusterStateWriter writer = mock(GatewayMetaState.AtomicClusterStateWriter.class);
+                when(writer.writeIndex("freshly created", newIndex)).thenReturn(0L);
+                assertThat(action.execute(writer), equalTo(0L));
+            }
+            if (action instanceof GatewayMetaState.WriteChangedIndexMetaData) {
+                assertThat(action.getIndex(), equalTo(newVersionChangedIndex.getIndex()));
+                GatewayMetaState.AtomicClusterStateWriter writer = mock(GatewayMetaState.AtomicClusterStateWriter.class);
+                when(writer.writeIndex(anyString(), eq(newVersionChangedIndex))).thenReturn(3L);
+                assertThat(action.execute(writer), equalTo(3L));
+                ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+                verify(writer).writeIndex(reason.capture(), eq(newVersionChangedIndex));
+                assertThat(reason.getValue(), containsString(Long.toString(versionChangedIndex.getVersion())));
+                assertThat(reason.getValue(), containsString(Long.toString(newVersionChangedIndex.getVersion())));
+            }
+        }
+    }
+
+    private static class MetaStateServiceWithFailures extends MetaStateService {
+        private final int invertedFailRate;
+        private boolean failRandomly;
+
+        private <T> MetaDataStateFormat<T> wrap(MetaDataStateFormat<T> format) {
+            return new MetaDataStateFormat<T>(format.getPrefix()) {
+                @Override
+                public void toXContent(XContentBuilder builder, T state) throws IOException {
+                   format.toXContent(builder, state);
+                }
+
+                @Override
+                public T fromXContent(XContentParser parser) throws IOException {
+                    return format.fromXContent(parser);
+                }
+
+                @Override
+                protected Directory newDirectory(Path dir) {
+                    MockDirectoryWrapper mock = newMockFSDirectory(dir);
+                    if (failRandomly) {
+                        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+                            @Override
+                            public void eval(MockDirectoryWrapper dir) throws IOException {
+                                int r = randomIntBetween(0, invertedFailRate);
+                                if (r == 0) {
+                                    throw new MockDirectoryWrapper.FakeIOException();
+                                }
+                            }
+                        };
+                        mock.failOn(fail);
+                    }
+                    closeAfterSuite(mock);
+                    return mock;
+                }
+            };
+        }
+
+        MetaStateServiceWithFailures(int invertedFailRate, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
+            super(nodeEnv, namedXContentRegistry);
+            META_DATA_FORMAT = wrap(MetaData.FORMAT);
+            INDEX_META_DATA_FORMAT = wrap(IndexMetaData.FORMAT);
+            MANIFEST_FORMAT = wrap(Manifest.FORMAT);
+            failRandomly = false;
+            this.invertedFailRate = invertedFailRate;
+        }
+
+        void failRandomly() {
+            failRandomly = true;
+        }
+
+        void noFailures() {
+            failRandomly = false;
+        }
+    }
+
+    private boolean metaDataEquals(MetaData md1, MetaData md2) {
+        boolean equals = MetaData.isGlobalStateEquals(md1, md2);
+
+        for (IndexMetaData imd : md1) {
+            IndexMetaData imd2 = md2.index(imd.getIndex());
+            equals = equals && imd.equals(imd2);
+        }
+
+        for (IndexMetaData imd : md2) {
+            IndexMetaData imd2 = md1.index(imd.getIndex());
+            equals = equals && imd.equals(imd2);
+        }
+        return equals;
+    }
+
+    private static MetaData randomMetaDataForTx() {
+        int settingNo = randomIntBetween(0, 10);
+        MetaData.Builder builder = MetaData.builder()
+                .persistentSettings(Settings.builder().put("setting" + settingNo, randomAlphaOfLength(5)).build());
+        int numOfIndices = randomIntBetween(0, 3);
+
+        for (int i = 0; i < numOfIndices; i++) {
+            int indexNo = randomIntBetween(0, 50);
+            IndexMetaData indexMetaData = IndexMetaData.builder("index" + indexNo).settings(
+                    Settings.builder()
+                            .put(IndexMetaData.SETTING_INDEX_UUID, "index" + indexNo)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .build()
+            ).build();
+            builder.put(indexMetaData, false);
+        }
+        return builder.build();
+    }
+
+    public void testAtomicityWithFailures() throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateServiceWithFailures metaStateService =
+                    new MetaStateServiceWithFailures(randomIntBetween(100, 1000), env, xContentRegistry());
+
+            // We only guarantee atomicity of writes, if there is initial Manifest file
+            Manifest manifest = Manifest.empty();
+            MetaData metaData = MetaData.EMPTY_META_DATA;
+            metaStateService.writeManifestAndCleanup("startup", Manifest.empty());
+            long currentTerm = randomNonNegativeLong();
+            long clusterStateVersion = randomNonNegativeLong();
+
+            metaStateService.failRandomly();
+            Set<MetaData> possibleMetaData = new HashSet<>();
+            possibleMetaData.add(metaData);
+
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                GatewayMetaState.AtomicClusterStateWriter writer =
+                        new GatewayMetaState.AtomicClusterStateWriter(metaStateService, manifest);
+                metaData = randomMetaDataForTx();
+                Map<Index, Long> indexGenerations = new HashMap<>();
+
+                try {
+                    long globalGeneration = writer.writeGlobalState("global", metaData);
+
+                    for (IndexMetaData indexMetaData : metaData) {
+                        long generation = writer.writeIndex("index", indexMetaData);
+                        indexGenerations.put(indexMetaData.getIndex(), generation);
+                    }
+
+                    Manifest newManifest = new Manifest(currentTerm, clusterStateVersion, globalGeneration, indexGenerations);
+                    writer.writeManifestAndCleanup("manifest", newManifest);
+                    possibleMetaData.clear();
+                    possibleMetaData.add(metaData);
+                    manifest = newManifest;
+                } catch (WriteStateException e) {
+                    if (e.isDirty()) {
+                        possibleMetaData.add(metaData);
+                    }
+                }
+            }
+
+            metaStateService.noFailures();
+
+            Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+            MetaData loadedMetaData = manifestAndMetaData.v2();
+
+            assertTrue(possibleMetaData.stream().anyMatch(md -> metaDataEquals(md, loadedMetaData)));
+        }
     }
 
     public void testAddCustomMetaDataOnUpgrade() throws Exception {

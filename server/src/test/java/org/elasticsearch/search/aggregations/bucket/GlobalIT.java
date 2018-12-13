@@ -74,7 +74,7 @@ public class GlobalIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("tag", "tag1"))
                 .addAggregation(global("global")
                         .subAggregation(stats("value_stats").field("value")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -107,7 +107,7 @@ public class GlobalIT extends ESIntegTestCase {
                     .setQuery(QueryBuilders.termQuery("tag", "tag1"))
                     .addAggregation(global("global")
                             .subAggregation(global("inner_global")))
-                    .execute().actionGet();
+                    .get();
 
             fail("expected to fail executing non-top-level global aggregator. global aggregations are only allowed as top level" +
                     "aggregations");

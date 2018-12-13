@@ -143,7 +143,10 @@ Possible response:
     "failed": 0
   },
   "hits": {
-    "total": 3,
+    "total" : {
+      "value": 3,
+      "relation": "eq"
+    },
     "max_score": null,
     "hits": []
   },

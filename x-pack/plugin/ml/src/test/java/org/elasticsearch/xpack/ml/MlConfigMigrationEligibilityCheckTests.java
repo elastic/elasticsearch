@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -83,6 +84,23 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
 
         assertTrue(check.canStartMigration(clusterState));
     }
+
+    public void testCanStartMigration_givenMissingIndex() {
+        Settings settings = newSettings(true);
+        givenClusterSettings(settings);
+
+        // index is present but no routing
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addMlConfigIndex(metaData, routingTable);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+                .metaData(metaData)
+                .build();
+
+        MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        assertFalse(check.canStartMigration(clusterState));
+    }
+
 
     public void testJobIsEligibleForMigration_givenNodesNotUpToVersion() {
         // mixed 6.5 and 6.6 nodes

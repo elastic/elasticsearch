@@ -24,8 +24,8 @@ final class FIPS140LicenseBootstrapCheck implements BootstrapCheck {
 
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
-            License license = LicenseService.getLicense(context.metaData);
+        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings())) {
+            License license = LicenseService.getLicense(context.metaData());
             if (license != null && ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
                 return BootstrapCheckResult.failure("FIPS mode is only allowed with a Platinum or Trial license");
             }

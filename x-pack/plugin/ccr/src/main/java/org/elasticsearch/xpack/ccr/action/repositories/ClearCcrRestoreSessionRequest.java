@@ -29,6 +29,7 @@ public class ClearCcrRestoreSessionRequest extends BaseNodesRequest<ClearCcrRest
     @Override
     public void readFrom(StreamInput streamInput) throws IOException {
         super.readFrom(streamInput);
+        request = new Request();
         request.readFrom(streamInput);
     }
 
@@ -36,6 +37,10 @@ public class ClearCcrRestoreSessionRequest extends BaseNodesRequest<ClearCcrRest
     public void writeTo(StreamOutput streamOutput) throws IOException {
         super.writeTo(streamOutput);
         request.writeTo(streamOutput);
+    }
+
+    public Request getRequest() {
+        return request;
     }
 
     public static class Request extends BaseNodeRequest {
@@ -47,7 +52,8 @@ public class ClearCcrRestoreSessionRequest extends BaseNodesRequest<ClearCcrRest
         Request() {
         }
 
-        public Request(String sessionUUID, ShardId shardId) {
+        public Request(String nodeId, String sessionUUID, ShardId shardId) {
+            super(nodeId);
             this.sessionUUID = sessionUUID;
             this.shardId = shardId;
         }

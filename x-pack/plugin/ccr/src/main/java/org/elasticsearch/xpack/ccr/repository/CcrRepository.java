@@ -256,7 +256,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
-        boolean success = false;
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
         String nodeId = response.getNodeId();
@@ -270,9 +269,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private void closeSession(Client remoteClient, String nodeId, String sessionUUID, ShardId leaderShardId) {
-        ClearCcrRestoreSessionRequest.Request nodRequest =
-            new ClearCcrRestoreSessionRequest.Request(sessionUUID, leaderShardId);
-        ClearCcrRestoreSessionRequest deleteRequest = new ClearCcrRestoreSessionRequest(nodeId, nodRequest);
-        remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, deleteRequest).actionGet();
+        ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(nodeId,
+            new ClearCcrRestoreSessionRequest.Request(nodeId, sessionUUID, leaderShardId));
+        ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
+            remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
+        if (response.hasFailures()) {
+            throw response.failures().get(0);
+        }
     }
 }

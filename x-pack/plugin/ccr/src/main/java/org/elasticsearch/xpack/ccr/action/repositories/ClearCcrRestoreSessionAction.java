@@ -40,7 +40,7 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
 
     @Override
     public ClearCcrRestoreSessionResponse newResponse() {
-        throw new UnsupportedOperationException();
+        return new ClearCcrRestoreSessionResponse();
     }
 
     public static class TransportDeleteCcrRestoreSessionAction extends TransportNodesAction<ClearCcrRestoreSessionRequest,
@@ -67,12 +67,12 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
 
         @Override
         protected ClearCcrRestoreSessionRequest.Request newNodeRequest(String nodeId, ClearCcrRestoreSessionRequest request) {
-            return null;
+            return request.getRequest();
         }
 
         @Override
         protected Response newNodeResponse() {
-            return null;
+            return new Response();
         }
 
         @Override
@@ -82,12 +82,18 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
+            if (true) {
+                throw new UnsupportedOperationException();
+            }
             ccrRestoreService.closeSession(request.getSessionUUID(), indexShard);
             return new Response(clusterService.localNode());
         }
     }
 
     public static class Response extends BaseNodeResponse {
+
+        private Response() {
+        }
 
         private Response(StreamInput streamInput) throws IOException {
             readFrom(streamInput);
@@ -110,6 +116,9 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
 
     public static class ClearCcrRestoreSessionResponse extends BaseNodesResponse<Response> {
 
+        ClearCcrRestoreSessionResponse() {
+        }
+
         ClearCcrRestoreSessionResponse(ClusterName clusterName, List<Response> chunkResponses, List<FailedNodeException> failures) {
             super(clusterName, chunkResponses, failures);
         }
@@ -122,12 +131,6 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
         @Override
         protected void writeNodesTo(StreamOutput out, List<Response> nodes) throws IOException {
             out.writeList(nodes);
-        }
-
-        public void getThing() {
-            if (hasFailures()) {
-                throw failures().get(0);
-            }
         }
     }
 }

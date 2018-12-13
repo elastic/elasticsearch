@@ -23,11 +23,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -46,6 +48,7 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
@@ -713,4 +716,25 @@ final class BootstrapChecks {
 
     }
 
+    /**
+     * Bootstrap check for cluster name directories in data paths
+     */
+    static class ClusterNameInDataPathCheck implements BootstrapCheck {
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            final Environment checkEnvironment = new Environment(context.settings, null);
+            final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(checkEnvironment.settings());
+            List<String> existingPathsWithClusterName = Arrays.stream(checkEnvironment.dataFiles())
+                .map(p -> p.resolve(clusterName.value()))
+                .filter(Files::exists).map(Path::toString).collect(Collectors.toList());
+            if (existingPathsWithClusterName.isEmpty()) {
+                return BootstrapCheckResult.success();
+            } else {
+                final String paths = String.join(",", existingPathsWithClusterName);
+                return BootstrapCheckResult.failure(
+                    "node cannot have cluster names as subdirectories in " + Environment.PATH_DATA_SETTING.getKey() +  " [" + paths + "]");
+            }
+        }
+    }
 }

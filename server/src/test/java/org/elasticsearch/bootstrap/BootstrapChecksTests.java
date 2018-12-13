@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -29,7 +30,10 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,6 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.env.Environment.PATH_DATA_SETTING;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -698,4 +703,35 @@ public class BootstrapChecksTests extends ESTestCase {
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
+    public void testClusterNameInDataPathCheck() throws IOException, NodeValidationException {
+        // expect ClusterNameInDataPathCheck exists in built-in BootstrapChecks
+        assertTrue(BootstrapChecks.checks().stream().anyMatch(c -> c instanceof BootstrapChecks.ClusterNameInDataPathCheck));
+
+        final BootstrapChecks.ClusterNameInDataPathCheck check = new BootstrapChecks.ClusterNameInDataPathCheck();
+        final List<BootstrapCheck> testChecks = Collections.singletonList(check);
+
+        String clusterName = randomAlphaOfLengthBetween(3, 10);
+        Path invalidDataPath = createTempDir("invalidData");
+        Path validDataPath = createTempDir("validData");
+        Path clusterNameDir = invalidDataPath.resolve(clusterName);
+        Files.createDirectory(validDataPath);
+        Files.createDirectories(clusterNameDir);
+
+        final BootstrapContext invalidContext = createTestContext(Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .putList(PATH_DATA_SETTING.getKey(), Collections.singletonList(invalidDataPath.toString())).build(), MetaData.EMPTY_META_DATA);
+
+        final BootstrapContext validContext = createTestContext(Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .putList(PATH_DATA_SETTING.getKey(), Collections.singletonList(validDataPath.toString())).build(), MetaData.EMPTY_META_DATA);
+
+        // expect node validation exception when clusterName is found as subdirectory in data path
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(invalidContext, true, Collections.singletonList(check)));
+        assertThat(e, hasToString(containsString(
+            "node cannot have cluster names as subdirectories in path.data [" + clusterNameDir.toString() + "]")));
+        // expect successful check when clusterName is not found in data path
+        BootstrapChecks.check(validContext, true, testChecks);
+    }
 }

@@ -23,7 +23,7 @@ public class DateUtils {
     // TODO: do we have a java.time based parser we can use instead?
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
-    public static TimeZone UTC_TZ = TimeZone.getTimeZone("Z");
+    public static TimeZone UTC_TZ = TimeZone.getTimeZone("UTC");
     public static ZoneId UTC_ZI = ZoneId.of("Z");
 
     private DateUtils() {}

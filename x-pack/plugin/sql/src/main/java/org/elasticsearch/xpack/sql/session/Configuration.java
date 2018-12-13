@@ -37,7 +37,7 @@ public class Configuration {
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.username = username;
         this.clusterName = clusterName;
-        this.now = ZonedDateTime.now(timeZone.toZoneId()).toOffsetDateTime().toZonedDateTime();
+        this.now = ZonedDateTime.now(timeZone.toZoneId().normalized());
     }
 
     public TimeZone timeZone() {

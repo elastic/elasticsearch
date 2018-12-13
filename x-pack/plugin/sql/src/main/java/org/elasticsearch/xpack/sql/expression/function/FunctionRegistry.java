@@ -340,6 +340,32 @@ public class FunctionRegistry {
     }
 
     /**
+    * Build a {@linkplain FunctionDefinition} for a one-argument function that
+    * is not aware of time zone, does not support {@code DISTINCT} and needs
+    * the configuration object.
+    */
+    @SuppressWarnings("overloads")
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+            if (children.size() > 1) {
+                throw new IllegalArgumentException("expects exactly one argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            Expression ex = children.size() == 1 ? children.get(0) : null;
+            return ctorRef.build(location, ex, cfg);
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface UnaryConfigurationAwareFunctionBuilder<T> {
+        T build(Location location, Expression exp, Configuration configuration);
+    }
+
+
+    /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not
      * aware of time zone and does not support {@code DISTINCT}.
      */

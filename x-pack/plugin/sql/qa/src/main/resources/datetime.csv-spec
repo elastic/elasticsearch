@@ -272,8 +272,24 @@ SELECT WEEK(birth_date) week, COUNT(*) c FROM test_emp WHERE MOD(WEEK(birth_date
 52             |3              
 ;
 
-currentTimestampWithDivision
+currentTimestampKeywordWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+currentTimestampFunctionNoArgsWithDivision
 SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+currentTimestampFunctionPrecisionWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP(2)) / 1000 AS result;
 
     result     
 ---------------

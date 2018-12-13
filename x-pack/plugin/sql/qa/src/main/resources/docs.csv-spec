@@ -1918,6 +1918,37 @@ Arumugam
 // end::filterNow
 ;
 
+currentTimestamp-Ignore
+// tag::curTs
+SELECT CURRENT_TIMESTAMP AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTs
+;
+
+currentTimestampFunction-Ignore
+// tag::curTsFunction
+SELECT CURRENT_TIMESTAMP() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTsFunction
+;
+
+currentTimestampFunctionPrecision-Ignore
+// tag::curTsFunctionPrecision
+SELECT CURRENT_TIMESTAMP(1) AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.4Z
+// end::curTsFunctionPrecision
+;
+
+
 nowFunction-Ignore
 // tag::nowFunction
 SELECT NOW() AS result;

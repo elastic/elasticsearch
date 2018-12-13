@@ -27,7 +27,7 @@ public abstract class DebugCsvSpec extends SpecBaseIntegrationTestCase {
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return readScriptSpec("/debug.csv-spec", parser);
+        return readScriptSpec("/datetime.csv-spec", parser);
     }
 
     public DebugCsvSpec(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {

@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.sql;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
-
-import java.util.TimeZone;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 public class TestUtils {
 
     private TestUtils() {}
 
-    public static final Configuration TEST_CFG = new Configuration(TimeZone.getTimeZone("UTC"), Protocol.FETCH_SIZE,
+    public static final Configuration TEST_CFG = new Configuration(DateUtils.UTC_TZ, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null);
 
 }

@@ -263,4 +263,14 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
+
+    public void testConcatIsNotFoldedForNull() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE CONCAT(keyword, null) IS NULL");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
 }

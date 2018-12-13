@@ -79,7 +79,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        this.fieldName = in.readOptionalString();
+        this.fieldName = in.readString();
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         this.timeZone = in.readOptionalTimeZone();
@@ -103,7 +103,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(fieldName);
+        out.writeString(fieldName);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         out.writeOptionalTimeZone(timeZone);

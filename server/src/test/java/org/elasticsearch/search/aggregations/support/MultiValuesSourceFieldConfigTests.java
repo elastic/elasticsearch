@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -39,13 +38,11 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
 
     @Override
     protected MultiValuesSourceFieldConfig createTestInstance() {
-        boolean hasField = randomBoolean();
-        String field = hasField ? randomAlphaOfLength(10) : null;
-        Script script = hasField ? null : new Script("foo");
+        String field = randomAlphaOfLength(10);
         Object missing = randomBoolean() ? randomAlphaOfLength(10) : null;
         DateTimeZone timeZone = randomBoolean() ? randomDateTimeZone() : null;
         return new MultiValuesSourceFieldConfig.Builder()
-            .setFieldName(field).setMissing(missing).setScript(script).setTimeZone(timeZone).build();
+            .setFieldName(field).setMissing(missing).setScript(null).setTimeZone(timeZone).build();
     }
 
     @Override

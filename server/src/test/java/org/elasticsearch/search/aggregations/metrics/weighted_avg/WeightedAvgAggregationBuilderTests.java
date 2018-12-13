@@ -19,22 +19,21 @@
 
 package org.elasticsearch.search.aggregations.metrics.weighted_avg;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import static org.hamcrest.Matchers.hasSize;
 
 public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestCase<WeightedAvgAggregationBuilder> {
     String aggregationName;
@@ -52,13 +51,14 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
 
     @Override
     protected WeightedAvgAggregationBuilder doParseInstance(XContentParser parser) throws IOException {
-        parser.nextToken();
-        AggregatorFactories.Builder builders = AggregatorFactories.parseAggregators(parser);
-        if (builders.getAggregatorFactories().size() == 1) {
-            AggregationBuilder builder = builders.getAggregatorFactories().iterator().next();
-            return (WeightedAvgAggregationBuilder) builder;
-        }
-        return null;
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
+        assertThat(parsed.getAggregatorFactories(), hasSize(1));
+        assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
+        WeightedAvgAggregationBuilder agg = (WeightedAvgAggregationBuilder) parsed.getAggregatorFactories().iterator().next();
+        assertNull(parser.nextToken());
+        assertNotNull(agg);
+        return agg;
     }
 
     @Override

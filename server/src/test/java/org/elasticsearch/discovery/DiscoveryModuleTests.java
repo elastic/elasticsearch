@@ -20,6 +20,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
@@ -107,7 +108,7 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testDefaults() {
         DiscoveryModule module = newModule(Settings.EMPTY, Collections.emptyList());
-        assertTrue(module.getDiscovery() instanceof ZenDiscovery);
+        assertTrue(module.getDiscovery() instanceof Coordinator);
     }
 
     public void testLazyConstructionDiscovery() {
@@ -205,7 +206,9 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
-        DiscoveryModule module = newModule(Settings.EMPTY, Collections.singletonList(new DiscoveryPlugin() {
+        // TODO: move to zen2 once join validators are implemented
+        DiscoveryModule module = newModule(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
+            DiscoveryModule.ZEN_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
             @Override
             public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
                 return consumer;

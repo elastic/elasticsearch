@@ -199,7 +199,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // the default of the licensing tests is basic
         assertThat(unauthorizedRootResponse.getStatusLine().getStatusCode(), is(200));
         ResponseException e = expectThrows(ResponseException.class,
-                () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
+            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
 
         // generate a new license with a mode that enables auth
@@ -209,7 +209,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
+            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
@@ -221,7 +221,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         rootRequest.setOptions(options);
         Response authorizedRootResponse = getRestClient().performRequest(rootRequest);
         assertThat(authorizedRootResponse.getStatusLine().getStatusCode(), is(200));
-        Request authenticateRequest = new Request("GET", "/_xpack/security/_authenticate");
+        Request authenticateRequest = new Request("GET", "/_security/_authenticate");
         authenticateRequest.setOptions(options);
         Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
         assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));

@@ -24,9 +24,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -118,9 +117,9 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     private TcpTransport startTransport(Settings settings, ThreadPool threadPool) {
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         TcpTransport transport = new Netty4Transport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-            bigArrays, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
+            recycler, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         transport.start();
 
         assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));

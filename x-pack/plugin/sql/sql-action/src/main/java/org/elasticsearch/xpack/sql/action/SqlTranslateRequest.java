@@ -13,9 +13,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
@@ -31,6 +30,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlTranslateRequest, Void> PARSER = objectParser(SqlTranslateRequest::new);
 
     public SqlTranslateRequest() {
+        super();
     }
 
     public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
@@ -56,9 +56,8 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
         return "SQL Translate [" + query() + "][" + filter() + "]";
     }
 
-    public static SqlTranslateRequest fromXContent(XContentParser parser, Mode mode) {
+    public static SqlTranslateRequest fromXContent(XContentParser parser) {
         SqlTranslateRequest request = PARSER.apply(parser, null);
-        request.requestInfo(new RequestInfo(mode));
         return request;
     }
 

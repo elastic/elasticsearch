@@ -120,6 +120,11 @@ Alias Management::
 * <<{upid}-exists-alias>>
 * <<{upid}-get-alias>>
 
+Template Management::
+* <<{upid}-get-templates>>
+* <<{upid}-templates-exist>>
+* <<{upid}-put-template>>
+
 include::indices/analyze.asciidoc[]
 include::indices/create_index.asciidoc[]
 include::indices/delete_index.asciidoc[]
@@ -145,6 +150,7 @@ include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/templates_exist.asciidoc[]
 include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
@@ -392,6 +398,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-authenticate>>
 * <<{upid}-has-privileges>>
+* <<{upid}-get-user-privileges>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
@@ -416,6 +423,7 @@ include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/has-privileges.asciidoc[]
+include::security/get-user-privileges.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]

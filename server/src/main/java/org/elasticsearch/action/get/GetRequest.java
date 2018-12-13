@@ -71,12 +71,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Constructs a new get request against the specified index. The {@link #type(String)} and {@link #id(String)}
-     * must be set.
+     * Constructs a new get request against the specified index. The {@link #id(String)} must also be set.
      */
     public GetRequest(String index) {
         super(index);
-        type = MapperService.SINGLE_MAPPING_NAME;
+        this.type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     /**
@@ -85,7 +84,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
-     * @deprecated use the typeless constructor {@link #GetRequest(String, String)} where no type is given
+     * @deprecated Types are in the process of being removed, use {@link GetRequest(String, String)} instead.
      */
     @Deprecated
     public GetRequest(String index, String type, String id) {
@@ -95,15 +94,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Constructs a new get request against the specified index with the type and id.
+     * Constructs a new get request against the specified index and document ID.
      *
      * @param index The index to get the document from
      * @param id    The id of the document
      */
     public GetRequest(String index, String id) {
         super(index);
-        this.type = MapperService.SINGLE_MAPPING_NAME;;
         this.id = id;
+        this.type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     @Override
@@ -124,12 +123,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Sets the type of the document to fetch.
-     * @deprecated don't use types in {@link GetRequest} any more as they are in the process of being removed
+     * @deprecated Types are in the process of being removed.
      */
     @Deprecated
     public GetRequest type(@Nullable String type) {
         if (type == null) {
-            type = MapperService.SINGLE_MAPPING_NAME;;
+            type = MapperService.SINGLE_MAPPING_NAME;
         }
         this.type = type;
         return this;
@@ -163,8 +162,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
+<<<<<<< HEAD
      * @return the type
      * @deprecated don't use types any more as they are in the process of being removed
+=======
+     * @deprecated Types are in the process of being removed.
+>>>>>>> master
      */
     @Deprecated
     public String type() {

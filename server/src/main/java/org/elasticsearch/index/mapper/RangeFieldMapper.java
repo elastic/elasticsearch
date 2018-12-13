@@ -44,10 +44,10 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -128,7 +128,7 @@ public class RangeFieldMapper extends FieldMapper {
             return Defaults.COERCE;
         }
 
-        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+        public Builder dateTimeFormatter(DateFormatter dateTimeFormatter) {
             fieldType().setDateTimeFormatter(dateTimeFormatter);
             return this;
         }
@@ -145,7 +145,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            FormatDateTimeFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
+            DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
             if (fieldType().rangeType == RangeType.DATE) {
                 if (!locale.equals(dateTimeFormatter.locale())) {
                     fieldType().setDateTimeFormatter(dateTimeFormatter.withLocale(locale));
@@ -202,7 +202,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static final class RangeFieldType extends MappedFieldType {
         protected RangeType rangeType;
-        protected FormatDateTimeFormatter dateTimeFormatter;
+        protected DateFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
         RangeFieldType(RangeType type) {
@@ -251,11 +251,11 @@ public class RangeFieldMapper extends FieldMapper {
             return rangeType.name;
         }
 
-        public FormatDateTimeFormatter dateTimeFormatter() {
+        public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
 
-        public void setDateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+        public void setDateTimeFormatter(DateFormatter dateTimeFormatter) {
             checkIfFrozen();
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();

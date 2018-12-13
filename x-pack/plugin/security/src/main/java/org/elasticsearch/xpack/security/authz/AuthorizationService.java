@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.BwcXPackUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -139,7 +141,7 @@ public class AuthorizationService extends AbstractComponent {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternalUser(authentication.getUser()) != false) {
+            if (isInternalUser(authentication) != false) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrail.tamperedRequest(null, authentication.getUser(), action, request);
@@ -353,8 +355,10 @@ public class AuthorizationService extends AbstractComponent {
         auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
     }
 
-    private boolean isInternalUser(User user) {
-        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
+    private boolean isInternalUser(Authentication authentication) {
+        final User user = authentication.getUser();
+        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) ||
+            (BwcXPackUser.is(user) && authentication.getVersion().before(Version.V_5_6_1));
     }
 
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
@@ -469,6 +473,10 @@ public class AuthorizationService extends AbstractComponent {
             return;
         }
         if (XPackSecurityUser.is(user)) {
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            return;
+        }
+        if (BwcXPackUser.is(user)) {
             roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
             return;
         }

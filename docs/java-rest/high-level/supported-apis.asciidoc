@@ -120,6 +120,11 @@ Alias Management::
 * <<{upid}-exists-alias>>
 * <<{upid}-get-alias>>
 
+Template Management::
+* <<{upid}-get-templates>>
+* <<{upid}-templates-exist>>
+* <<{upid}-put-template>>
+
 include::indices/analyze.asciidoc[]
 include::indices/create_index.asciidoc[]
 include::indices/delete_index.asciidoc[]
@@ -145,6 +150,7 @@ include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/templates_exist.asciidoc[]
 include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]

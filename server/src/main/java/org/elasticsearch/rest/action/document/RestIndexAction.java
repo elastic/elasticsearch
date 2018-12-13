@@ -95,7 +95,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         indexRequest.compareAndSet(
-            request.paramAsLong("cas_seq_no", SequenceNumbers.UNASSIGNED_SEQ_NO), request.paramAsLong("cas_primary_term", 0));
+            request.paramAsLong("if_seq_no_match", SequenceNumbers.UNASSIGNED_SEQ_NO), request.paramAsLong("if_primary_term_match", 0));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

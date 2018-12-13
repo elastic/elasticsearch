@@ -78,7 +78,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
     private static final ParseField PIPELINE = new ParseField("pipeline");
     private static final ParseField SOURCE = new ParseField("_source");
-    private static final ParseField CAS_SEQ_NO = new ParseField("cas_seq_no");
+    private static final ParseField if_seq_no_match = new ParseField("if_seq_no_match");
     private static final ParseField CAS_TERM = new ParseField("cas_term");
 
     /**
@@ -350,8 +350,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
-                long casSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                long casPrimaryTerm = 0;
+                long ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                long ifPrimaryTermMatch = 0;
                 int retryOnConflict = 0;
                 String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
 
@@ -382,10 +382,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 version = parser.longValue();
                             } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 versionType = VersionType.fromString(parser.text());
-                            } else if (CAS_SEQ_NO.match(currentFieldName, parser.getDeprecationHandler())) {
-                                casSeqNo = parser.longValue();
+                            } else if (if_seq_no_match.match(currentFieldName, parser.getDeprecationHandler())) {
+                                ifSeqNoMatch = parser.longValue();
                             } else if (CAS_TERM.match(currentFieldName, parser.getDeprecationHandler())) {
-                                casPrimaryTerm = parser.longValue();
+                                ifPrimaryTermMatch = parser.longValue();
                             } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
                                 retryOnConflict = parser.intValue();
                             } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -414,7 +414,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
                 if ("delete".equals(action)) {
                     add(new DeleteRequest(index, type, id).routing(routing)
-                        .version(version).versionType(versionType).compareAndSet(casSeqNo, casPrimaryTerm), payload);
+                        .version(version).versionType(versionType).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -427,16 +427,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .setPipeline(pipeline).compareAndSet(casSeqNo, casPrimaryTerm)
+                                    .setPipeline(pipeline).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .create("create".equals(opType)).setPipeline(pipeline).compareAndSet(casSeqNo, casPrimaryTerm)
+                                    .create("create".equals(opType)).setPipeline(pipeline).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                .create(true).setPipeline(pipeline).compareAndSet(casSeqNo, casPrimaryTerm)
+                                .create(true).setPipeline(pipeline).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)

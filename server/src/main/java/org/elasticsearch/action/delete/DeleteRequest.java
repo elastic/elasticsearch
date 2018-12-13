@@ -30,8 +30,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private long casSeqNp = SequenceNumbers.UNASSIGNED_SEQ_NO;
-    private long casPrimaryTerm = 0;
+    private long ifPrimaryTermMatch = 0;
 
     public DeleteRequest() {
     }
@@ -203,12 +203,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         return this;
     }
 
-    public long casSeqNo() {
+    public long ifSeqNoMatch() {
         return casSeqNp;
     }
 
-    public long casPrimaryTerm() {
-        return casPrimaryTerm;
+    public long ifPrimaryTermMatch() {
+        return ifPrimaryTermMatch;
     }
 
     public DeleteRequest compareAndSet(long seqNo, long term) {
@@ -225,7 +225,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
         }
         casSeqNp = seqNo;
-        casPrimaryTerm = term;
+        ifPrimaryTermMatch = term;
         return this;
     }
 
@@ -252,10 +252,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         versionType = VersionType.fromValue(in.readByte());
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             casSeqNp = in.readZLong();
-            casPrimaryTerm = in.readVLong();
+            ifPrimaryTermMatch = in.readVLong();
         } else {
             casSeqNp = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            casPrimaryTerm = 0;
+            ifPrimaryTermMatch = 0;
         }
     }
 
@@ -272,9 +272,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeByte(versionType.getValue());
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeZLong(casSeqNp);
-            out.writeVLong(casPrimaryTerm);
-        } else if (casSeqNp != SequenceNumbers.UNASSIGNED_SEQ_NO || casPrimaryTerm != 0) {
-            assert false : "compareAndSet [" + casSeqNp + "], currentDocTem [" + casPrimaryTerm + "]";
+            out.writeVLong(ifPrimaryTermMatch);
+        } else if (casSeqNp != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTermMatch != 0) {
+            assert false : "compareAndSet [" + casSeqNp + "], currentDocTem [" + ifPrimaryTermMatch + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");

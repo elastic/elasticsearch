@@ -32,7 +32,7 @@ publishing {
 }
 
 dependencies {
-    if (isEclipse == false || project.path == ":libs:x-geo-tests") {
+    if (isEclipse == false || project.path == ":libs:geo-tests") {
         testCompile("org.elasticsearch.test:framework:${version}") {
             exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
         }

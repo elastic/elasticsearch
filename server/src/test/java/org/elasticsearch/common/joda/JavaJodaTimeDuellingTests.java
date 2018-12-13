@@ -473,7 +473,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testSeveralTimeFormats() {
         DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
-        DateFormatter javaFormatter = DateFormatters.forPattern("year_month_day||ordinal_date");
+        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||8ordinal_date");
         assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
         assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }
@@ -488,7 +488,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSameDate(String input, String format) {
-        DateFormatter jodaFormatter = Joda.forPattern(format, Locale.ROOT);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatters.forPattern(format);
 
         assertSameDate(input, format, jodaFormatter, javaFormatter);
@@ -512,7 +512,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
-        DateFormatter jodaFormatter = Joda.forPattern(format, Locale.ROOT);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }

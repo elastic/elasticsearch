@@ -95,7 +95,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type")
-                        .field("dynamic_date_formats", Arrays.asList("YYYY-MM-dd"))
+                        .field("dynamic_date_formats", Arrays.asList("yyyy-MM-dd"))
                     .endObject()
                 .endObject());
         MapperService mapperService = createIndex("test").mapperService();

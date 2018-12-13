@@ -149,5 +149,9 @@ public class TransportBulkActionTests extends ESTestCase {
 
         DeleteRequest deleteRequest = new DeleteRequest("index", "id");
         assertNull(TransportBulkAction.getIndexWriteRequest(deleteRequest));
+
+        UpdateRequest badUpsertRequest = new UpdateRequest("index", "type", "id1");
+        assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
+
     }
 }

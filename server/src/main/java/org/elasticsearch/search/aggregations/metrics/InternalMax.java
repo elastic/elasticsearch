@@ -70,7 +70,6 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         return max;
     }
 
-
     @Override
     public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double max = Double.NEGATIVE_INFINITY;

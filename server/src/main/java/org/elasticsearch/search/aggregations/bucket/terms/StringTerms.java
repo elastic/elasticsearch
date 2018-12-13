@@ -150,5 +150,4 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
     }
-
 }

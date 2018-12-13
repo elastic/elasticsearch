@@ -60,5 +60,4 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     protected boolean doEquals(Object obj) {
         throw new UnsupportedOperationException();
     }
-
 }

@@ -71,7 +71,6 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         return percentile(key);
     }
 
-
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

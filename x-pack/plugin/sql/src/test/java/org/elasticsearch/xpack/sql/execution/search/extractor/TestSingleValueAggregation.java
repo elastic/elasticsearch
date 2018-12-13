@@ -63,5 +63,4 @@ public class TestSingleValueAggregation extends InternalAggregation {
     protected boolean doEquals(Object obj) {
         throw new UnsupportedOperationException();
     }
-
 }

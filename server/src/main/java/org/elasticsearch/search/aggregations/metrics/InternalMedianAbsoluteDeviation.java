@@ -134,5 +134,4 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     public double getMedianAbsoluteDeviation() {
         return medianAbsoluteDeviation;
     }
-
 }

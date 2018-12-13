@@ -53,5 +53,4 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalGlobal(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
-
 }

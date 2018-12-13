@@ -230,24 +230,23 @@ public final class SearchAsYouTypeFieldMappers {
         }
     }
 
-    // todo make these conform to method naming rules and change to hasBlah
     public static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
-        private final boolean withShingles;
+        private final boolean hasShingles;
         private final int shingleSize;
-        private final boolean withEdgeNGrams;
+        private final boolean hasEdgeNGrams;
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate,
-                                        boolean withShingles,
+                                        boolean hasShingles,
                                         int shingleSize,
-                                        boolean withEdgeNGrams) {
+                                        boolean hasEdgeNGrams) {
 
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
-            this.withShingles = withShingles;
+            this.hasShingles = hasShingles;
             this.shingleSize = shingleSize;
-            this.withEdgeNGrams = withEdgeNGrams;
+            this.hasEdgeNGrams = hasEdgeNGrams;
         }
 
         public static SearchAsYouTypeAnalyzer withNeither(Analyzer delegate) {
@@ -275,25 +274,25 @@ public final class SearchAsYouTypeFieldMappers {
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             // TODO we must find a way to add the last unigram term (michael jackson -> jackson)
             TokenStream tokenStream = components.getTokenStream();
-            if (withShingles) {
+            if (hasShingles) {
                 tokenStream = new FixedShingleFilter(tokenStream, shingleSize);
             }
-            if (withEdgeNGrams) {
+            if (hasEdgeNGrams) {
                 tokenStream = new EdgeNGramTokenFilter(tokenStream, Defaults.MIN_GRAM, Defaults.MAX_GRAM, true);
             }
             return new TokenStreamComponents(components.getTokenizer(), tokenStream);
         }
 
-        public boolean isWithEdgeNGrams() {
-            return withEdgeNGrams;
+        public boolean hasEdgeNGrams() {
+            return hasEdgeNGrams;
         }
 
-        public int getShingleSize() {
+        public int shingleSize() {
             return shingleSize;
         }
 
-        public boolean isWithShingles() {
-            return withShingles;
+        public boolean hasShingles() {
+            return hasShingles;
         }
     }
 

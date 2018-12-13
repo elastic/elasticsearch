@@ -210,13 +210,13 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         }
 
         for (SearchAsYouTypeAnalyzer analyzer : asList(indexAnalyzer, searchAnalyzer)) {
-            assertThat(analyzer.isWithShingles(), equalTo(hasShingles));
+            assertThat(analyzer.hasShingles(), equalTo(hasShingles));
             if (hasShingles) {
-                assertThat(analyzer.getShingleSize(), equalTo(shingleSize));
+                assertThat(analyzer.shingleSize(), equalTo(shingleSize));
             }
         }
 
-        assertThat(indexAnalyzer.isWithEdgeNGrams(), equalTo(hasEdgeNGrams));
-        assertFalse(searchAnalyzer.isWithEdgeNGrams());
+        assertThat(indexAnalyzer.hasEdgeNGrams(), equalTo(hasEdgeNGrams));
+        assertFalse(searchAnalyzer.hasEdgeNGrams());
     }
 }

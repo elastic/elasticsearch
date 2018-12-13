@@ -669,7 +669,7 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS c
 
       min:i    |      max:i    |      avg:d    |     count:l     
 ---------------+---------------+---------------+---------------
-25324          |74999          |48248          |100  
+25324          |74999          |48248.55       |100  
 
 // end::groupByImplicitMultipleAggs
 ;
@@ -724,9 +724,9 @@ SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY SCORE() DESC;
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
-1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
+1.6086556      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
 
 // end::orderByScore
@@ -738,9 +738,9 @@ SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY page_count DES
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
-1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
+1.6086556      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
 
 // end::orderByScoreWithMatch
@@ -753,9 +753,9 @@ SELECT SCORE() AS score, name, release_date FROM library WHERE QUERY('dune') ORD
      score     |       name        |    release_date    
 ---------------+-------------------+--------------------
 1.4005898      |God Emperor of Dune|1981-05-28T00:00:00Z
-1.6086555      |Children of Dune   |1976-04-21T00:00:00Z
+1.6086556      |Children of Dune   |1976-04-21T00:00:00Z
 1.8893257      |Dune Messiah       |1969-10-15T00:00:00Z
-2.288635       |Dune               |1965-06-01T00:00:00Z
+2.2886353      |Dune               |1965-06-01T00:00:00Z
 // end::scoreWithMatch
 ;
 
@@ -789,7 +789,7 @@ SELECT AVG(salary) AS avg FROM emp;
 
       avg:d      
 ---------------
-48248          
+48248.55          
 // end::aggAvg
 ;
 

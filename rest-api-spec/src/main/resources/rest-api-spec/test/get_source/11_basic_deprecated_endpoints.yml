@@ -1,9 +1,5 @@
 ---
-"Basic":
-  - skip:
-      version: " - 6.99.99"
-      reason: deprecated in 7.0
-      features: "warnings"
+"Basic with types":
 
   - do:
       index:
@@ -21,13 +17,3 @@
         id:    1
 
   - match: { '':  { foo: bar } }
-
-#  - do:
-#      warnings: 
-#        - '[types removal] Specifying types in get_source requests is deprecated.'
-#      get_source:
-#        index: test_1
-#        type:  test
-#        id:    1
-#
-#  - match: { '':  { foo: bar } }

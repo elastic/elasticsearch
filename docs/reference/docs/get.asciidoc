@@ -42,7 +42,7 @@ The API also allows to check for the existence of a document using
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/0
+HEAD twitter/_doc/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

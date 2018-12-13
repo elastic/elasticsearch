@@ -21,50 +21,37 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.document.RestGetSourceAction.RestGetSourceResponseListener;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
-public class RestGetSourceActionTests extends ESTestCase {
+public class RestGetSourceActionTests extends RestActionTestCase {
 
     private static RestRequest request = new FakeRestRequest();
     private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);
     private static RestGetSourceResponseListener listener = new RestGetSourceResponseListener(channel, request);
-    private RestController controller;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        controller = new RestController(Collections.emptySet(), null,
-            mock(NodeClient.class),
-            new NoneCircuitBreakerService(),
-            new UsageService());
-        new RestGetSourceAction(Settings.EMPTY, controller);
+    @Before
+    public void setUpAction() {
+        new RestGetSourceAction(Settings.EMPTY, controller());
     }
 
     @AfterClass
@@ -78,12 +65,14 @@ public class RestGetSourceActionTests extends ESTestCase {
      * test deprecation is logged if type is used in path
      */
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(randomFrom(Arrays.asList(Method.GET, Method.HEAD)))
-            .withPath("/some_index/some_type/id/_source")
-            .build();
-        performRequest(request);
-        assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                    .withMethod(method)
+                    .withPath("/some_index/some_type/id/_source")
+                    .build();
+            dispatchRequest(request);
+            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        }
     }
 
     /**
@@ -92,19 +81,15 @@ public class RestGetSourceActionTests extends ESTestCase {
     public void testTypeParameter() {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(randomFrom(Arrays.asList(Method.GET, Method.HEAD)))
-            .withPath("/some_index/id/_source")
-            .withParams(params)
-            .build();
-        performRequest(request);
-        assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
+        for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                    .withMethod(method)
+                    .withPath("/some_index/_source/id")
+                    .withParams(params)
+                    .build();
+            dispatchRequest(request);
+            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        }
     }
 
     public void testRestGetSourceAction() throws Exception {

@@ -162,12 +162,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-<<<<<<< HEAD
-     * @return the type
-     * @deprecated don't use types any more as they are in the process of being removed
-=======
      * @deprecated Types are in the process of being removed.
->>>>>>> master
      */
     @Deprecated
     public String type() {

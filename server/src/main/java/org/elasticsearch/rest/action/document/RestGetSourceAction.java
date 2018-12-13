@@ -57,8 +57,8 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     public RestGetSourceAction(final Settings settings, final RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/{index}/{id}/_source", this);
-        controller.registerHandler(HEAD, "/{index}/{id}/_source", this);
+        controller.registerHandler(GET, "/{index}/_source/{id}", this);
+        controller.registerHandler(HEAD, "/{index}/_source/{id}", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }

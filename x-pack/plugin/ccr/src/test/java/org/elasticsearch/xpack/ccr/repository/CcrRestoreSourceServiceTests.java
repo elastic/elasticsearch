@@ -26,7 +26,6 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService = new CcrRestoreSourceService(Settings.EMPTY);
     }
 
-
     public void testOpenSession() throws IOException {
         IndexShard indexShard1 = newStartedShard(true);
         IndexShard indexShard2 = newStartedShard(true);
@@ -51,9 +50,9 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         assertEquals(1, sessionsForShard.size());
         assertTrue(sessionsForShard.contains(sessionUUID3));
 
-        restoreSourceService.closeSession(sessionUUID1, indexShard1);
-        restoreSourceService.closeSession(sessionUUID2, indexShard1);
-        restoreSourceService.closeSession(sessionUUID3, indexShard2);
+        restoreSourceService.closeSession(sessionUUID1);
+        restoreSourceService.closeSession(sessionUUID2);
+        restoreSourceService.closeSession(sessionUUID3);
 
         closeShards(indexShard1, indexShard2);
     }
@@ -63,7 +62,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         closeShards(indexShard);
         String sessionUUID = UUIDs.randomBase64UUID();
         expectThrows(IllegalIndexShardStateException.class, () -> restoreSourceService.openSession(sessionUUID, indexShard));
-        assertNull(restoreSourceService.getIndexCommit(sessionUUID));
+        assertNull(restoreSourceService.getOngoingRestore(sessionUUID));
     }
 
     public void testCloseSession() throws IOException {
@@ -79,23 +78,23 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         assertEquals(2, restoreSourceService.getSessionsForShard(indexShard1).size());
         assertEquals(1, restoreSourceService.getSessionsForShard(indexShard2).size());
-        assertNotNull(restoreSourceService.getIndexCommit(sessionUUID1));
-        assertNotNull(restoreSourceService.getIndexCommit(sessionUUID2));
-        assertNotNull(restoreSourceService.getIndexCommit(sessionUUID3));
+        assertNotNull(restoreSourceService.getOngoingRestore(sessionUUID1));
+        assertNotNull(restoreSourceService.getOngoingRestore(sessionUUID2));
+        assertNotNull(restoreSourceService.getOngoingRestore(sessionUUID3));
 
-        restoreSourceService.closeSession(sessionUUID1, indexShard1);
+        restoreSourceService.closeSession(sessionUUID1);
         assertEquals(1, restoreSourceService.getSessionsForShard(indexShard1).size());
-        assertNull(restoreSourceService.getIndexCommit(sessionUUID1));
+        assertNull(restoreSourceService.getOngoingRestore(sessionUUID1));
         assertFalse(restoreSourceService.getSessionsForShard(indexShard1).contains(sessionUUID1));
         assertTrue(restoreSourceService.getSessionsForShard(indexShard1).contains(sessionUUID2));
 
-        restoreSourceService.closeSession(sessionUUID2, indexShard1);
+        restoreSourceService.closeSession(sessionUUID2);
         assertNull(restoreSourceService.getSessionsForShard(indexShard1));
-        assertNull(restoreSourceService.getIndexCommit(sessionUUID2));
+        assertNull(restoreSourceService.getOngoingRestore(sessionUUID2));
 
-        restoreSourceService.closeSession(sessionUUID3, indexShard2);
+        restoreSourceService.closeSession(sessionUUID3);
         assertNull(restoreSourceService.getSessionsForShard(indexShard2));
-        assertNull(restoreSourceService.getIndexCommit(sessionUUID3));
+        assertNull(restoreSourceService.getOngoingRestore(sessionUUID3));
 
         closeShards(indexShard1, indexShard2);
     }
@@ -117,10 +116,10 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.afterIndexShardClosed(indexShard1.shardId(), indexShard1, Settings.EMPTY);
 
         assertNull(restoreSourceService.getSessionsForShard(indexShard1));
-        assertNull(restoreSourceService.getIndexCommit(sessionUUID1));
-        assertNull(restoreSourceService.getIndexCommit(sessionUUID2));
+        assertNull(restoreSourceService.getOngoingRestore(sessionUUID1));
+        assertNull(restoreSourceService.getOngoingRestore(sessionUUID2));
 
-        restoreSourceService.closeSession(sessionUUID3, indexShard2);
+        restoreSourceService.closeSession(sessionUUID3);
         closeShards(indexShard1, indexShard2);
     }
 }

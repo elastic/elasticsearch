@@ -39,7 +39,7 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
 
     @Override
     public PutCcrRestoreSessionResponse newResponse() {
-        throw new UnsupportedOperationException();
+        return new PutCcrRestoreSessionResponse();
     }
 
     @Override

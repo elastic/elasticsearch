@@ -260,7 +260,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
         String nodeId = response.getNodeId();
         // TODO: Implement file restore
-        closeSession(remoteClient, nodeId, sessionUUID, leaderShardId);
+        closeSession(remoteClient, nodeId, sessionUUID);
     }
 
     @Override
@@ -268,9 +268,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void closeSession(Client remoteClient, String nodeId, String sessionUUID, ShardId leaderShardId) {
+    private void closeSession(Client remoteClient, String nodeId, String sessionUUID) {
         ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(nodeId,
-            new ClearCcrRestoreSessionRequest.Request(nodeId, sessionUUID, leaderShardId));
+            new ClearCcrRestoreSessionRequest.Request(nodeId, sessionUUID));
         ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
             remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
         if (response.hasFailures()) {

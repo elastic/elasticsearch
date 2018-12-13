@@ -22,6 +22,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,7 +34,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private static final Logger logger = LogManager.getLogger(CcrRestoreSourceService.class);
 
-    private final Map<String, Engine.IndexCommitRef> onGoingRestores = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, RestoreContext> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
     private final CopyOnWriteArrayList<Consumer<String>> openSessionListeners = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
@@ -42,17 +43,14 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         super(settings);
     }
 
-    // TODO: Need to register with IndicesService
     @Override
     public synchronized void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            logger.debug("shard [{}] closing, closing sessions", indexShard);
             HashSet<String> sessions = sessionsForShard.remove(indexShard);
             if (sessions != null) {
                 for (String sessionUUID : sessions) {
-                    logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
-                    Engine.IndexCommitRef commit = onGoingRestores.remove(sessionUUID);
-                    IOUtils.closeWhileHandlingException(commit);
+                    RestoreContext restore = onGoingRestores.remove(sessionUUID);
+                    IOUtils.closeWhileHandlingException(restore);
                 }
             }
         }
@@ -91,70 +89,87 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     // default visibility for testing
-    synchronized Engine.IndexCommitRef getIndexCommit(String sessionUUID) {
+    synchronized RestoreContext getOngoingRestore(String sessionUUID) {
         return onGoingRestores.get(sessionUUID);
     }
 
     // TODO: Add a local timeout for the session. This timeout might might be for the entire session to be
     //  complete. Or it could be for session to have been touched.
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
-        logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard);
         boolean success = false;
-        Engine.IndexCommitRef commit = null;
+        RestoreContext restore = null;
         try {
             if (onGoingRestores.containsKey(sessionUUID)) {
-                logger.debug("session [{}] already exists", sessionUUID);
-                commit = onGoingRestores.get(sessionUUID);
+                logger.debug("not opening new session [{}] as it already exists", sessionUUID);
+                restore = onGoingRestores.get(sessionUUID);
             } else {
+                logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard);
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     throw new IllegalIndexShardStateException(indexShard.shardId(), IndexShardState.CLOSED,
                         "cannot open ccr restore session if shard closed");
                 }
-                commit = indexShard.acquireSafeIndexCommit();
-                onGoingRestores.put(sessionUUID, commit);
+                restore = new RestoreContext(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit());
+                onGoingRestores.put(sessionUUID, restore);
                 openSessionListeners.forEach(c -> c.accept(sessionUUID));
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
                 sessions.add(sessionUUID);
             }
-            Store.MetadataSnapshot metaData = getMetaData(indexShard, commit);
+            Store.MetadataSnapshot metaData = restore.getMetaData();
             success = true;
             return metaData;
         } finally {
             if (success ==  false) {
                 onGoingRestores.remove(sessionUUID);
-                removeSessionForShard(sessionUUID, indexShard);
-                IOUtils.closeWhileHandlingException(commit);
+                IOUtils.closeWhileHandlingException(restore);
             }
         }
     }
 
-    public synchronized void closeSession(String sessionUUID, IndexShard indexShard) {
-        logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
+    public synchronized void closeSession(String sessionUUID) {
         closeSessionListeners.forEach(c -> c.accept(sessionUUID));
-        Engine.IndexCommitRef commit = onGoingRestores.remove(sessionUUID);
-        if (commit == null) {
-            logger.info("could not close session [{}] for shard [{}] because session not found", sessionUUID, indexShard);
+        RestoreContext restore = onGoingRestores.remove(sessionUUID);
+        if (restore == null) {
+            logger.info("could not close session [{}] because session not found", sessionUUID);
             throw new ElasticsearchException("session [" + sessionUUID + "] not found");
         }
-        removeSessionForShard(sessionUUID, indexShard);
-        IOUtils.closeWhileHandlingException(commit);
+        IOUtils.closeWhileHandlingException(restore);
     }
 
-    private Store.MetadataSnapshot getMetaData(IndexShard indexShard, Engine.IndexCommitRef commit) throws IOException {
-        indexShard.store().incRef();
-        try {
-            return indexShard.store().getMetadata(commit.getIndexCommit());
-        } finally {
-            indexShard.store().decRef();
+    private class RestoreContext implements Closeable {
+
+        private final String sessionUUID;
+        private final IndexShard indexShard;
+        private final Engine.IndexCommitRef commitRef;
+
+        private RestoreContext(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
+            this.sessionUUID = sessionUUID;
+            this.indexShard = indexShard;
+            this.commitRef = commitRef;
         }
-    }
 
-    private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
-        HashSet<String> sessions = sessionsForShard.get(indexShard);
-        if (sessions != null) {
-            sessions.remove(sessionUUID);
-            if (sessions.isEmpty()) {
-                sessionsForShard.remove(indexShard);
+        Store.MetadataSnapshot getMetaData() throws IOException {
+            indexShard.store().incRef();
+            try {
+                return indexShard.store().getMetadata(commitRef.getIndexCommit());
+            } finally {
+                indexShard.store().decRef();
+            }
+        }
+
+        @Override
+        public void close() {
+            removeSessionForShard(sessionUUID, indexShard);
+            IOUtils.closeWhileHandlingException(commitRef);
+        }
+
+        private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
+            logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
+            HashSet<String> sessions = sessionsForShard.get(indexShard);
+            if (sessions != null) {
+                sessions.remove(sessionUUID);
+                if (sessions.isEmpty()) {
+                    sessionsForShard.remove(indexShard);
+                }
             }
         }
     }

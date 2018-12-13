@@ -18,10 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -46,23 +42,20 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
     public static class TransportDeleteCcrRestoreSessionAction extends TransportNodesAction<ClearCcrRestoreSessionRequest,
         ClearCcrRestoreSessionResponse, ClearCcrRestoreSessionRequest.Request, Response> {
 
-        private final IndicesService indicesService;
         private final CcrRestoreSourceService ccrRestoreService;
 
         @Inject
         public TransportDeleteCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
-                                                      TransportService transportService, IndicesService indicesService,
-                                                      CcrRestoreSourceService ccrRestoreService) {
+                                                      TransportService transportService, CcrRestoreSourceService ccrRestoreService) {
             super(NAME, threadPool, clusterService, transportService, actionFilters, ClearCcrRestoreSessionRequest::new,
                 ClearCcrRestoreSessionRequest.Request::new, ThreadPool.Names.GENERIC, Response.class);
-            this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }
 
         @Override
-        protected ClearCcrRestoreSessionResponse newResponse(ClearCcrRestoreSessionRequest request, List<Response> deleteResponses,
+        protected ClearCcrRestoreSessionResponse newResponse(ClearCcrRestoreSessionRequest request, List<Response> responses,
                                                              List<FailedNodeException> failures) {
-            return new ClearCcrRestoreSessionResponse(clusterService.getClusterName(), deleteResponses, failures);
+            return new ClearCcrRestoreSessionResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -77,12 +70,7 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
 
         @Override
         protected Response nodeOperation(ClearCcrRestoreSessionRequest.Request request) {
-            ShardId shardId = request.getShardId();
-            IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            if (indexShard == null) {
-                throw new ShardNotFoundException(shardId);
-            }
-            ccrRestoreService.closeSession(request.getSessionUUID(), indexShard);
+            ccrRestoreService.closeSession(request.getSessionUUID());
             return new Response(clusterService.localNode());
         }
     }

@@ -90,6 +90,36 @@ sudo zypper install elasticsearch <3>
 
 endif::[]
 
+ifeval::["{release-state}"!="unreleased"]
+
+[NOTE]
+==================================================
+
+An alternative package which contains only features that are available under the
+Apache 2.0 license is also available. To install it, use the following `baseurl` in your `elasticsearch.repo` file:
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+baseurl=https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/yum
+--------------------------------------------------
+
+endif::[]
+
+ifeval::["{release-state}"!="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+baseurl=https://artifacts.elastic.co/packages/oss-{major-version}/yum
+--------------------------------------------------
+
+endif::[]
+
+==================================================
+
+endif::[]
+
 [[install-rpm]]
 ==== Download and install the RPM manually
 

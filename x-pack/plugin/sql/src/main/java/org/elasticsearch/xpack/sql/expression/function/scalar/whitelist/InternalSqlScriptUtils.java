@@ -10,6 +10,7 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -23,7 +24,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProce
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
@@ -92,6 +93,10 @@ public final class InternalSqlScriptUtils {
         return BinaryComparisonOperation.EQ.apply(left, right);
     }
 
+    public static Boolean nulleq(Object left, Object right) {
+        return BinaryComparisonOperation.NULLEQ.apply(left, right);
+    }
+
     public static Boolean neq(Object left, Object right) {
         return BinaryComparisonOperation.NEQ.apply(left, right);
     }
@@ -140,7 +145,15 @@ public final class InternalSqlScriptUtils {
     // Null
     //
     public static Object coalesce(List<Object> expressions) {
-        return CoalesceProcessor.apply(expressions);
+        return ConditionalOperation.COALESCE.apply(expressions);
+    }
+
+    public static Object greatest(List<Object> expressions) {
+        return ConditionalOperation.GREATEST.apply(expressions);
+    }
+
+    public static Object least(List<Object> expressions) {
+        return ConditionalOperation.LEAST.apply(expressions);
     }
 
     public static Object nullif(Object left, Object right) {
@@ -302,6 +315,13 @@ public final class InternalSqlScriptUtils {
         return NameExtractor.DAY_NAME.extract(asDateTime(dateTime), tzId);
     }
     
+    public static Integer dayOfWeek(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonIsoDateTimeExtractor.DAY_OF_WEEK.extract(asDateTime(dateTime), tzId);
+    }
+    
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -314,6 +334,13 @@ public final class InternalSqlScriptUtils {
             return null;
         }
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
+    }
+    
+    public static Integer weekOfYear(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(asDateTime(dateTime), tzId);
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

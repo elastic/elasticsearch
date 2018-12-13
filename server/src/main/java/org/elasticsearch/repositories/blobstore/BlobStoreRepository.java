@@ -27,8 +27,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -459,7 +457,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (indexMetaData != null) {
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
-                                delete(snapshotId, snapshot.version(), indexId, new ShardId(indexMetaData.getIndex(), shardId));
+                                delete(snapshotId, indexId, new ShardId(indexMetaData.getIndex(), shardId));
                             } catch (SnapshotException ex) {
                                 final int finalShardId = shardId;
                                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
@@ -865,7 +863,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
+        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, indexId, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
         } catch (Exception e) {
@@ -875,7 +873,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
-        Context context = new Context(snapshotId, version, indexId, shardId);
+        Context context = new Context(snapshotId, indexId, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
         return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
             snapshot.incrementalFileCount(), snapshot.totalFileCount(),
@@ -917,8 +915,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param snapshotId snapshot id
      * @param shardId    shard id
      */
-    private void delete(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
-        Context context = new Context(snapshotId, version, indexId, shardId, shardId);
+    private void delete(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        Context context = new Context(snapshotId, indexId, shardId, shardId);
         context.delete();
     }
 
@@ -928,10 +926,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             "[" + metadata.name() +
             "], [" + blobStore() + ']' +
             ']';
-    }
-
-    BlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat(Version version) {
-        return indexShardSnapshotFormat;
     }
 
     /**
@@ -945,15 +939,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         protected final BlobContainer blobContainer;
 
-        protected final Version version;
-
-        Context(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
-            this(snapshotId, version, indexId, shardId, shardId);
+        Context(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            this(snapshotId, indexId, shardId, shardId);
         }
 
-        Context(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
+        Context(SnapshotId snapshotId, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
             this.snapshotId = snapshotId;
-            this.version = version;
             this.shardId = shardId;
             blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId())));
         }
@@ -974,7 +965,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             int fileListGeneration = tuple.v2();
 
             try {
-                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getUUID());
+                indexShardSnapshotFormat.delete(blobContainer, snapshotId.getUUID());
             } catch (IOException e) {
                 logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
             }
@@ -995,7 +986,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          */
         BlobStoreIndexShardSnapshot loadSnapshot() {
             try {
-                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getUUID());
+                return indexShardSnapshotFormat.read(blobContainer, snapshotId.getUUID());
             } catch (IOException ex) {
                 throw new SnapshotException(metadata.name(), snapshotId, "failed to read shard snapshot file for " + shardId, ex);
             }
@@ -1182,7 +1173,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param snapshotStatus snapshot status to report progress
          */
         SnapshotContext(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
-            super(snapshotId, Version.CURRENT, indexId, store.shardId());
+            super(snapshotId, indexId, store.shardId());
             this.snapshotStatus = snapshotStatus;
             snapshotStatus.abortFuture().thenAccept(v -> cancellableThreads.cancel("snapshot aborted"));
             this.store = store;
@@ -1324,7 +1315,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
             finalize(newSnapshotsList, fileListGeneration + 1, blobs, "snapshot creation [" + snapshotId + "]");
             snapshotStatus.moveToDone(System.currentTimeMillis());
-
         }
 
         /**
@@ -1460,8 +1450,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param snapshotShardId shard in the snapshot that data should be restored from
          * @param recoveryState   recovery state to report progress
          */
-        RestoreContext(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-            super(snapshotId, version, indexId, shard.shardId(), snapshotShardId);
+        RestoreContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+            super(snapshotId, indexId, shard.shardId(), snapshotShardId);
             this.recoveryState = recoveryState;
             this.targetShard = shard;
         }
@@ -1487,11 +1477,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // version number and no checksum, even though the index itself is perfectly fine to restore, this
                     // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
                     // shard anyway, we just create the empty shard here and then exit.
-                    IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
-                        .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                        .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
-                        .setCommitOnClose(true));
-                    writer.close();
+                    store.createEmpty(targetShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
                     return;
                 }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -351,6 +352,19 @@ public class ThreadPool implements Scheduler, Closeable {
         return scheduler.schedule(new ThreadPool.LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
     }
 
+    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+        try {
+            schedule(delay, executor, command);
+        } catch (EsRejectedExecutionException e) {
+            if (e.isExecutorShutdown()) {
+                logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
+                    command, delay, executor), e);
+            } else {
+                throw e;
+            }
+        }
+    }
+
     @Override
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         return new ReschedulingRunnable(command, interval, executor, this,
@@ -369,9 +383,13 @@ public class ThreadPool implements Scheduler, Closeable {
         return getThreadContext().preserveContext(command);
     }
 
-    public void shutdown() {
+    protected final void stopCachedTimeThread() {
         cachedTimeThread.running = false;
         cachedTimeThread.interrupt();
+    }
+
+    public void shutdown() {
+        stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
@@ -381,8 +399,7 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     public void shutdownNow() {
-        cachedTimeThread.running = false;
-        cachedTimeThread.interrupt();
+        stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {

@@ -82,6 +82,12 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 * <<get-ml-info,Machine learning info>>
 
+[float]
+[[ml-api-delete-expired-data-endpoint]]
+=== Delete Expired Data
+
+* <<ml-delete-expired-data,Delete expired data>>
+
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
@@ -101,6 +107,7 @@ include::delete-forecast.asciidoc[]
 include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
+include::delete-expired-data.asciidoc[]
 //FIND
 include::find-file-structure.asciidoc[]
 //FLUSH

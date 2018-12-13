@@ -1,14 +1,20 @@
-[[java-rest-high-close-index]]
+--
+:api: close-index
+:request: CloseIndexRequest
+:response: CloseIndexResponse
+--
+
+[id="{upid}-{api}"]
 === Close Index API
 
-[[java-rest-high-close-index-request]]
+[id="{upid}-{api}-request"]
 ==== Close Index Request
 
-A `CloseIndexRequest` requires an `index` argument:
+A +{request}+ requires an `index` argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The index to close
 
@@ -17,7 +23,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the index is closed
 as a `TimeValue`
@@ -26,63 +32,28 @@ as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
-[[java-rest-high-close-index-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-execute]
---------------------------------------------------
-
-[[java-rest-high-close-index-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a close index request requires both the `CloseIndexRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-execute-async]
---------------------------------------------------
-<1> The `CloseIndexRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `CloseIndexResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-close-index-response]]
+[id="{upid}-{api}-response"]
 ==== Close Index Response
 
-The returned `CloseIndexResponse` allows to retrieve information about the 
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[close-index-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request

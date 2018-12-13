@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.FeatureMetric;
 import org.junit.Before;
 
@@ -24,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private List<IndexDocument> testData = Arrays.asList(
@@ -64,11 +67,11 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         Map<String, Object> baseStats = getStats();
         List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
         
-        // used for "client.id" request parameter value, but also for getting the stats from ES
+        // used for "client_id" request parameter value, but also for getting the stats from ES
         clientType = randomFrom(ClientType.values()).toString();
         ignoreClientType = randomBoolean();
         
-        // "client.id" parameter will not be sent in the requests
+        // "client_id" parameter will not be sent in the requests
         // and "clientType" will only be used for getting the stats back from ES
         if (ignoreClientType) {
             clientType = ClientType.REST.toString();
@@ -223,7 +226,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
-        Request request = new Request("GET", "/_xpack/sql/stats");
+        Request request = new Request("GET", "/_sql/stats");
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
             responseAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -233,7 +236,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runTranslate(String sql) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql/translate");
+        Request request = new Request("POST", "/_sql/translate");
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
@@ -267,19 +270,12 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String mode, String restClient, String sql) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql");
+        Request request = new Request("POST", "/_sql");
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
-        }
-        if (false == mode.isEmpty()) {
-            request.addParameter("mode", mode);        // JDBC or PLAIN mode
-        }
-        // randomly use the "client.id" parameter or not
-        if (false == ignoreClientType) {
-            request.addParameter("client.id", restClient);
         }
         if (randomBoolean()) {
             // JSON is the default but randomly set it sometime for extra coverage
@@ -287,7 +283,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
+                (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}",
+                ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
     

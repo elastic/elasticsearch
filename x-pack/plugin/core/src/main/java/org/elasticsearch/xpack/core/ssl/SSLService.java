@@ -262,14 +262,14 @@ public class SSLService {
     /**
      * Returns the {@link SSLContext} for the global configuration. Mainly used for testing
      */
-    SSLContext sslContext() {
+    public SSLContext sslContext() {
         return sslContextHolder(globalSSLConfiguration).sslContext();
     }
 
     /**
-     * Returns the {@link SSLContext} for the configuration
+     * Returns the {@link SSLContext} for the configuration. Mainly used for testing
      */
-    SSLContext sslContext(SSLConfiguration configuration) {
+    public SSLContext sslContext(SSLConfiguration configuration) {
         return sslContextHolder(configuration).sslContext();
     }
 

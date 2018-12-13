@@ -155,7 +155,7 @@ public class MetaDataUpdateSettingsService {
                     int totalNewShards = Arrays.stream(request.indices())
                         .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                         .sum();
-                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState, deprecationLogger);
+                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
                     if (error.isPresent()) {
                         ValidationException ex = new ValidationException();
                         ex.addValidationError(error.get());

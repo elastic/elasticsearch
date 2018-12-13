@@ -13,9 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
-import org.elasticsearch.xpack.sql.jdbc.type.DataType;
+import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,6 +57,7 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
     
@@ -69,14 +69,14 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test";
     static final String SELECT_WILDCARD = "SELECT * FROM test";
     static {
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_boolean", true), DataType.BOOLEAN);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_byte", 1), DataType.BYTE);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_integer", 1), DataType.INTEGER);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_long", 1L), DataType.LONG);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_short", 1), DataType.SHORT);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_double", 1d), DataType.DOUBLE);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_float", 1f), DataType.FLOAT);
-        dateTimeTestingFields.put(new Tuple<String, Object>("test_keyword", "true"), DataType.KEYWORD);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_boolean", true), EsType.BOOLEAN);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_byte", 1), EsType.BYTE);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_integer", 1), EsType.INTEGER);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_long", 1L), EsType.LONG);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_short", 1), EsType.SHORT);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_double", 1d), EsType.DOUBLE);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_float", 1f), EsType.FLOAT);
+        dateTimeTestingFields.put(new Tuple<String, Object>("test_keyword", "true"), EsType.KEYWORD);
     }
     
     // Byte values testing
@@ -1525,24 +1525,24 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
         String address = "jdbc:es://" + elasticsearchAddress;
         Properties connectionProperties = connectionProperties();
-        connectionProperties.put(JdbcConfiguration.TIME_ZONE, timeZoneId);
+        connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
         Connection connection = DriverManager.getConnection(address, connectionProperties);
         
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
         return connection;
     }
 
     private Connection useDataSource(String timeZoneId) throws SQLException {
         String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
-        JdbcDataSource dataSource = new JdbcDataSource();
+        EsDataSource dataSource = new EsDataSource();
         String address = "jdbc:es://" + elasticsearchAddress;
         dataSource.setUrl(address);
         Properties connectionProperties = connectionProperties();
-        connectionProperties.put(JdbcConfiguration.TIME_ZONE, timeZoneId);
+        connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
         dataSource.setProperties(connectionProperties);
         Connection connection = dataSource.getConnection();
         
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
         return connection;
     }
 }

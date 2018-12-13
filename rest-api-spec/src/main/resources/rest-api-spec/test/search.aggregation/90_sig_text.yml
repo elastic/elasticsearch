@@ -67,12 +67,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
 
   - match: {hits.total: 7}
   
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
         body: {"aggs": {"class": {"terms": {"field": "class"},"aggs": {"sig_text": {"significant_text": {"field": "text"}}}}}}
 
@@ -148,12 +150,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
 
   - match: {hits.total: 7}
   
   - do:
       search:
+        rest_total_hits_as_int: true
         index: goodbad
         body: {"aggs": {"class": {"terms": {"field": "class"},"aggs": {"sig_text": {"significant_text": {"field": "text", "filter_duplicate_text": true}}}}}}
 

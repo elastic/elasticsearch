@@ -327,4 +327,22 @@ public class CastTests extends ScriptTestCase {
             exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());");
         });
     }
+
+    public void testBoxedDefCalls() {
+        assertEquals(1, exec("def x = 1; def y = 2.0; y.compareTo(x);"));
+        assertEquals(1, exec("def y = 2.0; y.compareTo(1);"));
+        assertEquals(1, exec("int x = 1; def y = 2.0; y.compareTo(x);"));
+        assertEquals(-1, exec("Integer x = Integer.valueOf(3); def y = 2.0; y.compareTo(x);"));
+        assertEquals(2, exec("def f = new org.elasticsearch.painless.FeatureTest(); f.i = (byte)2; f.i"));
+        assertEquals(4.0, exec(
+                "def x = new org.elasticsearch.painless.FeatureTest(); " +
+                "Byte i = Byte.valueOf(3); " +
+                "byte j = 1;" +
+                "Short s = Short.valueOf(-2);" +
+                "x.mixedAdd(j, i, (char)2, s)"
+        ));
+        assertNull(exec("def f = new org.elasticsearch.painless.FeatureTest(); f.i = null; f.i"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def x = 2.0; def y = 1; y.compareTo(x);"));
+        expectScriptThrows(ClassCastException.class, () -> exec("float f = 1.0f; def y = 1; y.compareTo(f);"));
+    }
 }

@@ -35,11 +35,6 @@ public class Sign extends MathFunction {
     }
 
     @Override
-    protected String mathFunction() {
-        return "signum";
-    }
-
-    @Override
     protected MathOperation operation() {
         return MathOperation.SIGN;
     }

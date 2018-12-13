@@ -24,6 +24,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -44,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * actions and metadata are completely managed by the client and can contain arbitrary
  * string values.
  */
-public final class ApplicationPrivilege {
+public final class ApplicationPrivilege implements ToXContentObject {
 
     private static final ParseField APPLICATION = new ParseField("application");
     private static final ParseField NAME = new ParseField("name");
@@ -169,6 +171,18 @@ public final class ApplicationPrivilege {
         public ApplicationPrivilege build() {
             return new ApplicationPrivilege(applicationName, privilegeName, actions, metadata);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+        .field(APPLICATION.getPreferredName(), application)
+        .field(NAME.getPreferredName(), name)
+        .field(ACTIONS.getPreferredName(), actions);
+        if (metadata != null && metadata.isEmpty() == false) {
+            builder.field(METADATA.getPreferredName(), metadata);
+        }
+        return builder.endObject();
     }
 
 }

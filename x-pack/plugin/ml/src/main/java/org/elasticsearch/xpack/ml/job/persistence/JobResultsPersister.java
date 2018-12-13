@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -18,7 +20,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -63,7 +64,9 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
  *
  * @see ElasticsearchMappings
  */
-public class JobResultsPersister extends AbstractComponent {
+public class JobResultsPersister {
+
+    private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
     private final Client client;
 

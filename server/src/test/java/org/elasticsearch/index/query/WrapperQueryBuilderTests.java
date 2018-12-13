@@ -39,7 +39,12 @@ import java.io.UnsupportedEncodingException;
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
     @Override
-    protected boolean supportsBoostAndQueryName() {
+    protected boolean supportsBoost() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
         return false;
     }
 

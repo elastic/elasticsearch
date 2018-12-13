@@ -19,6 +19,8 @@ public abstract class JdbcTestUtils {
 
     public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
 
+    public static final String JDBC_TIMEZONE = "timezone";
+
     public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         // header

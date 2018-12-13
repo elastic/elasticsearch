@@ -230,6 +230,10 @@ public class User implements ToXContentObject {
         ParseField METADATA = new ParseField("metadata");
         ParseField ENABLED = new ParseField("enabled");
         ParseField TYPE = new ParseField("type");
+        ParseField AUTHENTICATION_REALM = new ParseField("authentication_realm");
+        ParseField LOOKUP_REALM = new ParseField("lookup_realm");
+        ParseField REALM_TYPE = new ParseField("type");
+        ParseField REALM_NAME = new ParseField("name");
     }
 }
 

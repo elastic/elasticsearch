@@ -109,6 +109,8 @@ thirdPartyAudit.excludes = [
         'org.jboss.marshalling.Unmarshaller',
 
         // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+        'org.slf4j.helpers.FormattingTuple',
+        'org.slf4j.helpers.MessageFormatter',
         'org.slf4j.Logger',
         'org.slf4j.LoggerFactory',
         'org.slf4j.spi.LocationAwareLogger',

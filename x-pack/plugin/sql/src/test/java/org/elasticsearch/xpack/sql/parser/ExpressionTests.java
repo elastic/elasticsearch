@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.Duration;
@@ -226,6 +227,14 @@ public class ExpressionTests extends ESTestCase {
         Equals eq = (Equals) expr;
         assertEquals("(a) == 10", eq.name());
         assertEquals(2, eq.children().size());
+    }
+
+    public void testNullEquals() {
+        Expression expr = parser.createExpression("a <=> 10");
+        assertEquals(NullEquals.class, expr.getClass());
+        NullEquals nullEquals = (NullEquals) expr;
+        assertEquals("(a) <=> 10", nullEquals.name());
+        assertEquals(2, nullEquals.children().size());
     }
 
     public void testNotEquals() {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.literal;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -124,6 +125,7 @@ public final class Intervals {
         private final List<TimeUnit> units;
         private final List<Token> tokens;
         private final String name;
+        private boolean optional = false;
 
         ParserBuilder(DataType dataType) {
             units = new ArrayList<>(10);
@@ -138,12 +140,17 @@ public final class Intervals {
 
         ParserBuilder unit(TimeUnit unit, int maxValue) {
             units.add(unit);
-            tokens.add(new Token((char) 0, maxValue));
+            tokens.add(new Token((char) 0, maxValue, optional));
             return this;
         }
 
         ParserBuilder separator(char ch) {
-            tokens.add(new Token(ch, 0));
+            tokens.add(new Token(ch, 0, optional));
+            return this;
+        }
+
+        ParserBuilder optional() {
+            optional = true;
             return this;
         }
 
@@ -155,15 +162,17 @@ public final class Intervals {
     private static class Token {
         private final char ch;
         private final int maxValue;
+        private final boolean optional;
 
-        Token(char ch, int maxValue) {
+        Token(char ch, int maxValue, boolean optional) {
             this.ch = ch;
             this.maxValue = maxValue;
+            this.optional = optional;
         }
 
         @Override
         public String toString() {
-            return ch > 0 ? String.valueOf(ch) : "[numeric" + (maxValue > 0 ? " < " + maxValue + " " : "") + "]";
+            return ch > 0 ? String.valueOf(ch) : "[numeric]";
         }
     }
 
@@ -203,6 +212,15 @@ public final class Intervals {
             for (Token token : tokens) {
                 endToken = startToken;
 
+                if (startToken >= string.length()) {
+                    // consumed the string, bail out
+                    if (token.optional) {
+                        break;
+                    }
+                    throw new ParsingException(source, invalidIntervalMessage(string) + ": incorrect format, expecting {}",
+                            Strings.collectionToDelimitedString(tokens, ""));
+                }
+                
                 // char token
                 if (token.ch != 0) {
                     char found = string.charAt(startToken);
@@ -309,8 +327,8 @@ public final class Intervals {
         PARSERS.put(DataType.INTERVAL_MINUTE, new ParserBuilder(DataType.INTERVAL_MINUTE).unit(TimeUnit.MINUTE).build());
         PARSERS.put(DataType.INTERVAL_SECOND, new ParserBuilder(DataType.INTERVAL_SECOND)
                  .unit(TimeUnit.SECOND)
-                 .separator(DOT)
-                 .unit(TimeUnit.MILLISECOND, MAX_MILLI)
+                 .optional()
+                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                  .build());
 
         // patterns
@@ -342,6 +360,7 @@ public final class Intervals {
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)
+                .optional()
                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                 .build());
 
@@ -357,6 +376,7 @@ public final class Intervals {
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)
+                .optional()
                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                 .build());
         
@@ -364,8 +384,8 @@ public final class Intervals {
                 .unit(TimeUnit.MINUTE)
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)
-                .separator(DOT)
-                .unit(TimeUnit.MILLISECOND, MAX_MILLI)
+                .optional()
+                .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                 .build());
     }
 

@@ -28,8 +28,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -92,7 +94,7 @@ public class Job implements ToXContentObject {
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
-        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         PARSER.declareBoolean(Builder::setDeleting, DELETING);
@@ -426,7 +428,7 @@ public class Job implements ToXContentObject {
         public Builder(Job job) {
             this.id = job.getId();
             this.jobType = job.getJobType();
-            this.groups = job.getGroups();
+            this.groups = new ArrayList<>(job.getGroups());
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
             this.analysisLimits = job.getAnalysisLimits();
@@ -439,7 +441,7 @@ public class Job implements ToXContentObject {
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
-            this.customSettings = job.getCustomSettings();
+            this.customSettings = job.getCustomSettings() == null ? null : new LinkedHashMap<>(job.getCustomSettings());
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleting = job.getDeleting();

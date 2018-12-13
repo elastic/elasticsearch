@@ -52,7 +52,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
     public void testGetName() {
         // Are you sure that you want to change the name?
-        assertThat(action.getName(), is("xpack_monitoring_bulk_action"));
+        assertThat(action.getName(), is("monitoring_bulk"));
     }
 
     public void testSupportsContentStream() {

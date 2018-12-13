@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 
@@ -169,6 +168,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertNoIndices(response);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowClusterLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);

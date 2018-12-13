@@ -3,6 +3,8 @@
 [[sql-syntax-describe-table]]
 === DESCRIBE TABLE
 
+beta[]
+
 .Synopsis
 [source, sql]
 ----

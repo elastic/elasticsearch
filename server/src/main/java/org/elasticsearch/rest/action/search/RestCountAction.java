@@ -89,7 +89,7 @@ public class RestCountAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("count_with_types", TYPES_DEPRECATION_MESSAGE);
             countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
 
@@ -108,7 +108,7 @@ public class RestCountAction extends BaseRestHandler {
                 if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
-                builder.field("count", response.getHits().getTotalHits());
+                builder.field("count", response.getHits().getTotalHits().value);
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
                     0, response.getFailedShards(), response.getShardFailures());
 

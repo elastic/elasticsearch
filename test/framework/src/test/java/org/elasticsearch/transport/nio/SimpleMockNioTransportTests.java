@@ -27,7 +27,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -40,7 +39,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -58,8 +56,8 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
                                                          ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Transport transport = new MockNioTransport(settings, version, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
-            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService()) {
+        Transport transport = new MockNioTransport(settings, version, threadPool, networkService, new MockPageCacheRecycler(settings),
+            namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
@@ -110,8 +108,6 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
             .put("transport.tcp.port", port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

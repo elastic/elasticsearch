@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Objects;
@@ -36,11 +37,20 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
         String index = indexMetaData.getIndex().getName();
         // get target shrink index
         String targetIndexName = shrunkIndexPrefix + index;
-
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(index))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndexName).alias(index));
-
+        // copy over other aliases from original index
+        indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
+            AliasMetaData aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
+            // inherit all alias properties except `is_write_index`
+            aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add()
+                .index(targetIndexName).alias(aliasMetaDataToAdd.alias())
+                .indexRouting(aliasMetaDataToAdd.indexRouting())
+                .searchRouting(aliasMetaDataToAdd.searchRouting())
+                .filter(aliasMetaDataToAdd.filter() == null ? null : aliasMetaDataToAdd.filter().string())
+                .writeIndex(null));
+        });
         getClient().admin().indices().aliases(aliasesRequest, ActionListener.wrap(response ->
             listener.onResponse(true), listener::onFailure));
     }
@@ -54,7 +64,7 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -64,7 +74,7 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
             return false;
         }
         ShrinkSetAliasStep other = (ShrinkSetAliasStep) obj;
-        return super.equals(obj) && 
+        return super.equals(obj) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 }

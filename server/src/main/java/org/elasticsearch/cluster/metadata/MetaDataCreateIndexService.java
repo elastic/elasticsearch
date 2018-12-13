@@ -602,7 +602,7 @@ public class MetaDataCreateIndexService {
                                       final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        Optional<String> shardAllocation = checkShardLimit(settings, clusterState, deprecationLogger);
+        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
         shardAllocation.ifPresent(validationErrors::add);
 
         if (validationErrors.isEmpty() == false) {
@@ -617,14 +617,13 @@ public class MetaDataCreateIndexService {
      *
      * @param settings The settings of the index to be created.
      * @param clusterState The current cluster state.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
      */
-    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState, DeprecationLogger deprecationLogger) {
+    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
 
-        return IndicesService.checkShardLimit(shardsToCreate, clusterState, deprecationLogger);
+        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {

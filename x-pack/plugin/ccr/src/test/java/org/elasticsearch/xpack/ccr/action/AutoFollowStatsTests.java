@@ -67,6 +67,11 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
     protected void assertEqualInstances(AutoFollowStats expectedInstance, AutoFollowStats newInstance) {
         assertNotSame(expectedInstance, newInstance);
 
+        assertThat(newInstance.getNumberOfFailedRemoteClusterStateRequests(),
+            equalTo(expectedInstance.getNumberOfFailedRemoteClusterStateRequests()));
+        assertThat(newInstance.getNumberOfFailedFollowIndices(), equalTo(expectedInstance.getNumberOfFailedFollowIndices()));
+        assertThat(newInstance.getNumberOfSuccessfulFollowIndices(), equalTo(expectedInstance.getNumberOfSuccessfulFollowIndices()));
+
         assertThat(newInstance.getRecentAutoFollowErrors().size(), equalTo(expectedInstance.getRecentAutoFollowErrors().size()));
         assertThat(newInstance.getRecentAutoFollowErrors().keySet(), equalTo(expectedInstance.getRecentAutoFollowErrors().keySet()));
         for (final Map.Entry<String, ElasticsearchException> entry : newInstance.getRecentAutoFollowErrors().entrySet()) {
@@ -79,6 +84,8 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
                 anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
             assertThat(entry.getValue().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
+
+        assertThat(newInstance.getAutoFollowedClusters(), equalTo(expectedInstance.getAutoFollowedClusters()));
     }
 
     @Override

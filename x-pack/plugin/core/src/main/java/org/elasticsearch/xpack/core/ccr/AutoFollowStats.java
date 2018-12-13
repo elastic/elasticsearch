@@ -52,7 +52,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
             new TreeMap<>(
-                ((List<Map.Entry<String, AutoFollowedCluster>>) args[3])
+                ((List<Map.Entry<String, AutoFollowedCluster>>) args[4])
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
 

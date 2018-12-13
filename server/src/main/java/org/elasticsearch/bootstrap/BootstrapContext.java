@@ -41,15 +41,15 @@ public class BootstrapContext {
         this.metaData = metaData;
     }
 
-    public Environment getEnvironment() {
+    public Environment environment() {
         return environment;
     }
 
-    public Settings getSettings() {
+    public Settings settings() {
         return environment.settings();
     }
 
-    public MetaData getMetaData() {
+    public MetaData metaData() {
         return metaData;
     }
 }

@@ -17,9 +17,9 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
 
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        if (Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.getSettings())
-                && WatcherField.ENCRYPTION_KEY_SETTING.exists(context.getSettings()) == false) {
-            final Path systemKeyPath = XPackPlugin.resolveConfigFile(context.getEnvironment(), "system_key").toAbsolutePath();
+        if (Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.settings())
+                && WatcherField.ENCRYPTION_KEY_SETTING.exists(context.settings()) == false) {
+            final Path systemKeyPath = XPackPlugin.resolveConfigFile(context.environment(), "system_key").toAbsolutePath();
             final String message;
             if (Files.exists(systemKeyPath)) {
                 message = "Encryption of sensitive data requires the key to be placed in the secure setting store. Run " +

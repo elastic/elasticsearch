@@ -681,7 +681,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         // this uses dismax so scores are equal and the order can be arbitrary
         assertSearchHits(searchResponse, "1", "2");
 
-        builder.useDisMax(false);
         searchResponse = client().prepareSearch()
                 .setQuery(builder)
                 .get();
@@ -786,7 +785,6 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
 
-        multiMatchQuery.useDisMax(true);
         multiMatchQuery.minimumShouldMatch("70%");
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(multiMatchQuery)
@@ -800,7 +798,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
-        multiMatchQuery.useDisMax(false);
         multiMatchQuery.minimumShouldMatch("70%");
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery).get();
         assertHitCount(searchResponse, 1L);
@@ -1475,11 +1472,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true).useDisMax(false)).get();
+                .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)).get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true).useDisMax(true)).get();
+                .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)).get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")

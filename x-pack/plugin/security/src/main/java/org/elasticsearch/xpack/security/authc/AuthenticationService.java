@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -360,10 +362,12 @@ public class AuthenticationService {
             final Authentication authentication;
             if (fallbackUser != null) {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
-                authentication = new Authentication(fallbackUser, authenticatedBy, null);
+                authentication = new Authentication(fallbackUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.INTERNAL,
+                    Collections.emptyMap());
             } else if (isAnonymousUserEnabled) {
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
-                authentication = new Authentication(anonymousUser, authenticatedBy, null);
+                authentication = new Authentication(anonymousUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.ANONYMOUS,
+                    Collections.emptyMap());
             } else {
                 authentication = null;
             }

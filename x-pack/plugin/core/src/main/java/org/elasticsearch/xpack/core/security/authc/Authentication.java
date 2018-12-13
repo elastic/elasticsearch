@@ -274,7 +274,9 @@ public class Authentication implements ToXContentObject {
     public enum AuthenticationType {
         REALM,
         API_KEY,
-        TOKEN
+        TOKEN,
+        ANONYMOUS,
+        INTERNAL
     }
 }
 

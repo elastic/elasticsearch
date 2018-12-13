@@ -29,22 +29,22 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import java.io.IOException;
 import java.util.List;
 
-public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessionAction.DeleteCcrRestoreSessionResponse> {
+public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse> {
 
-    public static final DeleteCcrRestoreSessionAction INSTANCE = new DeleteCcrRestoreSessionAction();
-    private static final String NAME = "internal:admin/ccr/restore/session/delete";
+    public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction();
+    private static final String NAME = "internal:admin/ccr/restore/session/clear";
 
-    private DeleteCcrRestoreSessionAction() {
+    private ClearCcrRestoreSessionAction() {
         super(NAME);
     }
 
     @Override
-    public DeleteCcrRestoreSessionResponse newResponse() {
+    public ClearCcrRestoreSessionResponse newResponse() {
         throw new UnsupportedOperationException();
     }
 
-    public static class TransportDeleteCcrRestoreSessionAction extends TransportNodesAction<DeleteCcrRestoreSessionRequest,
-        DeleteCcrRestoreSessionResponse, DeleteCcrRestoreSessionRequest.DeleteRequest, DeleteResponse> {
+    public static class TransportDeleteCcrRestoreSessionAction extends TransportNodesAction<ClearCcrRestoreSessionRequest,
+        ClearCcrRestoreSessionResponse, ClearCcrRestoreSessionRequest.Request, Response> {
 
         private final IndicesService indicesService;
         private final CcrRestoreSourceService ccrRestoreService;
@@ -53,51 +53,47 @@ public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessio
         public TransportDeleteCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
                                                       TransportService transportService, IndicesService indicesService,
                                                       CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, DeleteCcrRestoreSessionRequest::new,
-                DeleteCcrRestoreSessionRequest.DeleteRequest::new, ThreadPool.Names.GENERIC, DeleteResponse.class);
+            super(NAME, threadPool, clusterService, transportService, actionFilters, ClearCcrRestoreSessionRequest::new,
+                ClearCcrRestoreSessionRequest.Request::new, ThreadPool.Names.GENERIC, Response.class);
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }
 
         @Override
-        protected DeleteCcrRestoreSessionResponse newResponse(DeleteCcrRestoreSessionRequest request, List<DeleteResponse> deleteResponses,
-                                                              List<FailedNodeException> failures) {
-            return new DeleteCcrRestoreSessionResponse(clusterService.getClusterName(), deleteResponses, failures);
+        protected ClearCcrRestoreSessionResponse newResponse(ClearCcrRestoreSessionRequest request, List<Response> deleteResponses,
+                                                             List<FailedNodeException> failures) {
+            return new ClearCcrRestoreSessionResponse(clusterService.getClusterName(), deleteResponses, failures);
         }
 
         @Override
-        protected DeleteCcrRestoreSessionRequest.DeleteRequest newNodeRequest(String nodeId, DeleteCcrRestoreSessionRequest request) {
+        protected ClearCcrRestoreSessionRequest.Request newNodeRequest(String nodeId, ClearCcrRestoreSessionRequest request) {
             return null;
         }
 
         @Override
-        protected DeleteResponse newNodeResponse() {
+        protected Response newNodeResponse() {
             return null;
         }
 
         @Override
-        protected DeleteResponse nodeOperation(DeleteCcrRestoreSessionRequest.DeleteRequest request) {
-            ShardId shardId = null;
-            String sessionUUID = "";
+        protected Response nodeOperation(ClearCcrRestoreSessionRequest.Request request) {
+            ShardId shardId = request.getShardId();
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
-            ccrRestoreService.closeSession(sessionUUID, indexShard);
-            return new DeleteResponse(clusterService.localNode());
+            ccrRestoreService.closeSession(request.getSessionUUID(), indexShard);
+            return new Response(clusterService.localNode());
         }
     }
 
-    public static class DeleteResponse extends BaseNodeResponse {
+    public static class Response extends BaseNodeResponse {
 
-        private DeleteResponse() {
-        }
-
-        private DeleteResponse(StreamInput streamInput) throws IOException {
+        private Response(StreamInput streamInput) throws IOException {
             readFrom(streamInput);
         }
 
-        private DeleteResponse(DiscoveryNode node) {
+        private Response(DiscoveryNode node) {
             super(node);
         }
 
@@ -112,23 +108,19 @@ public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessio
         }
     }
 
-    public static class DeleteCcrRestoreSessionResponse extends BaseNodesResponse<DeleteResponse> {
+    public static class ClearCcrRestoreSessionResponse extends BaseNodesResponse<Response> {
 
-        DeleteCcrRestoreSessionResponse(StreamInput streamInput) throws IOException {
-            readFrom(streamInput);
-        }
-
-        DeleteCcrRestoreSessionResponse(ClusterName clusterName, List<DeleteResponse> chunkResponses, List<FailedNodeException> failures) {
+        ClearCcrRestoreSessionResponse(ClusterName clusterName, List<Response> chunkResponses, List<FailedNodeException> failures) {
             super(clusterName, chunkResponses, failures);
         }
 
         @Override
-        protected List<DeleteResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(DeleteResponse::new);
+        protected List<Response> readNodesFrom(StreamInput in) throws IOException {
+            return in.readList(Response::new);
         }
 
         @Override
-        protected void writeNodesTo(StreamOutput out, List<DeleteResponse> nodes) throws IOException {
+        protected void writeNodesTo(StreamOutput out, List<Response> nodes) throws IOException {
             out.writeList(nodes);
         }
 

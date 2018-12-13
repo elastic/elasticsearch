@@ -37,8 +37,8 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
-import org.elasticsearch.xpack.ccr.action.repositories.DeleteCcrRestoreSessionAction;
-import org.elasticsearch.xpack.ccr.action.repositories.DeleteCcrRestoreSessionRequest;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionRequest;
 
@@ -257,26 +257,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
         boolean success = false;
-        try {
-            PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
-                new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
-            // The nodeId is necessary to route file chunk requests to appropriate node
-            String nodeId = response.getNodeId();
-
-            // TODO: Implement file restore
-            success = true;
-        } catch (Exception e) {
-            try {
-                closeSession(remoteClient, sessionUUID, leaderShardId);
-            } catch (Exception closeException) {
-                e.addSuppressed(closeException);
-            }
-            throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
-        } finally {
-            if (success) {
-                closeSession(remoteClient, sessionUUID, leaderShardId);
-            }
-        }
+        PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
+            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
+        String nodeId = response.getNodeId();
+        // TODO: Implement file restore
+        closeSession(remoteClient, nodeId, sessionUUID, leaderShardId);
     }
 
     @Override
@@ -284,8 +269,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void closeSession(Client remoteClient, String sessionUUID, ShardId leaderShardId) {
-        DeleteCcrRestoreSessionRequest deleteRequest = new DeleteCcrRestoreSessionRequest(sessionUUID, leaderShardId);
-        remoteClient.execute(DeleteCcrRestoreSessionAction.INSTANCE, deleteRequest).actionGet();
+    private void closeSession(Client remoteClient, String nodeId, String sessionUUID, ShardId leaderShardId) {
+        ClearCcrRestoreSessionRequest.Request nodRequest =
+            new ClearCcrRestoreSessionRequest.Request(sessionUUID, leaderShardId);
+        ClearCcrRestoreSessionRequest deleteRequest = new ClearCcrRestoreSessionRequest(nodeId, nodRequest);
+        remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, deleteRequest).actionGet();
     }
 }

@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
-import org.elasticsearch.xpack.ccr.action.repositories.DeleteCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
@@ -188,8 +188,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class),
                 new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE,
                     PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
-                new ActionHandler<>(DeleteCcrRestoreSessionAction.INSTANCE,
-                    DeleteCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
+                new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE,
+                    ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),

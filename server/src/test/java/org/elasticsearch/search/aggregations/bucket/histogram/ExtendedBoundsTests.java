@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -104,7 +103,7 @@ public class ExtendedBoundsTests extends ESTestCase {
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
                 null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
         when(context.getQueryShardContext()).thenReturn(qsc);
-        DateFormatter formatter = Joda.forPattern("dateOptionalTime");
+        DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
 
         ExtendedBounds expected = randomParsedExtendedBounds();

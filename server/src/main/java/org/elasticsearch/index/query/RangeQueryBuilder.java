@@ -30,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -106,7 +105,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         timeZone = in.readOptionalTimeZone();
         String formatString = in.readOptionalString();
         if (formatString != null) {
-            format = Joda.forPattern(formatString);
+            format = DateFormatter.forPattern(formatString);
         }
         if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             String relationString = in.readOptionalString();
@@ -295,7 +294,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (format == null) {
             throw new IllegalArgumentException("format cannot be null");
         }
-        this.format = Joda.forPattern(format);
+        this.format = DateFormatter.forPattern(format);
         return this;
     }
 

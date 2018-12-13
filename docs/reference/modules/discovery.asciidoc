@@ -240,9 +240,11 @@ master-eligible nodes in the cluster using this setting:
     this list is empty, meaning that this node expects to join a cluster that
     has already been bootstrapped.
 
-This setting can be given on the command line when starting up each node, or
-added to the `elasticsearch.yml` configuration file. Once the cluster has
-formed this setting is no longer required and should be removed.
+This setting can be given on the command line when starting up each
+master-eligible node, or added to the `elasticsearch.yml` configuration file on
+those nodes. Once the cluster has formed this setting is no longer required and
+may be removed. It should be omitted on master-ineligible nodes, and on
+master-eligible nodes that are started to join an existing cluster.
 
 For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
 `master-a`, `master-b` and `master-c`) the configuration will look as follows:

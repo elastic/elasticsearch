@@ -228,7 +228,7 @@ public class RestoreService implements ClusterStateApplier {
                     if (currentState.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
                         // Check if another restore process is already running - cannot run two restore processes at the
                         // same time in versions prior to 7.0
-                        if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
+                        if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
                             throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
                         }
                     }
@@ -512,8 +512,7 @@ public class RestoreService implements ClusterStateApplier {
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
         boolean changesMade = false;
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
-        for (ObjectCursor<RestoreInProgress.Entry> entryValue : oldRestore.entries().values()) {
-            RestoreInProgress.Entry entry = entryValue.value;
+        for (RestoreInProgress.Entry entry : oldRestore) {
             ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = null;
             for (ObjectObjectCursor<ShardId, ShardRestoreStatus> cursor : entry.shards()) {
                 ShardId shardId = cursor.key;
@@ -572,7 +571,7 @@ public class RestoreService implements ClusterStateApplier {
             if (initializingShard.primary()) {
                 RecoverySource recoverySource = initializingShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                    changes(((SnapshotRecoverySource) recoverySource).restoreUUID()).shards.put(
+                    changes(recoverySource).shards.put(
                         initializingShard.shardId(),
                         new ShardRestoreStatus(initializingShard.currentNodeId(), RestoreInProgress.State.SUCCESS));
                 }
@@ -588,9 +587,9 @@ public class RestoreService implements ClusterStateApplier {
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
                     if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
-                        changes(((SnapshotRecoverySource) recoverySource).restoreUUID()).shards.put(
+                        changes(recoverySource).shards.put(
                             failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
-                            RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
+                                RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
                     }
                 }
             }
@@ -601,7 +600,7 @@ public class RestoreService implements ClusterStateApplier {
             // if we force an empty primary, we should also fail the restore entry
             if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
                 initializedShard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
-                changes(((SnapshotRecoverySource) unassignedShard.recoverySource()).restoreUUID()).shards.put(
+                changes(unassignedShard.recoverySource()).shards.put(
                     unassignedShard.shardId(),
                     new ShardRestoreStatus(null,
                         RestoreInProgress.State.FAILURE, "recovery source type changed from snapshot to " + initializedShard.recoverySource())
@@ -615,7 +614,7 @@ public class RestoreService implements ClusterStateApplier {
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                 if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     String reason = "shard could not be allocated to any of the nodes";
-                    changes(((SnapshotRecoverySource) recoverySource).restoreUUID()).shards.put(
+                    changes(recoverySource).shards.put(
                         unassignedShard.shardId(),
                         new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason));
                 }
@@ -623,10 +622,12 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         /**
-         * Helper method that creates update entry for the given shard id if such an entry does not exist yet.
+         * Helper method that creates update entry for the given recovery source's restore uuid
+         * if such an entry does not exist yet.
          */
-        private Updates changes(String restoreUUID) {
-            return shardChanges.computeIfAbsent(restoreUUID, k -> new Updates());
+        private Updates changes(RecoverySource recoverySource) {
+            assert recoverySource.getType() == RecoverySource.Type.SNAPSHOT;
+            return shardChanges.computeIfAbsent(((SnapshotRecoverySource) recoverySource).restoreUUID(), k -> new Updates());
         }
 
         private static class Updates {
@@ -636,20 +637,24 @@ public class RestoreService implements ClusterStateApplier {
         public RestoreInProgress applyChanges(final RestoreInProgress oldRestore) {
             if (shardChanges.isEmpty() == false) {
                 RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
-                for (ObjectObjectCursor<String, RestoreInProgress.Entry> entry : oldRestore.entries()) {
-                    Updates updates = shardChanges.get(entry.value.uuid());
-                    ImmutableOpenMap<ShardId, ShardRestoreStatus> shardStates = entry.value.shards();
-                    if (updates != null && updates.shards.isEmpty() == false && completed(shardStates) == false) {
+                for (RestoreInProgress.Entry entry : oldRestore) {
+                    Updates updates = shardChanges.get(entry.uuid());
+                    ImmutableOpenMap<ShardId, ShardRestoreStatus> shardStates = entry.shards();
+                    if (updates != null && updates.shards.isEmpty() == false) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(shardStates);
                         for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.shards.entrySet()) {
-                            shardsBuilder.put(shard.getKey(), shard.getValue());
+                            ShardId shardId = shard.getKey();
+                            ShardRestoreStatus status = shardStates.get(shardId);
+                            if (status == null || status.state().completed() == false) {
+                                shardsBuilder.put(shardId, shard.getValue());
+                            }
                         }
 
                         ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
-                        builder.add(new RestoreInProgress.Entry(entry.key, entry.value.snapshot(), newState, entry.value.indices(), shards));
+                        builder.add(new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.indices(), shards));
                     } else {
-                        builder.add(entry.value);
+                        builder.add(entry);
                     }
                 }
                 return builder.build();
@@ -662,7 +667,7 @@ public class RestoreService implements ClusterStateApplier {
     public static RestoreInProgress.Entry restoreInProgress(ClusterState state, String restoreUUID) {
         final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
-            return restoreInProgress.entries().get(restoreUUID);
+            return restoreInProgress.get(restoreUUID);
         }
         return null;
     }
@@ -696,11 +701,11 @@ public class RestoreService implements ClusterStateApplier {
             final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
             boolean changed = false;
             if (restoreInProgress != null) {
-                for (ObjectObjectCursor<String, RestoreInProgress.Entry> entry : restoreInProgress.entries()) {
-                    if (completedRestores.contains(entry.key)) {
+                for (RestoreInProgress.Entry entry : restoreInProgress) {
+                    if (completedRestores.contains(entry.uuid())) {
                         changed = true;
                     } else {
-                        restoreInProgressBuilder.add(entry.value);
+                        restoreInProgressBuilder.add(entry);
                     }
                 }
             }
@@ -730,12 +735,12 @@ public class RestoreService implements ClusterStateApplier {
 
         RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
-            for (ObjectObjectCursor<String, RestoreInProgress.Entry> entry : restoreInProgress.entries()) {
-                if (entry.value.state().completed()) {
-                    assert completed(entry.value.shards()) : "state says completed but restore entries are not";
+            for (RestoreInProgress.Entry entry : restoreInProgress) {
+                if (entry.state().completed()) {
+                    assert completed(entry.shards()) : "state says completed but restore entries are not";
                     clusterService.submitStateUpdateTask(
                         "clean up snapshot restore state",
-                        new CleanRestoreStateTaskExecutor.Task(entry.value.uuid()),
+                        new CleanRestoreStateTaskExecutor.Task(entry.uuid()),
                         ClusterStateTaskConfig.build(Priority.URGENT),
                         cleanRestoreStateTaskExecutor,
                         cleanRestoreStateTaskExecutor);
@@ -832,8 +837,8 @@ public class RestoreService implements ClusterStateApplier {
         RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
         if (restore != null) {
             Set<Index> indicesToFail = null;
-            for (ObjectObjectCursor<String, RestoreInProgress.Entry> entry : restore.entries()) {
-                for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.value.shards()) {
+            for (RestoreInProgress.Entry entry : restore) {
+                for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
                     if (!shard.value.state().completed()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
                         if (indexMetaData != null && indices.contains(indexMetaData)) {
@@ -870,10 +875,10 @@ public class RestoreService implements ClusterStateApplier {
      * @return true if repository is currently in use by one of the running snapshots
      */
     public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
-        RestoreInProgress snapshots = clusterState.custom(RestoreInProgress.TYPE);
-        if (snapshots != null) {
-            for (ObjectCursor<RestoreInProgress.Entry> snapshot : snapshots.entries().values()) {
-                if (repository.equals(snapshot.value.snapshot().getRepository())) {
+        RestoreInProgress restoreInProgress = clusterState.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            for (RestoreInProgress.Entry entry: restoreInProgress) {
+                if (repository.equals(entry.snapshot().getRepository())) {
                     return true;
                 }
             }

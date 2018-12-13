@@ -1115,7 +1115,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         RestoreInProgress restoreInProgress = clusterStateResponse.getState().custom(RestoreInProgress.TYPE);
         assertNotNull("RestoreInProgress must be not null", restoreInProgress);
         assertTrue(
-            "RestoreInProgress must be empty but found entries " + restoreInProgress.entries(), restoreInProgress.entries().isEmpty());
+            "RestoreInProgress must be empty but found entries in " + restoreInProgress, restoreInProgress.isEmpty());
 
         // check that the shards have been created but are not assigned
         assertThat(clusterStateResponse.getState().getRoutingTable().allShards(indexName), hasSize(numShards.totalNumShards));

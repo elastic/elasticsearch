@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.XPackLicenseState;
@@ -115,6 +116,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
+    private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
     private Client client;
 
     /**
@@ -156,10 +158,11 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
 
         this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, client));
-
+        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(settings);
+        this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
             ccrLicenseChecker,
-            new CcrRestoreSourceService(settings),
+            restoreSourceService,
             new AutoFollowCoordinator(client, clusterService, ccrLicenseChecker)
         );
     }
@@ -287,6 +290,11 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings);
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addIndexEventListener(this.restoreSourceService.get());
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

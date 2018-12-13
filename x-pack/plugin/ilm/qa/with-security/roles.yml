@@ -1,7 +1,7 @@
 ilm:
   cluster:
     - monitor
-    - manage
+    - manage_ilm
   indices:
     - names: [ 'view-only-*' ]
       privileges:

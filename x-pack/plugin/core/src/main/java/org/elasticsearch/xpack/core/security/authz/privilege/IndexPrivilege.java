@@ -62,6 +62,7 @@ public final class IndexPrivilege extends Privilege {
             ExplainLifecycleAction.NAME);
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
         CloseIndexAction.NAME);
+    private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",              ALL_AUTOMATON);
@@ -77,6 +78,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege CREATE_INDEX =        new IndexPrivilege("create_index",        CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
+    public static final IndexPrivilege MANAGE_ILM =          new IndexPrivilege("manage_ilm",          MANAGE_ILM_AUTOMATON);
 
     private static final Map<String, IndexPrivilege> VALUES = MapBuilder.<String, IndexPrivilege>newMapBuilder()
             .put("none", NONE)
@@ -93,6 +95,7 @@ public final class IndexPrivilege extends Privilege {
             .put("view_index_metadata", VIEW_METADATA)
             .put("read_cross_cluster", READ_CROSS_CLUSTER)
             .put("manage_follow_index", MANAGE_FOLLOW_INDEX)
+            .put("manage_ilm", MANAGE_ILM)
             .immutableMap();
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();

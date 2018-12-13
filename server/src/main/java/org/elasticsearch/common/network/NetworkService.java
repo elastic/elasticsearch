@@ -39,13 +39,14 @@ public final class NetworkService {
 
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
+    public static final Setting<Boolean> NETWORK_SERVER =
+        Setting.boolSetting("network.server", true, Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
         Setting.listSetting("network.host", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_BIND_HOST_SETTING =
         Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISH_HOST_SETTING =
         Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
 
     public static final Setting<Boolean> TCP_NO_DELAY =
         Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);

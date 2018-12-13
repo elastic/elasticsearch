@@ -61,6 +61,8 @@ public final class TransportSettings {
         key -> new Setting<>(key, PORT, Function.identity(), Setting.Property.NodeScope));
     public static final Setting<Integer> PUBLISH_PORT =
         intSetting("transport.publish_port", -1, -1, Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
+        key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
     // TODO: Deprecate in 7.0
     public static final Setting<Boolean> OLD_TRANSPORT_COMPRESS =
         boolSetting("transport.tcp.compress", false, Setting.Property.NodeScope);
@@ -73,8 +75,6 @@ public final class TransportSettings {
         timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
     public static final Setting<TimeValue> CONNECT_TIMEOUT =
         timeSetting("transport.connect_timeout", TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
-    public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
-        key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
     public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);
 
     // Tcp socket settings

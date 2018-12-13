@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.junit.Before;
@@ -55,6 +56,14 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.closeSession(sessionUUID3, indexShard2);
 
         closeShards(indexShard1, indexShard2);
+    }
+
+    public void testCannotOpenSessionForClosedShard() throws IOException {
+        IndexShard indexShard = newStartedShard(true);
+        closeShards(indexShard);
+        String sessionUUID = UUIDs.randomBase64UUID();
+        expectThrows(IllegalIndexShardStateException.class, () -> restoreSourceService.openSession(sessionUUID, indexShard));
+        assertNull(restoreSourceService.getIndexCommit(sessionUUID));
     }
 
     public void testCloseSession() throws IOException {
@@ -113,6 +122,5 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.closeSession(sessionUUID3, indexShard2);
         closeShards(indexShard1, indexShard2);
-
     }
 }

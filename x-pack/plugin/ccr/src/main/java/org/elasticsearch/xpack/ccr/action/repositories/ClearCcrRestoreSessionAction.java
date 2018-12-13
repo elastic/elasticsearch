@@ -82,9 +82,6 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
-            if (true) {
-                throw new UnsupportedOperationException();
-            }
             ccrRestoreService.closeSession(request.getSessionUUID(), indexShard);
             return new Response(clusterService.localNode());
         }

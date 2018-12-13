@@ -106,7 +106,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 logger.debug("session [{}] already exists", sessionUUID);
                 commit = onGoingRestores.get(sessionUUID);
             } else {
-                // TODO: Add test
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     throw new IllegalIndexShardStateException(indexShard.shardId(), IndexShardState.CLOSED,
                         "cannot open ccr restore session if shard closed");
@@ -117,14 +116,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
                 sessions.add(sessionUUID);
             }
-            indexShard.store().incRef();
-            try {
-                Store.MetadataSnapshot metadata = indexShard.store().getMetadata(commit.getIndexCommit());
-                success = true;
-                return metadata;
-            } finally {
-                indexShard.store().decRef();
-            }
+            Store.MetadataSnapshot metaData = getMetaData(indexShard, commit);
+            success = true;
+            return metaData;
         } finally {
             if (success ==  false) {
                 onGoingRestores.remove(sessionUUID);
@@ -146,11 +140,22 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         IOUtils.closeWhileHandlingException(commit);
     }
 
+    private Store.MetadataSnapshot getMetaData(IndexShard indexShard, Engine.IndexCommitRef commit) throws IOException {
+        indexShard.store().incRef();
+        try {
+            return indexShard.store().getMetadata(commit.getIndexCommit());
+        } finally {
+            indexShard.store().decRef();
+        }
+    }
+
     private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
         HashSet<String> sessions = sessionsForShard.get(indexShard);
-        sessions.remove(sessionUUID);
-        if (sessions.isEmpty()) {
-            sessionsForShard.remove(indexShard);
+        if (sessions != null) {
+            sessions.remove(sessionUUID);
+            if (sessions.isEmpty()) {
+                sessionsForShard.remove(indexShard);
+            }
         }
     }
 }

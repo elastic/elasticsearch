@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -355,7 +354,7 @@ public class TypeParsers {
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
-            return Joda.forPattern((String) node);
+            return DateFormatter.forPattern((String) node);
         }
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }

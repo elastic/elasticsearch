@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -167,28 +168,31 @@ public final class SearchAsYouTypeFieldMappers {
             final SuggesterizedFieldMapper withEdgeNGramsMapper = new SuggesterizedFieldMapper(withEdgeNgrams, context.indexSettings());
 
             for (int numberOfShingles = 2; numberOfShingles <= maxShingleSize; numberOfShingles++) {
-                final SuggesterizedFieldType withShingles = new SuggesterizedFieldType(
-                    name() + "._with_" + numberOfShingles + "_shingles", true, numberOfShingles, false);
+
                 final SuggesterizedFieldType withShinglesAndEdgeNGrams = new SuggesterizedFieldType(
                     name() + "._with_" + numberOfShingles + "_shingles_and_edge_ngrams", true, numberOfShingles, true);
+                final SuggesterizedFieldType withShingles = new SuggesterizedFieldType(
+                    name() + "._with_" + numberOfShingles + "_shingles", true, numberOfShingles, false, withShinglesAndEdgeNGrams);
 
                 final SearchAsYouTypeAnalyzer withShinglesAnalyzer =
                     SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer, numberOfShingles);
                 final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
                     SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(originalAnalyzer, numberOfShingles);
 
-                withShingles.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
-                withShingles.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
-
                 withShinglesAndEdgeNGrams.setIndexAnalyzer(
                     new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAndEdgeNGramsAnalyzer));
                 withShinglesAndEdgeNGrams.setSearchAnalyzer(
                     new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
 
-                withShinglesMappers.put(numberOfShingles,
-                    new SuggesterizedFieldMapper(withShingles, context.indexSettings()));
-                withShinglesAndEdgeNGramsMappers.put(numberOfShingles,
-                    new SuggesterizedFieldMapper(withShinglesAndEdgeNGrams, context.indexSettings()));
+                withShingles.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+                withShingles.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+
+                final SuggesterizedFieldMapper withShinglesAndEdgeNGramsMapper =
+                    new SuggesterizedFieldMapper(withShinglesAndEdgeNGrams, context.indexSettings());
+                final SuggesterizedFieldMapper withShinglesMapper =
+                    new SuggesterizedFieldMapper(withShingles, context.indexSettings(), withShinglesAndEdgeNGramsMapper);
+                withShinglesAndEdgeNGramsMappers.put(numberOfShingles, withShinglesAndEdgeNGramsMapper);
+                withShinglesMappers.put(numberOfShingles, withShinglesMapper);
             }
 
             final SuggesterizedFields suggesterizedFields =
@@ -226,6 +230,7 @@ public final class SearchAsYouTypeFieldMappers {
         }
     }
 
+    // todo make these conform to method naming rules and change to hasBlah
     public static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
@@ -297,12 +302,22 @@ public final class SearchAsYouTypeFieldMappers {
         private final boolean hasShingles;
         private final int shingleSize;
         private final boolean hasEdgeNGrams;
+        private final SuggesterizedFieldType withEdgeNGramsField;
 
         SuggesterizedFieldType() {
             this(null, false, -1, false);
         }
 
         SuggesterizedFieldType(String name, boolean hasShingles, int shingleSize, boolean hasEdgeNGrams) {
+            this(name, hasShingles, shingleSize, hasEdgeNGrams, null);
+        }
+
+        SuggesterizedFieldType(String name,
+                               boolean hasShingles,
+                               int shingleSize,
+                               boolean hasEdgeNGrams,
+                               SuggesterizedFieldType withEdgeNGramsField) {
+
             setOmitNorms(true);
             setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             setTokenized(true);
@@ -311,6 +326,7 @@ public final class SearchAsYouTypeFieldMappers {
             this.hasShingles = hasShingles;
             this.shingleSize = shingleSize;
             this.hasEdgeNGrams = hasEdgeNGrams;
+            this.withEdgeNGramsField = withEdgeNGramsField;
         }
 
         SuggesterizedFieldType(SuggesterizedFieldType reference) {
@@ -319,6 +335,11 @@ public final class SearchAsYouTypeFieldMappers {
             this.hasShingles = reference.hasShingles;
             this.shingleSize = reference.shingleSize;
             this.hasEdgeNGrams = reference.hasEdgeNGrams;
+            if (reference.withEdgeNGramsField != null) {
+                this.withEdgeNGramsField = reference.withEdgeNGramsField.clone();
+            } else {
+                this.withEdgeNGramsField = null;
+            }
         }
 
         @Override
@@ -347,18 +368,63 @@ public final class SearchAsYouTypeFieldMappers {
         public boolean hasEdgeNGrams() {
             return hasEdgeNGrams;
         }
+
+        public SuggesterizedFieldType withEdgeNGramsField() {
+            return withEdgeNGramsField;
+        }
+
+        @Override
+        public boolean equals(Object otherObject) {
+            if (super.equals(otherObject) == false) {
+                return false;
+            }
+            final SuggesterizedFieldType other = (SuggesterizedFieldType) otherObject;
+            return Objects.equals(this.hasShingles, other.hasShingles)
+                && Objects.equals(this.shingleSize, other.shingleSize)
+                && Objects.equals(this.hasEdgeNGrams, other.hasEdgeNGrams)
+                && Objects.equals(this.withEdgeNGramsField, other.withEdgeNGramsField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), hasShingles, shingleSize, hasEdgeNGrams, withEdgeNGramsField);
+        }
     }
 
     public static class SuggesterizedFieldMapper extends FieldMapper implements ArrayValueMapperParser { // todo better name
 
+        private final SuggesterizedFieldMapper withEdgeNGramsField;
+
         protected SuggesterizedFieldMapper(SuggesterizedFieldType fieldType, Settings indexSettings) {
 
-            this(fieldType.name(), fieldType, indexSettings, CopyTo.empty());
+            this(fieldType, indexSettings, null);
+        }
+
+        protected SuggesterizedFieldMapper(SuggesterizedFieldType fieldType,
+                                           Settings indexSettings,
+                                           SuggesterizedFieldMapper withEdgeNGramsField) {
+
+            this(fieldType.name(), fieldType, indexSettings, CopyTo.empty(), withEdgeNGramsField);
         }
 
         protected SuggesterizedFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, CopyTo copyTo) {
 
+            this(simpleName, fieldType, indexSettings, copyTo, null);
+        }
+
+        private SuggesterizedFieldMapper(String simpleName,
+                                         MappedFieldType fieldType,
+                                         Settings indexSettings,
+                                         CopyTo copyTo,
+                                         SuggesterizedFieldMapper withEdgeNGramsField) {
+
             super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), copyTo);
+
+            this.withEdgeNGramsField = withEdgeNGramsField;
+        }
+
+        public SuggesterizedFieldMapper withEdgeNGramsField() {
+            return withEdgeNGramsField;
         }
 
         @Override

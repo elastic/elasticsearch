@@ -21,7 +21,7 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
     private ShardId shardId;
     private Store.MetadataSnapshot metaData;
 
-    public PutCcrRestoreSessionRequest() {
+    PutCcrRestoreSessionRequest() {
     }
 
     public PutCcrRestoreSessionRequest(String sessionUUID, ShardId shardId, Store.MetadataSnapshot metaData) {

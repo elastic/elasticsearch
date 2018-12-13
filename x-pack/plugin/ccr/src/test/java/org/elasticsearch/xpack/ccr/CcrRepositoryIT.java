@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,9 +32,11 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
@@ -149,6 +152,47 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         // UUID is changed so that we can follow indexes on same cluster
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
+    }
+
+    public void testThatSessionIsRegisteredWithPrimaryShard() throws IOException {
+        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
+        String leaderIndex = "index1";
+        String followerIndex = "index2";
+
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderGreen(leaderIndex);
+
+        final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
+        final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
+
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
+            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
+            "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
+            false, true, settingsBuilder.build(), new String[0],
+            "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
+
+        Set<String> sessionsOpened = ConcurrentCollections.newConcurrentSet();
+        Set<String> sessionsClosed = ConcurrentCollections.newConcurrentSet();
+        for (CcrRestoreSourceService restoreSourceService : getLeaderCluster().getDataNodeInstances(CcrRestoreSourceService.class)) {
+            restoreSourceService.addOpenSessionListener(sessionsOpened::add);
+            restoreSourceService.addCloseSessionListener(sessionsClosed::add);
+        }
+
+        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
+        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        RestoreInfo restoreInfo = future.actionGet();
+
+        assertEquals(numberOfPrimaryShards, sessionsOpened.size());
+        assertEquals(numberOfPrimaryShards, sessionsClosed.size());
+
+        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
+        assertEquals(0, restoreInfo.failedShards());
     }
 
     private ActionListener<RestoreService.RestoreCompletionResponse> waitForRestore(ClusterService clusterService,

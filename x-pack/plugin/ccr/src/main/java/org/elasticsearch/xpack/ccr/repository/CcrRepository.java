@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -23,7 +21,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
@@ -58,8 +55,6 @@ import java.util.Set;
  * restore shards/indexes that exist on the remote cluster.
  */
 public class CcrRepository extends AbstractLifecycleComponent implements Repository {
-
-    private static final Logger logger = LogManager.getLogger(CcrRestoreSourceService.class);
 
     public static final String LATEST = "_latest_";
     public static final String TYPE = "_ccr_";

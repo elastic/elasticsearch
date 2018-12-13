@@ -15,26 +15,21 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
-
-import java.io.IOException;
 
 public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessionAction.DeleteCcrRestoreSessionResponse> {
 
     public static final DeleteCcrRestoreSessionAction INSTANCE = new DeleteCcrRestoreSessionAction();
     private static final String NAME = "internal:admin/ccr/restore/session/delete";
 
-    protected DeleteCcrRestoreSessionAction() {
+    private DeleteCcrRestoreSessionAction() {
         super(NAME);
     }
 
@@ -60,7 +55,7 @@ public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessio
         }
 
         @Override
-        protected DeleteCcrRestoreSessionResponse shardOperation(DeleteCcrRestoreSessionRequest request, ShardId shardId) throws IOException {
+        protected DeleteCcrRestoreSessionResponse shardOperation(DeleteCcrRestoreSessionRequest request, ShardId shardId) {
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);

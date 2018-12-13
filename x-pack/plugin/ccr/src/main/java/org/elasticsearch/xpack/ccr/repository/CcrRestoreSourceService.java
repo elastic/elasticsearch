@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
 
@@ -31,6 +33,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private final Map<String, Engine.IndexCommitRef> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
+    private final CopyOnWriteArrayList<Consumer<String>> openSessionListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
 
     public CcrRestoreSourceService(Settings settings) {
         super(settings);
@@ -63,8 +67,20 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     @Override
-    protected void doClose() throws IOException {
+    protected synchronized void doClose() throws IOException {
+        sessionsForShard.clear();
         IOUtils.closeWhileHandlingException(onGoingRestores.values());
+        onGoingRestores.clear();
+    }
+
+    // TODO: The listeners are for testing. Once end-to-end file restore is implemented and can be tested,
+    //  these should be removed.
+    public void addOpenSessionListener(Consumer<String> listener) {
+        openSessionListeners.add(listener);
+    }
+
+    public void addCloseSessionListener(Consumer<String> listener) {
+        closeSessionListeners.add(listener);
     }
 
     // default visibility for testing
@@ -79,10 +95,17 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
         logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard);
-        HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
-        sessions.add(sessionUUID);
-        Engine.IndexCommitRef commit = indexShard.acquireSafeIndexCommit();
-        onGoingRestores.put(sessionUUID, commit);
+        Engine.IndexCommitRef commit;
+        if (onGoingRestores.containsKey(sessionUUID)) {
+            logger.debug("session [{}] already exists", sessionUUID);
+            commit = onGoingRestores.get(sessionUUID);
+        } else {
+            commit = indexShard.acquireSafeIndexCommit();
+            onGoingRestores.put(sessionUUID, commit);
+            openSessionListeners.forEach(c -> c.accept(sessionUUID));
+            HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
+            sessions.add(sessionUUID);
+        }
         indexShard.store().incRef();
         try {
             return indexShard.store().getMetadata(commit.getIndexCommit());
@@ -93,6 +116,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     public synchronized void closeSession(String sessionUUID, IndexShard indexShard) {
         logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
+        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
         Engine.IndexCommitRef commit = onGoingRestores.remove(sessionUUID);
         if (commit == null) {
             logger.info("could not close session [{}] for shard [{}] because session not found", sessionUUID, indexShard);

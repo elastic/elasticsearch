@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.user.BwcXPackUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
@@ -274,31 +276,31 @@ public class ServerTransportFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq((User) null), any(ActionListener.class));
-        AtomicReference<String[]> rolesRef = new AtomicReference<>();
+        AtomicReference<User> userRef = new AtomicReference<>();
         final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            rolesRef.set(((User) i.getArguments()[0]).roles());
+            userRef.set((User) i.getArguments()[0]);
             callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         ServerTransportFilter filter = getClientOrNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
-        assertNotNull(rolesRef.get());
-        assertThat(rolesRef.get(), arrayContaining("superuser"));
+        assertThat(userRef.get(), sameInstance(BwcXPackUser.INSTANCE));
+        assertThat(userRef.get().roles(), arrayContaining("superuser"));
 
         // test with a version that doesn't need changing
         filter = getClientOrNodeFilter();
-        rolesRef.set(null);
+        userRef.set(null);
         user = XPackUser.INSTANCE;
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getVersion()).thenReturn(Version.V_5_6_1);
         future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
-        assertNotNull(rolesRef.get());
-        assertThat(rolesRef.get(), arrayContaining(XPackUser.ROLE_NAME));
+        assertThat(userRef.get(), sameInstance(XPackUser.INSTANCE));
+        assertThat(userRef.get().roles(), arrayContaining(XPackUser.ROLE_NAME));
     }
 
     private ServerTransportFilter getClientOrNodeFilter() throws IOException {

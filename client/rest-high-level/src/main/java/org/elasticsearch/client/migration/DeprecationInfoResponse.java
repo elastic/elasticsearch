@@ -141,8 +141,6 @@ public class DeprecationInfoResponse {
         }
 
         public enum Level {
-            NONE,
-            INFO,
             WARNING,
             CRITICAL
             ;

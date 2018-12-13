@@ -70,6 +70,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -1454,6 +1455,10 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, new DataNodePredicate());
     }
 
+    public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new NodeNamePredicate(getMasterName()));
+    }
+
     /**
      * Returns an Iterable to all instances for the given class &gt;T&lt; across all data and master nodes
      * in the cluster.
@@ -2208,23 +2213,24 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a predicate that only accepts settings of nodes with one of the given names.
      */
-    public static Predicate<Settings> nameFilter(String... nodeName) {
-        return new NodeNamePredicate(new HashSet<>(Arrays.asList(nodeName)));
+    public static Predicate<Settings> nameFilter(String... nodeNames) {
+        final Set<String> nodes = Sets.newHashSet(nodeNames);
+        return settings -> nodes.contains(settings.get("node.name"));
     }
 
-    private static final class NodeNamePredicate implements Predicate<Settings> {
+    private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
         private final HashSet<String> nodeNames;
 
-        NodeNamePredicate(HashSet<String> nodeNames) {
-            this.nodeNames = nodeNames;
+        NodeNamePredicate(String... nodeNames) {
+            this.nodeNames = Sets.newHashSet(nodeNames);
         }
 
         @Override
-        public boolean test(Settings settings) {
-            return nodeNames.contains(settings.get("node.name"));
-
+        public boolean test(NodeAndClient nodeAndClient) {
+            return nodeNames.contains(nodeAndClient.getName());
         }
     }
+
 
 
     /**

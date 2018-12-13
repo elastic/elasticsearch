@@ -211,9 +211,10 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             }
         }
 
-        if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndex.getSettings()) == false) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
-                "] does not have soft deletes enabled");
+                "] does not have soft deletes enabled. soft deletes must be enabled when the index is created by setting "
+                + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + " to true");
         }
         if (followIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");

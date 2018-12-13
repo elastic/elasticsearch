@@ -58,6 +58,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Binder;
@@ -410,7 +411,7 @@ public abstract class Node implements Closeable {
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(bigArrays);
+            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -547,7 +548,8 @@ public abstract class Node implements Closeable {
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
             final PersistentTasksClusterService persistentTasksClusterService =
-                new PersistentTasksClusterService(settings, registry, clusterService);
+                new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
+            resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
             modules.add(b -> {
@@ -563,6 +565,7 @@ public abstract class Node implements Closeable {
                     b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                     b.bind(BigArrays.class).toInstance(bigArrays);
+                    b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
@@ -736,7 +739,7 @@ public abstract class Node implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)
             .stream()
@@ -917,7 +920,7 @@ public abstract class Node implements Closeable {
 
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(injector.getInstance(BigArrays.class));
+        toClose.add(injector.getInstance(PageCacheRecycler.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
@@ -1000,7 +1003,7 @@ public abstract class Node implements Closeable {
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
     BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(pageCacheRecycler, circuitBreakerService);
+        return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
     }
 
     /**

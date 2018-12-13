@@ -73,11 +73,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected boolean transportCompress() {
-        return true; // compress since the metadata can become large
-    }
-
-    @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
         return new NodeRequest(nodeId, request);
     }

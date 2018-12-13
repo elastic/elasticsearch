@@ -30,6 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.client.migration.DeprecationInfoResponse.DeprecationIssue.Level.CRITICAL;
+import static org.elasticsearch.client.migration.DeprecationInfoResponse.DeprecationIssue.Level.WARNING;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class DeprecationInfoResponseTests extends ESTestCase {
@@ -94,7 +96,7 @@ public class DeprecationInfoResponseTests extends ESTestCase {
         // of elements for this list.
         int startingRandomNumber = canBeEmpty ? 0: 1;
         for (int i =0; i < randomIntBetween(startingRandomNumber, 2); i++) {
-            list.add(new DeprecationInfoResponse.DeprecationIssue(DeprecationInfoResponse.DeprecationIssue.Level.INFO,
+            list.add(new DeprecationInfoResponse.DeprecationIssue(randomFrom(WARNING, CRITICAL),
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
                 randomBoolean() ? randomAlphaOfLength(5) : null));

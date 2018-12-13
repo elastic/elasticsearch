@@ -79,7 +79,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         putFollowRequest.setFollowRequest(followRequest);
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
-        assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
+        assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled. " +
+            "soft deletes must be enabled when the index is created by setting " + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()
+            + " to true"));
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 

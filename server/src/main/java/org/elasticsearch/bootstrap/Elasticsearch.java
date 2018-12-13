@@ -80,10 +80,12 @@ class Elasticsearch extends EnvironmentAwareCommand {
          * forces such policies to take effect immediately.
          */
         System.setSecurityManager(new SecurityManager() {
+
             @Override
             public void checkPermission(Permission perm) {
                 // grant all permissions so that we can later set the security manager to the one that we want
             }
+
         });
         LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();

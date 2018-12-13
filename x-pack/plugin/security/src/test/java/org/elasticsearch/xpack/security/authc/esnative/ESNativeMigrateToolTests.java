@@ -20,10 +20,12 @@ import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -50,8 +52,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         logger.info("--> use SSL? {}", useSSL);
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal));
-        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
-                "xpack.security.http.");
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
         builder.put("xpack.security.http.ssl.enabled", useSSL);
         return builder.build();
     }
@@ -96,8 +97,13 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
                 .put("path.home", home)
                 .put("path.conf", conf.toString())
                 .put("xpack.security.http.ssl.client_authentication", "none");
-        addSSLSettingsForStore(builder,
-            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode", "xpack.security.http.");
+        addSSLSettingsForPEMFiles(
+            builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            "xpack.security.http.",
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Settings settings = builder.build();
         logger.error("--> retrieving users using URL: {}, home: {}", url, home);
 
@@ -140,8 +146,12 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", home)
                 .put("xpack.security.http.ssl.client_authentication", "none");
-        addSSLSettingsForStore(builder,
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient", "xpack.security.http.");
+        addSSLSettingsForPEMFiles(builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
+            "testclient",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+            "xpack.security.http.",
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Settings settings = builder.build();
         logger.error("--> retrieving roles using URL: {}, home: {}", url, home);
 

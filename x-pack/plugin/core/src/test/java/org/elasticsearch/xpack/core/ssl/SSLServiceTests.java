@@ -83,6 +83,8 @@ public class SSLServiceTests extends ESTestCase {
     private Path testnodeStore;
     private String testnodeStoreType;
     private Path testclientStore;
+    private Path testnodeCert;
+    private Path testnodeKey;
     private Environment env;
 
     @Before
@@ -97,6 +99,8 @@ public class SSLServiceTests extends ESTestCase {
             testnodeStoreType = randomBoolean() ? "PKCS12" : null;
         }
         logger.info("Using [{}] key/truststore [{}]", testnodeStoreType, testnodeStore);
+        testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         testclientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
         env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
     }
@@ -138,10 +142,10 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSslContextCachingWorks() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
+                .put("xpack.security.transport.ssl.certificate", testnodeCert)
+                .put("xpack.security.transport.ssl.key", testnodeKey)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -165,9 +169,9 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_key_password", "testnode1");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", differentPasswordsStore)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.keystore.path", differentPasswordsStore)
+            .setSecureSettings(secureSettings)
+            .build();
 
         final SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
@@ -182,9 +186,9 @@ public class SSLServiceTests extends ESTestCase {
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
             Settings settings = Settings.builder()
-                    .put("xpack.security.transport.ssl.keystore.path", differentPasswordsStore)
-                    .setSecureSettings(secureSettings)
-                    .build();
+                .put("xpack.security.transport.ssl.keystore.path", differentPasswordsStore)
+                .setSecureSettings(secureSettings)
+                .build();
             final SSLService sslService = new SSLService(settings, env);
             SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
             sslService.createSSLEngine(configuration, null, -1);
@@ -196,12 +200,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLv3IsNotEnabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -219,9 +223,9 @@ public class SSLServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testclient");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.truststore.path", testclientStore)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.truststore.path", testclientStore)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLEngine sslEngine = sslService.createSSLEngine(configuration, null, -1);
@@ -234,10 +238,10 @@ public class SSLServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
 
         assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
@@ -248,21 +252,21 @@ public class SSLServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.truststore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.truststore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.truststore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.truststore.type", testnodeStoreType)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         assertFalse(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
 
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         settings = Settings.builder()
-                .put("xpack.security.transport.ssl.truststore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.truststore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .build();
+            .put("xpack.security.transport.ssl.truststore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.truststore.type", testnodeStoreType)
+            .setSecureSettings(secureSettings)
+            .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
+            .build();
         sslService = new SSLService(settings, env);
         assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
     }
@@ -274,9 +278,9 @@ public class SSLServiceTests extends ESTestCase {
             is(XPackSettings.VERIFICATION_MODE_DEFAULT));
 
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.verification_mode", "certificate")
-                .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "full")
-                .build();
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "full")
+            .build();
         sslService = new SSLService(settings, env);
         assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").verificationMode(), is(VerificationMode.CERTIFICATE));
         assertThat(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").verificationMode(),
@@ -288,9 +292,9 @@ public class SSLServiceTests extends ESTestCase {
         assertTrue(sslService.getSSLConfiguration("xpack.security.transport.ssl").sslClientAuth().enabled());
 
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.client_authentication", "optional")
+            .put("xpack.security.transport.ssl.client_authentication", "optional")
             .put("transport.profiles.foo.port", "9400-9410")
-                .build();
+            .build();
         sslService = new SSLService(settings, env);
         assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
         assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
@@ -298,9 +302,9 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {
         final Settings globalSettings = Settings.builder()
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
-                .build();
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+            .build();
         final SSLService sslService = new SSLService(globalSettings, env);
 
         final SSLConfiguration globalConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
@@ -314,12 +318,12 @@ public class SSLServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .put("xpack.security.transport.ssl.truststore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.truststore.type", testnodeStoreType)
-                .build();
+            .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
+            .setSecureSettings(secureSettings)
+            .put("xpack.security.transport.ssl.truststore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.truststore.type", testnodeStoreType)
+            .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
         assertThat(e.getMessage(), is("failed to initialize a TrustManagerFactory"));
@@ -327,9 +331,9 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatKeystorePasswordIsRequired() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .build();
+            .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
+            .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
         assertThat(e.getMessage(), is("failed to create trust manager"));
@@ -340,13 +344,13 @@ public class SSLServiceTests extends ESTestCase {
         ciphers.add("foo");
         ciphers.add("bar");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .putList("xpack.security.transport.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
-                .build();
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .putList("xpack.security.transport.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -357,14 +361,14 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testInvalidCiphersOnlyThrowsException() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
 
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .putList("xpack.security.transport.ssl.cipher_suites", new String[] { "foo", "bar" })
-                .build();
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .putList("xpack.security.transport.ssl.cipher_suites", new String[] { "foo", "bar" })
+            .build();
         IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> new SSLService(settings, env));
         assertThat(e.getMessage(), is("none of the ciphers [foo, bar] are supported by this JVM"));
@@ -372,12 +376,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLEngineHasCipherSuitesOrderSet() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -387,12 +391,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final SSLSocketFactory factory = sslService.sslSocketFactory(config);
@@ -412,12 +416,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLEngineHasProperCiphersAndProtocols() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);

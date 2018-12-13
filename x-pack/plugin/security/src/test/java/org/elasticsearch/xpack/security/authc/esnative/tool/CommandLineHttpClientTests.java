@@ -44,16 +44,15 @@ public class CommandLineHttpClientTests extends ESTestCase {
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         webServer.close();
     }
 
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
-        Settings settings = Settings.builder().put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
-            .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE).setSecureSettings(secureSettings)
+        Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
+            .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE)
             .build();
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",

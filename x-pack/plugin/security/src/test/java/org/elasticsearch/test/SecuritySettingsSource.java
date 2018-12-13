@@ -217,7 +217,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-            true, hostnameVerificationEnabled, false);
+            hostnameVerificationEnabled, false);
     }
 
     private void addNodeSSLSettings(Settings.Builder builder) {
@@ -227,8 +227,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 addSSLSettingsForNodePEMFiles(builder, "xpack.security.transport.", hostnameVerificationEnabled);
             } else {
                 addSSLSettingsForStore(builder, "xpack.security.transport.",
-                        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
-                        true, hostnameVerificationEnabled, false);
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
+                    hostnameVerificationEnabled, false);
             }
         } else if (randomBoolean()) {
             builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), false);
@@ -236,16 +236,17 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     public void addClientSSLSettings(Settings.Builder builder, String prefix) {
+        builder.put("xpack.security.transport.ssl.enabled", sslEnabled);
         if (usePEM) {
             addSSLSettingsForPEMFiles(builder, prefix,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
                               "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
-                    sslEnabled, hostnameVerificationEnabled, true);
+                hostnameVerificationEnabled, true);
         } else {
             addSSLSettingsForStore(builder, prefix, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
-                "testclient", sslEnabled, hostnameVerificationEnabled, true);
+                "testclient", hostnameVerificationEnabled, true);
         }
     }
 
@@ -256,12 +257,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
      * @param password the password
      */
     public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password, String prefix) {
-        addSSLSettingsForStore(builder, prefix, resourcePathToStore, password, true, true, true);
+        addSSLSettingsForStore(builder, prefix, resourcePathToStore, password, true, true);
     }
 
     private static void addSSLSettingsForStore(Settings.Builder builder, String prefix, String resourcePathToStore, String password,
-                                               boolean sslEnabled, boolean hostnameVerificationEnabled,
-                                               boolean transportClient) {
+                                               boolean hostnameVerificationEnabled, boolean transportClient) {
         Path store = resolveResourcePath(resourcePathToStore);
         builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         builder.put(prefix + "ssl.keystore.path", store);
@@ -300,7 +300,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
      */
     public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
                                                  String certificatePath, List<String> trustedCertificates) {
-        addSSLSettingsForPEMFiles(builder, "", keyPath, password, certificatePath, trustedCertificates, true, true, true);
+        addSSLSettingsForPEMFiles(builder, "", keyPath, password, certificatePath, trustedCertificates, true, true);
     }
 
     /**
@@ -317,11 +317,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
      */
     public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
                                                  String certificatePath, String prefix, List<String> trustedCertificates) {
-        addSSLSettingsForPEMFiles(builder, prefix, keyPath, password, certificatePath, trustedCertificates, true, true, true);
+        addSSLSettingsForPEMFiles(builder, prefix, keyPath, password, certificatePath, trustedCertificates, true, true);
     }
 
     private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,
-                                                  String certificatePath, List<String> trustedCertificates, boolean sslEnabled,
+                                                  String certificatePath, List<String> trustedCertificates,
                                                   boolean hostnameVerificationEnabled, boolean transportClient) {
         if (prefix.equals("")) {
             prefix = "xpack.security.transport.";

@@ -5,16 +5,12 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
-import java.util.List;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
@@ -24,6 +20,8 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.AuthnRequest;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
@@ -36,18 +34,16 @@ public final class TransportSamlPrepareAuthenticationAction
     private final Realms realms;
 
     @Inject
-    public TransportSamlPrepareAuthenticationAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                    Realms realms) {
-        super(settings, SamlPrepareAuthenticationAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SamlPrepareAuthenticationRequest::new);
+    public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
+        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters,
+            SamlPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(SamlPrepareAuthenticationRequest request,
+    protected void doExecute(Task task, SamlPrepareAuthenticationRequest request,
                              ActionListener<SamlPrepareAuthenticationResponse> listener) {
-        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL()         );
+        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {

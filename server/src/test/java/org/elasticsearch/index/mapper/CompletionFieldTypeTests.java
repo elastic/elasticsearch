@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.junit.Before;
@@ -52,7 +50,8 @@ public class CompletionFieldTypeTests extends FieldTypeTestCase {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(), ContextBuilder.geo("geo").build()));
+                ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(),
+                    ContextBuilder.geo("geo").build()));
                 cft.setContextMappings(contextMappings);
             }
         });

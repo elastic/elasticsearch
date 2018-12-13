@@ -26,7 +26,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -47,7 +47,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -220,11 +219,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = in.readEnum(XContentType.class);
-                } else {
-                    xContentType = XContentHelper.xContentType(doc);
-                }
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 id = in.readString();
             }
@@ -242,9 +237,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    out.writeEnum(xContentType);
-                }
+                out.writeEnum(xContentType);
             } else {
                 out.writeString(id);
             }
@@ -759,21 +752,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return failOnUnsupportedField;
     }
 
-    /**
-     * Converts an array of String ids to and Item[].
-     * @param ids the ids to convert
-     * @return the new items array
-     * @deprecated construct the items array externally and use it in the constructor / setter
-     */
-    @Deprecated
-    public static Item[] ids(String... ids) {
-        Item[] items = new Item[ids.length];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = new Item(null, null, ids[i]);
-        }
-        return items;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -1118,6 +1096,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         for (MultiTermVectorsItemResponse response : responses) {
             if (response.isFailed()) {
+                checkRoutingMissingException(response);
                 continue;
             }
             TermVectorsResponse getResponse = response.getResponse();
@@ -1127,6 +1106,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             likeFields.add(getResponse.getFields());
         }
         return likeFields.toArray(Fields.EMPTY_ARRAY);
+    }
+
+    private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
+        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
+        if (cause != null) {
+            throw ((RoutingMissingException) cause);
+        }
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {

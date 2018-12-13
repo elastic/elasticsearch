@@ -34,12 +34,16 @@ than or equal to 25:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The path to the array in the execution
     context that you want to evaluate, specified in dot notation.
 <2> The path to the field in each array element that you want to evaluate.
 <3> The <<condition-compare-operators, comparison operator>> to use.
 <4> The comparison value. Supports date math like the 
     <<compare-condition-date-math, compare condition>>.
+
+NOTE: When using fieldnames that contain a dot this condition will not
+work, use a <<condition-script,script condition>> instead.
 
 ==== Array-Compare Condition Attributes
 

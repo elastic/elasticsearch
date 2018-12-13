@@ -20,8 +20,10 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,12 +35,16 @@ import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -50,6 +56,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -115,7 +123,10 @@ public class MasterServiceTests extends ESTestCase {
                 .masterNodeId(makeMaster ? localNode.getId() : null))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        timedMasterService.setClusterStatePublisher((event, ackListener) -> clusterStateRef.set(event.state()));
+        timedMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            clusterStateRef.set(event.state());
+            publishListener.onResponse(null);
+        });
         timedMasterService.setClusterStateSupplier(clusterStateRef::get);
         timedMasterService.start();
         return timedMasterService;
@@ -163,6 +174,94 @@ public class MasterServiceTests extends ESTestCase {
         assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
 
         nonMaster.close();
+    }
+
+    public void testThreadContext() throws InterruptedException {
+        final TimedMasterService master = createTimedMasterService(true);
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap("testResponse",
+                Arrays.asList("testResponse"));
+            threadPool.getThreadContext().putHeader(expectedHeaders);
+
+            final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
+            final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
+
+            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    assertTrue(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                    threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+
+                    if (randomBoolean()) {
+                        return ClusterState.builder(currentState).build();
+                    } else if (randomBoolean()) {
+                        return currentState;
+                    } else {
+                        throw new IllegalArgumentException("mock failure");
+                    }
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                protected Void newResponse(boolean acknowledged) {
+                    return null;
+                }
+
+                public TimeValue ackTimeout() {
+                    return ackTimeout;
+                }
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+            });
+
+            assertFalse(threadPool.getThreadContext().isSystemContext());
+            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getResponseHeaders());
+        }
+
+        latch.await();
+
+        master.close();
     }
 
     /*
@@ -214,23 +313,23 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test1]: took [1s] no change in cluster state"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.TRACE,
                 "*failed to execute cluster state update in [2s]*"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test3]: took [3s] done publishing updated cluster state (version: *, uuid: *)"));
 
-        Logger clusterLogger = Loggers.getLogger(masterService.getClass().getPackage().getName());
+        Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
@@ -555,29 +654,29 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test1 shouldn't see because setting is too low",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test1] took [*] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test2] took [32s] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test3] took [33s] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
-                masterService.getClass().getName(),
+                MasterService.class.getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test4] took [34s] above the warn threshold of *"));
 
-        Logger clusterLogger = Loggers.getLogger(masterService.getClass().getPackage().getName());
+        Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(5);
@@ -680,12 +779,138 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.assertAllExpectationsMatched();
     }
 
+    public void testAcking() throws InterruptedException {
+        final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        TimedMasterService timedMasterService = new TimedMasterService(Settings.builder().put("cluster.name",
+            MasterServiceTests.class.getSimpleName()).build(), threadPool);
+        ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder()
+                .add(node1)
+                .add(node2)
+                .add(node3)
+                .localNodeId(node1.getId())
+                .masterNodeId(node1.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+        final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
+        timedMasterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
+        timedMasterService.setClusterStateSupplier(() -> initialClusterState);
+        timedMasterService.start();
+
+        // check that we don't time out before even committing the cluster state
+        {
+            final CountDownLatch latch = new CountDownLatch(1);
+
+            publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                publishListener.onFailure(new FailedToCommitClusterStateException("mock exception"));
+            });
+
+            timedMasterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return TimeValue.ZERO;
+                }
+
+                @Override
+                public TimeValue timeout() {
+                    return null;
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    fail();
+                }
+
+                @Override
+                protected Void newResponse(boolean acknowledged) {
+                    fail();
+                    return null;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    fail();
+                }
+            });
+
+            latch.await();
+        }
+
+        // check that we timeout if commit took too long
+        {
+            final CountDownLatch latch = new CountDownLatch(2);
+
+            final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
+
+            publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                publishListener.onResponse(null);
+                ackListener.onCommit(TimeValue.timeValueMillis(ackTimeout.millis() + randomInt(100)));
+                ackListener.onNodeAck(node1, null);
+                ackListener.onNodeAck(node2, null);
+                ackListener.onNodeAck(node3, null);
+            });
+
+            timedMasterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return ackTimeout;
+                }
+
+                @Override
+                public TimeValue timeout() {
+                    return null;
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    latch.countDown();
+                }
+
+                @Override
+                protected Void newResponse(boolean acknowledged) {
+                    fail();
+                    return null;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    fail();
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    latch.countDown();
+                }
+            });
+
+            latch.await();
+        }
+
+        timedMasterService.close();
+    }
+
     static class TimedMasterService extends MasterService {
 
         public volatile Long currentTimeOverride = null;
 
         TimedMasterService(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool);
+            super("test_node", settings, threadPool);
         }
 
         @Override

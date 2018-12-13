@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -23,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.xpack.core.rollup.RollupRestTestStateCleaner;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
 import org.junit.Before;
@@ -43,6 +46,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -108,7 +112,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                             getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
-                        break;
+                        throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":
                         throw new AssertionError("waiting until stopping state reached stopped state to start again");
                     case "starting":
@@ -127,18 +131,23 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     () -> "Exception when waiting for [" + template + "] template to be created");
             }
 
-            boolean existsWatcherIndex = adminClient().performRequest("HEAD", ".watches").getStatusLine().getStatusCode() == 200;
+            boolean existsWatcherIndex = adminClient()
+                    .performRequest(new Request("HEAD", ".watches"))
+                    .getStatusLine().getStatusCode() == 200;
             if (existsWatcherIndex == false) {
                 return;
             }
-            Response response = adminClient().performRequest("GET", ".watches/_search", Collections.singletonMap("size", "1000"));
+            Request searchWatchesRequest = new Request("GET", ".watches/_search");
+            searchWatchesRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+            searchWatchesRequest.addParameter("size", "1000");
+            Response response = adminClient().performRequest(searchWatchesRequest);
             ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
             int totalHits = objectPathResponse.evaluate("hits.total");
             if (totalHits > 0) {
                 List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
                 for (Map<String, Object> hit : hits) {
                     String id = (String) hit.get("_id");
-                    assertOK(adminClient().performRequest("DELETE", "_xpack/watcher/watch/" + id));
+                    adminClient().performRequest(new Request("DELETE", "_watcher/watch/" + id));
                 }
             }
         }
@@ -172,7 +181,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                         return acknowledged != null && (Boolean) acknowledged;
                     },
                     () -> "Exception when enabling monitoring");
-            awaitCallApi("search", singletonMap("index", ".monitoring-*"), emptyList(),
+            Map<String, String> searchParams = new HashMap<>();
+            searchParams.put("index", ".monitoring-*");
+            searchParams.put(TOTAL_HIT_AS_INT_PARAM, "true");
+            awaitCallApi("search", searchParams, emptyList(),
                     response -> ((Number) response.evaluate("hits.total")).intValue() > 0,
                     () -> "Exception when waiting for monitoring documents to be indexed");
         }
@@ -219,7 +231,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
 
-                    @SuppressWarnings("unchecked")
                     final Number activeWrites = (Number) extractValue("thread_pool.write.active", node);
                     return activeWrites != null && activeWrites.longValue() == 0L;
                 } catch (Exception e) {
@@ -239,11 +250,13 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     public void cleanup() throws Exception {
         disableMonitoring();
         clearMlState();
-        clearRollupState();
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            XPackRestTestHelper.waitForPendingTasks(adminClient());
+            ESRestTestCase.waitForPendingTasks(adminClient(), task -> {
+                    // Don't check rollup jobs because we clear them in the superclass.
+                    return task.contains(RollupJob.NAME);
+            });
         }
     }
 
@@ -252,18 +265,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
      */
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
-            new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
-        }
-    }
-
-    /**
-     * Delete any left over rollup jobs
-     *
-     * Also reuses the pending-task logic from Ml... should refactor to shared location
-     */
-    private void clearRollupState() throws Exception {
-        if (isRollupTest()) {
-            new RollupRestTestStateCleaner(logger, adminClient(), this).clearRollupMetadata();
+            new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         }
     }
 
@@ -325,11 +327,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("=ml/") || testName.contains("=ml\\"));
-    }
-
-    protected boolean isRollupTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("=rollup/") || testName.contains("=rollup\\"));
     }
 
     /**

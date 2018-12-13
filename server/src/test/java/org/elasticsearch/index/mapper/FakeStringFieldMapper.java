@@ -106,14 +106,6 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query nullValueQuery() {
-            if (nullValue() == null) {
-                return null;
-            }
-            return termQuery(nullValue(), null);
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -136,7 +128,7 @@ public class FakeStringFieldMapper extends FieldMapper {
         } else {
             value = context.parser().textOrNull();
         }
-        
+
         if (value == null) {
             return;
         }

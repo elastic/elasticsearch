@@ -10,7 +10,7 @@ example:
 --------------------------------------------------
 def deleteF = node.client.delete {
     index "test"
-    type "type1"
+    type "_doc"
     id "1"
 }
 --------------------------------------------------

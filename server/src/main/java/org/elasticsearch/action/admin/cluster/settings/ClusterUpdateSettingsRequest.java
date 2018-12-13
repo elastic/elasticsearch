@@ -108,8 +108,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public ClusterUpdateSettingsRequest transientSettings(Map source) {
+    public ClusterUpdateSettingsRequest transientSettings(Map<String, ?> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
@@ -147,8 +146,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the persistent settings to be updated. They will get applied cross restarts
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public ClusterUpdateSettingsRequest persistentSettings(Map source) {
+    public ClusterUpdateSettingsRequest persistentSettings(Map<String, ?> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);

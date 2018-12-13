@@ -159,4 +159,30 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
+
+    public void testIllegalFormatField() throws Exception {
+        String dynamicMapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startArray("dynamic_date_formats")
+                        .startArray().value("test_format").endArray()
+                    .endArray()
+                .endObject()
+            .endObject());
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startArray("date_formats")
+                        .startArray().value("test_format").endArray()
+                    .endArray()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        for (String m : Arrays.asList(mapping, dynamicMapping)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> parser.parse("type", new CompressedXContent(m)));
+            assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+        }
+    }
 }

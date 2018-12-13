@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,7 +34,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -44,12 +47,15 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
@@ -70,6 +76,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -80,7 +87,7 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -246,8 +253,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
 
     @Override
-    public List<ScriptContext> getContexts() {
-        List<ScriptContext> contexts = new ArrayList<>();
+    public List<ScriptContext<?>> getContexts() {
+        List<ScriptContext<?>> contexts = new ArrayList<>();
         contexts.addAll(super.getContexts());
         filterPlugins(ScriptPlugin.class).stream().forEach(p -> contexts.addAll(p.getContexts()));
         return contexts;
@@ -269,15 +276,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         Map<String, Supplier<Transport>> transports = new HashMap<>();
-        transports.putAll(super.getTransports(settings, threadPool, bigArrays, pageCacheRecycler,
-                                              circuitBreakerService, namedWriteableRegistry, networkService));
-        filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getTransports(settings, threadPool, bigArrays,
+        transports.putAll(super.getTransports(settings, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry,
+            networkService));
+        filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getTransports(settings, threadPool,
                 pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService)));
         return transports;
 
@@ -286,14 +291,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-                circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher)));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher)));
         return transports;
     }
 
@@ -350,13 +355,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-        Map<String, Supplier<ClusterState.Custom>> suppliers = new HashMap<>();
-        filterPlugins(ClusterPlugin.class).stream().forEach(p -> suppliers.putAll(p.getInitialClusterStateCustomSupplier()));
-        return suppliers;
-    }
-
-    @Override
     public Function<String, Predicate<String>> getFieldFilter() {
         List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p ->
                 p.getFieldFilter()).collect(Collectors.toList());
@@ -386,16 +384,47 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       SettingsModule settingsModule) {
         return filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule))
                 .flatMap(List::stream)
                 .collect(toList());
     }
 
     @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        HashMap<String, Repository.Factory> repositories = new HashMap<>(super.getRepositories(env, namedXContentRegistry));
+        filterPlugins(RepositoryPlugin.class).forEach(r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry)));
+        return repositories;
+    }
+
+    @Override
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        HashMap<String, Repository.Factory> internalRepositories = new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry));
+        filterPlugins(RepositoryPlugin.class).forEach(r ->
+            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry)));
+        return internalRepositories;
+    }
+
+    @Override
     public void close() throws IOException {
         IOUtils.close(plugins);
+    }
+
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        List<Optional<EngineFactory>> enginePlugins = filterPlugins(EnginePlugin.class).stream()
+            .map(p -> p.getEngineFactory(indexSettings))
+            .collect(Collectors.toList());
+        if (enginePlugins.size() == 0) {
+            return Optional.empty();
+        } else if (enginePlugins.size() == 1) {
+            return enginePlugins.stream().findFirst().get();
+        } else {
+            throw new IllegalStateException("Only one EngineFactory plugin allowed");
+        }
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.single;
 
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -65,17 +64,12 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
                             }
 
                             @Override
-                            public ClusterState.Builder newClusterStateBuilder() {
-                                return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-                            }
-
-                            @Override
                             public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier,
                                                           ClusterApplyListener listener) {
                                 clusterState.set(clusterStateSupplier.get());
                                 listener.onSuccess(source);
                             }
-                        });
+                    });
             discovery.start();
             discovery.startInitialJoin();
             final DiscoveryNodes nodes = clusterState.get().nodes();

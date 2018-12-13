@@ -175,7 +175,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
         if (other == null || other instanceof AbstractAllocationDecision == false) {
             return false;
         }
-        @SuppressWarnings("unchecked") AbstractAllocationDecision that = (AbstractAllocationDecision) other;
+        AbstractAllocationDecision that = (AbstractAllocationDecision) other;
         return Objects.equals(targetNode, that.targetNode) && Objects.equals(nodeDecisions, that.nodeDecisions);
     }
 

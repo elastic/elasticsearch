@@ -472,13 +472,13 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
         switch (relation) {
         case DISJOINT:
-            return new SpatialArgs(SpatialOperation.IsDisjointTo, shape.build());
+            return new SpatialArgs(SpatialOperation.IsDisjointTo, shape.buildS4J());
         case INTERSECTS:
-            return new SpatialArgs(SpatialOperation.Intersects, shape.build());
+            return new SpatialArgs(SpatialOperation.Intersects, shape.buildS4J());
         case WITHIN:
-            return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
+            return new SpatialArgs(SpatialOperation.IsWithin, shape.buildS4J());
         case CONTAINS:
-            return new SpatialArgs(SpatialOperation.Contains, shape.build());
+            return new SpatialArgs(SpatialOperation.Contains, shape.buildS4J());
         default:
             throw new IllegalArgumentException("invalid relation [" + relation + "]");
         }

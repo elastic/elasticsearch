@@ -69,13 +69,6 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
             builder.field("created", metaData.getCreationDate());
             builder.field("status", health.getStatus().name().toLowerCase(Locale.ROOT));
 
-            builder.startObject("version");
-            {
-                builder.field("created", metaData.getCreationVersion());
-                builder.field("upgraded", metaData.getUpgradedVersion());
-            }
-            builder.endObject();
-
             builder.startObject("shards");
             {
                 final int total = metaData.getTotalNumberOfShards();
@@ -128,8 +121,6 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "index_stats.uuid",
                         "index_stats.created",
                         "index_stats.status",
-                        "index_stats.version.created",
-                        "index_stats.version.upgraded",
                         "index_stats.shards.total",
                         "index_stats.shards.primaries",
                         "index_stats.shards.replicas",

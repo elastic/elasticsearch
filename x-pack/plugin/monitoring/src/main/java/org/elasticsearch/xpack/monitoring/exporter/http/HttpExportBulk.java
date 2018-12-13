@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +39,7 @@ import java.util.Map;
  */
 class HttpExportBulk extends ExportBulk {
 
-    private static final Logger logger = Loggers.getLogger(HttpExportBulk.class);
+    private static final Logger logger = LogManager.getLogger(HttpExportBulk.class);
 
     /**
      * The {@link RestClient} managed by the {@link HttpExporter}.
@@ -94,9 +94,13 @@ class HttpExportBulk extends ExportBulk {
         if (payload == null) {
             listener.onFailure(new ExportException("unable to send documents because none were loaded for export bulk [{}]", name));
         } else if (payload.length != 0) {
-            final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
+            final Request request = new Request("POST", "/_bulk");
+            for (Map.Entry<String, String> param : params.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            request.setEntity(new NByteArrayEntity(payload, ContentType.APPLICATION_JSON));
 
-            client.performRequestAsync("POST", "/_bulk", params, body, new ResponseListener() {
+            client.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     try {

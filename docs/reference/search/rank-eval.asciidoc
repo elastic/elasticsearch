@@ -260,6 +260,56 @@ in the query. Defaults to 10.
 |=======================================================================
 
 [float]
+==== Expected Reciprocal Rank (ERR)
+
+Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank for the graded relevance case
+(Olivier Chapelle, Donald Metzler, Ya Zhang, and Pierre Grinspan. 2009. http://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
+
+It is based on the assumption of a cascade model of search, in which a user scans through ranked search
+results in order and stops at the first document that satisfies the information need. For this reason, it
+is a good metric for question answering and navigation queries, but less so for survey oriented information 
+needs where the user is interested in finding many relevant documents in the top k results.
+
+The metric models the expectation of the reciprocal of the position at which a user stops reading through
+the result list. This means that relevant document in top ranking positions will contribute much to the
+overall score. However, the same document will contribute much less to the score if it appears in a lower rank,
+even more so if there are some relevant (but maybe less relevant) documents preceding it. 
+In this way, the ERR metric discounts documents which are shown after very relevant documents. This introduces 
+a notion of dependency in the ordering of relevant documents that e.g. Precision or DCG don't account for.
+
+[source,js]
+--------------------------------
+GET /twitter/_rank_eval
+{
+    "requests": [
+    {
+        "id": "JFK query", 
+        "request": { "query": { "match_all": {}}},
+        "ratings": []  
+    }],
+    "metric": {
+       "expected_reciprocal_rank": {
+            "maximum_relevance" : 3,
+            "k" : 20
+       }
+    }
+}
+--------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+The `expected_reciprocal_rank` metric takes the following parameters:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+| `maximum_relevance` | Mandatory parameter. The highest relevance grade used in the user supplied
+relevance judgments.
+|`k` | sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter
+in the query. Defaults to 10.
+|=======================================================================
+
+[float]
 === Response format
 
 The response of the `_rank_eval` endpoint contains the overall calculated result for the defined quality metric, 
@@ -270,11 +320,11 @@ that shows potential errors of individual queries. The response has the followin
 --------------------------------
 {
     "rank_eval": {
-        "quality_level": 0.4, <1>
+        "metric_score": 0.4, <1>
         "details": {  
             "my_query_id1": { <2>
-                "quality_level": 0.6, <3>
-                "unknown_docs": [ <4>
+                "metric_score": 0.6, <3>
+                "unrated_docs": [ <4>
                     {
                         "_index": "my_index",
                         "_id": "1960795"
@@ -308,8 +358,8 @@ that shows potential errors of individual queries. The response has the followin
 
 <1> the overall evaluation quality calculated by the defined metric
 <2> the `details` section contains one entry for every query in the original `requests` section, keyed by the search request id
-<3> the `quality_level` in the `details` section shows the contribution of this query to the global quality score
-<4> the `unknown_docs` section contains an `_index` and `_id` entry for each document in the search result for this
+<3> the `metric_score` in the `details` section shows the contribution of this query to the global quality metric score
+<4> the `unrated_docs` section contains an `_index` and `_id` entry for each document in the search result for this
 query that didn't have a ratings value. This can be used to ask the user to supply ratings for these documents
 <5> the `hits` section shows a grouping of the search results with their supplied rating
 <6> the `metric_details` give additional information about the calculated quality metric (e.g. how many of the retrieved

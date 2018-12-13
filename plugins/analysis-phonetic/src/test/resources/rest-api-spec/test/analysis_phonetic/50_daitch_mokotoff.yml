@@ -13,7 +13,7 @@
                             analyzer:
                                 my_analyzer:
                                     tokenizer:  standard
-                                    filter: ["standard", "lowercase", "daitch_mokotoff"]
+                                    filter: ["lowercase", "daitch_mokotoff"]
                             filter:
                                 daitch_mokotoff:
                                     type: phonetic

@@ -257,8 +257,11 @@ Which should look like:
         "failed" : 0
     },
     "hits": {
-        "total" : 0,
-        "max_score" : 0.0,
+        "total" : {
+            "value": 0,
+            "relation": "eq"
+        },
+        "max_score" : null,
         "hits" : []
     },
     "suggest": {

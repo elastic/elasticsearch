@@ -19,11 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlighterContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +64,7 @@ public class CustomHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(FieldMapper fieldMapper) {
+    public boolean canHighlight(MappedFieldType fieldType) {
         return true;
     }
 

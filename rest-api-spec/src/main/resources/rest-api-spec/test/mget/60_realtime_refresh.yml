@@ -1,5 +1,8 @@
 ---
 "Realtime Refresh":
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
 
  - do:
       indices.create:
@@ -17,14 +20,13 @@
  - do:
       index:
           index:   test_1
-          type:    test
+          type:    _doc
           id:      1
           body:    { foo: bar }
 
  - do:
       mget:
           index:    test_1
-          type:     test
           realtime: false
           body:
             ids:    [1]
@@ -34,7 +36,6 @@
  - do:
       mget:
           index:    test_1
-          type:     test
           realtime: true
           body:
             ids:    [1]
@@ -44,7 +45,6 @@
  - do:
       mget:
           index:    test_1
-          type:     test
           realtime: false
           refresh:  true
           body:

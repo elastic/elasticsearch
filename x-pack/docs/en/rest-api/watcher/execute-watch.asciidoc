@@ -9,9 +9,9 @@ watch execution for debugging purposes.
 [float]
 ==== Request
 
-`POST _xpack/watcher/watch/<watch_id>/_execute` +
+`POST _watcher/watch/<watch_id>/_execute` +
 
-`POST _xpack/watcher/watch/_execute`
+`POST _watcher/watch/_execute`
 
 [float]
 ==== Description
@@ -57,7 +57,7 @@ This API supports the following fields:
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
                                               {xpack-ref}/condition-always.html[Always Condition].
-                                              This can also be specified as a HTTP parameter.
+                                              This can also be specified as an HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
                                               instead of executing its own input.
@@ -70,7 +70,7 @@ This API supports the following fields:
                                               execution result is persisted to the `.watcher-history`
                                               index for the current time. In addition, the status of the
                                               watch is updated, possibly throttling subsequent executions.
-                                              This can also be specified as a HTTP parameter.
+                                              This can also be specified as an HTTP parameter.
 
 | `watch`             | no       | null     | When present, this
                                               {xpack-ref}/how-watcher-works.html#watch-definition[watch] is used
@@ -137,7 +137,7 @@ The following example executes the `my_watch` watch:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST _watcher/watch/my_watch/_execute
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]
@@ -146,7 +146,7 @@ The following example shows a comprehensive example of executing the `my-watch` 
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST _watcher/watch/my_watch/_execute
 {
   "trigger_data" : { <1>
      "triggered_time" : "now",
@@ -263,7 +263,8 @@ This is an example of the output:
           "type": "index"
         }
       ]
-    }
+    },
+    "user": "test_admin" <4>
   }
 }
 --------------------------------------------------
@@ -281,13 +282,14 @@ This is an example of the output:
 <1> The id of the watch record as it would be stored in the `.watcher-history` index.
 <2> The watch record document as it would be stored in the `.watcher-history` index.
 <3> The watch execution results.
+<4> The user used to execute the watch.
 
 You can set a different execution mode for every action by associating the mode
 name with the action id:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST _watcher/watch/my_watch/_execute
 {
   "action_modes" : {
     "action1" : "force_simulate",
@@ -303,7 +305,7 @@ using `_all` as the action id:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST _watcher/watch/my_watch/_execute
 {
   "action_modes" : {
     "_all" : "force_execute"
@@ -317,7 +319,7 @@ The following example shows how to execute a watch inline:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/_execute
+POST _watcher/watch/_execute
 {
   "watch" : {
     "trigger" : { "schedule" : { "interval" : "10s" } },
@@ -354,7 +356,7 @@ during the execution this condition will be ignored:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/_execute
+POST _watcher/watch/_execute
 {
   "ignore_condition" : true,
   "watch" : {

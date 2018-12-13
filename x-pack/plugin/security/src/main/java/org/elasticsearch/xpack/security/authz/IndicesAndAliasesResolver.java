@@ -20,18 +20,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,15 +46,15 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 class IndicesAndAliasesResolver {
 
-    //`*,-*` what we replace indices with if we need Elasticsearch to return empty responses without throwing exception
-    private static final String[] NO_INDICES_ARRAY = new String[] { "*", "-*" };
-    static final List<String> NO_INDICES_LIST = Arrays.asList(NO_INDICES_ARRAY);
+    //`*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
+    static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
+    static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
 
     IndicesAndAliasesResolver(Settings settings, ClusterService clusterService) {
-        this.nameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.nameExpressionResolver = new IndexNameExpressionResolver();
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
@@ -72,7 +70,7 @@ class IndicesAndAliasesResolver {
      * then the index names will be categorized into those that refer to {@link ResolvedIndices#getLocal() local indices}, and those that
      * refer to {@link ResolvedIndices#getRemote() remote indices}. This categorization follows the standard
      * {@link RemoteClusterAware#buildRemoteIndexName(String, String) remote index-name format} and also respects the currently defined
-     * {@link RemoteClusterAware#getRemoteClusterNames() remote clusters}.
+     * remote clusters}.
      * </p><br>
      * Thus an index name <em>N</em> will considered to be <em>remote</em> if-and-only-if all of the following are true
      * <ul>
@@ -167,7 +165,7 @@ class IndicesAndAliasesResolver {
                     //this is how we tell es core to return an empty response, we can let the request through being sure
                     //that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     //as that would be resolved to _all by es core.
-                    replaceable.indices(NO_INDICES_ARRAY);
+                    replaceable.indices(NO_INDICES_OR_ALIASES_ARRAY);
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
@@ -178,8 +176,6 @@ class IndicesAndAliasesResolver {
             }
         } else {
             if (containsWildcards(indicesRequest)) {
-                //an alias can still contain '*' in its name as of 5.0. Such aliases cannot be referred to when using
-                //the security plugin, otherwise the following exception gets thrown
                 throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
                         "their indices");
             }
@@ -200,7 +196,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
                         loadAuthorizedAliases(authorizedIndices.get(), metaData));
-                aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
+                aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
                 if (indicesRequest instanceof GetAliasesRequest == false) {
@@ -212,6 +208,13 @@ class IndicesAndAliasesResolver {
                 //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
             } else {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
+            }
+            // if no aliases are authorized, then fill in an expression that
+            // MetaData#findAliases evaluates to the empty alias list. You cannot put
+            // "nothing" (the empty list) explicitly because this is resolved by es core to
+            // _all
+            if (aliasesRequest.aliases().length == 0) {
+                aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
         return resolvedIndicesBuilder.build();
@@ -240,8 +243,7 @@ class IndicesAndAliasesResolver {
         } else {
             // the user is not authorized to put mappings for this index, but could have been
             // authorized for a write using an alias that triggered a dynamic mapping update
-            ImmutableOpenMap<String, List<AliasMetaData>> foundAliases =
-                metaData.findAliases(Strings.EMPTY_ARRAY, new String[] { concreteIndexName });
+            ImmutableOpenMap<String, List<AliasMetaData>> foundAliases = metaData.findAllAliases(new String[] { concreteIndexName });
             List<AliasMetaData> aliasMetaData = foundAliases.get(concreteIndexName);
             if (aliasMetaData != null) {
                 Optional<String> foundAlias = aliasMetaData.stream()
@@ -276,38 +278,39 @@ class IndicesAndAliasesResolver {
     }
 
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
-        List<String> finalAliases = new ArrayList<>();
+        final List<String> finalAliases = new ArrayList<>();
 
-        //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
-        boolean matchAllAliases = aliases.length == 0;
-        if (matchAllAliases) {
+        // IndicesAliasesRequest doesn't support empty aliases (validation fails) but
+        // GetAliasesRequest does (in which case empty means _all)
+        if (aliases.length == 0) {
             finalAliases.addAll(authorizedAliases);
         }
 
-        for (String aliasPattern : aliases) {
-            if (aliasPattern.equals(MetaData.ALL)) {
-                matchAllAliases = true;
-                finalAliases.addAll(authorizedAliases);
-            } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
-                for (String authorizedAlias : authorizedAliases) {
-                    if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
-                        finalAliases.add(authorizedAlias);
+        for (String aliasExpression : aliases) {
+            boolean include = true;
+            if (aliasExpression.charAt(0) == '-') {
+                include = false;
+                aliasExpression = aliasExpression.substring(1);
+            }
+            if (MetaData.ALL.equals(aliasExpression) || Regex.isSimpleMatchPattern(aliasExpression)) {
+                final Set<String> resolvedAliases = new HashSet<>();
+                for (final String authorizedAlias : authorizedAliases) {
+                    if (MetaData.ALL.equals(aliasExpression) || Regex.simpleMatch(aliasExpression, authorizedAlias)) {
+                        resolvedAliases.add(authorizedAlias);
                     }
                 }
+                if (include) {
+                    finalAliases.addAll(resolvedAliases);
+                } else {
+                    finalAliases.removeAll(resolvedAliases);
+                }
+            } else if (include) {
+                finalAliases.add(aliasExpression);
             } else {
-                finalAliases.add(aliasPattern);
+                finalAliases.remove(aliasExpression);
             }
         }
 
-        //Throw exception if the wildcards expansion to authorized aliases resulted in no indices.
-        //We always need to replace wildcards for security reasons, to make sure that the operation is executed on the aliases that we
-        //authorized it to execute on. Empty set gets converted to _all by es core though, and unlike with indices, here we don't have
-        //a special expression to replace empty set with, which gives us the guarantee that nothing will be returned.
-        //This is because existing aliases can contain all kinds of special characters, they are only validated since 5.1.
-        if (finalAliases.isEmpty()) {
-            String indexName = matchAllAliases ? MetaData.ALL : Arrays.toString(aliases);
-            throw new IndexNotFoundException(indexName);
-        }
         return finalAliases;
     }
 
@@ -431,17 +434,12 @@ class IndicesAndAliasesResolver {
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersSeeds(settings).keySet());
+            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersDynamicConfig(settings).keySet());
             listenForUpdates(clusterSettings);
         }
 
         @Override
-        protected Set<String> getRemoteClusterNames() {
-            return clusters;
-        }
-
-        @Override
-        protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {
@@ -450,7 +448,7 @@ class IndicesAndAliasesResolver {
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
-            final Map<String, List<String>> map = super.groupClusterIndices(indices, exists -> false);
+            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices, exists -> false);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet().stream()
                     .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))

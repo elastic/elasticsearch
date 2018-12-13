@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.discovery;
 
+import java.util.Arrays;
+import java.util.Collection;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -25,13 +27,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -40,8 +45,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
@@ -49,17 +54,26 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Tests snapshot operations during disruptions.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("org.elasticsearch.snapshot:TRACE")
-public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+public class SnapshotDisruptionIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(MockTransportService.TestPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
+            .build();
+    }
 
     public void testDisruptionOnSnapshotInitialization() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(DEFAULT_SETTINGS)
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
-            .build();
         final String idxName = "test";
-        configureCluster(settings, 4, null, 2);
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
@@ -118,7 +132,7 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
-            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(true).get().getState()
+            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(false).get().getState()
                 .custom(SnapshotsInProgress.TYPE);
             if (snapshots != null && snapshots.entries().size() > 0) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
@@ -131,15 +145,9 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
             try {
-                GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots("test-repo")
-                    .setSnapshots("test-snap-2").get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
-                assertEquals(0, snapshotInfo.failedShards());
-                logger.info("--> done verifying");
+                assertSnapshotExists("test-repo", "test-snap-2");
             } catch (SnapshotMissingException exception) {
-                logger.info("--> snapshot doesn't exist");
+                logger.info("--> done verifying, snapshot doesn't exist");
             }
         }, 1, TimeUnit.MINUTES);
 
@@ -155,11 +163,26 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
             Throwable cause = ex.getCause();
             assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
             cause = cause.getCause();
-            assertThat(cause, instanceOf(Discovery.FailedToCommitClusterStateException.class));
+            assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
         }
+
+        logger.info("--> verify that snapshot eventually will be created due to retries");
+        assertBusy(() -> {
+            assertSnapshotExists("test-repo", "test-snap-2");
+        }, 1, TimeUnit.MINUTES);
     }
 
-    private void createRandomIndex(String idxName) throws ExecutionException, InterruptedException {
+    private void assertSnapshotExists(String repository, String snapshot) {
+        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
+                .setSnapshots(snapshot).get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+        logger.info("--> done verifying, snapshot exists");
+    }
+
+    private void createRandomIndex(String idxName) throws InterruptedException {
         assertAcked(prepareCreate(idxName, 0, Settings.builder().put("number_of_shards", between(1, 20))
             .put("number_of_replicas", 0)));
         logger.info("--> indexing some data");

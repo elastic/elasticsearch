@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -50,11 +51,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class DnRoleMapperTests extends ESTestCase {
 
-    private static final String ROLE_MAPPING_FILE_SETTING = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.getKey();
-    private static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY =
-        DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey();
-
-    private static final String[] STARK_GROUP_DNS = new String[] {
+    private static final String[] STARK_GROUP_DNS = new String[]{
             //groups can be named by different attributes, depending on the directory,
             //we don't care what it is named by
             "cn=shield,ou=marvel,o=superheros",
@@ -181,7 +178,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         assertBusy(() -> {
             Set<String> resolvedRoles = mapper.resolveRoles("",
-                Collections.singletonList("cn=fantastic_four,ou=marvel,o=superheros"));
+                    Collections.singletonList("cn=fantastic_four,ou=marvel,o=superheros"));
             assertThat(resolvedRoles, notNullValue());
             assertThat(resolvedRoles.size(), is(1));
             assertThat(resolvedRoles, contains("fantastic_four"));
@@ -199,28 +196,28 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testParseFile() throws Exception {
         Path file = getDataPath("role_mapping.yml");
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(3));
 
         DN dn = new DN("cn=avengers,ou=marvel,o=superheros");
-        assertThat(mappings, hasKey(dn));
-        Set<String> roles = mappings.get(dn);
+        assertThat(mappings, hasKey(dn.toNormalizedString()));
+        List<String> roles = mappings.get(dn.toNormalizedString());
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(2));
         assertThat(roles, containsInAnyOrder("security", "avenger"));
 
         dn = new DN("cn=shield,ou=marvel,o=superheros");
-        assertThat(mappings, hasKey(dn));
-        roles = mappings.get(dn);
+        assertThat(mappings, hasKey(dn.toNormalizedString()));
+        roles = mappings.get(dn.toNormalizedString());
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(1));
         assertThat(roles, contains("security"));
 
         dn = new DN("cn=Horatio Hornblower,ou=people,o=sevenSeas");
-        assertThat(mappings, hasKey(dn));
-        roles = mappings.get(dn);
+        assertThat(mappings, hasKey(dn.toNormalizedString()));
+        roles = mappings.get(dn.toNormalizedString());
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(1));
         assertThat(roles, contains("avenger"));
@@ -229,19 +226,20 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile_Empty() throws Exception {
         Path file = createTempDir().resolve("foo.yaml");
         Files.createFile(file);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
         assertThat(events.size(), is(1));
         assertThat(events.get(0), containsString("[0] role mappings found"));
+        events.clear();
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
 
@@ -257,7 +255,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         try {
             DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
             fail("expected a parse failure");
@@ -270,22 +268,25 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(events.size(), is(1));
         assertThat(events.get(0), containsString("failed to parse role mappings file"));
+        events.clear();
     }
 
     public void testYaml() throws Exception {
         Path file = getDataPath("role_mapping.yml");
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
         Settings ldapSettings = Settings.builder()
-                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+            .put(settings)
+            .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
+            .build();
+        RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -296,11 +297,13 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testRelativeDN() {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
         Settings ldapSettings = Settings.builder()
-                .put(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY, true)
+                .put(settings)
+                .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -309,25 +312,29 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testUserDNMapping() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap-userdn-role");
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()
-                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .put(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY, false)
+                .put(settings)
+                .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
+                .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), false)
                 .build();
-        RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
-        Set<String> roles = mapper.resolveRoles("cn=Horatio Hornblower,ou=people,o=sevenSeas", Collections.<String>emptyList());
+        Set<String> roles = mapper.resolveRoles("cn=Horatio Hornblower,ou=people,o=sevenSeas", Collections.emptyList());
         assertThat(roles, hasItem("avenger"));
     }
 
     protected DnRoleMapper createMapper(Path file, ResourceWatcherService watcherService) {
-        Settings realmSettings = Settings.builder()
-                .put("files.role_mapping", file.toAbsolutePath())
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", "ad-group-mapper-test");
+        Settings mergedSettings = Settings.builder()
+                .put(settings)
+                .put(getFullSettingKey(identifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY));
         return new DnRoleMapper(config, watcherService);
     }
 }

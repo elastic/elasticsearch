@@ -23,7 +23,7 @@
     },
     "filter_path": {
       "type": "list",
-      "description": "A comma-separated list of filters used to reduce the respone."
+      "description": "A comma-separated list of filters used to reduce the response."
     }
   }
 }

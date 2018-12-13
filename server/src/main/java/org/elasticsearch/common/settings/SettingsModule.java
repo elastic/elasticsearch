@@ -20,10 +20,10 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,22 +43,25 @@ import java.util.stream.IntStream;
  * A module that binds the provided settings to the {@link Settings} interface.
  */
 public class SettingsModule implements Module {
+    private static final Logger logger = LogManager.getLogger(SettingsModule.class);
 
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private final Logger logger;
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
-        this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
+        this(settings, Arrays.asList(additionalSettings), Collections.emptyList(), Collections.emptySet());
     }
 
-    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
-        logger = Loggers.getLogger(getClass(), settings);
+    public SettingsModule(
+            Settings settings,
+            List<Setting<?>> additionalSettings,
+            List<String> settingsFilter,
+            Set<SettingUpgrader<?>> settingUpgraders) {
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
@@ -70,12 +73,22 @@ public class SettingsModule implements Module {
         for (Setting<?> setting : additionalSettings) {
             registerSetting(setting);
         }
-
         for (String filter : settingsFilter) {
             registerSettingsFilter(filter);
         }
+        final Set<SettingUpgrader<?>> clusterSettingUpgraders = new HashSet<>();
+        for (final SettingUpgrader<?> settingUpgrader : ClusterSettings.BUILT_IN_SETTING_UPGRADERS) {
+            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
+            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
+            assert added : settingUpgrader.getSetting().getKey();
+        }
+        for (final SettingUpgrader<?> settingUpgrader : settingUpgraders) {
+            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
+            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
+            assert added : settingUpgrader.getSetting().getKey();
+        }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
+        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
         Settings indexSettings = settings.filter((s) -> (s.startsWith("index.") &&
             // special case - we want to get Did you mean indices.query.bool.max_clause_count
             // which means we need to by-pass this check for this setting
@@ -133,7 +146,7 @@ public class SettingsModule implements Module {
         }
         // by now we are fully configured, lets check node level settings for unregistered index settings
         clusterSettings.validate(settings, true);
-        this.settingsFilter = new SettingsFilter(settings, settingsFilterPattern);
+        this.settingsFilter = new SettingsFilter(settingsFilterPattern);
      }
 
     @Override
@@ -205,4 +218,5 @@ public class SettingsModule implements Module {
     public SettingsFilter getSettingsFilter() {
         return settingsFilter;
     }
+
 }

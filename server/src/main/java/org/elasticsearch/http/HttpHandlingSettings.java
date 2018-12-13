@@ -19,6 +19,19 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.settings.Settings;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+
 public class HttpHandlingSettings {
 
     private final int maxContentLength;
@@ -30,10 +43,11 @@ public class HttpHandlingSettings {
     private final int compressionLevel;
     private final boolean detailedErrorsEnabled;
     private final int pipeliningMaxEvents;
+    private boolean corsEnabled;
 
     public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
                                 boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled,
-                                int pipeliningMaxEvents) {
+                                int pipeliningMaxEvents, boolean corsEnabled) {
         this.maxContentLength = maxContentLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeaderSize = maxHeaderSize;
@@ -43,6 +57,20 @@ public class HttpHandlingSettings {
         this.compressionLevel = compressionLevel;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
         this.pipeliningMaxEvents = pipeliningMaxEvents;
+        this.corsEnabled = corsEnabled;
+    }
+
+    public static HttpHandlingSettings fromSettings(Settings settings) {
+        return new HttpHandlingSettings(Math.toIntExact(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes()),
+            Math.toIntExact(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes()),
+            Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes()),
+            Math.toIntExact(SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings).getBytes()),
+            SETTING_HTTP_RESET_COOKIES.get(settings),
+            SETTING_HTTP_COMPRESSION.get(settings),
+            SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
+            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
+            SETTING_PIPELINING_MAX_EVENTS.get(settings),
+            SETTING_CORS_ENABLED.get(settings));
     }
 
     public int getMaxContentLength() {
@@ -79,5 +107,9 @@ public class HttpHandlingSettings {
 
     public int getPipeliningMaxEvents() {
         return pipeliningMaxEvents;
+    }
+
+    public boolean isCorsEnabled() {
+        return corsEnabled;
     }
 }

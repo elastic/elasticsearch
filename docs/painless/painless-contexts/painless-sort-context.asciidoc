@@ -1,0 +1,61 @@
+[[painless-sort-context]]
+=== Sort context
+
+Use a Painless script to
+{ref}/search-request-sort.html[sort] the documents in a query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the current document.  For single-valued fields,
+        the value can be accessed via `doc['fieldname'].value`.  For multi-valued
+        fields, this returns the first value; other values can be accessed
+        via `doc['fieldname'].get(index)`
+
+`_score` (`double` read-only)::
+        The similarity score of the current document.
+
+*Return*
+
+`double`::
+        The score for the specified document.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+To sort results by the length of the `theatre` field, submit the following query:
+
+[source,js]
+----
+GET /_search
+{
+    "query" : {
+        "term" : { "sold" : "true" }
+    },
+    "sort" : {
+        "_script" : {
+            "type" : "number",
+            "script" : {
+                "lang": "painless",
+                "source": "doc['theatre'].value.length() * params.factor",
+                "params" : {
+                    "factor" : 1.1
+                }
+            },
+            "order" : "asc"
+        }
+    }
+}
+
+----
+// CONSOLE
+// TEST[setup:seats]

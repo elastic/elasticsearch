@@ -31,6 +31,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,6 +39,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class TransportClientTests extends ESTestCase {
@@ -64,13 +67,23 @@ public class TransportClientTests extends ESTestCase {
         }
     }
 
-    public void testDefaultHeaderContainsPlugins() {
-        Settings baseSettings = Settings.builder()
+    public void testSettingsContainsTransportClient() {
+        final Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
         try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
-            ThreadContext threadContext = client.threadPool().getThreadContext();
-            assertEquals("true", threadContext.getHeader("transport_client"));
+            final Settings settings = TcpTransport.DEFAULT_FEATURES_SETTING.get(client.settings());
+            assertThat(settings.keySet(), hasItem("transport_client"));
+            assertThat(settings.get("transport_client"), equalTo("true"));
+        }
+    }
+
+    public void testDefaultHeader() {
+        final Settings baseSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
+        try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
             assertEquals("true", threadContext.getHeader("test"));
         }
     }

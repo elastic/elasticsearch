@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.client.shared.SslConfig;
+import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.SslConfig;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Properties;

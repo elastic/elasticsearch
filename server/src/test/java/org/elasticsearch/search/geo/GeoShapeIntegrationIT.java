@@ -119,7 +119,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape",
             polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     /**
@@ -156,7 +156,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC")
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     private String findNodeName(String index) {

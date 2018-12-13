@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.logstash;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -59,7 +59,7 @@ public class Logstash extends Plugin implements ActionPlugin {
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_NAME + ".json", templates, LOGSTASH_TEMPLATE_NAME,
-                    Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, Loggers.getLogger(Logstash.class));
+                    Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, LogManager.getLogger(Logstash.class));
             return templates;
         };
     }

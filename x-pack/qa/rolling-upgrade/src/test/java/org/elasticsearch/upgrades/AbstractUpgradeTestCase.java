@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -37,12 +38,22 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
-    enum CLUSTER_TYPE {
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
+    enum ClusterType {
         OLD,
         MIXED,
         UPGRADED;
 
-        public static CLUSTER_TYPE parse(String value) {
+        public static ClusterType parse(String value) {
             switch (value) {
                 case "old_cluster":
                     return OLD;
@@ -56,7 +67,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         }
     }
 
-    protected final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
+    protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
 
     @Override
     protected Settings restClientSettings() {
@@ -75,8 +86,9 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             boolean success = true;
             for (String template : templatesToWaitFor()) {
                 try {
-                    final boolean exists =
-                            adminClient().performRequest("HEAD", "_template/" + template).getStatusLine().getStatusCode() == 200;
+                    final boolean exists = adminClient()
+                            .performRequest(new Request("HEAD", "_template/" + template))
+                            .getStatusLine().getStatusCode() == 200;
                     success &= exists;
                     logger.debug("template [{}] exists [{}]", template, exists);
                 } catch (IOException e) {

@@ -6,11 +6,17 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,33 +26,26 @@ import java.util.Map;
  */
 public abstract class Realm implements Comparable<Realm> {
 
-    protected final Logger logger;
-    protected final String type;
-
-    public String getType() {
-        return type;
-    }
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     protected RealmConfig config;
 
-    public Realm(String type, RealmConfig config) {
-        this.type = type;
+    public Realm(RealmConfig config) {
         this.config = config;
-        this.logger = config.logger(getClass());
     }
 
     /**
      * @return The type of this realm
      */
     public String type() {
-        return type;
+        return config.type();
     }
 
     /**
      * @return The name of this realm.
      */
     public String name() {
-        return config.name;
+        return config.name();
     }
 
     /**
@@ -56,12 +55,24 @@ public abstract class Realm implements Comparable<Realm> {
         return config.order;
     }
 
+    /**
+     * Each realm can define response headers to be sent on failure.
+     * <p>
+     * By default it adds 'WWW-Authenticate' header with auth scheme 'Basic'.
+     *
+     * @return Map of authentication failure response headers.
+     */
+    public Map<String, List<String>> getAuthenticationFailureHeaders() {
+        return Collections.singletonMap("WWW-Authenticate",
+                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+    }
+
     @Override
     public int compareTo(Realm other) {
         int result = Integer.compare(config.order, other.config.order);
         if (result == 0) {
             // If same order, compare based on the realm name
-            result = config.name.compareTo(other.config.name);
+            result = config.name().compareTo(other.config.name());
         }
         return result;
     }
@@ -119,16 +130,24 @@ public abstract class Realm implements Comparable<Realm> {
      */
     public abstract void lookupUser(String username, ActionListener<User> listener);
 
-    public Map<String, Object> usageStats() {
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> stats = new HashMap<>();
         stats.put("name", name());
         stats.put("order", order());
-        return stats;
+        listener.onResponse(stats);
     }
 
     @Override
     public String toString() {
-        return type + "/" + config.name;
+        return config.type() + "/" + config.name();
+    }
+
+    /**
+     * This is no-op in the base class, but allows realms to be aware of what other realms are configured
+     *
+     * @see DelegatedAuthorizationSettings
+     */
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
     }
 
     /**

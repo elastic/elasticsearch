@@ -116,11 +116,16 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       dependsOn unzip
       executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-      env 'JAVA_HOME', getJavaHome(it, 7)
+      env 'JAVA_HOME', getJavaHome(it, 8)
       args 'oldes.OldElasticsearch',
            baseDir,
            unzip.temporaryDir,
            version == '090'
+      waitCondition = { fixture, ant ->
+        // the fixture writes the ports file when Elasticsearch's HTTP service
+        // is ready, so we can just wait for the file to exist
+        return fixture.portsFile.exists()
+      }
     }
     integTest.dependsOn fixture
     integTestRunner {

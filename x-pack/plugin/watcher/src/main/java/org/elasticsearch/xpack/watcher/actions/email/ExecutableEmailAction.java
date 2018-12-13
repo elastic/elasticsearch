@@ -41,7 +41,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     }
 
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         Map<String, Attachment> attachments = new HashMap<>();
         DataAttachment dataAttachment = action.getDataAttachment();

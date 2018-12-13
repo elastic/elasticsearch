@@ -11,5 +11,8 @@ include::output-logfile.asciidoc[]
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/auditing/output-index.asciidoc
 include::output-index.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/auditing/auditing-search-queries.asciidoc
+include::auditing-search-queries.asciidoc[]
+
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/auditing/forwarding-logs.asciidoc
 include::forwarding-logs.asciidoc[]

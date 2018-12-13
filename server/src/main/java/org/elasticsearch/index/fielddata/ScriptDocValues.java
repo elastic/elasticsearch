@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -28,22 +28,19 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.MutableDateTime;
-import org.joda.time.ReadableDateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
-
 
 /**
  * Script level doc values, the assumption is that any implementation will
@@ -55,6 +52,26 @@ import java.util.function.UnaryOperator;
  * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptDocValues.class));
+    /**
+     * Callback for deprecated fields. In production this should always point to
+     * {@link #deprecationLogger} but tests will override it so they can test
+     * that we use the required permissions when calling it.
+     */
+    private final BiConsumer<String, String> deprecationCallback;
+
+    public ScriptDocValues() {
+        deprecationCallback = deprecationLogger::deprecatedAndMaybeLog;
+    }
+
+    /**
+     * Constructor for testing deprecation callback.
+     */
+    ScriptDocValues(BiConsumer<String, String> deprecationCallback) {
+        this.deprecationCallback = deprecationCallback;
+    }
+
     /**
      * Set the current doc ID.
      */
@@ -64,6 +81,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
      * Return a copy of the list of the values for the current document.
      */
     public final List<T> getValues() {
+        deprecated("ScriptDocValues#getValues", "Deprecated getValues used, the field is a list and should be accessed directly."
+                + " For example, use doc['foo'] instead of doc['foo'].values.");
         return this;
     }
 
@@ -93,6 +112,21 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
+    /**
+     * Log a deprecation log, with the server's permissions and not the permissions
+     * of the script calling this method. We need to do this to prevent errors
+     * when rolling the log file.
+     */
+    private void deprecated(String key, String message) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                deprecationCallback.accept(key, message);
+                return null;
+            }
+        });
+    }
+
     public static final class Longs extends ScriptDocValues<Long> {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
@@ -102,6 +136,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Standard constructor.
          */
         public Longs(SortedNumericDocValues in) {
+            this.in = in;
+        }
+
+        /**
+         * Constructor for testing deprecation callback.
+         */
+        Longs(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
         }
 
@@ -128,7 +170,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public long getValue() {
             if (count == 0) {
-                return 0L;
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[0];
         }
@@ -144,17 +187,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Dates extends ScriptDocValues<ReadableDateTime> {
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
-
-        private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
         private final SortedNumericDocValues in;
+
         /**
-         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
-         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private MutableDateTime[] dates;
+        private JodaCompatibleZonedDateTime[] dates;
         private int count;
 
         /**
@@ -165,18 +205,27 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         /**
+         * Constructor for testing deprecation callback.
+         */
+        Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
+            this.in = in;
+        }
+
+        /**
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public ReadableDateTime getValue() {
+        public JodaCompatibleZonedDateTime getValue() {
             if (count == 0) {
-                return EPOCH;
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return get(0);
         }
 
         @Override
-        public ReadableDateTime get(int index) {
+        public JodaCompatibleZonedDateTime get(int index) {
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -207,29 +256,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (dates == null) {
+            if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new MutableDateTime[count];
-                for (int i = 0; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
-                return;
+                dates = new JodaCompatibleZonedDateTime[count];
             }
-            if (count > dates.length) {
-                // Happens when we move to a new document and it has more dates than any documents before it.
-                MutableDateTime[] backup = dates;
-                dates = new MutableDateTime[count];
-                System.arraycopy(backup, 0, dates, 0, backup.length);
-                for (int i = 0; i < backup.length; i++) {
-                    dates[i].setMillis(in.nextValue());
-                }
-                for (int i = backup.length; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
-                return;
-            }
-            for (int i = 0; i < count; i++) {
-                dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
+            for (int i = 0; i < count; ++i) {
+                dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
             }
         }
     }
@@ -271,7 +303,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public double getValue() {
             if (count == 0) {
-                return 0d;
+               throw new IllegalStateException("A document doesn't have a value for a field! " +
+                   "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[0];
         }
@@ -295,6 +328,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public GeoPoints(MultiGeoPointValues in) {
             this.in = in;
+        }
+
+        /**
+         * Constructor for testing deprecation callback.
+         */
+        GeoPoints(MultiGeoPointValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
+            this.in =  in;
         }
 
         @Override
@@ -327,7 +368,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public GeoPoint getValue() {
             if (count == 0) {
-                return null;
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[0];
         }
@@ -439,7 +481,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public boolean getValue() {
-            return count != 0 && values[0];
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
+            return values[0];
         }
 
         @Override
@@ -522,7 +568,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public String getValue() {
-            return count == 0 ? null : get(0);
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
+            return get(0);
         }
     }
 
@@ -543,7 +593,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public BytesRef getValue() {
-            return count == 0 ? new BytesRef() : get(0);
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
+            return get(0);
         }
 
     }

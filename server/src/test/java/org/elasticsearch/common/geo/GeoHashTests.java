@@ -19,7 +19,6 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.Rectangle;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 /**
@@ -97,6 +96,11 @@ public class GeoHashTests extends ESTestCase {
             Rectangle actualBbox = GeoHashUtils.bbox(extendedGeohash);
             assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
         }
+    }
+
+    public void testNorthPoleBoundingBox() {
+        Rectangle bbox = GeoHashUtils.bbox("zzbxfpgzupbx"); // Bounding box with maximum precision touching north pole
+        assertEquals(90.0, bbox.maxLat, 0.0000001); // Should be 90 degrees
     }
 
     public void testInvalidGeohashes() {

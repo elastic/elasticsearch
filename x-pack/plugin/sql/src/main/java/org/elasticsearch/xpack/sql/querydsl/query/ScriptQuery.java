@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import java.util.Objects;
-
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 
@@ -19,7 +20,8 @@ public class ScriptQuery extends LeafQuery {
 
     public ScriptQuery(Location location, ScriptTemplate script) {
         super(location);
-        this.script = script;
+        // make script null safe
+        this.script = Scripts.nullSafeFilter(script);
     }
 
     public ScriptTemplate script() {

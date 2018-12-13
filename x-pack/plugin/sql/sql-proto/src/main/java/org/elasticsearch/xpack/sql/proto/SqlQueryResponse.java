@@ -18,7 +18,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * Response to perform an sql query for JDBC/CLI client
@@ -94,7 +93,7 @@ public class SqlQueryResponse {
         List<Object> list = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken().isValue()) {
-                list.add(parseFieldsValue(parser));
+                list.add(ProtoUtils.parseFieldsValue(parser));
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 list.add(null);
             } else {

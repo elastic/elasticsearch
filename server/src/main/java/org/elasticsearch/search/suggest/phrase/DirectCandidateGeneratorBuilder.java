@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
@@ -466,7 +466,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
-            return new LevensteinDistance();
+            return new LevenshteinDistance();
         } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {

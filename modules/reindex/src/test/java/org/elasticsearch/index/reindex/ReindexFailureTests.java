@@ -120,7 +120,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
-                        .or(containsString("no such index"))
+                        .or(containsString("no such index [source]"))
                         );
                 return;
             }

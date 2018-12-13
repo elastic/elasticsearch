@@ -10,14 +10,14 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
 
   - do:
-      catch: request
+      catch: bad_request
       update_by_query:
         index:   source
         body:

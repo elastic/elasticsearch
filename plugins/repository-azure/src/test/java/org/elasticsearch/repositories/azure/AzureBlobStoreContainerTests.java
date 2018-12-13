@@ -34,7 +34,7 @@ public class AzureBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         try {
             RepositoryMetaData repositoryMetaData = new RepositoryMetaData("azure", "ittest", Settings.EMPTY);
             AzureStorageServiceMock client = new AzureStorageServiceMock();
-            return new AzureBlobStore(repositoryMetaData, Settings.EMPTY, client);
+            return new AzureBlobStore(repositoryMetaData, client);
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }

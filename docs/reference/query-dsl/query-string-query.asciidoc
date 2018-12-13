@@ -28,14 +28,14 @@ GET /_search
     "query": {
         "query_string" : {
             "default_field" : "content",
-            "query" : "(new york city) OR (big apple)"
+            "query" : "(new york city) OR (big apple)" <1>
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 
-... will be split into `new york city` and `big apple` and each part is then
+<1> will be split into `new york city` and `big apple` and each part is then
 analyzed independently by the analyzer configured for the field.
 
 WARNING: Whitespaces are not considered operators, this means that `new york city`
@@ -48,7 +48,6 @@ When multiple fields are provided it is also possible to modify how the differen
 field queries are combined inside each textual part using the `type` parameter.
 The possible modes are described <<multi-match-types, here>> and the default is `best_fields`.
 
-
 The `query_string` top level parameters include:
 
 [cols="<,<",options="header",]
@@ -60,8 +59,11 @@ The `query_string` top level parameters include:
 specified. Defaults to the `index.query.default_field` index settings, which in
 turn defaults to `*`. `*` extracts all fields in the mapping that are eligible
 to term queries and filters the metadata fields. All extracted fields are then
-combined to build a query when no prefix field is provided. There is a limit of
-no more than 1024 fields being queried at once.
+combined to build a query when no prefix field is provided.
+
+WARNING: There is a limit on the number of fields that can be queried
+at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
+which defaults to 1024.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -104,8 +106,8 @@ not analyzed. By setting this value to `true`, a best effort will be
 made to analyze those as well.
 
 |`max_determinized_states` |Limit on how many automaton states regexp
-queries are allowed to create.  This protects against too-difficult
-(e.g. exponentially hard) regexps.  Defaults to 10000.
+queries are allowed to create. This protects against too-difficult
+(e.g. exponentially hard) regexps. Defaults to 10000.
 
 |`minimum_should_match` |A value controlling how many "should" clauses
 in the resulting boolean query should match. It can be an absolute value
@@ -141,14 +143,17 @@ When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. If the `index.query.default_field` is not specified,
 the `query_string` will automatically attempt to determine the existing fields in the index's
-mapping that are queryable, and perform the search on those fields. Note that this will not
-include nested documents, use a nested query to search those documents.
+mapping that are queryable, and perform the search on those fields. 
+This will not include nested documents, use a nested query to search those documents.
+
+NOTE: For mappings with a large number of fields, searching across all queryable
+fields in the mapping could be expensive.
 
 [float]
 ==== Multi Field
 
 The `query_string` query can also run against multiple fields. Fields can be
-provided via the `"fields"` parameter (example below).
+provided via the `fields` parameter (example below).
 
 The idea of running the `query_string` query against multiple fields is to
 expand each query term to an OR clause like this:
@@ -188,7 +193,7 @@ GET /_search
 // CONSOLE
 
 Since several queries are generated from the individual search terms,
-combining them is automatically done using a `dis_max` query with a tie_breaker.
+combining them is automatically done using a `dis_max` query with a `tie_breaker`.
 For example (the `name` is boosted by 5 using `^5` notation):
 
 [source,js]
@@ -255,12 +260,6 @@ following additional parameters are allowed:
 |`type` |How the fields should be combined to build the text query.
 See <<multi-match-types, types>> for a complete example.
 Defaults to `best_fields`
-|=======================================================================
-
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
 
 |`tie_breaker` |The disjunction max tie breaker for multi fields.
 Defaults to `0`
@@ -289,7 +288,7 @@ GET /_search
 
 The `query_string` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
 synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
-For example, the following synonym: `"ny, new york" would produce:`
+For example, the following synonym: `ny, new york` would produce:
 
 `(ny OR ("new york"))`
 
@@ -316,5 +315,122 @@ The example above creates a boolean query:
 
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
+
+[float]
+==== Minimum should match
+
+The `query_string` splits the query around each operator to create a boolean
+query for the entire input. You can use `minimum_should_match` to control how
+many "should" clauses in the resulting query should match.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title"
+            ],
+            "query": "this that thus",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`(title:this title:that title:thus)~2`
+
+that matches documents with at least two of the terms `this`, `that` or `thus`
+in the single field `title`.
+
+[float]
+===== Multi Field
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title",
+                "content"
+            ],
+            "query": "this that thus",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`((content:this content:that content:thus) | (title:this title:that title:thus))`
+
+that matches documents with the disjunction max over the fields `title` and
+`content`. Here the `minimum_should_match` parameter can't be applied.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title",
+                "content"
+            ],
+            "query": "this OR that OR thus",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+Adding explicit operators forces each term to be considered as a separate clause.
+
+The example above creates a boolean query:
+
+`((content:this | title:this) (content:that | title:that) (content:thus | title:thus))~2`
+
+that matches documents with at least two of the three "should" clauses, each of
+them made of the disjunction max over the fields for each term.
+
+[float]
+===== Cross Field
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title",
+                "content"
+            ],
+            "query": "this OR that OR thus",
+            "type": "cross_fields",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `cross_fields` value in the `type` field indicates that fields that have the
+same analyzer should be grouped together when the input is analyzed.
+
+The example above creates a boolean query:
+
+`(blended(terms:[field2:this, field1:this]) blended(terms:[field2:that, field1:that]) blended(terms:[field2:thus, field1:thus]))~2`
+
+that matches documents with at least two of the three per-term blended queries.
 
 include::query-string-syntax.asciidoc[]

@@ -20,8 +20,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Locale;
@@ -37,10 +36,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
+public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("change_me".toCharArray())));
 
     @Override
     public String configRoles() {
@@ -55,8 +53,9 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsers() {
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers() +
-                "kibana_user:" + USERS_PASSWD_HASHED;
+            "kibana_user:" + usersPasswdHashed;
     }
 
     @Override
@@ -114,24 +113,24 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
         indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
 
         SearchResponse response = client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
-        final long hits = response.getHits().getTotalHits();
+        final long hits = response.getHits().getTotalHits().value;
         assertThat(hits, greaterThan(0L));
         response = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
                 .prepareSearch(index)
                 .setQuery(QueryBuilders.matchAllQuery()).get();
-        assertEquals(response.getHits().getTotalHits(), hits);
+        assertEquals(response.getHits().getTotalHits().value, hits);
 
 
         MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
                 .add(client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
-        final long multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits();
+        final long multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value;
         assertThat(hits, greaterThan(0L));
         multiSearchResponse = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
                 .prepareMultiSearch()
                 .add(client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
-        assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), multiHits);
+        assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, multiHits);
     }
 
     public void testGetIndex() throws Exception {
@@ -155,25 +154,25 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
         if (randomBoolean()) {
             CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                    .admin().indices().prepareCreate(index).get();
+                UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                .admin().indices().prepareCreate(index).get();
             assertThat(createIndexResponse.isAcknowledged(), is(true));
         }
 
         IndexResponse response = client()
-                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareIndex()
-                .setIndex(index)
-                .setType("dashboard")
-                .setSource("foo", "bar")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
+            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+            .prepareIndex()
+            .setIndex(index)
+            .setType("dashboard")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
 
         DeleteResponse deleteResponse = client()
-                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareDelete(index, "dashboard", response.getId())
-                .get();
+            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+            .prepareDelete(index, "dashboard", response.getId())
+            .get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 

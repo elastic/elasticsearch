@@ -28,7 +28,7 @@ attribute is the message itself:
     "hipchat" : {
       "account" : "integration-account", <1>
       "message" : {
-        "body" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)", <2>
+        "body" : "Encountered  {{ctx.payload.hits.total.value}} errors in the last 5 minutes (facepalm)", <2>
         "format" : "text",
         "color" : "red",
         "notify" : true
@@ -37,6 +37,7 @@ attribute is the message itself:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The name of a HipChat account configured in `elasticsearch.yml`.
 <2> The message you want to send to HipChat.
 
@@ -57,7 +58,7 @@ For example, the following action is configured to send messages to the
       "message" : {
         "room" : [ "mission-control", "devops" ],
         "user" : "website-admin@example.com",
-        "body" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)",
+        "body" : "Encountered  {{ctx.payload.hits.total.value}} errors in the last 5 minutes (facepalm)",
         "format" : "text",
         "color" : "red",
         "notify" : true
@@ -66,6 +67,7 @@ For example, the following action is configured to send messages to the
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 To send messages with a HipChat account that uses the <<hipchat-api-v1, v1>>
 profile, you need to specify what room or rooms you want to send the message to.
@@ -83,7 +85,7 @@ For example, the following action is configured to send messages to the
       "message" : {
         "from" : "Watcher",
         "room" : [ "server-status", "infra-team" ],
-        "body" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)",
+        "body" : "Encountered  {{ctx.payload.hits.total.value}} errors in the last 5 minutes (facepalm)",
         "format" : "text",
         "color" : "red",
         "notify" : true
@@ -92,7 +94,7 @@ For example, the following action is configured to send messages to the
   }
 }
 --------------------------------------------------
-
+// NOTCONSOLE
 
 [[hipchat-action-attributes]]
 ==== HipChat Action Attributes

@@ -136,7 +136,10 @@ An example of a response snippet that could be generated from the above search r
 {
   ...,
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.0,
     "hits": [
       {
@@ -148,7 +151,10 @@ An example of a response snippet that could be generated from the above search r
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total": 1,
+              "total" : {
+                  "value": 1,
+                  "relation": "eq"
+              },
               "max_score": 1.0,
               "hits": [
                 {
@@ -264,20 +270,26 @@ Response not included in text but tested for completeness sake.
 {
   ...,
   "hits": {
-    "total": 1,
-    "max_score": 1.0444683,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1.0444684,
     "hits": [
       {
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.0444683,
+        "_score": 1.0444684,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total": 1,
-              "max_score": 1.0444683,
+              "total" : {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": 1.0444684,
               "hits": [
                 {
                   "_index": "test",
@@ -287,7 +299,7 @@ Response not included in text but tested for completeness sake.
                     "field": "comments",
                     "offset": 1
                   },
-                  "_score": 1.0444683,
+                  "_score": 1.0444684,
                   "fields": {
                     "comments.text.keyword": [
                       "words words words"
@@ -379,7 +391,10 @@ Which would look like:
 {
   ...,
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.6931472,
     "hits": [
       {
@@ -391,7 +406,10 @@ Which would look like:
         "inner_hits": {
           "comments.votes": { <1>
             "hits": {
-              "total": 1,
+              "total" : {
+                  "value": 1,
+                  "relation": "eq"
+              },
               "max_score": 0.6931472,
               "hits": [
                 {
@@ -490,7 +508,10 @@ An example of a response snippet that could be generated from the above search r
 {
     ...,
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.0,
         "hits": [
             {
@@ -505,7 +526,10 @@ An example of a response snippet that could be generated from the above search r
                 "inner_hits": {
                     "my_child": {
                         "hits": {
-                            "total": 1,
+                            "total" : {
+                                "value": 1,
+                                "relation": "eq"
+                            },
                             "max_score": 1.0,
                             "hits": [
                                 {

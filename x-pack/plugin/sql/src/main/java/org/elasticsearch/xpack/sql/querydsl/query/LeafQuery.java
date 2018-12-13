@@ -20,7 +20,7 @@ abstract class LeafQuery extends Query {
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
         // No leaf queries are nested
         return this;
     }

@@ -71,7 +71,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
             IndexableField dvField = fields[0];
             assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
             IndexableField pointField = fields[1];
-            assertEquals(2, pointField.fieldType().pointDimensionCount());
+            assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
             IndexableField storedField = fields[2];
             assertTrue(storedField.fieldType().stored());
             String strVal =

@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -43,35 +43,34 @@ import java.util.List;
 import java.util.Map;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportFieldCapabilitiesIndexAction shardAction;
     private final RemoteClusterService remoteClusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportFieldCapabilitiesAction(Settings settings, TransportService transportService,
+    public TransportFieldCapabilitiesAction(TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool,
                                             TransportFieldCapabilitiesIndexAction shardAction,
-                                            ActionFilters actionFilters,
-                                            IndexNameExpressionResolver
-                                                    indexNameExpressionResolver) {
-        super(settings, FieldCapabilitiesAction.NAME, threadPool, transportService,
-            actionFilters, indexNameExpressionResolver, FieldCapabilitiesRequest::new);
+                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.shardAction = shardAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
-    protected void doExecute(FieldCapabilitiesRequest request,
-                             final ActionListener<FieldCapabilitiesResponse> listener) {
+    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         final ClusterState clusterState = clusterService.state();
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
             request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
-        if (remoteClusterIndices.isEmpty() == false && localIndices.indices().length == 0) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote
-            // indices
+        if (localIndices == null) {
+            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
@@ -89,7 +88,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         };
         if (totalNumRequest == 0) {
-            listener.onResponse(new FieldCapabilitiesResponse());
+            listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyMap()));
         } else {
             ActionListener<FieldCapabilitiesIndexResponse> innerListener = new ActionListener<FieldCapabilitiesIndexResponse>() {
                 @Override

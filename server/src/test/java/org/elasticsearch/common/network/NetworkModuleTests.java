@@ -22,7 +22,6 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -39,6 +38,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class NetworkModuleTests extends ModuleTestCase {
+public class NetworkModuleTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Override
@@ -131,7 +131,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
@@ -159,8 +159,8 @@ public class NetworkModuleTests extends ModuleTestCase {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
                                                                                 BigArrays bigArrays,
+                                                                                PageCacheRecycler pageCacheRecycler,
                                                                                 CircuitBreakerService circuitBreakerService,
-                                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher) {
@@ -187,7 +187,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
@@ -198,8 +198,8 @@ public class NetworkModuleTests extends ModuleTestCase {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
                                                                                 BigArrays bigArrays,
+                                                                                PageCacheRecycler pageCacheRecycler,
                                                                                 CircuitBreakerService circuitBreakerService,
-                                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher) {
@@ -222,7 +222,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         Supplier<Transport> customTransport = () -> null;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
                                                                   PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
@@ -233,8 +233,8 @@ public class NetworkModuleTests extends ModuleTestCase {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
                                                                                 BigArrays bigArrays,
+                                                                                PageCacheRecycler pageCacheRecycler,
                                                                                 CircuitBreakerService circuitBreakerService,
-                                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher) {

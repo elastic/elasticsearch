@@ -29,6 +29,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.nio.FlushOperation;
+import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.nio.ByteBuffer;
@@ -72,7 +73,7 @@ public class NettyAdaptor implements AutoCloseable {
         closeFuture.await();
         if (closeFuture.isSuccess() == false) {
             Throwable cause = closeFuture.cause();
-            ExceptionsHelper.dieOnError(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             throw (Exception) cause;
         }
     }
@@ -83,7 +84,7 @@ public class NettyAdaptor implements AutoCloseable {
                 listener.accept(null, null);
             } else {
                 final Throwable cause = f.cause();
-                ExceptionsHelper.dieOnError(cause);
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 assert cause instanceof Exception;
                 listener.accept(null, (Exception) cause);
             }
@@ -95,6 +96,13 @@ public class NettyAdaptor implements AutoCloseable {
         int initialReaderIndex = byteBuf.readerIndex();
         nettyChannel.writeInbound(byteBuf);
         return byteBuf.readerIndex() - initialReaderIndex;
+    }
+
+    public int read(InboundChannelBuffer.Page[] pages) {
+        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages);
+        int readableBytes = byteBuf.readableBytes();
+        nettyChannel.writeInbound(byteBuf);
+        return readableBytes;
     }
 
     public Object pollInboundMessage() {

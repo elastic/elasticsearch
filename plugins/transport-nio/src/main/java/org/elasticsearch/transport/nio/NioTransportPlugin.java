@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -50,30 +51,28 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         return Arrays.asList(
             NioHttpServerTransport.NIO_HTTP_ACCEPTOR_COUNT,
             NioHttpServerTransport.NIO_HTTP_WORKER_COUNT,
-            NioTransport.NIO_WORKER_COUNT,
-            NioTransport.NIO_ACCEPTOR_COUNT
+            NioTransport.NIO_WORKER_COUNT
         );
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.singletonMap(NIO_TRANSPORT_NAME,
-            () -> new NioTransport(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
+            () -> new NioTransport(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry,
                 circuitBreakerService));
     }
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         return Collections.singletonMap(NIO_HTTP_TRANSPORT_NAME,
-            () -> new NioHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
+            () -> new NioHttpServerTransport(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry,
+                dispatcher));
     }
 }

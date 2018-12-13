@@ -23,6 +23,7 @@ import org.apache.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -443,7 +444,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Collections.singletonList("dep"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
     }
@@ -462,7 +463,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Arrays.asList("dep1", "dep2"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
@@ -479,7 +480,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, new HashMap<>()));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>()));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("Level"));
@@ -498,7 +499,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Collections.singletonList("dep"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
@@ -521,7 +522,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Arrays.asList("dep1", "dep2"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass2"));
@@ -543,7 +544,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
             "MyPlugin", Arrays.asList("dep1", "dep2"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        PluginsService.checkBundleJarHell(bundle, transitiveDeps);
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
@@ -589,10 +590,10 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_5_0_0,
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_6_0_0,
             "1.8", "FakePlugin", Collections.emptyList(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 5.0.0"));
+        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {

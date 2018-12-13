@@ -60,7 +60,7 @@ public final class XContentTestUtils {
 
 
     /**
-     * Compares to maps generated from XContentObjects. The order of elements in arrays is ignored.
+     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
      *
      * @return null if maps are equal or path to the element where the difference was found
      */

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -16,7 +17,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -24,17 +25,16 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction
-        extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response, StartDatafeedAction.RequestBuilder> {
+public class StartDatafeedAction extends Action<AcknowledgedResponse> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -49,13 +49,8 @@ public class StartDatafeedAction
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -144,9 +139,9 @@ public class StartDatafeedAction
         }
     }
 
-    public static class DatafeedParams implements PersistentTaskParams {
+    public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
 
-        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, DatafeedParams::new);
+        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, DatafeedParams::new);
 
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
@@ -158,7 +153,7 @@ public class StartDatafeedAction
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
-            DateMathParser dateMathParser = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+            DateMathParser dateMathParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
             try {
                 return dateMathParser.parse(date, now);
@@ -238,6 +233,11 @@ public class StartDatafeedAction
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(datafeedId);
             out.writeVLong(startTime);
@@ -279,41 +279,7 @@ public class StartDatafeedAction
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AcknowledgedResponse that = (AcknowledgedResponse) o;
-            return isAcknowledged() == that.isAcknowledged();
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
             super(client, action, new Request());

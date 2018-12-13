@@ -748,7 +748,7 @@ os_parsers:
   # possibility of false positive when different marketing names share same NT kernel
   # e.g. windows server 2003 and windows xp
   # lots of ua strings have Windows NT 4.1 !?!?!?!? !?!? !? !????!?! !!! ??? !?!?! ?
-  # (very) roughly ordered in terms of frequency of occurence of regex (win xp currently most frequent, etc)
+  # (very) roughly ordered in terms of frequency of occurrence of regex (win xp currently most frequent, etc)
   ##########
 
   # ie mobile desktop mode
@@ -2848,7 +2848,7 @@ device_parsers:
     device_replacement: 'Micromax $1'
     brand_replacement: 'Micromax'
     model_replacement: '$1'
-  # be carefull here with Acer e.g. A500
+  # be careful here with Acer e.g. A500
   - regex: '; *(A\d{2}|A[12]\d{2}|A90S|A110Q) Build'
     regex_flag: 'i'
     device_replacement: 'Micromax $1'

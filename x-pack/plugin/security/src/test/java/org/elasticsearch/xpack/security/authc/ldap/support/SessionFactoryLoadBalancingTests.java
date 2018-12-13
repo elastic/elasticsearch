@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,6 +18,7 @@ import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -25,6 +27,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,7 +115,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 // of the ldap server and the opening of the socket
                 logger.debug("opening mock server socket listening on [{}]", port);
                 Runnable runnable = () -> {
-                    try (Socket socket = new MockSocket(InetAddress.getByName("localhost"), mockServerSocket.getLocalPort(), local, port)) {
+                    try (Socket socket = openMockSocket(local, mockServerSocket.getLocalPort(), local, port)) {
                         logger.debug("opened socket [{}]", socket);
                         latch.countDown();
                         closeLatch.await();
@@ -147,6 +150,17 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 t.join();
             }
         }
+    }
+
+    @SuppressForbidden(reason = "Allow opening socket for test")
+    private MockSocket openMockSocket(InetAddress remoteAddress, int remotePort, InetAddress localAddress, int localPort)
+            throws IOException {
+        final MockSocket socket = new MockSocket();
+        socket.setReuseAddress(true); // allow binding even if the previous socket is in timed wait state.
+        socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
+        socket.bind(new InetSocketAddress(localAddress, localPort));
+        SocketAccess.doPrivileged(() -> socket.connect(new InetSocketAddress(localAddress, remotePort)));
+        return socket;
     }
 
     public void testFailover() throws Exception {
@@ -223,10 +237,10 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         Settings settings = buildLdapSettings(ldapUrls(), new String[] { userTemplate }, groupSearchBase,
                 LdapSearchScope.SUB_TREE, loadBalancing);
-        Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("test-session-factory", settings, globalSettings,
+        Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.globalSettings())),
+        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
     }
 

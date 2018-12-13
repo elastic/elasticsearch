@@ -96,6 +96,7 @@ install_node_using_archive() {
     export_elasticsearch_paths
 
     install_archive
+    set_debug_logging
     verify_archive_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
@@ -123,6 +124,7 @@ install_node_using_package() {
     export_elasticsearch_paths
 
     install_package
+    set_debug_logging
     verify_package_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_PACKAGE_USER
@@ -247,6 +249,7 @@ node.name: "node-master"
 node.master: true
 node.data: false
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
+cluster.initial_master_nodes: ["node-master"]
 
 xpack.ssl.key: $ESCONFIG/certs/node-master/node-master.key
 xpack.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt

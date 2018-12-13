@@ -41,7 +41,7 @@ public class ChainInput implements Input {
         builder.startArray(INPUTS.getPreferredName());
         for (Tuple<String, Input> tuple : inputs) {
             builder.startObject().startObject(tuple.v1());
-            builder.field(tuple.v2().type(), tuple.v2());
+            builder.field(tuple.v2().type(), tuple.v2(), params);
             builder.endObject().endObject();
         }
         builder.endArray();

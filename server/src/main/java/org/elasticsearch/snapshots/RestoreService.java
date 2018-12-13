@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
@@ -56,7 +57,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -64,6 +64,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -114,13 +115,16 @@ import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
  */
-public class RestoreService extends AbstractComponent implements ClusterStateApplier {
+public class RestoreService implements ClusterStateApplier {
+
+    private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
             SETTING_VERSION_CREATED,
             SETTING_INDEX_UUID,
-            SETTING_CREATION_DATE));
+            SETTING_CREATION_DATE,
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()));
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
     private static final Set<String> UNREMOVABLE_SETTINGS;
@@ -149,10 +153,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
     private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
     @Inject
-    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService,
+    public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetaDataCreateIndexService createIndexService,
                           MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettings clusterSettings) {
-        super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
@@ -268,7 +271,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
-                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings());
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), currentState, false);
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndexName);
                                 indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
@@ -292,6 +295,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                 // Index exists and it's closed - open it in metadata and start recovery
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
                                 indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
+                                indexMdBuilder.mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(), currentIndexMetaData.getMappingVersion() + 1));
+                                indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(), currentIndexMetaData.getSettingsVersion() + 1));
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
                                     if (!snapshotIndexMetaData.getAliases().isEmpty()) {

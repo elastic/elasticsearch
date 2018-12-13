@@ -5,19 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -45,7 +43,7 @@ import java.util.Objects;
  */
 public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
-    private static final Logger LOGGER = Loggers.getLogger(ExpiredResultsRemover.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
     private final Client client;
     private final Auditor auditor;
@@ -87,19 +85,16 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     private DeleteByQueryRequest createDBQRequest(Job job, long cutoffEpochMs) {
-        SearchRequest searchRequest = new SearchRequest();
-        // We need to create the DeleteByQueryRequest before we modify the SearchRequest
-        // because the constructor of the former wipes the latter
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(5);
 
-        searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
+        request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ModelSizeStats.RESULT_TYPE_VALUE, ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE);
         QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
                 .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
                 .mustNot(excludeFilter);
-        searchRequest.source(new SearchSourceBuilder().query(query));
+        request.setQuery(query);
         return request;
     }
 

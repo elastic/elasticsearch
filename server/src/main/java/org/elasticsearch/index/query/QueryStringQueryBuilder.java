@@ -175,9 +175,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         analyzer = in.readOptionalString();
         quoteAnalyzer = in.readOptionalString();
         quoteFieldSuffix = in.readOptionalString();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            in.readBoolean(); // auto_generate_phrase_query
-        }
         allowLeadingWildcard = in.readOptionalBoolean();
         analyzeWildcard = in.readOptionalBoolean();
         enablePositionIncrements = in.readBoolean();
@@ -186,27 +183,15 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         fuzzyMaxExpansions = in.readVInt();
         fuzzyRewrite = in.readOptionalString();
         phraseSlop = in.readVInt();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            in.readBoolean(); // use_dismax
-            tieBreaker = in.readFloat();
-            type = DEFAULT_TYPE;
-        } else {
-            type = MultiMatchQueryBuilder.Type.readFromStream(in);
-            tieBreaker = in.readOptionalFloat();
-        }
+        type = MultiMatchQueryBuilder.Type.readFromStream(in);
+        tieBreaker = in.readOptionalFloat();
+
         rewrite = in.readOptionalString();
         minimumShouldMatch = in.readOptionalString();
         lenient = in.readOptionalBoolean();
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1) && in.getVersion().before(Version.V_6_0_0_beta1)) {
-            in.readBoolean(); // split_on_whitespace
-            Boolean useAllField = in.readOptionalBoolean();
-            if (useAllField != null && useAllField) {
-                defaultField = "*";
-            }
-        }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             autoGenerateSynonymsPhraseQuery = in.readBoolean();
             fuzzyTranspositions = in.readBoolean();
@@ -226,9 +211,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalString(this.analyzer);
         out.writeOptionalString(this.quoteAnalyzer);
         out.writeOptionalString(this.quoteFieldSuffix);
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            out.writeBoolean(false); // auto_generate_phrase_query
-        }
         out.writeOptionalBoolean(this.allowLeadingWildcard);
         out.writeOptionalBoolean(this.analyzeWildcard);
         out.writeBoolean(this.enablePositionIncrements);
@@ -237,24 +219,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeVInt(this.fuzzyMaxExpansions);
         out.writeOptionalString(this.fuzzyRewrite);
         out.writeVInt(this.phraseSlop);
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            out.writeBoolean(true); // use_dismax
-            out.writeFloat(tieBreaker != null ? tieBreaker : 0.0f);
-        } else {
-            type.writeTo(out);
-            out.writeOptionalFloat(tieBreaker);
-        }
+        type.writeTo(out);
+        out.writeOptionalFloat(tieBreaker);
         out.writeOptionalString(this.rewrite);
         out.writeOptionalString(this.minimumShouldMatch);
         out.writeOptionalBoolean(this.lenient);
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1) && out.getVersion().before(Version.V_6_0_0_beta1)) {
-            out.writeBoolean(false); // split_on_whitespace
-            Boolean useAllFields = defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
-            out.writeOptionalBoolean(useAllFields);
-        }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
             out.writeBoolean(fuzzyTranspositions);
@@ -276,22 +248,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public String defaultField() {
         return this.defaultField;
-    }
-
-    /**
-     * This setting is deprecated, set {@link #defaultField(String)} to "*" instead.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields != null && useAllFields) {
-            this.defaultField = "*";
-        }
-        return this;
-    }
-
-    @Deprecated
-    public Boolean useAllFields() {
-        return defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
     }
 
     /**
@@ -328,24 +284,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /**
      * @param type Sets how multiple fields should be combined to build textual part queries.
      */
-    public void type(MultiMatchQueryBuilder.Type type) {
+    public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
-    }
-
-    /**
-     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder useDisMax(boolean useDisMax) {
         return this;
-    }
-
-    /**
-     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
-     */
-    @Deprecated
-    public boolean useDisMax() {
-        return true;
     }
 
     /**
@@ -388,7 +329,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         this.analyzer = analyzer;
         return this;
     }
-    
+
     /**
      * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
      * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
@@ -412,22 +353,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder quoteAnalyzer(String quoteAnalyzer) {
         this.quoteAnalyzer = quoteAnalyzer;
         return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public boolean autoGeneratePhraseQueries() {
-        return false;
     }
 
     /**
@@ -611,22 +536,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public boolean escape() {
         return this.escape;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public boolean splitOnWhitespace() {
-        return false;
     }
 
     public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
@@ -899,9 +808,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) && 
+                Objects.equals(lenient, other.lenient) &&
                 Objects.equals(
-                        timeZone == null ? null : timeZone.getID(), 
+                        timeZone == null ? null : timeZone.getID(),
                         other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&

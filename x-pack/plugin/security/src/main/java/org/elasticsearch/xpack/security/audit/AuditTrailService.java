@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
@@ -19,7 +17,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 
-public class AuditTrailService extends AbstractComponent implements AuditTrail {
+public class AuditTrailService implements AuditTrail {
 
     private final XPackLicenseState licenseState;
     private final List<AuditTrail> auditTrails;
@@ -29,8 +27,7 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
         return "service";
     }
 
-    public AuditTrailService(Settings settings, List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
-        super(settings);
+    public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
         this.auditTrails = Collections.unmodifiableList(auditTrails);
         this.licenseState = licenseState;
     }
@@ -41,143 +38,143 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, RestRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(realm, user, request);
+                auditTrail.authenticationSuccess(requestId, realm, user, request);
             }
         }
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(realm, user, action, message);
+                auditTrail.authenticationSuccess(requestId, realm, user, action, message);
             }
         }
     }
 
     @Override
-    public void anonymousAccessDenied(String action, TransportMessage message) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void anonymousAccessDenied(String requestId, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.anonymousAccessDenied(action, message);
+                auditTrail.anonymousAccessDenied(requestId, action, message);
             }
         }
     }
 
     @Override
-    public void anonymousAccessDenied(RestRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void anonymousAccessDenied(String requestId, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.anonymousAccessDenied(request);
+                auditTrail.anonymousAccessDenied(requestId, request);
             }
         }
     }
 
     @Override
-    public void authenticationFailed(RestRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationFailed(String requestId, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(request);
+                auditTrail.authenticationFailed(requestId, request);
             }
         }
     }
 
     @Override
-    public void authenticationFailed(String action, TransportMessage message) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationFailed(String requestId, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(action, message);
+                auditTrail.authenticationFailed(requestId, action, message);
             }
         }
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(token, action, message);
+                auditTrail.authenticationFailed(requestId, token, action, message);
             }
         }
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(realm, token, action, message);
+                auditTrail.authenticationFailed(requestId, realm, token, action, message);
             }
         }
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(token, request);
+                auditTrail.authenticationFailed(requestId, token, request);
             }
         }
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(realm, token, request);
+                auditTrail.authenticationFailed(requestId, realm, token, request);
             }
         }
     }
 
     @Override
-    public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg, String[] roleNames) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.accessGranted(authentication, action, message, roleNames);
+                auditTrail.accessGranted(requestId, authentication, action, msg, roleNames);
             }
         }
     }
 
     @Override
-    public void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.accessDenied(authentication, action, message, roleNames);
+                auditTrail.accessDenied(requestId, authentication, action, message, roleNames);
             }
         }
     }
 
     @Override
-    public void tamperedRequest(RestRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void tamperedRequest(String requestId, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.tamperedRequest(request);
+                auditTrail.tamperedRequest(requestId, request);
             }
         }
     }
 
     @Override
-    public void tamperedRequest(String action, TransportMessage message) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void tamperedRequest(String requestId, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.tamperedRequest(action, message);
+                auditTrail.tamperedRequest(requestId, action, message);
             }
         }
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportMessage request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void tamperedRequest(String requestId, User user, String action, TransportMessage request) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.tamperedRequest(user, action, request);
+                auditTrail.tamperedRequest(requestId, user, action, request);
             }
         }
     }
 
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.connectionGranted(inetAddress, profile, rule);
             }
@@ -186,7 +183,7 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.connectionDenied(inetAddress, profile, rule);
             }
@@ -194,28 +191,28 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.runAsGranted(authentication, action, message, roleNames);
+                auditTrail.runAsGranted(requestId, authentication, action, message, roleNames);
             }
         }
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.runAsDenied(authentication, action, message, roleNames);
+                auditTrail.runAsDenied(requestId, authentication, action, message, roleNames);
             }
         }
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, String[] roleNames) {
+        if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.runAsDenied(authentication, request, roleNames);
+                auditTrail.runAsDenied(requestId, authentication, request, roleNames);
             }
         }
     }

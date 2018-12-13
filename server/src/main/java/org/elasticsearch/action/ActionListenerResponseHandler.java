@@ -19,13 +19,15 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
+import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * A simple base class for action response listeners, defaulting to using the SAME executor (as its
@@ -34,11 +36,11 @@ import java.util.function.Supplier;
 public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
     private final ActionListener<? super Response> listener;
-    private final Supplier<Response> responseSupplier;
+    private final Writeable.Reader<Response> reader;
 
-    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Supplier<Response> responseSupplier) {
+    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader) {
         this.listener = Objects.requireNonNull(listener);
-        this.responseSupplier = Objects.requireNonNull(responseSupplier);
+        this.reader = Objects.requireNonNull(reader);
     }
 
     @Override
@@ -52,12 +54,12 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     }
 
     @Override
-    public Response newInstance() {
-        return responseSupplier.get();
+    public String executor() {
+        return ThreadPool.Names.SAME;
     }
 
     @Override
-    public String executor() {
-        return ThreadPool.Names.SAME;
+    public Response read(StreamInput in) throws IOException {
+        return reader.read(in);
     }
 }

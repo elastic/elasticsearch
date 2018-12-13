@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
@@ -37,10 +37,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
@@ -66,6 +68,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new NumberFieldMapper.NumberFieldType(type);
+    }
+
+    public void testEqualsWithDifferentNumberTypes() {
+        NumberType type = randomFrom(NumberType.values());
+        NumberFieldType fieldType = new NumberFieldType(type);
+
+        NumberType otherType = randomValueOtherThan(type,
+            () -> randomFrom(NumberType.values()));
+        NumberFieldType otherFieldType = new NumberFieldType(otherType);
+
+        assertNotEquals(fieldType, otherFieldType);
     }
 
     public void testIsFieldWithinQuery() throws IOException {
@@ -518,5 +531,50 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.FLOAT).valueForDisplay(1.2));
         assertEquals(Double.valueOf(1.2),
                 new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE).valueForDisplay(1.2));
+    }
+
+    public void testParsePoint() {
+        {
+            byte[] bytes = new byte[Integer.BYTES];
+            byte value = randomByte();
+            IntPoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.BYTE.parsePoint(bytes), equalTo(value));
+        }
+        {
+            byte[] bytes = new byte[Integer.BYTES];
+            short value = randomShort();
+            IntPoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.SHORT.parsePoint(bytes), equalTo(value));
+        }
+        {
+            byte[] bytes = new byte[Integer.BYTES];
+            int value = randomInt();
+            IntPoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.INTEGER.parsePoint(bytes), equalTo(value));
+        }
+        {
+            byte[] bytes = new byte[Long.BYTES];
+            long value = randomLong();
+            LongPoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.LONG.parsePoint(bytes), equalTo(value));
+        }
+        {
+            byte[] bytes = new byte[Float.BYTES];
+            float value = randomFloat();
+            FloatPoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.FLOAT.parsePoint(bytes), equalTo(value));
+        }
+        {
+            byte[] bytes = new byte[Double.BYTES];
+            double value = randomDouble();
+            DoublePoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.DOUBLE.parsePoint(bytes), equalTo(value));
+        }
+        {
+            byte[] bytes = new byte[Float.BYTES];
+            float value = 3f;
+            HalfFloatPoint.encodeDimension(value, bytes, 0);
+            assertThat(NumberType.HALF_FLOAT.parsePoint(bytes), equalTo(value));
+        }
     }
 }

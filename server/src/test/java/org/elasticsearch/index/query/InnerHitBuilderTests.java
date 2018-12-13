@@ -46,6 +46,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -124,11 +125,12 @@ public class InnerHitBuilderTests extends ESTestCase {
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
             //fields is printed out as an object but parsed into a List where order matters, we disable shuffling
             XContentBuilder shuffled = shuffleXContent(builder, "fields");
-            XContentParser parser = createParser(shuffled);
-            InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(parser);
-            assertThat(innerHit, not(sameInstance(secondInnerHits)));
-            assertThat(innerHit, equalTo(secondInnerHits));
-            assertThat(innerHit.hashCode(), equalTo(secondInnerHits.hashCode()));
+            try (XContentParser parser = createParser(shuffled)) {
+                InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(parser);
+                assertThat(innerHit, not(sameInstance(secondInnerHits)));
+                assertThat(innerHit, equalTo(secondInnerHits));
+                assertThat(innerHit.hashCode(), equalTo(secondInnerHits.hashCode()));
+            }
         }
     }
 
@@ -278,4 +280,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, InnerHitBuilder::new);
     }
 
+    public void testSetDocValueFormat() {
+        InnerHitBuilder innerHit = new InnerHitBuilder();
+        innerHit.addDocValueField("foo");
+        innerHit.addDocValueField("@timestamp", "epoch_millis");
+        assertEquals(
+                Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+                innerHit.getDocValueFields());
+    }
 }

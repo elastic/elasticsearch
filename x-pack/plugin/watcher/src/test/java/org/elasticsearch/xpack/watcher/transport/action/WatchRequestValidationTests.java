@@ -9,14 +9,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -84,6 +84,12 @@ public class WatchRequestValidationTests extends ESTestCase {
         ActionRequestValidationException e = new PutWatchRequest("foo", (BytesReference) null, XContentType.JSON).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch source is missing"));
+    }
+
+    public void testPutWatchContentNull() {
+        ActionRequestValidationException e = new PutWatchRequest("foo", BytesArray.EMPTY, null).validate();
+        assertThat(e, is(notNullValue()));
+        assertThat(e.validationErrors(), hasItem("request body is missing"));
     }
 
     public void testGetWatchInvalidWatchId() {

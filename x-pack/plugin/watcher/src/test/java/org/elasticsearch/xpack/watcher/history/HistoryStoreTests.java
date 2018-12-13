@@ -7,10 +7,14 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,6 +46,7 @@ import static org.elasticsearch.xpack.core.watcher.history.HistoryStoreField.get
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
@@ -58,11 +63,15 @@ public class HistoryStoreTests extends ESTestCase {
 
     @Before
     public void init() {
+        Settings settings = Settings.builder().put("node.name", randomAlphaOfLength(10)).build();
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        historyStore = new HistoryStore(Settings.EMPTY, client);
+        when(client.settings()).thenReturn(settings);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
+        BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        historyStore = new HistoryStore(bulkProcessor);
     }
 
     public void testPut() throws Exception {
@@ -75,19 +84,21 @@ public class HistoryStoreTests extends ESTestCase {
         IndexResponse indexResponse = mock(IndexResponse.class);
 
         doAnswer(invocation -> {
-            IndexRequest request = (IndexRequest) invocation.getArguments()[0];
-            PlainActionFuture<IndexResponse> indexFuture = PlainActionFuture.newFuture();
-            if (request.id().equals(wid.value()) && request.type().equals(HistoryStore.DOC_TYPE) && request.opType() == OpType.CREATE
-                && request.index().equals(index)) {
-                indexFuture.onResponse(indexResponse);
+            BulkRequest request = (BulkRequest) invocation.getArguments()[1];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+
+            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
+            if (indexRequest.id().equals(wid.value()) && indexRequest.type().equals(HistoryStore.DOC_TYPE) &&
+                indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(index)) {
+                listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
             } else {
-                indexFuture.onFailure(new ElasticsearchException("test issue"));
+                listener.onFailure(new ElasticsearchException("test issue"));
             }
-            return indexFuture;
-        }).when(client).index(any());
+            return null;
+        }).when(client).bulk(any(), any());
 
         historyStore.put(watchRecord);
-        verify(client).index(any());
+        verify(client).bulk(any(), any());
     }
 
     public void testIndexNameGeneration() {
@@ -139,10 +150,15 @@ public class HistoryStoreTests extends ESTestCase {
         }
         watchRecord.result().actionsResults().put(JiraAction.TYPE, result);
 
-        PlainActionFuture<IndexResponse> indexResponseFuture = PlainActionFuture.newFuture();
-        indexResponseFuture.onResponse(mock(IndexResponse.class));
-        ArgumentCaptor<IndexRequest> requestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-        when(client.index(requestCaptor.capture())).thenReturn(indexResponseFuture);
+        ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        doAnswer(invocation -> {
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+
+            IndexResponse indexResponse = mock(IndexResponse.class);
+            listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+            return null;
+        }).when(client).bulk(requestCaptor.capture(), any());
+
         if (randomBoolean()) {
             historyStore.put(watchRecord);
         } else {
@@ -150,7 +166,9 @@ public class HistoryStoreTests extends ESTestCase {
         }
 
         assertThat(requestCaptor.getAllValues(), hasSize(1));
-        String indexedJson = requestCaptor.getValue().source().utf8ToString();
+        assertThat(requestCaptor.getValue().requests().get(0), instanceOf(IndexRequest.class));
+        IndexRequest capturedIndexRequest = (IndexRequest) requestCaptor.getValue().requests().get(0);
+        String indexedJson = capturedIndexRequest.source().utf8ToString();
         assertThat(indexedJson, containsString(username));
         assertThat(indexedJson, not(containsString(password)));
     }

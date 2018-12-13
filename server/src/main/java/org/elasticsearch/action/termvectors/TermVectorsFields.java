@@ -22,7 +22,9 @@ package org.elasticsearch.action.termvectors;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SlowImpactsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostAttribute;
@@ -346,6 +348,11 @@ public final class TermVectorsFields extends Fields {
                             : new TermVectorPostingsEnum());
                     return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
                             : null, hasPayloads ? payloads : null, freq);
+                }
+
+                @Override
+                public ImpactsEnum impacts(int flags) throws IOException {
+                    return new SlowImpactsEnum(postings(null, flags));
                 }
 
             };

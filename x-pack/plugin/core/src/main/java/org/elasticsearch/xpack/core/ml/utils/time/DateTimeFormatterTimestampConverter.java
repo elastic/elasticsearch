@@ -54,9 +54,9 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
                 .parseDefaulting(ChronoField.YEAR_OF_ERA, LocalDate.now(defaultTimezone).getYear())
                 .toFormatter();
 
-        String now = formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochSecond(0), ZoneOffset.UTC));
+        String formattedTime = formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochSecond(0), ZoneOffset.UTC));
         try {
-            TemporalAccessor parsed = formatter.parse(now);
+            TemporalAccessor parsed = formatter.parse(formattedTime);
             boolean hasTimeZone = parsed.isSupported(ChronoField.INSTANT_SECONDS);
             if (hasTimeZone) {
                 Instant.from(parsed);
@@ -67,7 +67,7 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
             return new DateTimeFormatterTimestampConverter(formatter, hasTimeZone, defaultTimezone);
         }
         catch (DateTimeException e) {
-            throw new IllegalArgumentException("Timestamp cannot be derived from pattern: " + pattern);
+            throw new IllegalArgumentException("Timestamp cannot be derived from pattern: " + pattern, e);
         }
     }
 

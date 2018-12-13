@@ -19,12 +19,16 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.
@@ -37,7 +41,8 @@ public interface AliasOrIndex {
     boolean isAlias();
 
     /**
-     * @return All {@link IndexMetaData} of all concrete indices this alias is referring to or if this is a concrete index its {@link IndexMetaData}
+     * @return All {@link IndexMetaData} of all concrete indices this alias is referring to
+     * or if this is a concrete index its {@link IndexMetaData}
      */
     List<IndexMetaData> getIndices();
 
@@ -61,14 +66,6 @@ public interface AliasOrIndex {
         public List<IndexMetaData> getIndices() {
             return Collections.singletonList(concreteIndex);
         }
-
-        /**
-         * @return If this is an concrete index, its {@link IndexMetaData}
-         */
-        public IndexMetaData getIndex() {
-            return concreteIndex;
-        }
-
     }
 
     /**
@@ -78,6 +75,7 @@ public interface AliasOrIndex {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
+        private final SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
@@ -90,9 +88,19 @@ public interface AliasOrIndex {
             return true;
         }
 
+        public String getAliasName() {
+            return aliasName;
+        }
+
         @Override
         public List<IndexMetaData> getIndices() {
             return referenceIndexMetaDatas;
+        }
+
+
+        @Nullable
+        public IndexMetaData getWriteIndex() {
+            return writeIndex.get();
         }
 
         /**
@@ -102,30 +110,19 @@ public interface AliasOrIndex {
          * and filters)
          */
         public Iterable<Tuple<String, AliasMetaData>> getConcreteIndexAndAliasMetaDatas() {
-            return new Iterable<Tuple<String, AliasMetaData>>() {
+            return () -> new Iterator<Tuple<String,AliasMetaData>>() {
+
+                int index = 0;
+
                 @Override
-                public Iterator<Tuple<String, AliasMetaData>> iterator() {
-                    return new Iterator<Tuple<String,AliasMetaData>>() {
+                public boolean hasNext() {
+                    return index < referenceIndexMetaDatas.size();
+                }
 
-                        int index = 0;
-
-                        @Override
-                        public boolean hasNext() {
-                            return index < referenceIndexMetaDatas.size();
-                        }
-
-                        @Override
-                        public Tuple<String, AliasMetaData> next() {
-                            IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
-                            return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
-                        }
-
-                        @Override
-                        public void remove() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                    };
+                @Override
+                public Tuple<String, AliasMetaData> next() {
+                    IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
+                    return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
                 }
             };
         }
@@ -138,5 +135,24 @@ public interface AliasOrIndex {
             this.referenceIndexMetaDatas.add(indexMetaData);
         }
 
+        public void computeAndValidateWriteIndex() {
+            List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                .collect(Collectors.toList());
+
+            if (writeIndices.isEmpty() && referenceIndexMetaDatas.size() == 1
+                    && referenceIndexMetaDatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                writeIndices.add(referenceIndexMetaDatas.get(0));
+            }
+
+            if (writeIndices.size() == 1) {
+                writeIndex.set(writeIndices.get(0));
+            } else if (writeIndices.size() > 1) {
+                List<String> writeIndicesStrings = writeIndices.stream()
+                    .map(i -> i.getIndex().getName()).collect(Collectors.toList());
+                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
+            }
+        }
     }
 }

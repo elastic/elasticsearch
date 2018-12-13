@@ -28,14 +28,14 @@ public final class MonitoringTemplateUtils {
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_0_0_alpha1.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_7_0_0.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).
      */
     public static final String TEMPLATE_VERSION = "6";
     /**
-     * The previous version of templates, which we still support via the REST _xpack/monitoring/_bulk endpoint because
+     * The previous version of templates, which we still support via the REST /_monitoring/bulk endpoint because
      * nothing changed for those documents.
      */
     public static final String OLD_TEMPLATE_VERSION = "2";

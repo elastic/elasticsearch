@@ -117,7 +117,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
-        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+        this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
@@ -386,13 +386,26 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
+                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
+        /*
+         * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
+         * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
+         * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
+         * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
+         */
+        indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
+        /*
+         * Bootstrap the max_seq_no_of_updates from the primary to make sure that the max_seq_no_of_updates on this replica when
+         * replaying any of these operations will be at least the max_seq_no_of_updates on the primary when that operation was executed on.
+         */
+        indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfDeletesOrUpdatesOnPrimary);
         for (Translog.Operation operation : operations) {
             Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
@@ -443,7 +456,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId, indexShard.getPrimaryTerm());
+                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
+                indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.

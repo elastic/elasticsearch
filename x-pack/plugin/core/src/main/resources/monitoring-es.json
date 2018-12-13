@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 7000001,
+  "version": 7000099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -797,7 +797,7 @@
                     }
                   }
                 },
-                "maanagement": {
+                "management": {
                   "properties": {
                     "threads": {
                       "type": "integer"
@@ -828,6 +828,16 @@
                     "threads": {
                       "type": "integer"
                     },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "write": {
+                  "properties": {
                     "queue": {
                       "type": "integer"
                     },
@@ -912,6 +922,142 @@
               "properties": {
                 "id": {
                   "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "ccr_stats": {
+          "properties": {
+            "remote_cluster": {
+              "type": "keyword"
+            },
+            "leader_index": {
+              "type": "keyword"
+            },
+            "follower_index": {
+              "type": "keyword"
+            },
+            "shard_id": {
+              "type": "integer"
+            },
+            "leader_global_checkpoint": {
+              "type": "long"
+            },
+            "leader_max_seq_no": {
+              "type": "long"
+            },
+            "follower_global_checkpoint": {
+              "type": "long"
+            },
+            "follower_max_seq_no": {
+              "type": "long"
+            },
+            "last_requested_seq_no": {
+              "type": "long"
+            },
+            "outstanding_read_requests": {
+              "type": "long"
+            },
+            "outstanding_write_requests": {
+              "type": "long"
+            },
+            "write_buffer_operation_count": {
+              "type": "long"
+            },
+            "write_buffer_size_in_bytes": {
+              "type": "long"
+            },
+            "follower_mapping_version": {
+              "type": "long"
+            },
+            "follower_settings_version": {
+              "type": "long"
+            },
+            "total_read_time_millis": {
+              "type": "long"
+            },
+            "total_read_remote_exec_time_millis": {
+              "type": "long"
+            },
+            "successful_read_requests": {
+              "type": "long"
+            },
+            "failed_read_requests": {
+              "type": "long"
+            },
+            "operations_read": {
+              "type": "long"
+            },
+            "bytes_read": {
+              "type": "long"
+            },
+            "total_write_time_millis": {
+              "type": "long"
+            },
+            "successful_write_requests": {
+              "type": "long"
+            },
+            "failed_write_requests": {
+              "type": "long"
+            },
+            "operations_written": {
+              "type": "long"
+            },
+            "read_exceptions": {
+              "type": "nested",
+              "properties": {
+                "from_seq_no": {
+                  "type": "long"
+                },
+                "retries": {
+                  "type": "integer"
+                },
+                "exception": {
+                  "type": "object",
+                  "properties": {
+                    "type" : {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            },
+            "time_since_last_read_millis": {
+              "type": "long"
+            }
+          }
+        },
+        "ccr_auto_follow_stats" : {
+          "properties": {
+            "number_of_failed_follow_indices": {
+              "type": "long"
+            },
+            "number_of_failed_remote_cluster_state_requests": {
+              "type": "long"
+            },
+            "number_of_successful_follow_indices": {
+              "type": "long"
+            },
+            "recent_auto_follow_errors": {
+              "type": "nested",
+              "properties": {
+                "leader_index": {
+                  "type": "keyword"
+                },
+                "auto_follow_exception": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
                 }
               }
             }

@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -69,9 +68,9 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(avg("avg").field("value")))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -88,9 +87,9 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value"))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -103,7 +102,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -117,7 +116,7 @@ public class AvgIT extends AbstractNumericTestCase {
     public void testSingleValuedFieldGetProperty() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(avg("avg").field("value"))).execute().actionGet();
+                .addAggregation(global("global").subAggregation(avg("avg").field("value"))).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -143,7 +142,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -159,7 +158,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, Collections.emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -176,7 +175,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("value")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, params)))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -188,7 +187,7 @@ public class AvgIT extends AbstractNumericTestCase {
 
     public void testSingleValuedField_WithFormatter() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(avg("avg").format("#").field("value")).execute().actionGet();
+                .addAggregation(avg("avg").format("#").field("value")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -204,7 +203,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("values"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -220,7 +219,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("values")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, Collections.emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -237,7 +236,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg").field("values")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, params)))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -253,7 +252,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -272,7 +271,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -288,7 +287,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -307,7 +306,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(avg("avg")
                         .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 

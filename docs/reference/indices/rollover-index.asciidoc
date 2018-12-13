@@ -4,10 +4,19 @@
 The rollover index API rolls an alias over to a new index when the existing
 index is considered to be too large or too old.
 
-The API accepts a single alias name and a list of `conditions`.  The alias
-must point to a single index only.  If the index satisfies the specified
-conditions then a new index is created and the alias is switched to point to
-the new index.
+The API accepts a single alias name and a list of `conditions`. The alias must point to a write index for
+a Rollover request to be valid. There are two ways this can be achieved, and depending on the configuration, the
+alias metadata will be updated differently. The two scenarios are as follows:
+
+ - The alias only points to a single index with `is_write_index` not configured (defaults to `null`).
+
+In this scenario, the original index will have their rollover alias will be added to the newly created index, and removed
+from the original (rolled-over) index.
+
+ - The alias points to one or more indices with `is_write_index` set to `true` on the index to be rolled over (the write index).
+
+In this scenario, the write index will have its rollover alias' `is_write_index` set to `false`, while the newly created index
+will now have the rollover alias pointing to it as the write index with `is_write_index` as `true`.
 
 
 [source,js]
@@ -231,3 +240,98 @@ POST /logs_write/_rollover?dry_run
 Because the rollover operation creates a new index to rollover to, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the rollover action as well.
+
+[[indices-rollover-is-write-index]]
+[float]
+=== Write Index Alias Behavior
+
+The rollover alias when rolling over a write index that has `is_write_index` explicitly set to `true` is not
+swapped during rollover actions. Since having an alias point to multiple indices is ambiguous in distinguishing
+which is the correct write index to roll over, it is not valid to rollover an alias that points to multiple indices.
+For this reason, the default behavior is to swap which index is being pointed to by the write-oriented alias. This
+was `logs_write` in some of the above examples. Since setting `is_write_index` enables an alias to point to multiple indices
+while also being explicit as to which is the write index that rollover should target, removing the alias from the rolled over
+index is not necessary. This simplifies things by allowing for one alias to behave both as the write and read aliases for
+indices that are being managed with Rollover.
+
+Look at the behavior of the aliases in the following example where `is_write_index` is set on the rolled over index.
+
+[source,js]
+--------------------------------------------------
+PUT my_logs_index-000001
+{
+  "aliases": {
+    "logs": { "is_write_index": true } <1>
+  }
+}
+
+PUT logs/_doc/1
+{
+  "message": "a dummy log"
+}
+
+POST logs/_refresh
+
+POST /logs/_rollover
+{
+  "conditions": {
+    "max_docs":   "1"
+  }
+}
+
+PUT logs/_doc/2 <2>
+{
+  "message": "a newer log"
+}
+--------------------------------------------------
+// CONSOLE
+<1> configures `my_logs_index` as the write index for the `logs` alias
+<2> newly indexed documents against the `logs` alias will write to the new index
+
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "my_logs_index-000002",
+  "_type" : "_doc",
+  "_id" : "2",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+[source,js]
+--------------------------------------------------
+GET _alias
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+//////////////////////////
+
+After the rollover, the alias metadata for the two indices will have the `is_write_index` setting
+reflect each index's role, with the newly created index as the write index.
+
+[source,js]
+--------------------------------------------------
+{
+  "my_logs_index-000002": {
+    "aliases": {
+      "logs": { "is_write_index": true }
+    }
+  },
+  "my_logs_index-000001": {
+    "aliases": {
+      "logs": { "is_write_index" : false }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -1,10 +1,9 @@
 ---
 "Test get SSL certificates":
   - do:
-      xpack.ssl.certificates: {}
+          ssl.certificates: {}
 
   - length: { $body: 1 }
-  - match: { $body.0.path: "test-node.jks" }
-  - match: { $body.0.format: "jks" }
-  - match: { $body.0.alias: "test-node" }
+  - match: { $body.0.path: "testnode.crt" }
+  - match: { $body.0.format: "PEM" }
   - match: { $body.0.has_private_key: true }

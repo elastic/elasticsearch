@@ -82,38 +82,26 @@ In general it's probably best to avoid running external commands when a good
 Java alternative exists. For example most filesystem operations can be done with
 the java.nio.file APIs. For those that aren't, use an instance of [Shell](src/main/java/org/elasticsearch/packaging/util/Shell.java)
 
-Despite the name, commands run with this class are not run in a shell, and any
-familiar features of shells like variables or expansion won't work.
-
-If you do need the shell, you must explicitly invoke the shell's command. For
-example to run a command with Bash, use the `bash -c command` syntax. Note that
-the entire script must be in a single string argument
+This class runs scripts in either bash with the `bash -c <script>` syntax,
+or in powershell with the `powershell.exe -Command <script>` syntax.
 
 ```java
 Shell sh = new Shell();
-sh.run("bash", "-c", "echo $foo; echo $bar");
+
+// equivalent to `bash -c 'echo $foo; echo $bar'`
+sh.bash("echo $foo; echo $bar");
+
+// equivalent to `powershell.exe -Command 'Write-Host $foo; Write-Host $bar'`
+sh.powershell("Write-Host $foo; Write-Host $bar");
 ```
 
-Similary for powershell - again, the entire powershell script must go in a
-single string argument
+### Notes about powershell
 
-```java
-sh.run("powershell.exe", "-Command", "Write-Host $foo; Write-Host $bar");
-```
+Powershell scripts for the most part have backwards compatibility with legacy
+cmd.exe commands and their syntax. Most of the commands you'll want to use
+in powershell are [Cmdlets](https://msdn.microsoft.com/en-us/library/ms714395.aspx)
+which generally don't have a one-to-one mapping with an executable file.
 
-On Linux, most commands you'll want to use will be executable files and will
-work fine without a shell
-
-```java
-sh.run("tar", "-xzpf", "elasticsearch-6.1.0.tar.gz");
-```
-
-On Windows you'll mostly want to use powershell as it can do a lot more and
-gives much better feedback than Windows' legacy command line. Unfortunately that
-means that you'll need to use the `powershell.exe -Command` syntax as
-powershell's [Cmdlets](https://msdn.microsoft.com/en-us/library/ms714395.aspx)
-don't correspond to executable files and are not runnable by `Runtime` directly.
-
-When writing powershell commands this way, make sure to test them as some types
-of formatting can cause it to return a successful exit code but not run
-anything.
+When writing powershell commands in this project it's worth testing them by
+hand, as sometimes when a script can't be interpreted correctly it will
+fail silently.

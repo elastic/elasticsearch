@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Setting;
@@ -38,6 +40,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class MockTaskManager extends TaskManager {
 
+    private static final Logger logger = LogManager.getLogger(MockTaskManager.class);
+
     public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING =
         Setting.boolSetting("tests.mock.taskmanager.enabled", false, Property.NodeScope);
 
@@ -50,17 +54,15 @@ public class MockTaskManager extends TaskManager {
     @Override
     public Task register(String type, String action, TaskAwareRequest request) {
         Task task = super.register(type, action, request);
-        if (task != null) {
-            for (MockTaskManagerListener listener : listeners) {
-                try {
-                    listener.onTaskRegistered(task);
-                } catch (Exception e) {
-                    logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to notify task manager listener about registering the task with id {}",
-                            task.getId()),
-                        e);
-                }
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onTaskRegistered(task);
+            } catch (Exception e) {
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to notify task manager listener about registering the task with id {}",
+                        task.getId()),
+                    e);
             }
         }
         return task;

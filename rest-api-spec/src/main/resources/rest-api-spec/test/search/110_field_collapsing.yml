@@ -1,7 +1,13 @@
 setup:
   - do:
       indices.create:
-          index:  test
+        index:  test
+        body:
+          mappings:
+            test:
+              properties:
+                numeric_group: { type: integer }
+
   - do:
       index:
           index:  test
@@ -59,6 +65,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
@@ -90,6 +97,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           from: 2
@@ -110,6 +118,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
@@ -149,6 +158,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group, max_concurrent_group_searches: 10, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
@@ -190,6 +200,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in a scroll context/
       search:
+        rest_total_hits_as_int: true
         index: test
         scroll: 1s
         body:
@@ -201,6 +212,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
@@ -213,6 +225,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
@@ -229,6 +242,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           size: 0
@@ -239,10 +253,29 @@ setup:
   - length: { hits.hits: 0 }
 
 ---
+"no hits and inner_hits max_score null":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  max_score was set to 0 rather than null before 7.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 1} }
+          sort: [{ sort: desc }]
+
+  - match: { hits.max_score: null }
+
+---
 "field collapsing and multiple inner_hits":
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: 
@@ -299,6 +332,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, version: true, size: 2, sort: [{ sort: asc }] } }
@@ -341,3 +375,34 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._version: 55 }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._version: 44 }
+
+---
+"field collapsing on a field alias":
+  - skip:
+      version: " - 6.3.99"
+      reason: Field aliases were introduced in 6.4.0.
+  - do:
+      indices.put_mapping:
+        index: test
+        type: test
+        body:
+          test:
+            properties:
+              group_alias: { type: alias, path: numeric_group }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: group_alias, inner_hits: { name: sub_hits } }
+          sort: [{ sort: desc }]
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 3 }
+
+  - match: { hits.hits.0.fields.group_alias: [3] }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1}
+  - match: { hits.hits.1.fields.group_alias: [1] }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3}
+  - match: { hits.hits.2.fields.group_alias: [25] }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2}

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.security.test.SecurityTestUtils.getClusterIndexHealth;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -34,8 +32,8 @@ public class NativeRealmTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         int expectedInvalidation = 0;
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("native", Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(settings));
+        RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("native", "native");
+        RealmConfig config = new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class), threadPool) {
             @Override
             void clearCache() {

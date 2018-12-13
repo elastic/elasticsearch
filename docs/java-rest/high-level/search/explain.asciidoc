@@ -1,0 +1,112 @@
+[[java-rest-high-explain]]
+=== Explain API
+
+The explain api computes a score explanation for a query and a specific document.
+This can give useful feedback whether a document matches or didn’t match a specific query.
+
+[[java-rest-high-explain-request]]
+==== Explain Request
+
+An `ExplainRequest` expects an `index` and an `id` to specify a certain document,
+and a query represented by `QueryBuilder` to run against it (the way of <<java-rest-high-query-builders, building queries>>).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request]
+--------------------------------------------------
+
+===== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-routing]
+--------------------------------------------------
+<1> Set a routing parameter
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-preference]
+--------------------------------------------------
+<1> Use the preference parameter e.g. to execute the search to prefer local
+shards. The default is to randomize across shards.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-source]
+--------------------------------------------------
+<1> Set to true to retrieve the _source of the document explained. You can also
+retrieve part of the document by using _source_include & _source_exclude
+(see <<java-rest-high-document-get-request-optional-arguments, Get API>> for more details)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-stored-field]
+--------------------------------------------------
+<1> Allows to control which stored fields to return as part of the document explained
+(requires the field to be stored separately in the mappings).
+
+[[java-rest-high-explain-sync]]
+==== Synchronous Execution
+
+The `explain` method executes the request synchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute]
+--------------------------------------------------
+
+[[java-rest-high-explain-async]]
+==== Asynchronous Execution
+
+The `explainAsync` method executes the request asynchronously,
+calling the provided `ActionListener` when the response is ready:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute-async]
+--------------------------------------------------
+<1> The `ExplainRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+completes, the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `ExplainResponse` is constructed as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `ExplainRequest` fails.
+
+[[java-rest-high-explain-response]]
+==== ExplainResponse
+
+The `ExplainResponse` contains the following information:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-response]
+--------------------------------------------------
+<1> The index name of the explained document.
+<2> The id of the explained document.
+<3> Indicates whether or not the explained document exists.
+<4> Indicates whether or not there is a match between the explained document and
+the provided query (the `match` is retrieved from the lucene `Explanation` behind the scenes
+if the lucene `Explanation` models a match, it returns `true`, otherwise it returns `false`).
+<5> Indicates whether or not there exists a lucene `Explanation` for this request.
+<6> Get the lucene `Explanation` object if there exists.
+<7> Get the `GetResult` object if the `_source` or the stored fields are retrieved.
+
+The `GetResult` contains two maps internally to store the fetched `_source` and stored fields.
+You can use the following methods to get them:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[get-result]
+--------------------------------------------------
+<1> Retrieve the `_source` as a map.
+<2> Retrieve the specified stored fields as a map.

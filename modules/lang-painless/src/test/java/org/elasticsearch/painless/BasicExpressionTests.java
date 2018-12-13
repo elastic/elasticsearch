@@ -115,12 +115,12 @@ public class BasicExpressionTests extends ScriptTestCase {
         Exception exception = expectScriptThrows(ClassCastException.class, () -> {
             exec("def x = 1.0; int y = x; return y;");
         });
-        assertTrue(exception.getMessage().contains("cannot be cast"));
+        assertTrue(exception.getMessage().contains("cannot implicitly cast"));
 
         exception = expectScriptThrows(ClassCastException.class, () -> {
             exec("def x = (short)1; byte y = x; return y;");
         });
-        assertTrue(exception.getMessage().contains("cannot be cast"));
+        assertTrue(exception.getMessage().contains("cannot implicitly cast"));
     }
 
     public void testCat() {
@@ -262,6 +262,11 @@ public class BasicExpressionTests extends ScriptTestCase {
 //        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
 //        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
 //        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
+    }
+
+    // test to ensure static interface methods are called correctly
+    public void testStaticInterfaceMethod() {
+        assertEquals(4, exec("def values = [1, 4, 3, 2]; values.sort(Comparator.comparing(p -> p)); return values[3]"));
     }
 
     private void assertMustBeNullable(String script) {

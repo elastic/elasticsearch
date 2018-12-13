@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -13,13 +14,14 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,10 +35,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
@@ -63,7 +65,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 /**
  * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
  */
-public class SecurityIndexManager extends AbstractComponent implements ClusterStateListener {
+public class SecurityIndexManager implements ClusterStateListener {
 
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
@@ -71,19 +73,28 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
     public static final String SECURITY_INDEX_NAME = ".security";
+    private static final Logger LOGGER = LogManager.getLogger(SecurityIndexManager.class);
 
     private final String indexName;
     private final Client client;
 
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
-    private volatile State indexState = new State(false, false, false, false, null, null);
+    private volatile State indexState;
 
-    public SecurityIndexManager(Settings settings, Client client, String indexName, ClusterService clusterService) {
-        super(settings);
+    public SecurityIndexManager(Client client, String indexName, ClusterService clusterService) {
+        this(client, indexName, new State(false, false, false, false, null, null));
+        clusterService.addListener(this);
+    }
+
+    private SecurityIndexManager(Client client, String indexName, State indexState) {
         this.client = client;
         this.indexName = indexName;
-        clusterService.addListener(this);
+        this.indexState = indexState;
+    }
+
+    public SecurityIndexManager freeze() {
+        return new SecurityIndexManager(null, indexName, indexState);
     }
 
     public static List<String> indexNames() {
@@ -116,6 +127,19 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
         return this.indexState.mappingUpToDate;
     }
 
+    public ElasticsearchException getUnavailableReason() {
+        final State localState = this.indexState;
+        if (localState.indexAvailable) {
+            throw new IllegalStateException("caller must make sure to use a frozen state and check indexAvailable");
+        }
+
+        if (localState.indexExists) {
+            return new UnavailableShardsException(null, "at least one primary shard for the security index is unavailable");
+        } else {
+            return new IndexNotFoundException(SECURITY_INDEX_NAME);
+        }
+    }
+
     /**
      * Add a listener for notifications on state changes to the configured index.
      *
@@ -130,7 +154,7 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think we don't have the
             // .security index but they may not have been restored from the cluster state on disk
-            logger.debug("security index manager waiting until state has been recovered");
+            LOGGER.debug("security index manager waiting until state has been recovered");
             return;
         }
         final State previousState = indexState;
@@ -158,7 +182,7 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
         if (routingTable != null && routingTable.allPrimaryShardsActive()) {
             return true;
         }
-        logger.debug("Security index [{}] is not yet active", indexName);
+        LOGGER.debug("Security index [{}] is not yet active", indexName);
         return false;
     }
 
@@ -187,7 +211,7 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
 
     private boolean checkIndexMappingVersionMatches(ClusterState clusterState,
                                                     Predicate<Version> predicate) {
-        return checkIndexMappingVersionMatches(indexName, clusterState, logger, predicate);
+        return checkIndexMappingVersionMatches(indexName, clusterState, LOGGER, predicate);
     }
 
     public static boolean checkIndexMappingVersionMatches(String indexName,
@@ -198,7 +222,7 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
     }
 
     private Version oldestIndexMappingVersion(ClusterState clusterState) {
-        final Set<Version> versions = loadIndexMappingVersions(indexName, clusterState, logger);
+        final Set<Version> versions = loadIndexMappingVersions(indexName, clusterState, LOGGER);
         return versions.stream().min(Version::compareTo).orElse(null);
     }
 
@@ -254,6 +278,23 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
     }
 
     /**
+     * Validates the security index is up to date and does not need to migrated. If it is not, the
+     * consumer is called with an exception. If the security index is up to date, the runnable will
+     * be executed. <b>NOTE:</b> this method does not check the availability of the index; this check
+     * is left to the caller so that this condition can be handled appropriately.
+     */
+    public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
+        final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
+        if (indexState.indexExists && indexState.isIndexUpToDate == false) {
+            consumer.accept(new IllegalStateException(
+                "Security index is not on the current version. Security features relying on the index will not be available until " +
+                    "the upgrade API is run on the security index"));
+        } else {
+            andThen.run();
+        }
+    }
+
+    /**
      * Prepares the index by creating it if it doesn't exist or updating the mappings if the mappings are
      * out of date. After any tasks have been executed, the runnable is then executed.
      */
@@ -299,7 +340,7 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
                     .type("doc");
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    ActionListener.<PutMappingResponse>wrap(putMappingResponse -> {
+                    ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                         if (putMappingResponse.isAcknowledged()) {
                             andThen.run();
                         } else {

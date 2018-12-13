@@ -1,5 +1,0 @@
-#!/bin/bash
-
-"`dirname "$0"`"/elasticsearch-cli \
-  org.elasticsearch.index.translog.TranslogToolCli \
-  "$@"

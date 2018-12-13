@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -94,12 +94,12 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         }
     }
 
-    static class MyScript extends ScoreScript implements ExplainableSearchScript {
+    static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, lookup, leafContext);
         }
-    
+
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
@@ -124,7 +124,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                     jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
         }
         indexRandom(true, true, indexRequests);
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
@@ -135,14 +135,13 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits(), equalTo(20L));
+        assertThat(hits.getTotalHits().value, equalTo(20L));
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(),
-                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString("freq=1.0"));
-            assertThat(hit.getExplanation().toString(), containsString("termFreq=1.0"));
+            assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
+            assertThat(hit.getExplanation().toString(), containsString("1 = n"));
+            assertThat(hit.getExplanation().toString(), containsString("1 = N"));
             assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }

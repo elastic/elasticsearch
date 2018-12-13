@@ -1,8 +1,13 @@
 ---
 "Delete check shard header":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       indices.create:
+        include_type_name: false
         index: foobar
         body:
           settings:
@@ -16,18 +21,16 @@
  - do:
       index:
           index:  foobar
-          type:   baz
           id:     1
           body:   { foo: bar }
 
  - do:
        delete:
            index:  foobar
-           type:   baz
            id:     1
 
  - match:   { _index:   foobar }
- - match:   { _type:    baz }
+ - match:   { _type: _doc }
  - match:   { _id:      "1"}
  - match:   { _version: 2}
  - match:   { _shards.total: 1}

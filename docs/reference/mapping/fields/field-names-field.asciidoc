@@ -1,47 +1,23 @@
 [[mapping-field-names-field]]
 === `_field_names` field
 
-The `_field_names` field indexes the names of every field in a document that
-contains any value other than `null`.  This field is used by the
+The `_field_names` field used to index the names of every field in a document that
+contains any value other than `null`.  This field was used by the
 <<query-dsl-exists-query,`exists`>> query to find documents that
 either have or don't have any non-+null+ value for a particular field.
 
-The value of the `_field_names` field is accessible in queries:
-
-[source,js]
---------------------------
-# Example documents
-PUT my_index/_doc/1
-{
-  "title": "This is a document"
-}
-
-PUT my_index/_doc/2?refresh=true
-{
-  "title": "This is another document",
-  "body": "This document has a body"
-}
-
-GET my_index/_search
-{
-  "query": {
-    "terms": {
-      "_field_names": [ "title" ] <1>
-    }
-  }
-}
-
---------------------------
-// CONSOLE
-
-<1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> query)
-
+Now the `_field_names` field only indexes the names of fields that have
+`doc_values` and `norms` disabled. For fields which have either `doc_values`
+or `norm` enabled the <<query-dsl-exists-query,`exists`>> query will still
+be available but will not use the `_field_names` field.
 
 ==== Disabling `_field_names`
 
-Because `_field_names` introduce some index-time overhead, you might want to
-disable this field if you want to optimize for indexing speed and do not need
-`exists` queries.
+Disabling `_field_names` is often not necessary because it no longer
+carries the index overhead it once did. If you have a lot of fields
+which have `doc_values` and `norms` disabled and you do not need to
+execute `exists` queries using those fields you might want to disable
+`_field_names` be adding the following to the mappings:
 
 [source,js]
 --------------------------------------------------

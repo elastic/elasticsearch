@@ -2,9 +2,10 @@
 === Feature Query
 
 The `feature` query is a specialized query that only works on
-<<feature,`feature`>> fields. Its goal is to boost the score of documents based
-on the values of numeric features. It is typically put in a `should` clause of
-a <<query-dsl-bool-query,`bool`>> query so that its score is added to the score
+<<feature,`feature`>> fields and <<feature-vector,`feature_vector`>> fields.
+Its goal is to boost the score of documents based on the values of numeric
+features. It is typically put in a `should` clause of a
+<<query-dsl-bool-query,`bool`>> query so that its score is added to the score
 of the query.
 
 Compared to using <<query-dsl-function-score-query,`function_score`>> or other
@@ -13,7 +14,16 @@ efficiently skip non-competitive hits when
 <<search-uri-request,`track_total_hits`>> is set to `false`. Speedups may be
 spectacular.
 
-Here is an example:
+Here is an example that indexes various features:
+ - https://en.wikipedia.org/wiki/PageRank[`pagerank`], a measure of the
+   importance of a website,
+ - `url_length`, the length of the url, which typically correlates negatively
+   with relevance,
+ - `topics`, which associates a list of topics with every document alongside a
+   measure of how well the document is connected to this topic.
+
+Then the example includes an example query that searches for `"2016"` and boosts
+based or `pagerank`, `url_length` and the `sports` topic.
 
 [source,js]
 --------------------------------------------------
@@ -28,6 +38,9 @@ PUT test
         "url_length": {
           "type": "feature",
           "positive_score_impact": false
+        },
+        "topics": {
+          "type": "feature_vector"
         }
       }
     }
@@ -36,32 +49,73 @@ PUT test
 
 PUT test/_doc/1
 {
-  "pagerank": 10,
-  "url_length": 50
+  "url": "http://en.wikipedia.org/wiki/2016_Summer_Olympics",
+  "content": "Rio 2016",
+  "pagerank": 50.3,
+  "url_length": 42,
+  "topics": {
+    "sports": 50,
+    "brazil": 30
+  }
 }
 
 PUT test/_doc/2
 {
-  "pagerank": 100,
-  "url_length": 20
+  "url": "http://en.wikipedia.org/wiki/2016_Brazilian_Grand_Prix",
+  "content": "Formula One motor race held on 13 November 2016 at the Autódromo José Carlos Pace in São Paulo, Brazil",
+  "pagerank": 50.3,
+  "url_length": 47,
+  "topics": {
+    "sports": 35,
+    "formula one": 65,
+    "brazil": 20
+  }
+}
+
+PUT test/_doc/3
+{
+  "url": "http://en.wikipedia.org/wiki/Deadpool_(film)",
+  "content": "Deadpool is a 2016 American superhero film",
+  "pagerank": 50.3,
+  "url_length": 37,
+  "topics": {
+    "movies": 60,
+    "super hero": 65
+  }
 }
 
 POST test/_refresh
 
-GET test/_search
+GET test/_search 
 {
   "query": {
-    "feature": {
-      "field": "pagerank"
-    }
-  }
-}
-
-GET test/_search
-{
-  "query": {
-    "feature": {
-      "field": "url_length"
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "content": "2016"
+          }
+        }
+      ],
+      "should": [
+        {
+          "feature": {
+            "field": "pagerank"
+          }
+        },
+        {
+          "feature": {
+            "field": "url_length",
+            "boost": 0.1
+          }
+        },
+        {
+          "feature": {
+            "field": "topics.sports",
+            "boost": 0.4
+          }
+        }
+      ]
     }
   }
 }

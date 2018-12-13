@@ -7,16 +7,18 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
@@ -36,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -57,17 +60,16 @@ public class TransportPutUserActionTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
-        TransportPutUserAction action = new TransportPutUserAction(settings, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(settings, mock(ActionFilters.class), usersStore, transportService);
 
         PutUserRequest request = new PutUserRequest();
         request.username(anonymousUser.principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);
@@ -87,17 +89,16 @@ public class TransportPutUserActionTests extends ESTestCase {
 
     public void testSystemUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
 
         PutUserRequest request = new PutUserRequest();
         request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);
@@ -128,17 +129,17 @@ public class TransportPutUserActionTests extends ESTestCase {
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final User reserved = randomFrom(userFuture.actionGet().toArray(new User[0]));
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService);
 
         PutUserRequest request = new PutUserRequest();
         request.username(reserved.principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);
@@ -158,16 +159,17 @@ public class TransportPutUserActionTests extends ESTestCase {
     public void testValidUser() {
         final User user = new User("joe");
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService);
 
         final boolean isCreate = randomBoolean();
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
         if (isCreate) {
-            request.passwordHash(Hasher.BCRYPT.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+            request.passwordHash(Hasher.resolve(
+                randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
         final boolean created = isCreate ? randomBoolean() : false; // updates should always return false for create
         doAnswer(new Answer() {
@@ -182,7 +184,7 @@ public class TransportPutUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);
@@ -194,20 +196,40 @@ public class TransportPutUserActionTests extends ESTestCase {
             }
         });
 
+        assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().created(), is(created));
-        assertThat(throwableRef.get(), is(nullValue()));
         verify(usersStore, times(1)).putUser(eq(request), any(ActionListener.class));
+    }
+
+    public void testInvalidUser() {
+        NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class),
+            usersStore, transportService);
+
+        final PutUserRequest request = new PutUserRequest();
+        request.username("fóóbár");
+        request.roles("bar");
+        ActionRequestValidationException validation = request.validate();
+        assertNull(validation);
+
+        PlainActionFuture<PutUserResponse> responsePlainActionFuture = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responsePlainActionFuture);
+        validation = expectThrows(ActionRequestValidationException.class, responsePlainActionFuture::actionGet);
+        assertThat(validation.validationErrors(), contains(containsString("must be")));
+        assertThat(validation.validationErrors().size(), is(1));
     }
 
     public void testException() {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException(), new ValidationException());
         final User user = new User("joe");
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService);
 
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
@@ -223,7 +245,7 @@ public class TransportPutUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);

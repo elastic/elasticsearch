@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,10 +47,10 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     private final IndicesService indicesService;
 
     @Inject
-    public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportTermVectorsAction(ClusterService clusterService, TransportService transportService,
                                       IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 TermVectorsRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
 
@@ -80,17 +79,18 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
     }
 
     @Override
-    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
+    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId,
+                                       ActionListener<TermVectorsResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
-            listener.onResponse(shardOperation(request, shardId));
+            super.asyncShardOperation(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {
@@ -112,5 +112,12 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected TermVectorsResponse newResponse() {
         return new TermVectorsResponse();
+    }
+
+    @Override
+    protected String getExecutor(TermVectorsRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

@@ -16,7 +16,7 @@ PUT /elision_example
             "analyzer" : {
                 "default" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "elision"]
+                    "filter" : ["elision"]
                 }
             },
             "filter" : {

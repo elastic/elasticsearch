@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -50,7 +49,6 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -73,6 +71,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -111,7 +110,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // watcher settings that should work despite randomization
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put(WatcherLifeCycleService.SETTING_REQUIRE_MANUAL_START.getKey(), true)
                 .build();
     }
 
@@ -180,7 +178,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public void _setup() throws Exception {
         if (timeWarped()) {
             timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
-                    (ClockMock)getInstanceFromMaster(Clock.class), logger);
+                    (ClockMock)getInstanceFromMaster(Clock.class));
         }
 
         if (internalCluster().size() > 0) {
@@ -283,7 +281,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         if (type != null) {
             builder.setTypes(type);
         }
-        return builder.get().getHits().getTotalHits();
+        return builder.get().getHits().getTotalHits().value;
     }
 
     protected SearchResponse searchHistory(SearchSourceBuilder builder) {
@@ -339,16 +337,16 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                                 ExecutionState.EXECUTED.id())))
                         .get();
                 lastResponse.set(searchResponse);
-                assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits(),
+                assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits().value,
                         greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
-                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total",
+                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total.value",
                             searchResponse.getHits().getAt(0).getSourceAsMap()), greaterThanOrEqualTo(1));
                 }
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits(), watchName);
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
             int counter = 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -370,7 +368,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
                 .get();
-        return searchResponse.getHits().getTotalHits();
+        return searchResponse.getHits().getTotalHits().value;
     }
 
     protected void assertWatchWithNoActionNeeded(final String watchName,
@@ -396,11 +394,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                                 ExecutionState.EXECUTION_NOT_NEEDED.id())))
                         .get();
                 lastResponse.set(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
+                assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits(), watchName);
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
             int counter = 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -427,7 +425,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id())))
                     .get();
-            assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(),
+            assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits().value,
                     greaterThanOrEqualTo(recordCount));
         });
     }
@@ -477,8 +475,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             throw new AssertionError("unexpected state, retrying with next run");
-        });
-
+        }, 30, TimeUnit.SECONDS);
     }
 
     protected void ensureLicenseEnabled() throws Exception {
@@ -541,12 +538,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         private final List<ScheduleTriggerEngineMock> schedulers;
         private final ClockMock clock;
-        private final Logger logger;
 
-        TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock, Logger logger) {
+        TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock) {
             this.schedulers = StreamSupport.stream(schedulers.spliterator(), false).collect(Collectors.toList());
             this.clock = clock;
-            this.logger = logger;
         }
 
         public void trigger(String jobName) {

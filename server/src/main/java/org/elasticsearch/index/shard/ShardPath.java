@@ -45,10 +45,14 @@ public final class ShardPath {
     private final boolean isCustomDataPath;
 
     public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, ShardId shardId) {
-        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: " + dataPath.toString();
-        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
-        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID()) : "dataPath must end with index path id but didn't: " + dataPath.toString();
-        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID()) : "shardStatePath must end with index path id but didn't: " + dataPath.toString();
+        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) :
+            "dataPath must end with the shard ID but didn't: " + dataPath.toString();
+        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) :
+            "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
+        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID()) :
+            "dataPath must end with index path id but didn't: " + dataPath.toString();
+        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID()) :
+            "shardStatePath must end with index path id but didn't: " + dataPath.toString();
         if (isCustomDataPath && dataPath.equals(shardStatePath)) {
             throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
         }
@@ -111,17 +115,33 @@ public final class ShardPath {
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(Logger logger, NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) throws IOException {
-        final String indexUUID = indexSettings.getUUID();
+    public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
+                                                ShardId shardId, IndexSettings indexSettings) throws IOException {
         final Path[] paths = env.availableShardPaths(shardId);
+        final int nodeLockId = env.getNodeLockId();
+        final Path sharedDataPath = env.sharedDataPath();
+        return loadShardPath(logger, shardId, indexSettings, paths, nodeLockId, sharedDataPath);
+    }
+
+    /**
+     * This method walks through the nodes shard paths to find the data and state path for the given shard. If multiple
+     * directories with a valid shard state exist the one with the highest version will be used.
+     * <b>Note:</b> this method resolves custom data locations for the shard.
+     */
+    public static ShardPath loadShardPath(Logger logger, ShardId shardId, IndexSettings indexSettings, Path[] availableShardPaths,
+                                           int nodeLockId, Path sharedDataPath) throws IOException {
+        final String indexUUID = indexSettings.getUUID();
         Path loadedPath = null;
-        for (Path path : paths) {
+        for (Path path : availableShardPaths) {
             // EMPTY is safe here because we never call namedObject
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
-                    logger.warn("{} found shard on path: [{}] with a different index UUID - this shard seems to be leftover from a different index with the same name. Remove the leftover shard in order to reuse the path with the current index", shardId, path);
-                    throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " expected: " + indexUUID + " on shard path: " + path);
+                    logger.warn("{} found shard on path: [{}] with a different index UUID - this "
+                        + "shard seems to be leftover from a different index with the same name. "
+                        + "Remove the leftover shard in order to reuse the path with the current index", shardId, path);
+                    throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID
+                        + " expected: " + indexUUID + " on shard path: " + path);
                 }
                 if (loadedPath == null) {
                     loadedPath = path;
@@ -137,7 +157,7 @@ public final class ShardPath {
             final Path dataPath;
             final Path statePath = loadedPath;
             if (indexSettings.hasCustomDataPath()) {
-                dataPath = env.resolveCustomLocation(indexSettings, shardId);
+                dataPath = NodeEnvironment.resolveCustomLocation(indexSettings, shardId, sharedDataPath, nodeLockId);
             } else {
                 dataPath = statePath;
             }
@@ -150,7 +170,8 @@ public final class ShardPath {
      * This method tries to delete left-over shards where the index name has been reused but the UUID is different
      * to allow the new shard to be allocated.
      */
-    public static void deleteLeftoverShardDirectory(Logger logger, NodeEnvironment env, ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public static void deleteLeftoverShardDirectory(Logger logger, NodeEnvironment env,
+                                                            ShardLock lock, IndexSettings indexSettings) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {
@@ -211,7 +232,8 @@ public final class ShardPath {
                         .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
                         // Sort by the number of shards for this index
                         .sorted((p1, p2) -> {
-                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L), pathToShardCount.getOrDefault(p2, 0L));
+                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),
+                                    pathToShardCount.getOrDefault(p2, 0L));
                                 if (cmp == 0) {
                                     // if the number of shards is equal, tie-break with the number of total shards
                                     cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),

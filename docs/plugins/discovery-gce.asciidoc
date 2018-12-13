@@ -26,12 +26,17 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
 
  `project_id`::
 
-     Your Google project id (mandatory).
+     Your Google project id.
+     By default the project id will be derived from the instance metadata.
+
+     Note: Deriving the project id from system properties or environment variables
+     (`GOOGLE_CLOUD_PROJECT` or `GCLOUD_PROJECT`) is not supported.
 
  `zone`::
 
-     helps to retrieve instances running in a given zone (mandatory). It should be one of the
-     https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     helps to retrieve instances running in a given zone.
+     It should be one of the https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     By default the zone will be derived from the instance metadata.
      See also <<discovery-gce-usage-zones>>.
 
  `retry`::

@@ -7,6 +7,7 @@ etc.
 
 This is conceptually very similar to the <<search-aggregations-pipeline-movavg-aggregation, Moving Average>> pipeline aggregation, except
 it provides more functionality.
+
 ==== Syntax
 
 A `moving_fn` aggregation looks like this in isolation:
@@ -307,7 +308,7 @@ POST /_search
 
 ===== stdDev Function
 
-This function accepts a collection of doubles and and average, then returns the standard deviation of the values in that window.
+This function accepts a collection of doubles and average, then returns the standard deviation of the values in that window.
 `null` and `NaN` values are ignored; the sum is only calculated over the real values.  If the window is empty, or all values are
 `null`/`NaN`, `0.0` is returned as the result.
 

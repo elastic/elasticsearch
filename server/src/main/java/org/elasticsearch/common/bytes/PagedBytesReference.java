@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ import java.io.IOException;
  */
 public class PagedBytesReference extends BytesReference {
 
-    private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
+    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
 
     private final BigArrays bigarrays;
     protected final ByteArray byteArray;
@@ -63,7 +64,8 @@ public class PagedBytesReference extends BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > length()) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + length() + "], with slice parameters from [" + from + "], length [" + length + "]");
+            throw new IllegalArgumentException("can't slice a buffer with length [" + length() +
+                "], with slice parameters from [" + from + "], length [" + length + "]");
         }
         return new PagedBytesReference(bigarrays, byteArray, offset + from, length);
     }

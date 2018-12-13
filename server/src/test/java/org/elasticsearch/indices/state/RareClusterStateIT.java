@@ -22,9 +22,8 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -33,18 +32,14 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -55,13 +50,9 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -116,7 +107,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
-                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
+                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData()
+                    .index(index)).state(IndexMetaData.State.OPEN).build();
 
                 builder.metaData(MetaData.builder(currentState.metaData()).put(indexMetaData, true));
                 builder.blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(index));
@@ -156,8 +148,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNode(Settings.builder()
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            .build());
+        String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
         ensureGreen("test");
@@ -201,6 +197,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
             .build();
         final List<String> nodeNames = internalCluster().startNodes(2, settings);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
@@ -244,9 +241,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Add a new mapping...
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<PutMappingResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(
+            new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(PutMappingResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);
             }
 
@@ -257,7 +255,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
+            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices()
+                .prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(indexMappings);
             MappingMetaData typeMappings = indexMappings.get("type");
             assertNotNull(typeMappings);
@@ -295,8 +294,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
         assertBusy(() -> {
-            assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
-            PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
+            assertThat(putMappingResponse.get(), instanceOf(AcknowledgedResponse.class));
+            AcknowledgedResponse resp = (AcknowledgedResponse) putMappingResponse.get();
             assertTrue(resp.isAcknowledged());
             assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
             IndexResponse docResp = (IndexResponse) docIndexResponse.get();
@@ -315,6 +314,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             Settings.builder()
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
                 .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
@@ -358,9 +358,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<PutMappingResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(
+            new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(PutMappingResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);
             }
 
@@ -406,8 +407,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
         assertBusy(() -> {
-            assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
-            PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
+            assertThat(putMappingResponse.get(), instanceOf(AcknowledgedResponse.class));
+            AcknowledgedResponse resp = (AcknowledgedResponse) putMappingResponse.get();
             assertTrue(resp.isAcknowledged());
             assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
             IndexResponse docResp = (IndexResponse) docIndexResponse.get();

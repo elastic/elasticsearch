@@ -143,8 +143,11 @@ Possible response:
     "failed": 0
   },
   "hits": {
-    "total": 3,
-    "max_score": 0.0,
+    "total" : {
+      "value": 3,
+      "relation": "eq"
+    },
+    "max_score": null,
     "hits": []
   },
   "aggregations": {

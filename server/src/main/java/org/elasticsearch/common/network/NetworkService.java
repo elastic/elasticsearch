@@ -113,7 +113,8 @@ public final class NetworkService {
             }
             // check if its a wildcard address: this is only ok if its the only address!
             if (address.isAnyLocalAddress() && addresses.length > 1) {
-                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
+                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) +
+                    "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
         return addresses;
@@ -156,12 +157,14 @@ public final class NetworkService {
         for (InetAddress address : addresses) {
             // check if its multicast: flat out mistake
             if (address.isMulticastAddress()) {
-                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) +
+                    "} is invalid: multicast address");
             }
             // check if its a wildcard address: this is only ok if its the only address!
             // (if it was a single wildcard address, it was replaced by step 1 above)
             if (address.isAnyLocalAddress()) {
-                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) +
+                    "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
 

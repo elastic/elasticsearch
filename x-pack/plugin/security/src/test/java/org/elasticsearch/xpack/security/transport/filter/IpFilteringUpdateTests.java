@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -122,7 +121,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         }
     }
 
-    // issue #762, occured because in the above test we use HTTP and transport
+    // issue #762, occurred because in the above test we use HTTP and transport
     public void testThatDisablingIpFilterWorksAsExpected() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.deny", "127.0.0.8")

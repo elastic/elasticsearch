@@ -23,10 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,6 +37,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -81,8 +82,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
-        TaskManager taskManager = mock(TaskManager.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool,
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet()) {
@@ -93,7 +93,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
 
         // Keep track of the number of concurrent searches started by multi search api,
         // and if there are more searches than is allowed create an error and remember that.
@@ -106,15 +105,14 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
         final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
-        TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
-                (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
+        NodeClient client = new NodeClient(settings, threadPool) {
             @Override
-            protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+            public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);
                 int currentConcurrentSearches = counter.incrementAndGet();
                 if (currentConcurrentSearches > maxAllowedConcurrentSearches) {
                     errorHolder.set(new AssertionError("Current concurrent search [" + currentConcurrentSearches +
-                            "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
+                        "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
                 }
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
@@ -125,8 +123,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
 
         TransportMultiSearchAction action =
-                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
-                System::nanoTime);
+            new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, 10, System::nanoTime, client);
 
         // Execute the multi search api and fail if we find an error after executing:
         try {
@@ -141,7 +138,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 multiSearchRequest.add(new SearchRequest());
             }
 
-            MultiSearchResponse response = action.execute(multiSearchRequest).actionGet();
+            MultiSearchResponse response = ActionTestUtils.executeBlocking(action, multiSearchRequest);
             assertThat(response.getResponses().length, equalTo(numSearchRequests));
             assertThat(requests.size(), equalTo(numSearchRequests));
             assertThat(errorHolder.get(), nullValue());

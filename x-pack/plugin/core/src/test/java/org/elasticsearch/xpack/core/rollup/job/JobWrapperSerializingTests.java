@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 
@@ -39,8 +40,10 @@ public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetR
             state = IndexerState.ABORTING;
         }
 
-        return new GetRollupJobsAction.JobWrapper(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(),
-                new RollupJobStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                new RollupJobStatus(state, Collections.emptyMap()));
+        return new GetRollupJobsAction.JobWrapper(ConfigTestHelpers.randomRollupJobConfig(random()),
+                new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                new RollupJobStatus(state, Collections.emptyMap(), randomBoolean()));
     }
 }

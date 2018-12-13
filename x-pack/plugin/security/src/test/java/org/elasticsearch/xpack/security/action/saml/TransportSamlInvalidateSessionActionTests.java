@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -27,7 +27,6 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -44,9 +43,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRe
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -84,6 +86,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -98,6 +101,8 @@ import static org.mockito.Mockito.when;
 
 public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
+    private static final String REALM_NAME = "saml1";
+
     private SamlRealm samlRealm;
     private TokenService tokenService;
     private List<IndexRequest> indexRequests;
@@ -109,10 +114,17 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     @Before
     public void setup() throws Exception {
+        final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
-                .put("path.home", createTempDir())
-                .build();
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put("path.home", createTempDir())
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SamlRealmTestHelper.SP_ENTITY_ID)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -124,10 +136,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         searchRequests = new ArrayList<>();
         final Client client = new NoOpClient(threadPool) {
             @Override
-            protected <Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
@@ -145,7 +155,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
                     final SearchResponse response = new SearchResponse(
-                            new SearchResponseSections(new SearchHits(hits, hits.length, 0f),
+                            new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
                                     null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
                     listener.onResponse((Response) response);
                 } else if (ClearScrollAction.NAME.equals(action.name())) {
@@ -165,28 +175,29 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        doAnswer(inv -> {
+            ((Runnable) inv.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, null, null,
+        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final Realms realms = mock(Realms.class);
-        action = new TransportSamlInvalidateSessionAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), tokenService, realms);
+        action = new TransportSamlInvalidateSessionAction(transportService, mock(ActionFilters.class),tokenService, realms);
 
-        final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final Settings realmSettings = Settings.builder()
-                .put(SamlRealmSettings.IDP_METADATA_PATH.getKey(), metadata.toString())
-                .put(SamlRealmSettings.IDP_ENTITY_ID.getKey(), SamlRealmTests.TEST_IDP_ENTITY_ID)
-                .put(SamlRealmSettings.SP_ENTITY_ID.getKey(), SamlRealmTestHelper.SP_ENTITY_ID)
-                .put(SamlRealmSettings.SP_ACS.getKey(), SamlRealmTestHelper.SP_ACS_URL)
-                .put(SamlRealmSettings.SP_LOGOUT.getKey(), SamlRealmTestHelper.SP_LOGOUT_URL)
-                .put("attributes.principal", "uid")
-                .build();
 
-        final RealmConfig realmConfig = new RealmConfig("saml1", realmSettings, settings, env, threadContext);
+        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
+        final RealmConfig realmConfig = new RealmConfig(
+                realmId,
+            settings,
+                env, threadContext);
         samlRealm = SamlRealmTestHelper.buildRealm(realmConfig, null);
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
         when(realms.stream()).thenAnswer(i -> Stream.of(samlRealm));
@@ -245,7 +256,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         request.setRealmName(samlRealm.name());
         request.setQueryString("SAMLRequest=foo");
         final PlainActionFuture<SamlInvalidateSessionResponse> future = new PlainActionFuture<>();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         final SamlInvalidateSessionResponse response = future.get();
         assertThat(response, notNullValue());
         assertThat(response.getCount(), equalTo(2));
@@ -319,7 +330,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, metadata);
+        tokenService.createUserToken(authentication, authentication, future, metadata, true);
         return future.actionGet();
     }
 

@@ -72,16 +72,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
+    AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                                         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentShardRequests,
+                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
-        super(name, request, shardsIts, logger, maxConcurrentShardRequests, executor);
+        super(name, request, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;

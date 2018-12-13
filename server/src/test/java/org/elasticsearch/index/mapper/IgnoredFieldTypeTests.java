@@ -19,6 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
+
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
     @Override
@@ -26,4 +34,30 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         return new IgnoredFieldMapper.IgnoredFieldType();
     }
 
+    public void testPrefixQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new PrefixQuery(new Term("field", new BytesRef("foo*")));
+        assertEquals(expected, ft.prefixQuery("foo*", null, null));
+    }
+
+    public void testRegexpQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new RegexpQuery(new Term("field", new BytesRef("foo?")));
+        assertEquals(expected, ft.regexpQuery("foo?", 0, 10, null, null));
+    }
+
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
+        assertEquals(expected, ft.wildcardQuery("foo*", null, null));
+    }
 }

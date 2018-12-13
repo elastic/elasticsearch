@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
@@ -21,9 +20,9 @@ public class InputRegistry {
 
     private final Map<String, InputFactory> factories;
 
-    public InputRegistry(Settings settings, Map<String, InputFactory> factories) {
+    public InputRegistry(Map<String, InputFactory> factories) {
         Map<String, InputFactory> map = new HashMap<>(factories);
-        map.put(ChainInput.TYPE, new ChainInputFactory(settings, this));
+        map.put(ChainInput.TYPE, new ChainInputFactory(this));
         this.factories = Collections.unmodifiableMap(map);
     }
 
@@ -33,7 +32,7 @@ public class InputRegistry {
      * @param parser                The parser containing the input definition
      * @return                      A new input instance from the parser
      */
-    public ExecutableInput parse(String watchId, XContentParser parser) throws IOException {
+    public ExecutableInput<?, ?> parse(String watchId, XContentParser parser) throws IOException {
         String type = null;
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -42,7 +41,7 @@ public class InputRegistry {
         }
 
         XContentParser.Token token;
-        ExecutableInput input = null;
+        ExecutableInput<?, ?> input = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
@@ -50,7 +49,7 @@ public class InputRegistry {
                 throw new ElasticsearchParseException("could not parse input for watch [{}]. expected field indicating the input type, " +
                         "but found [{}] instead", watchId, token);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                InputFactory factory = factories.get(type);
+                InputFactory<?, ?, ?> factory = factories.get(type);
                 if (factory == null) {
                     throw new ElasticsearchParseException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }

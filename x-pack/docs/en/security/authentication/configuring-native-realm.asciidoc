@@ -9,15 +9,15 @@ The native realm is available by default when no other realms are
 configured. If other realm settings have been configured in `elasticsearch.yml`, 
 you must add the native realm to the realm chain.
 
-You can configure options for the `native` realm in the 
-`xpack.security.authc.realms` namespace in `elasticsearch.yml`. Explicitly
-configuring a native realm enables you to set the order in which it appears in
-the realm chain, temporarily disable the realm, and control its cache options.
+You can configure a `native` realm in the `xpack.security.authc.realms.native`
+namespace in `elasticsearch.yml`.
+Explicitly configuring a native realm enables you to set the order in which it
+appears in the realm chain, temporarily disable the realm, and control its
+cache options.
 
-. Add a realm configuration of type `native` to `elasticsearch.yml` under the
-`xpack.security.authc.realms` namespace. At a minimum, you must set the realm
-`type` to `native`. If you are configuring multiple realms, you should also
-explicitly set the `order` attribute. 
+. Add a realm configuration to `elasticsearch.yml` under the
+`xpack.security.authc.realms.native` namespace. It is recommended that you
+explicitly set the `order` attribute for the realm. 
 +
 --
 See <<ref-native-settings>> for all of the options you can set for the `native` realm.
@@ -30,10 +30,17 @@ xpack:
   security:
     authc:
       realms:
-        native1:
-          type: native
-          order: 0
+        native:
+          native1:
+            order: 0
 ------------------------------------------------------------
+
+NOTE: To limit exposure to credential theft and mitigate credential compromise,
+the native realm stores passwords and caches user credentials according to
+security best practices. By default, a hashed version of user credentials
+is stored in memory, using a salted `sha-256` hash algorithm and a hashed
+version of passwords is stored on disk salted and hashed with the `bcrypt`
+hash algorithm. To use different hash algorithms, see <<hashing-settings>>.
 --
 
 . Restart {es}.

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecordTests;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,15 +59,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         }
         if (randomBoolean()) {
             bucket.setInterim(randomBoolean());
-        }
-        if (randomBoolean()) {
-            int size = randomInt(10);
-            List<PartitionScore> partitionScores = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                partitionScores.add(new PartitionScore(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20), randomDouble(),
-                        randomDouble(), randomDouble()));
-            }
-            bucket.setPartitionScores(partitionScores);
         }
         if (randomBoolean()) {
             bucket.setProcessingTimeMs(randomLong());
@@ -235,15 +225,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertFalse(bucket.isNormalizable());
     }
 
-    public void testIsNormalizable_GivenAnomalyScoreIsZeroAndPartitionsScoresAreNonZero() {
-        Bucket bucket = new Bucket("foo", new Date(123), 123);
-        bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123));
-        bucket.setAnomalyScore(0.0);
-        bucket.setPartitionScores(Collections.singletonList(new PartitionScore("n", "v", 50.0, 40.0, 0.01)));
-
-        assertTrue(bucket.isNormalizable());
-    }
-
     public void testIsNormalizable_GivenAnomalyScoreIsNonZeroAndRecordCountIsZero() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123));
@@ -260,35 +241,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertTrue(bucket.isNormalizable());
     }
 
-    public void testPartitionAnomalyScore() {
-        List<PartitionScore> pScore = new ArrayList<>();
-        pScore.add(new PartitionScore("pf", "pv1", 11.0, 10.0, 0.1));
-        pScore.add(new PartitionScore("pf", "pv3", 51.0, 50.0, 0.1));
-        pScore.add(new PartitionScore("pf", "pv4", 61.0, 60.0, 0.1));
-        pScore.add(new PartitionScore("pf", "pv2", 41.0, 40.0, 0.1));
-
-        Bucket bucket = new Bucket("foo", new Date(123), 123);
-        bucket.setPartitionScores(pScore);
-
-        double initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv1");
-        assertEquals(11.0, initialAnomalyScore, 0.001);
-        double anomalyScore = bucket.partitionAnomalyScore("pv1");
-        assertEquals(10.0, anomalyScore, 0.001);
-        initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv2");
-        assertEquals(41.0, initialAnomalyScore, 0.001);
-        anomalyScore = bucket.partitionAnomalyScore("pv2");
-        assertEquals(40.0, anomalyScore, 0.001);
-        initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv3");
-        assertEquals(51.0, initialAnomalyScore, 0.001);
-        anomalyScore = bucket.partitionAnomalyScore("pv3");
-        assertEquals(50.0, anomalyScore, 0.001);
-        initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv4");
-        assertEquals(61.0, initialAnomalyScore, 0.001);
-        anomalyScore = bucket.partitionAnomalyScore("pv4");
-        assertEquals(60.0, anomalyScore, 0.001);
-    }
-
-    public void testId() {
+     public void testId() {
         Bucket bucket = new Bucket("foo", new Date(123), 60L);
         assertEquals("foo_bucket_123_60", bucket.getId());
     }

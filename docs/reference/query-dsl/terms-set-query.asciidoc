@@ -1,8 +1,6 @@
 [[query-dsl-terms-set-query]]
 === Terms Set Query
 
-experimental[The terms_set query is a new query and its syntax may change in the future]
-
 Returns any documents that match with at least one or more of the
 provided terms. The terms are not analyzed and thus must match exactly.
 The number of terms that must match varies per document and is either
@@ -74,7 +72,10 @@ Response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.87546873,
     "hits": [
       {

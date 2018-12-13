@@ -19,17 +19,11 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,11 +36,9 @@ public final class Request {
     private final String method;
     private final String endpoint;
     private final Map<String, String> parameters = new HashMap<>();
-    private final List<Header> headers = new ArrayList<>();
 
     private HttpEntity entity;
-    private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
-            HttpAsyncResponseConsumerFactory.DEFAULT;
+    private RequestOptions options = RequestOptions.DEFAULT;
 
     /**
      * Create the {@linkplain Request}.
@@ -127,40 +119,29 @@ public final class Request {
     }
 
     /**
-     * Add the provided header to the request.
+     * Set the portion of an HTTP request to Elasticsearch that can be
+     * manipulated without changing Elasticsearch's behavior.
      */
-    public void addHeader(String name, String value) {
-        Objects.requireNonNull(name, "header name cannot be null");
-        Objects.requireNonNull(value, "header value cannot be null");
-        this.headers.add(new ReqHeader(name, value));
+    public void setOptions(RequestOptions options) {
+        Objects.requireNonNull(options, "options cannot be null");
+        this.options = options;
     }
 
     /**
-     * Headers to attach to the request.
+     * Set the portion of an HTTP request to Elasticsearch that can be
+     * manipulated without changing Elasticsearch's behavior.
      */
-    List<Header> getHeaders() {
-        return Collections.unmodifiableList(headers);
+    public void setOptions(RequestOptions.Builder options) {
+        Objects.requireNonNull(options, "options cannot be null");
+        this.options = options.build();
     }
 
     /**
-     * set the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
-     * response body gets streamed from a non-blocking HTTP connection on the
-     * client side.
+     * Get the portion of an HTTP request to Elasticsearch that can be
+     * manipulated without changing Elasticsearch's behavior.
      */
-    public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
-        this.httpAsyncResponseConsumerFactory =
-                Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
-    }
-
-    /**
-     * The {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
-     * response body gets streamed from a non-blocking HTTP connection on the
-     * client side.
-     */
-    public HttpAsyncResponseConsumerFactory getHttpAsyncResponseConsumerFactory() {
-        return httpAsyncResponseConsumerFactory;
+    public RequestOptions getOptions() {
+        return options;
     }
 
     @Override
@@ -175,18 +156,7 @@ public final class Request {
         if (entity != null) {
             b.append(", entity=").append(entity);
         }
-        if (headers.size() > 0) {
-            b.append(", headers=");
-            for (int h = 0; h < headers.size(); h++) {
-                if (h != 0) {
-                    b.append(',');
-                }
-                b.append(headers.get(h).toString());
-            }
-        }
-        if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
-            b.append(", consumerFactory=").append(httpAsyncResponseConsumerFactory);
-        }
+        b.append(", options=").append(options);
         return b.append('}').toString();
     }
 
@@ -204,40 +174,11 @@ public final class Request {
                 && endpoint.equals(other.endpoint)
                 && parameters.equals(other.parameters)
                 && Objects.equals(entity, other.entity)
-                && headers.equals(other.headers)
-                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
+                && options.equals(other.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, endpoint, parameters, entity, headers.hashCode(), httpAsyncResponseConsumerFactory);
-    }
-
-    /**
-     * Custom implementation of {@link BasicHeader} that overrides equals and hashCode.
-     */
-    static final class ReqHeader extends BasicHeader {
-
-        ReqHeader(String name, String value) {
-            super(name, value);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (other instanceof ReqHeader) {
-                Header otherHeader = (Header) other;
-                return Objects.equals(getName(), otherHeader.getName()) &&
-                        Objects.equals(getValue(), otherHeader.getValue());
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(getName(), getValue());
-        }
+        return Objects.hash(method, endpoint, parameters, entity, options);
     }
 }

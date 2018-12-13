@@ -13,7 +13,7 @@ will work with:
 PUT /my_index
 {
     "mappings": {
-        "type1" : {
+        "_doc" : {
             "properties" : {
                 "obj1" : {
                     "type" : "nested"

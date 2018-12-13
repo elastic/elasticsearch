@@ -36,7 +36,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -48,9 +47,9 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -104,7 +103,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
-    private final Settings settings;
 
     /**
      * This BiFunction is used to apply various changes depending of the Reindex action and  the search hit,
@@ -114,14 +112,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService,
-                                           ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-        this(task, logger, client, threadPool, mainRequest, scriptService, clusterState, listener, client.settings());
-    }
-
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
-            ActionListener<BulkByScrollResponse> listener, Settings settings) {
+            ActionListener<BulkByScrollResponse> listener) {
 
         this.task = task;
         if (!task.isWorker()) {
@@ -131,7 +123,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         this.logger = logger;
         this.client = client;
-        this.settings = settings;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.clusterState = clusterState;
@@ -357,7 +348,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             public void onFailure(Exception e) {
                 finishHim(e);
             }
-        }, settings);
+        });
     }
 
     /**
@@ -746,9 +737,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private final Script script;
         private final Map<String, Object> params;
 
-        private ExecutableScript executable;
-        private Map<String, Object> context;
-
         public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
                              ScriptService scriptService,
                              Script script,
@@ -765,16 +753,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             if (script == null) {
                 return request;
             }
-            if (executable == null) {
-                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
-                executable = factory.newInstance(params);
-            }
-            if (context == null) {
-                context = new HashMap<>();
-            } else {
-                context.clear();
-            }
 
+            Map<String, Object> context = new HashMap<>();
             context.put(IndexFieldMapper.NAME, doc.getIndex());
             context.put(TypeFieldMapper.NAME, doc.getType());
             context.put(IdFieldMapper.NAME, doc.getId());
@@ -787,8 +767,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             OpType oldOpType = OpType.INDEX;
             context.put("op", oldOpType.toString());
 
-            executable.setNextVar("ctx", context);
-            executable.run();
+            UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
+            UpdateScript updateScript = factory.newInstance(params, context);
+            updateScript.execute();
 
             String newOp = (String) context.remove("op");
             if (newOp == null) {

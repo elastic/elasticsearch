@@ -57,6 +57,15 @@ final class MultiSnapshot implements Translog.Snapshot {
     }
 
     @Override
+    public int skippedOperations() {
+        int skippedOperations = overriddenOperations;
+        for (TranslogSnapshot translog : translogs) {
+            skippedOperations += translog.skippedOperations();
+        }
+        return skippedOperations;
+    }
+
+    @Override
     public int overriddenOperations() {
         return overriddenOperations;
     }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -52,6 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * another cluster change event.
  */
 public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(DelayedAllocationService.class);
 
     static final String CLUSTER_UPDATE_TASK_SOURCE = "delayed_allocation_reroute";
 
@@ -67,7 +70,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     class DelayedRerouteTask extends ClusterStateUpdateTask {
         final TimeValue nextDelay; // delay until submitting the reroute command
         final long baseTimestampNanos; // timestamp (in nanos) upon which delay was calculated
-        volatile ScheduledFuture future;
+        volatile ScheduledFuture<?> future;
         final AtomicBoolean cancelScheduling = new AtomicBoolean();
 
         DelayedRerouteTask(TimeValue nextDelay, long baseTimestampNanos) {

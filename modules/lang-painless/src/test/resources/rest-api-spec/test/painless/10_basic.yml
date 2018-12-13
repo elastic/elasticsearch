@@ -1,6 +1,9 @@
 # Integration tests for Painless Plugin
 #
 "Painless plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: lang-painless }
+    - contains:  { nodes.$master.modules: { name: lang-painless } }

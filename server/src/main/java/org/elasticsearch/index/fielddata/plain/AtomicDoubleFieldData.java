@@ -48,7 +48,7 @@ abstract class AtomicDoubleFieldData implements AtomicNumericFieldData {
     }
 
     @Override
-    public final ScriptDocValues getScriptValues() {
+    public final ScriptDocValues<Double> getScriptValues() {
         return new ScriptDocValues.Doubles(getDoubleValues());
     }
 
@@ -69,7 +69,7 @@ abstract class AtomicDoubleFieldData implements AtomicNumericFieldData {
             public SortedNumericDoubleValues getDoubleValues() {
                 return FieldData.emptySortedNumericDoubles();
             }
-            
+
             @Override
             public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();

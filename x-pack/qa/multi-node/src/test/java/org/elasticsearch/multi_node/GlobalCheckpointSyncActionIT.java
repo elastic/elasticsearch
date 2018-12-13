@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.multi_node;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -15,10 +14,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -59,12 +54,15 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            client().performRequest("PUT", "test-index", Collections.emptyMap(), entity);
+            Request createIndexRequest = new Request("PUT", "/test-index");
+            createIndexRequest.setJsonEntity(Strings.toString(builder));
+            client().performRequest(createIndexRequest);
         }
 
         // wait for the replica to recover
-        client().performRequest("GET", "/_cluster/health", Collections.singletonMap("wait_for_status", "green"));
+        Request healthRequest = new Request("GET", "/_cluster/health");
+        healthRequest.addParameter("wait_for_status", "green");
+        client().performRequest(healthRequest);
 
         // index some documents
         final int numberOfDocuments = randomIntBetween(0, 128);
@@ -75,17 +73,18 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                     builder.field("foo", i);
                 }
                 builder.endObject();
-                final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-                client().performRequest("PUT", "/test-index/test-type/" + i, Collections.emptyMap(), entity);
+                Request indexRequest = new Request("PUT", "/test-index/test-type/" + i);
+                indexRequest.setJsonEntity(Strings.toString(builder));
+                client().performRequest(indexRequest);
             }
         }
 
         // we have to wait for the post-operation global checkpoint sync to propagate to the replica
         assertBusy(() -> {
-            final Map<String, String> params = new HashMap<>(2);
-            params.put("level", "shards");
-            params.put("filter_path", "**.seq_no");
-            final Response response = client().performRequest("GET", "/test-index/_stats", params);
+            final Request request = new Request("GET", "/test-index/_stats");
+            request.addParameter("level", "shards");
+            request.addParameter("filter_path", "**.seq_no");
+            final Response response = client().performRequest(request);
             final ObjectPath path = ObjectPath.createFromResponse(response);
             // int looks funny here since global checkpoints are longs but the response parser does not know enough to treat them as long
             final int shard0GlobalCheckpoint = path.evaluate("indices.test-index.shards.0.0.seq_no.global_checkpoint");

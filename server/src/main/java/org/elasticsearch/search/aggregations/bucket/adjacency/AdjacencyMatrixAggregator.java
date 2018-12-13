@@ -52,8 +52,6 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 /**
  * Aggregation for adjacency matrices.
  *
- * NOTE! This is an experimental class.
- *
  * TODO the aggregation produces a sparse response but in the
  * computation it uses a non-sparse structure (an array of Bits
  * objects). This could be changed to a sparse structure in future.

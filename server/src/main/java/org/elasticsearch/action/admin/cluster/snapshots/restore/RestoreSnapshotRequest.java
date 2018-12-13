@@ -27,14 +27,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -45,7 +48,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Restore snapshot request
  */
-public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> {
+public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private String snapshot;
     private String repository;
@@ -564,6 +567,49 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startArray("indices");
+        for (String index : indices) {
+            builder.value(index);
+        }
+        builder.endArray();
+        if (indicesOptions != null) {
+            indicesOptions.toXContent(builder, params);
+        }
+        if (renamePattern != null) {
+            builder.field("rename_pattern", renamePattern);
+        }
+        if (renameReplacement != null) {
+            builder.field("rename_replacement", renameReplacement);
+        }
+        builder.field("include_global_state", includeGlobalState);
+        builder.field("partial", partial);
+        builder.field("include_aliases", includeAliases);
+        if (settings != null) {
+            builder.startObject("settings");
+            if (settings.isEmpty() == false) {
+                settings.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+        if (indexSettings != null) {
+            builder.startObject("index_settings");
+            if (indexSettings.isEmpty() == false) {
+                indexSettings.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+        builder.startArray("ignore_index_settings");
+        for (String ignoreIndexSetting : ignoreIndexSettings) {
+            builder.value(ignoreIndexSetting);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
@@ -573,4 +619,37 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         return "snapshot [" + repository + ":" + snapshot + "]";
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RestoreSnapshotRequest that = (RestoreSnapshotRequest) o;
+        return waitForCompletion == that.waitForCompletion &&
+            includeGlobalState == that.includeGlobalState &&
+            partial == that.partial &&
+            includeAliases == that.includeAliases &&
+            Objects.equals(snapshot, that.snapshot) &&
+            Objects.equals(repository, that.repository) &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Objects.equals(renamePattern, that.renamePattern) &&
+            Objects.equals(renameReplacement, that.renameReplacement) &&
+            Objects.equals(settings, that.settings) &&
+            Objects.equals(indexSettings, that.indexSettings) &&
+            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
+            includeGlobalState, partial, includeAliases, settings, indexSettings);
+        result = 31 * result + Arrays.hashCode(indices);
+        result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -24,10 +24,10 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     private final WatcherSearchTemplateService searchTemplateService;
 
     public SearchTransformFactory(Settings settings, Client client, NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
-        super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
+        super(LogManager.getLogger(ExecutableSearchTransform.class));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", TimeValue.timeValueMinutes(1));
-        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
+        this.searchTemplateService = new WatcherSearchTemplateService(scriptService, xContentRegistry);
     }
 
     @Override

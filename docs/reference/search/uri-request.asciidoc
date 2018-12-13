@@ -27,7 +27,10 @@ And here is a sample response:
         "failed" : 0
     },
     "hits":{
-        "total" : 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.3862944,
         "hits" : [
             {
@@ -83,7 +86,7 @@ providing text to a numeric field) to be ignored. Defaults to false.
 hits was computed.
 
 |`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
-part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
+part of the document by using `_source_includes` & `_source_excludes` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
 |`stored_fields` |The selective stored fields of the document to return for each hit,
@@ -125,5 +128,6 @@ more details on the different types of search that can be performed.
 
 |`allow_partial_search_results` |Set to `false` to return an overall failure if the request would produce
 partial results. Defaults to true, which will allow partial results in the case of timeouts
-or partial failures..
+or partial failures. This default can be controlled using the cluster-level setting
+`search.default_allow_partial_results`.
 |=======================================================================

@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
@@ -26,7 +26,7 @@ abstract class FullTextUtils {
             return emptyMap();
         }
         String[] list = Strings.delimitedListToStringArray(options, DELIMITER);
-        Map<String, String> op = new LinkedHashMap<String, String>(list.length);
+        Map<String, String> op = new LinkedHashMap<>(list.length);
 
         for (String entry : list) {
             String[] split = splitInTwo(entry, "=");

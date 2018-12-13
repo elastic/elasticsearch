@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
@@ -90,51 +89,16 @@ public class DataCounts implements ToXContentObject, Writeable {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EMPTY_BUCKET_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), SPARSE_BUCKET_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_COUNT);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + EARLIEST_RECORD_TIME.getPreferredName() + "]");
-        }, EARLIEST_RECORD_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
-        }, LATEST_RECORD_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LAST_DATA_TIME.getPreferredName() + "]");
-        }, LAST_DATA_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "]");
-        }, LATEST_EMPTY_BUCKET_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "]");
-        }, LATEST_SPARSE_BUCKET_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                p -> TimeUtils.parseTimeField(p, EARLIEST_RECORD_TIME.getPreferredName()), EARLIEST_RECORD_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()), LATEST_RECORD_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                p -> TimeUtils.parseTimeField(p, LAST_DATA_TIME.getPreferredName()), LAST_DATA_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                p -> TimeUtils.parseTimeField(p, LATEST_EMPTY_BUCKET_TIME.getPreferredName()), LATEST_EMPTY_BUCKET_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                p -> TimeUtils.parseTimeField(p, LATEST_SPARSE_BUCKET_TIME.getPreferredName()), LATEST_SPARSE_BUCKET_TIME, ValueType.VALUE);
         PARSER.declareLong((t, u) -> {;}, INPUT_RECORD_COUNT);
     }
 

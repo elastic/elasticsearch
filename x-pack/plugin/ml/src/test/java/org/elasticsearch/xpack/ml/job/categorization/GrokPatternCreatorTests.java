@@ -76,6 +76,40 @@ public class GrokPatternCreatorTests extends ESTestCase {
         assertEquals(".+?%{TIMESTAMP_ISO8601:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
     }
 
+    public void testAppendBestGrokMatchForStringsGivenTomcatDatestamps() {
+
+        // The first part of the Tomcat datestamp can match as an ISO8601
+        // timestamp if the ordering of candidate patterns is wrong
+        Collection<String> mustMatchStrings = Arrays.asList("2018-09-03 17:03:28,269 +0100 | ERROR | ",
+                "2018-09-03 17:04:27,279 +0100 | DEBUG | ",
+                "2018-09-03 17:05:26,289 +0100 | ERROR | ");
+
+        Map<String, Integer> fieldNameCountStore = new HashMap<>();
+        StringBuilder overallGrokPatternBuilder = new StringBuilder();
+
+        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+
+        assertEquals(".*?%{TOMCAT_DATESTAMP:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
+    }
+
+    public void testAppendBestGrokMatchForStringsGivenTrappyFloatCandidates() {
+
+        // If we're not careful then we might detect the first part of these strings as a
+        // number, e.g. 1.2 in the first example, but this is inappropriate given the
+        // trailing dot and digit
+        Collection<String> mustMatchStrings = Arrays.asList("1.2.3",
+                "-2.3.4",
+                "4.5.6.7",
+                "-9.8.7.6.5");
+
+        Map<String, Integer> fieldNameCountStore = new HashMap<>();
+        StringBuilder overallGrokPatternBuilder = new StringBuilder();
+
+        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+
+        assertEquals(".+?", overallGrokPatternBuilder.toString());
+    }
+
     public void testAppendBestGrokMatchForStringsGivenNumbersInBrackets() {
 
         Collection<String> mustMatchStrings = Arrays.asList("(-2)",

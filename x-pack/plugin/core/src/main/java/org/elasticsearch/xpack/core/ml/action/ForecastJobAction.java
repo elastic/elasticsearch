@@ -24,8 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForecastJobAction extends Action<ForecastJobAction.Request, ForecastJobAction.Response,
-        ForecastJobAction.RequestBuilder> {
+public class ForecastJobAction extends Action<ForecastJobAction.Response> {
 
     public static final ForecastJobAction INSTANCE = new ForecastJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";
@@ -35,13 +34,13 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
+    public Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -72,6 +71,19 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         private TimeValue expiresIn;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.duration = in.readOptionalTimeValue();
+            this.expiresIn = in.readOptionalTimeValue();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalTimeValue(duration);
+            out.writeOptionalTimeValue(expiresIn);
         }
 
         public Request(String jobId) {
@@ -115,20 +127,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.duration = in.readOptionalTimeValue();
-            this.expiresIn = in.readOptionalTimeValue();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalTimeValue(duration);
-            out.writeOptionalTimeValue(expiresIn);
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(jobId, duration, expiresIn);
         }
@@ -162,7 +160,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, ForecastJobAction action) {
             super(client, action, new Request());
@@ -174,27 +172,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         private boolean acknowledged;
         private String forecastId;
 
-        public Response() {
-            super(null, null);
-        }
-
         public Response(boolean acknowledged, String forecastId) {
             super(null, null);
             this.acknowledged = acknowledged;
             this.forecastId = forecastId;
         }
 
-        public boolean isAcknowledged() {
-            return acknowledged;
-        }
-
-        public String getForecastId() {
-            return forecastId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             acknowledged = in.readBoolean();
             forecastId = in.readString();
         }
@@ -204,6 +189,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             super.writeTo(out);
             out.writeBoolean(acknowledged);
             out.writeString(forecastId);
+        }
+
+        public boolean isAcknowledged() {
+            return acknowledged;
+        }
+
+        public String getForecastId() {
+            return forecastId;
         }
 
         @Override

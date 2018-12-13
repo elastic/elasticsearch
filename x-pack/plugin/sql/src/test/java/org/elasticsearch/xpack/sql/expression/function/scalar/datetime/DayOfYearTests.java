@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.util.TimeZone;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
 public class DayOfYearTests extends ESTestCase {
     private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
@@ -22,12 +22,8 @@ public class DayOfYearTests extends ESTestCase {
         assertEquals(365, extract(dateTime(0), TimeZone.getTimeZone("GMT-01:00")));
     }
 
-    private DateTime dateTime(long millisSinceEpoch) {
-        return new DateTime(millisSinceEpoch, DateTimeZone.forTimeZone(UTC));
-    }
-
     private Object extract(Object value, TimeZone timeZone) {
-        return build(value, timeZone).asProcessorDefinition().asProcessor().process(value);
+        return build(value, timeZone).asPipe().asProcessor().process(value);
     }
 
     private DayOfYear build(Object value, TimeZone timeZone) {

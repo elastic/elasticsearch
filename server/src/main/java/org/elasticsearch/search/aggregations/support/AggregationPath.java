@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,12 +52,12 @@ import java.util.List;
  *                                  this case, the order will be based on the number of documents under {@code agg3}.
  *     </li>
  *     <li>
- *         {@code agg1>agg2>agg3} - where agg1 and agg2 are both single-bucket aggs and agg3 is a single-value metrics agg (eg avg, max, min, etc..).
- *                                  In this case, the order will be based on the value of {@code agg3}.
+ *         {@code agg1>agg2>agg3} - where agg1 and agg2 are both single-bucket aggs and agg3 is a single-value metrics agg (eg avg, max,
+ *                                  min, etc..). In this case, the order will be based on the value of {@code agg3}.
  *     </li>
  *     <li>
- *         {@code agg1>agg2>agg3.avg} - where agg1 and agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg (eg stats, extended_stats, etc...).
- *                                  In this case, the order will be based on the avg value of {@code agg3}.
+ *         {@code agg1>agg2>agg3.avg} - where agg1 and agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg (eg stats,
+ *                                  extended_stats, etc...). In this case, the order will be based on the avg value of {@code agg3}.
  *     </li>
  * </ul>
  *
@@ -256,7 +257,7 @@ public class AggregationPath {
         Aggregator aggregator = root;
         for (int i = 0; i < pathElements.size(); i++) {
             AggregationPath.PathElement token = pathElements.get(i);
-            aggregator = aggregator.subAggregator(token.name);
+            aggregator = ProfilingAggregator.unwrap(aggregator.subAggregator(token.name));
             assert (aggregator instanceof SingleBucketAggregator && i <= pathElements.size() - 1)
                     || (aggregator instanceof NumericMetricsAggregator && i == pathElements.size() - 1) :
                     "this should be picked up before aggregation execution - on validate";
@@ -272,7 +273,7 @@ public class AggregationPath {
      */
     public Aggregator resolveTopmostAggregator(Aggregator root) {
         AggregationPath.PathElement token = pathElements.get(0);
-        Aggregator aggregator = root.subAggregator(token.name);
+        Aggregator aggregator = ProfilingAggregator.unwrap(root.subAggregator(token.name));
         assert (aggregator instanceof SingleBucketAggregator )
                 || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
         return aggregator;
@@ -287,11 +288,14 @@ public class AggregationPath {
     public void validate(Aggregator root) throws AggregationExecutionException {
         Aggregator aggregator = root;
         for (int i = 0; i < pathElements.size(); i++) {
-            aggregator = aggregator.subAggregator(pathElements.get(i).name);
+            String name = pathElements.get(i).name;
+            aggregator = ProfilingAggregator.unwrap(aggregator.subAggregator(name));
             if (aggregator == null) {
-                throw new AggregationExecutionException("Invalid aggregator order path [" + this + "]. Unknown aggregation ["
-                        + pathElements.get(i).name + "]");
+                throw new AggregationExecutionException("Invalid aggregator order path [" + this + "]. The " +
+                    "provided aggregation [" + name + "] either does not exist, or is a pipeline aggregation " +
+                    "and cannot be used to sort the buckets.");
             }
+
             if (i < pathElements.size() - 1) {
 
                 // we're in the middle of the path, so the aggregator can only be a single-bucket aggregator
@@ -327,7 +331,8 @@ public class AggregationPath {
             if (lastToken.key != null && !"doc_count".equals(lastToken.key)) {
                 throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                         "]. Ordering on a single-bucket aggregation can only be done on its doc_count. " +
-                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"doc_count\" (a la \"" + lastToken.name + ".doc_count\")");
+                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"doc_count\" (a la \"" + lastToken.name +
+                        ".doc_count\")");
             }
             return;   // perfectly valid to sort on single-bucket aggregation (will be sored on its doc_count)
         }
@@ -336,7 +341,8 @@ public class AggregationPath {
             if (lastToken.key != null && !"value".equals(lastToken.key)) {
                 throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                         "]. Ordering on a single-value metrics aggregation can only be done on its value. " +
-                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"value\" (a la \"" + lastToken.name + ".value\")");
+                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"value\" (a la \"" + lastToken.name +
+                        ".value\")");
             }
             return;   // perfectly valid to sort on single metric aggregation (will be sorted on its associated value)
         }

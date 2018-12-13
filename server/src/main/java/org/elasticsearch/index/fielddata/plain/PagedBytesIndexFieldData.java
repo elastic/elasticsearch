@@ -20,7 +20,6 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -66,7 +65,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
-                                                               IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+                IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }
@@ -79,7 +78,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
+            boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
@@ -89,7 +89,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         LeafReader reader = context.reader();
         AtomicOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
+        PagedBytesEstimator estimator =
+            new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
@@ -251,14 +252,5 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             breaker.addWithoutBreaking(-(estimatedBytes - actualUsed));
         }
 
-        /**
-         * Adjust the breaker when no terms were actually loaded, but the field
-         * data takes up space regardless. For instance, when ordinals are
-         * used.
-         * @param actualUsed bytes actually used
-         */
-        public void adjustForNoTerms(long actualUsed) {
-            breaker.addWithoutBreaking(actualUsed);
-        }
     }
 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.plugins.Plugin;
@@ -61,7 +62,9 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
         }
 
         Request request = new Request("GET", "/_protected");
-        request.addHeader("Secret", "password");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Secret", "password");
+        request.setOptions(options);
         Response authResponse = getRestClient().performRequest(request);
         assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(authResponse.getHeader("Secret"), equalTo("granted"));

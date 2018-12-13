@@ -23,7 +23,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -44,13 +50,23 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>
  */
-public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest> implements IndicesRequest.Replaceable {
+public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
+    implements IndicesRequest.Replaceable, ToXContentObject {
 
     public DeleteByQueryRequest() {
+        this(new SearchRequest());
     }
 
-    public DeleteByQueryRequest(SearchRequest search) {
+    public DeleteByQueryRequest(String... indices) {
+        this(new SearchRequest(indices));
+    }
+
+    DeleteByQueryRequest(SearchRequest search) {
         this(search, true);
+    }
+
+    public DeleteByQueryRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
@@ -58,6 +74,84 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         // Delete-By-Query does not require the source
         if (setDefaults) {
             search.source().fetchSource(false);
+        }
+    }
+
+    /**
+     * Set the query for selective delete
+     */
+    public DeleteByQueryRequest setQuery(QueryBuilder query) {
+        if (query != null) {
+            getSearchRequest().source().query(query);
+        }
+        return this;
+    }
+
+    /**
+     * Set the document types for the delete
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
+    public DeleteByQueryRequest setDocTypes(String... types) {
+        if (types != null) {
+            getSearchRequest().types(types);
+        }
+        return this;
+    }
+
+    /**
+     * Set routing limiting the process to the shards that match that routing value
+     */
+    public DeleteByQueryRequest setRouting(String routing) {
+        if (routing != null) {
+            getSearchRequest().routing(routing);
+        }
+        return this;
+    }
+
+    /**
+     * The scroll size to control number of documents processed per batch
+     */
+    public DeleteByQueryRequest setBatchSize(int size) {
+        getSearchRequest().source().size(size);
+        return this;
+    }
+
+    /**
+     * Set the IndicesOptions for controlling unavailable indices
+     */
+    public DeleteByQueryRequest setIndicesOptions(IndicesOptions indicesOptions) {
+        getSearchRequest().indicesOptions(indicesOptions);
+        return this;
+    }
+
+    /**
+     * Gets the batch size for this request
+     */
+    public int getBatchSize() {
+        return getSearchRequest().source().size();
+    }
+
+    /**
+     * Gets the routing value used for this request
+     */
+    public String getRouting() {
+        return getSearchRequest().routing();
+    }
+
+    /**
+     * Gets the document types on which this request would be executed. Returns an empty array if all
+     * types are to be processed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
+    public String[] getDocTypes() {
+        if (getSearchRequest().types() != null) {
+            return getSearchRequest().types();
+        } else {
+            return new String[0];
         }
     }
 
@@ -114,15 +208,34 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         return getSearchRequest().indicesOptions();
     }
 
+    /**
+     * Gets the document types on which this request would be executed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
     public String[] types() {
         assert getSearchRequest() != null;
         return getSearchRequest().types();
     }
 
+    /**
+     * Set the document types for the delete
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
     public DeleteByQueryRequest types(String... types) {
         assert getSearchRequest() != null;
         getSearchRequest().types(types);
         return this;
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        getSearchRequest().source().innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
 }

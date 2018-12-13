@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests that when disabling detailed errors, a request with the error_trace parameter returns a HTTP 400
+ * Tests that when disabling detailed errors, a request with the error_trace parameter returns an HTTP 400 response.
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {

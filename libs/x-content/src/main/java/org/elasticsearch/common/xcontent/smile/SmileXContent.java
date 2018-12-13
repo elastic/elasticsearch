@@ -58,7 +58,7 @@ public class SmileXContent implements XContent {
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
+        smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         smileXContent = new SmileXContent();
     }
 

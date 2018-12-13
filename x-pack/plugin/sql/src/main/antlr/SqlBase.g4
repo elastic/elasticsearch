@@ -50,19 +50,19 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (LIKE? pattern)?                                                                        #showTables
-    | SHOW COLUMNS (FROM | IN) tableIdentifier                                                            #showColumns
-    | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
-    | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
+    | SHOW TABLES (tableLike=likePattern | tableIdent=tableIdentifier)?                                   #showTables
+    | SHOW COLUMNS (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)                       #showColumns
+    | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
+    | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     | SYS CATALOGS                                                                                        #sysCatalogs
-    | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)?
-                 (LIKE? tablePattern=pattern)?
+    | SYS TABLES (CATALOG clusterLike=likePattern)?
+                 (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
     | SYS COLUMNS (CATALOG cluster=string)?
-                  (TABLE LIKE? indexPattern=pattern)?
-                  (LIKE? columnPattern=pattern)?                                                          #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
+                  (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
+                  (columnPattern=likePattern)?                                                            #sysColumns
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
@@ -74,16 +74,21 @@ queryNoWith
     : queryTerm
     /** we could add sort by - sort per partition */
       (ORDER BY orderBy (',' orderBy)*)?
-      (LIMIT limit=(INTEGER_VALUE | ALL))?
+      limitClause?
     ;
 
+limitClause
+    : LIMIT limit=(INTEGER_VALUE | ALL)                                                                   
+    | LIMIT_ESC limit=(INTEGER_VALUE | ALL) ESC_END                                              
+    ;
+    
 queryTerm
     : querySpecification                   #queryPrimaryDefault
     | '(' queryNoWith  ')'                 #subquery
     ;
 
 orderBy
-    : expression ordering=(ASC | DESC)?
+    : expression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
     ;
 
 querySpecification
@@ -158,12 +163,16 @@ expression
 booleanExpression
     : NOT booleanExpression                                                                 #logicalNot
     | EXISTS '(' query ')'                                                                  #exists
-    | QUERY '(' queryString=string (',' options=string)* ')'                                #stringQuery
-    | MATCH '(' singleField=qualifiedName ',' queryString=string (',' options=string)* ')'  #matchQuery
-    | MATCH '(' multiFields=string ',' queryString=string (',' options=string)* ')'         #multiMatchQuery
+    | QUERY '(' queryString=string matchQueryOptions ')'                                    #stringQuery
+    | MATCH '(' singleField=qualifiedName ',' queryString=string matchQueryOptions ')'      #matchQuery
+    | MATCH '(' multiFields=string ',' queryString=string matchQueryOptions ')'             #multiMatchQuery
     | predicated                                                                            #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression                           #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                            #logicalBinary
+    ;
+
+matchQueryOptions
+    : (',' string)*
     ;
 
 // workaround for:
@@ -184,8 +193,17 @@ predicate
     | IS NOT? kind=NULL
     ;
 
+likePattern
+    : LIKE pattern
+    ;
+    
 pattern
-    : value=string (ESCAPE escape=string)?
+    : value=string patternEscape?
+    ;
+    
+patternEscape
+    : ESCAPE escape=string
+    | ESCAPE_ESC escape=string '}'
     ;
 
 valueExpression
@@ -197,33 +215,81 @@ valueExpression
     ;
 
 primaryExpression
-    : CAST '(' expression AS dataType ')'                                            #cast
-    | EXTRACT '(' field=identifier FROM valueExpression ')'                          #extract
+    : castExpression                                                                 #cast
+    | extractExpression                                                              #extract
     | constant                                                                       #constantDefault
-    | ASTERISK                                                                       #star
     | (qualifiedName DOT)? ASTERISK                                                  #star
-    | identifier '(' (setQuantifier? expression (',' expression)*)? ')'              #functionCall
+    | functionExpression                                                             #function
     | '(' query ')'                                                                  #subqueryExpression
-    | identifier                                                                     #columnReference
     | qualifiedName                                                                  #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
+castExpression
+    : castTemplate                                                                   
+    | FUNCTION_ESC castTemplate ESC_END                                              
+    | convertTemplate
+    | FUNCTION_ESC convertTemplate ESC_END
+    ;
+    
+castTemplate
+    : CAST '(' expression AS dataType ')'
+    ;
+    
+convertTemplate
+    : CONVERT '(' expression ',' dataType ')'
+    ;
+
+extractExpression
+    : extractTemplate
+    | FUNCTION_ESC extractTemplate ESC_END
+    ;
+    
+extractTemplate
+    : EXTRACT '(' field=identifier FROM valueExpression ')'
+    ;
+
+functionExpression
+    : functionTemplate
+    | FUNCTION_ESC functionTemplate '}'
+    ;
+    
+functionTemplate
+    : functionName '(' (setQuantifier? expression (',' expression)*)? ')'
+    ;
+functionName
+    : LEFT 
+    | RIGHT 
+    | identifier
+    ;
     
 constant
     : NULL                                                                                     #nullLiteral
+    | interval                                                                                 #intervalLiteral
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
     | PARAM                                                                                    #paramLiteral
+    | DATE_ESC string ESC_END                                                                  #dateEscapedLiteral
+    | TIME_ESC string ESC_END                                                                  #timeEscapedLiteral
+    | TIMESTAMP_ESC string ESC_END                                                             #timestampEscapedLiteral
+    | GUID_ESC string ESC_END                                                                  #guidEscapedLiteral
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
     : TRUE | FALSE
+    ;
+
+interval
+    : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
+    ;
+    
+intervalField
+    : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;
 
 dataType
@@ -269,18 +335,22 @@ string
 nonReserved
     : ANALYZE | ANALYZED 
     | CATALOGS | COLUMNS 
-    | DEBUG 
+    | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FORMAT | FUNCTIONS 
-    | GRAPHVIZ 
-    | MAPPED 
+    | FIRST | FORMAT | FUNCTIONS 
+    | GRAPHVIZ
+    | HOUR
+    | INTERVAL
+    | LAST | LIMIT 
+    | MAPPED | MINUTE | MONTH
     | OPTIMIZED 
     | PARSED | PHYSICAL | PLAN 
     | QUERY 
     | RLIKE
-    | SCHEMAS | SHOW | SYS
+    | SCHEMAS | SECOND | SHOW | SYS
     | TABLES | TEXT | TYPE | TYPES
     | VERIFY
+    | YEAR
     ;
 
 ALL: 'ALL';
@@ -296,6 +366,9 @@ CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
+CONVERT: 'CONVERT';
+DAY: 'DAY';
+DAYS: 'DAYS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
@@ -306,6 +379,7 @@ EXISTS: 'EXISTS';
 EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
+FIRST: 'FIRST';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
 FULL: 'FULL';
@@ -313,18 +387,27 @@ FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
 GROUP: 'GROUP';
 HAVING: 'HAVING';
+HOUR: 'HOUR';
+HOURS: 'HOURS';
 IN: 'IN';
 INNER: 'INNER';
+INTERVAL: 'INTERVAL';
 IS: 'IS';
 JOIN: 'JOIN';
+LAST: 'LAST';
 LEFT: 'LEFT';
 LIKE: 'LIKE';
 LIMIT: 'LIMIT';
 MAPPED: 'MAPPED';
 MATCH: 'MATCH';
+MINUTE: 'MINUTE';
+MINUTES: 'MINUTES';
+MONTH: 'MONTH';
+MONTHS: 'MONTHS';
 NATURAL: 'NATURAL';
 NOT: 'NOT';
 NULL: 'NULL';
+NULLS: 'NULLS';
 ON: 'ON';
 OPTIMIZED: 'OPTIMIZED';
 OR: 'OR';
@@ -337,6 +420,8 @@ RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
 QUERY: 'QUERY';
 SCHEMAS: 'SCHEMAS';
+SECOND: 'SECOND';
+SECONDS: 'SECONDS';
 SELECT: 'SELECT';
 SHOW: 'SHOW';
 SYS: 'SYS';
@@ -344,15 +429,31 @@ TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
 TRUE: 'TRUE';
+TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
 WHERE: 'WHERE';
 WITH: 'WITH';
+YEAR: 'YEAR';
+YEARS: 'YEARS';
+
+// Escaped Sequence
+ESCAPE_ESC: '{ESCAPE';
+FUNCTION_ESC: '{FN';
+LIMIT_ESC:'{LIMIT';
+DATE_ESC: '{D';
+TIME_ESC: '{T';
+TIMESTAMP_ESC: '{TS';
+// mapped to string literal
+GUID_ESC: '{GUID';
+
+ESC_END: '}';
 
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';
@@ -391,7 +492,7 @@ DIGIT_IDENTIFIER
     ;
 
 TABLE_IDENTIFIER
-    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
+    : (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

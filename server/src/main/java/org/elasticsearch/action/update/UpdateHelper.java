@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -28,10 +29,8 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,9 +41,9 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -56,11 +55,13 @@ import java.util.function.LongSupplier;
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
-public class UpdateHelper extends AbstractComponent {
+public class UpdateHelper {
+
+    private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
+
     private final ScriptService scriptService;
 
-    public UpdateHelper(Settings settings, ScriptService scriptService) {
-        super(settings);
+    public UpdateHelper(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 
@@ -77,7 +78,6 @@ public class UpdateHelper extends AbstractComponent {
      * Prepares an update request by converting it into an index or delete request or an update response (no action, in the event of a
      * noop).
      */
-    @SuppressWarnings("unchecked")
     protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
@@ -108,7 +108,8 @@ public class UpdateHelper extends AbstractComponent {
         ctx = executeScript(script, ctx);
 
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
-        Map newSource = (Map) ctx.get(ContextFields.SOURCE);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
@@ -248,6 +249,7 @@ public class UpdateHelper extends AbstractComponent {
 
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
 
+        @SuppressWarnings("unchecked")
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         switch (operation) {
@@ -278,10 +280,9 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
-                ExecutableScript executableScript = factory.newInstance(script.getParams());
-                executableScript.setNextVar(ContextFields.CTX, ctx);
-                executableScript.run();
+                UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);
+                executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);

@@ -45,10 +45,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
     private static final String INDEX_NAME = "index";
-    private static final String TYPE_NAME = "type";
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
-        return BulkProcessor.builder(highLevelClient()::bulkAsync, listener);
+        return BulkProcessor.builder(
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Exception {
@@ -127,8 +127,8 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        highLevelClient().indices().refresh(new RefreshRequest());
-        int multiGetResponsesCount = highLevelClient().multiGet(multiGetRequest).getResponses().length;
+        highLevelClient().indices().refresh(new RefreshRequest(), RequestOptions.DEFAULT);
+        int multiGetResponsesCount = highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT).getResponses().length;
 
         if (rejectedExecutionExpected) {
             assertThat(multiGetResponsesCount, lessThanOrEqualTo(numberOfAsyncOps));
@@ -143,9 +143,9 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME, TYPE_NAME, Integer.toString(i))
+            processor.add(new IndexRequest(INDEX_NAME, "_doc", Integer.toString(i))
                 .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
-            multiGetRequest.add(INDEX_NAME, TYPE_NAME, Integer.toString(i));
+            multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
         return multiGetRequest;
     }

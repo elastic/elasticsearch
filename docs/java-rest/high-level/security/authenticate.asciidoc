@@ -1,0 +1,74 @@
+
+--
+:api: authenticate
+:response: AuthenticateResponse
+--
+
+[id="{upid}-{api}"]
+=== Authenticate API
+
+[id="{upid}-{api}-sync"]
+==== Execution
+
+Authenticating and retrieving information about a user can be performed
+using the `security().authenticate()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute]
+--------------------------------------------------
+
+This method does not require a request object. The client waits for the
++{response}+ to be returned before continuing with code execution.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains four fields. The `user` field
+, accessed with `getUser`, contains all the information about this
+authenticated user. The field `enabled`, tells if this user is actually
+usable or has been temporarily deactivated. The field `authentication_realm`,
+accessed with `getAuthenticationRealm` contains the name and type of the
+Realm that has authenticated the user and the field `lookup_realm`,
+accessed with `getLookupRealm` contains the name and type of the Realm where
+the user information were retrieved from.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `getUser` retrieves the `User` instance containing the information,
+see {javadoc-client}/security/user/User.html.
+<2> `enabled` tells if this user is usable or is deactivated.
+<3> `getAuthenticationRealm().getName()` retrieves the name of the realm that authenticated the user.
+<4> `getAuthenticationRealm().getType()` retrieves the type of the realm that authenticated the user.
+<5> `getLookupRealm().getName()` retrieves the name of the realm from where the user information is looked up.
+<6> `getLookupRealm().getType()` retrieves the type of the realm from where the user information is looked up.
+
+[id="{upid}-{api}-async"]
+==== Asynchronous Execution
+
+This request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute-async]
+--------------------------------------------------
+<1> The `ActionListener` to use when the execution completes. This method does
+not require a request object.
+
+The asynchronous method does not block and returns immediately. Once the request
+has completed the `ActionListener` is called back using the `onResponse` method
+if the execution completed successfully or using the `onFailure` method if
+it failed.
+
+A typical listener for a +{response}+ looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute-listener]
+--------------------------------------------------
+<1> Called when the execution completed successfully. The response is
+provided as an argument.
+<2> Called in case of a failure. The exception is provided as an argument.
+

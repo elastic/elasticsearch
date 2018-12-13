@@ -1,4 +1,4 @@
-[[Testing Framework Cheatsheet]]
+[[TestingFrameworkCheatsheet]]
 = Testing
 
 [partintro]
@@ -77,38 +77,23 @@ Run a single test case (variants)
 ./gradlew test "-Dtests.class=*.ClassName"
 ----------------------------------------------------------
 
-Run all tests in a package and sub-packages
+Run all tests in a package and its sub-packages
 
 ----------------------------------------------------
 ./gradlew test "-Dtests.class=org.elasticsearch.package.*"
 ----------------------------------------------------
 
-Run any test methods that contain 'esi' (like: ...r*esi*ze...).
+Run any test methods that contain 'esi' (like: ...r*esi*ze...)
 
 -------------------------------
 ./gradlew test "-Dtests.method=*esi*"
 -------------------------------
 
-You can also filter tests by certain annotations ie:
-
-  * `@Nightly` - tests that only run in nightly builds (disabled by default)
-  * `@Backwards` - backwards compatibility tests (disabled by default)
-  * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
-  * `@BadApple` - tests that are known to fail randomly (disabled by default)
-
-Those annotation names can be combined into a filter expression like:
+Run all tests that are waiting for a bugfix (disabled by default)
 
 ------------------------------------------------
-./gradlew test -Dtests.filter="@nightly and not @backwards"
+./gradlew test -Dtests.filter=@awaitsfix
 ------------------------------------------------
-
-to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
-the boolean operators `and, or, not` and grouping ie:
-
-
----------------------------------------------------------------
-./gradlew test -Dtests.filter="@nightly and not(@badapple or @backwards)"
----------------------------------------------------------------
 
 === Seed and repetitions.
 
@@ -160,15 +145,14 @@ Test groups can be enabled or disabled (true/false).
 Default value provided below in [brackets].
 
 ------------------------------------------------------------------
-./gradlew test -Dtests.nightly=[false]   - nightly test group (@Nightly)
-./gradlew test -Dtests.weekly=[false]    - weekly tests (@Weekly)
 ./gradlew test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
 ------------------------------------------------------------------
 
 === Load balancing and caches.
 
-By default the tests run on up to 4 JVMs based on the number of cores. If you
-want to explicitly specify the number of JVMs you can do so on the command
+By default the tests run on multiple processes using all the available cores on all 
+available CPUs. Not including hyper-threading.
+If you want to explicitly specify the number of JVMs you can do so on the command
 line:
 
 ----------------------------
@@ -246,34 +230,6 @@ Pass arbitrary jvm arguments.
 ./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
 ------------------------------
 
-== Backwards Compatibility Tests
-
-Running backwards compatibility tests is disabled by default since it
-requires a release version of elasticsearch to be present on the test system.
-To run backwards compatibilty tests untar or unzip a release and run the tests
-with the following command:
-
----------------------------------------------------------------------------
-./gradlew test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Dtests.security.manager=false
----------------------------------------------------------------------------
-
-Note that backwards tests must be run with security manager disabled.
-If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
-can be omitted:
-
----------------------------------------------------------------------------
-./gradlew test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
----------------------------------------------------------------------------
-
-To setup the bwc test environment execute the following steps (provided you are
-already in your elasticsearch clone):
-
----------------------------------------------------------------------------
-$ mkdir backwards && cd backwards
-$ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.tar.gz
-$ tar -xzf elasticsearch-1.2.1.tar.gz
----------------------------------------------------------------------------
-
 == Running verification tasks
 
 To run all verification tasks, including static checks, unit tests, and integration tests:
@@ -294,6 +250,9 @@ If you want to just run the precommit checks:
 ---------------------------------------------------------------------------
 ./gradlew precommit
 ---------------------------------------------------------------------------
+
+Some of these checks will require `docker-compose` installed for bringing up
+test fixtures. If it's not present those checks will be skipped automatically.
 
 == Testing the REST layer
 
@@ -350,26 +309,26 @@ and running elasticsearch distributions works correctly on supported operating s
 These tests should really only be run in vagrant vms because they're destructive.
 
 . Install Virtual Box and Vagrant.
-
++
 . (Optional) Install https://github.com/fgrehm/vagrant-cachier[vagrant-cachier] to squeeze
 a bit more performance out of the process:
-
++
 --------------------------------------
 vagrant plugin install vagrant-cachier
 --------------------------------------
-
++
 . Validate your installed dependencies:
-
++
 -------------------------------------
 ./gradlew :qa:vagrant:vagrantCheckVersion
 -------------------------------------
-
++
 . Download and smoke test the VMs with `./gradlew vagrantSmokeTest` or
 `./gradlew -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
 download the base images and provision the boxes and immediately quit. Downloading all
 the images may take a long time. After the images are already on your machine, they won't
 be downloaded again unless they have been updated to a new version.
-
++
 . Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
@@ -402,6 +361,7 @@ These are the linux flavors supported, all of which we provide images for
 
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
+* ubuntu-1804 aka bionic beaver
 * debian-8 aka jessie
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
@@ -570,25 +530,28 @@ environment variable.
 == Testing backwards compatibility
 
 Backwards compatibility tests exist to test upgrading from each supported version
-to the current version. To run all backcompat tests use:
+to the current version. To run them all use:
 
 -------------------------------------------------
 ./gradlew bwcTest
 -------------------------------------------------
 
-A specific version can be tested as well. For example, to test backcompat with
+A specific version can be tested as well. For example, to test bwc with
 version 5.3.2 run:
 
 -------------------------------------------------
 ./gradlew v5.3.2#bwcTest
 -------------------------------------------------
 
-When running `./gradlew check`, some minimal backcompat checks are run. Which version
-is tested depends on the branch. On master, this will test against the current
-stable branch. On the stable branch, it will test against the latest release
-branch. Finally, on a release branch, it will test against the most recent release.
+Tests are ran for versions that are not yet released but with which the current version will be compatible with.
+These are automatically checked out and built from source.
+See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
+and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle] 
+for more information.
 
-=== BWC Testing against a specific remote/branch
+When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
+
+==== BWC Testing against a specific remote/branch
 
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
 that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
@@ -613,7 +576,7 @@ will contain your change.
 . Push both branches to your remote repository.
 . Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x`.
 
-== Skip fetching latest
+==== Skip fetching latest
 
 For some BWC testing scenarios, you want to use the local clone of the
 repository without fetching latest. For these use cases, you can set the system

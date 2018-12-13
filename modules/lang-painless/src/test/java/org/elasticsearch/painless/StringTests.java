@@ -233,7 +233,7 @@ public class StringTests extends ScriptTestCase {
         ctx.put("_id", "somerandomid");
         params.put("ctx", ctx);
 
-        assertEquals("somerandomid.somerandomid", exec("ctx._id += '.' + ctx._id", params, false));
+        assertEquals("somerandomid.somerandomid", exec("params.ctx._id += '.' + params.ctx._id", params, false));
         assertEquals("somerandomid.somerandomid", exec("String x = 'somerandomid'; x += '.' + x"));
         assertEquals("somerandomid.somerandomid", exec("def x = 'somerandomid'; x += '.' + x"));
     }

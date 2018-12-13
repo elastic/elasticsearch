@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
  */
 public class StateStreamer {
 
-    private static final Logger LOGGER = Loggers.getLogger(StateStreamer.class);
+    private static final Logger LOGGER = LogManager.getLogger(StateStreamer.class);
 
     private final Client client;
     private volatile boolean isCancelled;

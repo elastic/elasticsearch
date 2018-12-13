@@ -1,0 +1,83 @@
+--
+:api: indices-validate-query
+:request: ValidateQueryRequest
+:response: ValidateQueryResponse
+--
+
+[id="{upid}-{api}"]
+=== Validate Query API
+
+[id="{upid}-{api}-request"]
+==== Validate Query Request
+
+A +{request}+ requires one or more `indices` on which the query is validated. If no index
+is provided the request is executed on all indices.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The index on which to run the request.
+
+In addition it also needs the query that needs to be validated. The query can be built using the `QueryBuilders` utility class.
+The following code snippet builds a sample boolean query.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-query]
+--------------------------------------------------
+<1> Build the desired query.
+<2> Set it to the request.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-explain]
+--------------------------------------------------
+<1> The explain parameter can be set to true to get more detailed information about why a query failed
+
+By default, the request is executed on a single shard only, which is randomly selected. The detailed explanation of
+the query may depend on which shard is being hit, and therefore may vary from one request to another. So, in case of
+query rewrite the `allShards` parameter should be used to get response from all available shards.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-allShards]
+--------------------------------------------------
+<1> Set the allShards parameter.
+
+When the query is valid, the explanation defaults to the string representation of that query. With rewrite set to true,
+the explanation is more detailed showing the actual Lucene query that will be executed
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-rewrite]
+--------------------------------------------------
+<1> Set the rewrite parameter.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Validate Query Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Check if the query is valid or not.
+<2> Get total number of shards.
+<3> Get number of shards that were successful.
+<4> Get number of shards that failed.
+<5> Get the shard failures as `DefaultShardOperationFailedException`.
+<6> Get the index of a failed shard.
+<7> Get the shard id of a failed shard.
+<8> Get the reason for shard failure.
+<9> Get the detailed explanation for the shards (if explain was set to `true`).
+<10> Get the index to which a particular explanation belongs.
+<11> Get the shard id to which a particular explanation belongs.
+<12> Get the actual explanation string.

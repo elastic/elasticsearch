@@ -31,7 +31,7 @@ public class ExecutableWebhookAction extends ExecutableAction<WebhookAction> {
 
     @Override
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         HttpRequest request = action.requestTemplate.render(templateEngine, model);
 

@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
+public class CloseJobAction extends Action<CloseJobAction.Response> {
 
     public static final CloseJobAction INSTANCE = new CloseJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/close";
@@ -37,13 +37,13 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
+    public Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -82,6 +82,31 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         public Request() {
             openJobIds = new String[] {};
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            timeout = in.readTimeValue();
+            force = in.readBoolean();
+            openJobIds = in.readStringArray();
+            local = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeTimeValue(timeout);
+            out.writeBoolean(force);
+            out.writeStringArray(openJobIds);
+            out.writeBoolean(local);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
         }
 
         public Request(String jobId) {
@@ -134,32 +159,6 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            timeout = in.readTimeValue();
-            force = in.readBoolean();
-            openJobIds = in.readStringArray();
-            local = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeTimeValue(timeout);
-            out.writeBoolean(force);
-            out.writeStringArray(openJobIds);
-            out.writeBoolean(local);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
-        }
-
-        @Override
         public boolean match(Task task) {
             for (String id : openJobIds) {
                 if (OpenJobAction.JobTaskMatcher.match(task, id)) {
@@ -204,7 +203,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
             super(client, action, new Request());
@@ -213,30 +212,15 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean closed;
-
-        public Response() {
-            super(null, null);
-
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
-        }
+        private final boolean closed;
 
         public Response(boolean closed) {
             super(null, null);
             this.closed = closed;
         }
 
-        public boolean isClosed() {
-            return closed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             closed = in.readBoolean();
         }
 
@@ -244,6 +228,10 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(closed);
+        }
+
+        public boolean isClosed() {
+            return closed;
         }
 
         @Override

@@ -27,10 +27,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +39,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -73,18 +72,17 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, RankEvalRequest::new,
-                indexNameExpressionResolver);
+    public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
+                                   ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
+        super(RankEvalAction.NAME, transportService, actionFilters,
+              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
+    protected void doExecute(Task task, RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
         EvaluationMetric metric = evaluationSpecification.getMetric();
 
@@ -119,7 +117,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
 
             if (metric.forcedSearchSize().isPresent()) {
-                evaluationRequest.size(metric.forcedSearchSize().get());
+                evaluationRequest.size(metric.forcedSearchSize().getAsInt());
             }
 
             ratedRequestsInSearch.add(ratedRequest);

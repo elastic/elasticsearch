@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,15 +51,6 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Res
             }
             if (randomBoolean()) {
                 bucket.setInterim(randomBoolean());
-            }
-            if (randomBoolean()) {
-                int size = randomInt(10);
-                List<PartitionScore> partitionScores = new ArrayList<>(size);
-                for (int i = 0; i < size; i++) {
-                    partitionScores.add(new PartitionScore(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
-                            randomDouble(), randomDouble(), randomDouble()));
-                }
-                bucket.setPartitionScores(partitionScores);
             }
             if (randomBoolean()) {
                 bucket.setProcessingTimeMs(randomLong());

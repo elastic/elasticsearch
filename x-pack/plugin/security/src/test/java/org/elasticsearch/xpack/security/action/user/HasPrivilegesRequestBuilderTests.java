@@ -114,6 +114,6 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
         final ElasticsearchParseException parseException = expectThrows(ElasticsearchParseException.class,
                 () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
         );
-        assertThat(parseException.getMessage(), containsString("[index] and [cluster] are both missing"));
+        assertThat(parseException.getMessage(), containsString("[cluster,index,applications] are missing"));
     }
 }

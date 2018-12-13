@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.filter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -18,8 +20,6 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -41,10 +41,11 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
+public class SecurityActionFilter implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
     private static final Predicate<String> SECURITY_ACTION_MATCHER = Automatons.predicate("cluster:admin/xpack/security*");
+    private static final Logger logger = LogManager.getLogger(SecurityActionFilter.class);
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -55,10 +56,9 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
 
-    public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
+    public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
                                 XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
-        super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
         this.licenseState = licenseState;
@@ -72,7 +72,6 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                                                                                        ActionListener<Response> listener,
                                                                                        ActionFilterChain<Request, Response> chain) {
-
         /*
          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
          to operate normally, except all read operations will be blocked.
@@ -84,8 +83,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        final boolean securityEnabled = licenseState.isSecurityEnabled();
-        if (securityEnabled && licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
@@ -117,7 +115,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (securityEnabled == false && licenseState.isTrialLicense()) {
+            if (licenseState.isSecurityDisabledByTrialLicense()) {
                 listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
                         "and restart the node."));

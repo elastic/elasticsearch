@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackInfoResponse;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -459,11 +459,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("/+", "/") + "?pretty");
     }
 
     private URL passwordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
     }
 
     private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {

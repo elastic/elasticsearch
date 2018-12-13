@@ -85,7 +85,7 @@ abstract class AbstractProcessor implements ElementVisitor<Boolean> {
     }
 
     @Override
-    public Boolean visit(InjectionRequest injectionRequest) {
+    public Boolean visit(InjectionRequest<?> injectionRequest) {
         return false;
     }
 

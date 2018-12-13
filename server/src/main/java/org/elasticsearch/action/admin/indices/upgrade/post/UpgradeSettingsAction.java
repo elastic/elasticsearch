@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class UpgradeSettingsAction extends Action<UpgradeSettingsRequest, UpgradeSettingsResponse, UpgradeSettingsRequestBuilder> {
+public class UpgradeSettingsAction extends Action<AcknowledgedResponse> {
 
     public static final UpgradeSettingsAction INSTANCE = new UpgradeSettingsAction();
     public static final String NAME = "internal:indices/admin/upgrade";
@@ -32,12 +32,7 @@ public class UpgradeSettingsAction extends Action<UpgradeSettingsRequest, Upgrad
     }
 
     @Override
-    public UpgradeSettingsResponse newResponse() {
-        return new UpgradeSettingsResponse();
-    }
-
-    @Override
-    public UpgradeSettingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new UpgradeSettingsRequestBuilder(client, this);
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

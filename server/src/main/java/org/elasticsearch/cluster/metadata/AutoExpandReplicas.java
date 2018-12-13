@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * This class acts as a functional wrapper around the {@code index.auto_expand_replicas} setting.
@@ -51,13 +51,15 @@ public final class AutoExpandReplicas {
         }
         final int dash = value.indexOf('-');
         if (-1 == dash) {
-            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] from value: [" + value + "] at index " + dash);
+            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+                "] from value: [" + value + "] at index " + dash);
         }
         final String sMin = value.substring(0, dash);
         try {
             min = Integer.parseInt(sMin);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] from value: [" + value + "] at index "  + dash, e);
+            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+                "] from value: [" + value + "] at index "  + dash, e);
         }
         String sMax = value.substring(dash + 1);
         if (sMax.equals(ALL_NODES_VALUE)) {
@@ -66,7 +68,8 @@ public final class AutoExpandReplicas {
             try {
                 max = Integer.parseInt(sMax);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] from value: [" + value + "] at index "  + dash, e);
+                throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+                    "] from value: [" + value + "] at index "  + dash, e);
             }
         }
         return new AutoExpandReplicas(min, max, true);
@@ -78,7 +81,8 @@ public final class AutoExpandReplicas {
 
     private AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
         if (minReplicas > maxReplicas) {
-            throw new IllegalArgumentException("[" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] minReplicas must be =< maxReplicas but wasn't " + minReplicas + " > "  + maxReplicas);
+            throw new IllegalArgumentException("[" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+                "] minReplicas must be =< maxReplicas but wasn't " + minReplicas + " > "  + maxReplicas);
         }
         this.minReplicas = minReplicas;
         this.maxReplicas = maxReplicas;
@@ -93,7 +97,7 @@ public final class AutoExpandReplicas {
         return Math.min(maxReplicas, numDataNodes-1);
     }
 
-    Optional<Integer> getDesiredNumberOfReplicas(int numDataNodes) {
+    private OptionalInt getDesiredNumberOfReplicas(int numDataNodes) {
         if (enabled) {
             final int min = getMinReplicas();
             final int max = getMaxReplicas(numDataNodes);
@@ -105,19 +109,15 @@ public final class AutoExpandReplicas {
             }
 
             if (numberOfReplicas >= min && numberOfReplicas <= max) {
-                return Optional.of(numberOfReplicas);
+                return OptionalInt.of(numberOfReplicas);
             }
         }
-        return Optional.empty();
+        return OptionalInt.empty();
     }
 
     @Override
     public String toString() {
         return enabled ? minReplicas + "-" + maxReplicas : "false";
-    }
-
-    boolean isEnabled() {
-        return enabled;
     }
 
     /**

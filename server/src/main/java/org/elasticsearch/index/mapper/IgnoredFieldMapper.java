@@ -85,7 +85,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class IgnoredFieldType extends TermBasedFieldType {
+    public static final class IgnoredFieldType extends StringFieldType {
 
         public IgnoredFieldType() {
         }
@@ -129,9 +129,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // done in post-parse
-        return null;
     }
 
     @Override

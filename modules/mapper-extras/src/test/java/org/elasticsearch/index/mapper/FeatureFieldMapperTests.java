@@ -35,6 +35,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
@@ -53,7 +54,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(MapperExtrasPlugin.class);
     }
 
-    private static int getFrequency(TokenStream tk) throws IOException {
+    static int getFrequency(TokenStream tk) throws IOException {
         TermFrequencyAttribute freqAttribute = tk.addAttribute(TermFrequencyAttribute.class);
         tk.reset();
         assertTrue(tk.incrementToken());
@@ -143,7 +144,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        MapperParsingException e = null;/*expectThrows(MapperParsingException.class,
+        MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                         .bytes(XContentFactory.jsonBuilder()
                                 .startObject()
@@ -151,7 +152,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
                                 .endObject()),
                         XContentType.JSON)));
         assertEquals("[feature] fields do not support indexing multiple values for the same field [field] in the same document",
-                e.getCause().getMessage());*/
+                e.getCause().getMessage());
 
         e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference

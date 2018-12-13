@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 
 import java.util.ArrayList;
@@ -40,9 +41,9 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
     /** The collapse value for each top doc */
     public final Object[] collapseValues;
 
-    public CollapseTopFieldDocs(String field, long totalHits, ScoreDoc[] scoreDocs,
-                                SortField[] sortFields, Object[] values, float maxScore) {
-        super(totalHits, scoreDocs, sortFields, maxScore);
+    public CollapseTopFieldDocs(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
+                                SortField[] sortFields, Object[] values) {
+        super(totalHits, scoreDocs, sortFields);
         this.field = field;
         this.collapseValues = values;
     }
@@ -172,21 +173,21 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
 
         long totalHitCount = 0;
         int availHitCount = 0;
-        float maxScore = Float.MIN_VALUE;
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
         for(int shardIDX=0;shardIDX<shardHits.length;shardIDX++) {
             final CollapseTopFieldDocs shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:
-            totalHitCount += shard.totalHits;
+            totalHitCount += shard.totalHits.value;
+            // If any hit count is a lower bound then the merged
+            // total hit count is a lower bound as well
+            if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+                totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+            }
             if (shard.scoreDocs != null && shard.scoreDocs.length > 0) {
                 availHitCount += shard.scoreDocs.length;
                 queue.add(new ShardRef(shardIDX, setShardIndex == false));
-                maxScore = Math.max(maxScore, shard.getMaxScore());
             }
-        }
-
-        if (availHitCount == 0) {
-            maxScore = Float.NaN;
         }
 
         final ScoreDoc[] hits;
@@ -237,6 +238,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             hits = hitList.toArray(new ScoreDoc[0]);
             values = collapseList.toArray(new Object[0]);
         }
-        return new CollapseTopFieldDocs(collapseField, totalHitCount, hits, sort.getSort(), values, maxScore);
+        TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);
+        return new CollapseTopFieldDocs(collapseField, totalHits, hits, sort.getSort(), values);
     }
 }

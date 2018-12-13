@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 
 public class Sort {
@@ -22,13 +23,37 @@ public class Sort {
         }
     }
 
-    private final Direction direction;
+    public enum Missing {
+        FIRST("_first"), LAST("_last");
 
-    protected Sort(Direction direction) {
+        private final String position;
+
+        Missing(String position) {
+            this.position = position;
+        }
+
+        public static Missing from(NullsPosition pos) {
+            return pos == null || pos == NullsPosition.FIRST ? FIRST : LAST;
+        }
+
+        public String position() {
+            return position;
+        }
+    }
+
+    private final Direction direction;
+    private final Missing missing;
+
+    protected Sort(Direction direction, Missing nulls) {
         this.direction = direction;
+        this.missing = nulls;
     }
 
     public Direction direction() {
         return direction;
+    }
+
+    public Missing missing() {
+        return missing;
     }
 }

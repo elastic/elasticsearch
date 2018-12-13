@@ -11,6 +11,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -211,6 +215,123 @@ public class MlConfigMigratorTests extends ESTestCase {
         assertThat(removalResult.removedDatafeedIds, empty());
     }
 
+    public void testJobIsEligibleForMigration_givenNodesNotUpToVersion() {
+        // mixed 6.5 and 6.6 nodes
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
+                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                .build();
+
+        assertFalse(MlConfigMigrator.jobIsEligibleForMigration("pre-min-version", clusterState));
+    }
+
+    public void testJobIsEligibleForMigration_givenJobNotInClusterState() {
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests")).build();
+        assertFalse(MlConfigMigrator.jobIsEligibleForMigration("not-in-state", clusterState));
+    }
+
+    public void testJobIsEligibleForMigration_givenDeletingJob() {
+        Job deletingJob = JobTests.buildJobBuilder("deleting-job").setDeleting(true).build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(deletingJob, false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.jobTaskId(deletingJob.getId()),
+                MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(deletingJob.getId()),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
+                )
+                .build();
+
+        assertFalse(MlConfigMigrator.jobIsEligibleForMigration(deletingJob.getId(), clusterState));
+    }
+
+    public void testJobIsEligibleForMigration_givenOpenJob() {
+        Job openJob = JobTests.buildJobBuilder("open-job").build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(openJob, false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.jobTaskId(openJob.getId()), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(openJob.getId()),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
+                )
+                .build();
+
+        assertFalse(MlConfigMigrator.jobIsEligibleForMigration(openJob.getId(), clusterState));
+    }
+
+    public void testJobIsEligibleForMigration_givenClosedJob() {
+        Job closedJob = JobTests.buildJobBuilder("closed-job").build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(closedJob, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                )
+                .build();
+
+        assertTrue(MlConfigMigrator.jobIsEligibleForMigration(closedJob.getId(), clusterState));
+    }
+
+    public void testDatafeedIsEligibleForMigration_givenNodesNotUpToVersion() {
+        // mixed 6.5 and 6.6 nodes
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
+                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                .build();
+
+        assertFalse(MlConfigMigrator.datafeedIsEligibleForMigration("pre-min-version", clusterState));
+    }
+
+    public void testDatafeedIsEligibleForMigration_givenDatafeedNotInClusterState() {
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests")).build();
+        assertFalse(MlConfigMigrator.datafeedIsEligibleForMigration("not-in-state", clusterState));
+    }
+
+    public void testDatafeedIsEligibleForMigration_givenStartedDatafeed() {
+        Job openJob = JobTests.buildJobBuilder("open-job").build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(openJob, false);
+        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap());
+        String datafeedId = "df-" + openJob.getId();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.datafeedTaskId(datafeedId), MlTasks.DATAFEED_TASK_NAME,
+                new StartDatafeedAction.DatafeedParams(datafeedId, 0L),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
+                )
+                .build();
+
+        assertFalse(MlConfigMigrator.datafeedIsEligibleForMigration(datafeedId, clusterState));
+    }
+
+    public void testDatafeedIsEligibleForMigration_givenStoppedDatafeed() {
+        Job job = JobTests.buildJobBuilder("closed-job").build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job, false);
+        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap());
+        String datafeedId = "df-" + job.getId();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                )
+                .build();
+
+        assertTrue(MlConfigMigrator.datafeedIsEligibleForMigration(datafeedId, clusterState));
+    }
 
     private DatafeedConfig createCompatibleDatafeed(String jobId) {
         // create a datafeed without aggregations or anything

@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MlConfigMigrator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -147,6 +148,12 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     @Override
     protected void masterOperation(Task task, DeleteJobAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
+
+        if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), state)) {
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete job", request.getJobId()));
+            return;
+        }
+
         logger.debug("Deleting job '{}'", request.getJobId());
 
         if (request.isForce() == false) {

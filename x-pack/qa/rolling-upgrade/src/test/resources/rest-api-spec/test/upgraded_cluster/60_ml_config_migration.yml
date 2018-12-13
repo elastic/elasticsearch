@@ -25,8 +25,6 @@ setup:
   - is_false: jobs.0.node
   - match: { jobs.1.job_id: migration-old-cluster-open-job }
   - match: { jobs.1.state: opened }
-#  TODO can't test for assignment here as the job may not be re-allocated yet
-#  - is_true: jobs.1.node
   - is_false: jobs.1.assignment_explanation
 
   - do:
@@ -43,8 +41,6 @@ setup:
         datafeed_id: migration*
   - match: { datafeeds.0.datafeed_id: migration-old-cluster-started-datafeed }
   - match: { datafeeds.0.state: started }
-#  TODO can't test for assignment here as the datafeed may not be re-allocated yet
-#  - is_true: datafeeds.0.node
   - match: { datafeeds.1.datafeed_id: migration-old-cluster-stopped-datafeed }
   - match: { datafeeds.1.state: stopped }
   - is_false: datafeeds.1.node
@@ -61,35 +57,3 @@ setup:
       xpack.ml.get_jobs:
         job_id: migration-old-cluster-open-job
   - is_true: jobs.0.finished_time
-
-# TODO cannot test delete as config may be migrating
-#  - do:
-#      xpack.ml.delete_datafeed:
-#        datafeed_id: migration-old-cluster-started-datafeed
-#
-#  - do:
-#      xpack.ml.delete_job:
-#        job_id: migration-old-cluster-open-job
-#
-#  - do:
-#      catch: missing
-#      xpack.ml.get_jobs:
-#        job_id: migration-old-cluster-open-job
-#
-#  - do:
-#      xpack.ml.delete_datafeed:
-#        datafeed_id: migration-old-cluster-stopped-datafeed
-#
-#  - do:
-#      xpack.ml.delete_job:
-#        job_id: migration-old-cluster-closed-job
-#
-#  - do:
-#      xpack.ml.get_jobs:
-#          job_id: migration*
-#  - match: { count: 0 }
-#
-#  - do:
-#      xpack.ml.get_datafeeds:
-#        datafeed_id: migration*
-#  - match: { count: 0 }

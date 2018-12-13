@@ -207,10 +207,10 @@ POST _search
     "intervals" : {
       "my_text" : {
         "all_of" : {
-          "rules" : [
+          "intervals" : [
             { "match" : { "query" : "the" } },
             { "any_of" : {
-                "rules" : [
+                "intervals" : [
                     { "match" : { "query" : "big" } },
                     { "match" : { "query" : "big bad" } }
                 ] } },
@@ -241,7 +241,7 @@ POST _search
     "intervals" : {
       "my_text" : {
         "any_of" : {
-          "rules" : [
+          "intervals" : [
             { "match" : {
                 "query" : "the big bad wolf",
                 "ordered" : true,

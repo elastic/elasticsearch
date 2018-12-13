@@ -21,19 +21,32 @@ package org.elasticsearch.common.logging;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+
+import java.io.*;
+import java.lang.StringBuilder;
+
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.net.*;
+import java.nio.file.Path;
+
+
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.nio.charset.StandardCharsets;
 
@@ -303,11 +316,34 @@ public class DeprecationLoggerTests extends ESTestCase {
         }
     }
 
+    public void testPrintFlag() {
+
+        DeprecationLogger logger2 = new DeprecationLogger(LogManager.getLogger(getClass()));
+
+        assertEquals(logger2.getPrintIPFlag(), false);
+        logger2.enableIPAddressPrints();
+        assertEquals(logger2.getPrintIPFlag(), true);
+        logger2.disableIPAddressPrints();
+        assertEquals(logger2.getPrintIPFlag(), false);
+
+    }
+
+    public void testPort(){
+
+        DeprecationLogger.setPort(-1);
+        assertEquals(DeprecationLogger.getPort(), -1);
+    }
+
+
+
+
     private String range(int lowerInclusive, int upperInclusive) {
         return IntStream
                 .range(lowerInclusive, upperInclusive + 1)
                 .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
                 .toString();
     }
+
+
 
 }

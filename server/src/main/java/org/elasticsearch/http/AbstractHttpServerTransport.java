@@ -28,6 +28,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -129,6 +130,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
     }
 
+    private void initializeDeprecationLogger()
+    {
+        DeprecationLogger.setPort(this.boundAddress.publishAddress().getPort());
+    }
+
     protected void bindServer() {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
@@ -153,6 +159,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
         TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
+
+        initializeDeprecationLogger();
+
         logger.info("{}", boundAddress);
     }
 

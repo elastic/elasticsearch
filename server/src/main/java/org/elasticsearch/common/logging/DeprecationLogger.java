@@ -26,21 +26,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.charset.Charset;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
-import java.util.BitSet;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -70,6 +66,10 @@ public class DeprecationLogger {
      * For actual usage, multiple nodes do not share the same JVM and therefore this will only be set once in practice.
      */
     private static final CopyOnWriteArraySet<ThreadContext> THREAD_CONTEXT = new CopyOnWriteArraySet<>();
+
+    private boolean printIPFlag = false;
+    private static String IPAddress = null;
+    private static int port = -1;
 
     /**
      * Set the {@link ThreadContext} used to add deprecation headers to network responses.
@@ -302,6 +302,18 @@ public class DeprecationLogger {
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
 
+        String newMessage;
+        if (printIPFlag)
+        {
+            if (port != -1)
+                newMessage = "{" + IPAddress + ":" + port + "} " + message;
+            else
+                newMessage = "{" + IPAddress + "} " + message;
+        }
+        else
+            newMessage = message;
+
+
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
@@ -318,9 +330,65 @@ public class DeprecationLogger {
         }
 
         if (log) {
-            logger.warn(message, params);
+            logger.warn(newMessage, params);
         }
     }
+
+
+    public void enableIPAddressPrints() {
+        printIPFlag = true;
+        IPAddress = findIpAddress();
+    }
+
+    public void disableIPAddressPrints() {
+        printIPFlag = false;
+    }
+
+
+    private String findIpAddress() {
+        try
+        {
+            Enumeration e;
+            e = NetworkInterface.getNetworkInterfaces();
+            while (e.hasMoreElements())
+            {
+                NetworkInterface n = (NetworkInterface) e.nextElement();
+                Enumeration ee = n.getInetAddresses();
+                while (ee.hasMoreElements())
+                {
+                    InetAddress i = (InetAddress) ee.nextElement();
+                    if (i.isSiteLocalAddress()) {
+                        return i.getHostAddress();
+                    }
+                }
+            }
+        }
+        catch (SocketException e1)
+        {
+            e1.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public static String getIPAddress(){
+        return IPAddress;
+    }
+
+
+    public static void setPort(int newPort) {
+        port = newPort;
+    }
+
+    public static int getPort(){
+        return port;
+    }
+
+    public static void removePort(){
+        port = -1;
+    }
+
+    public boolean getPrintIPFlag() {return printIPFlag;}
 
     /**
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
@@ -425,5 +493,6 @@ public class DeprecationLogger {
             return ch;
         }
     }
+
 
 }

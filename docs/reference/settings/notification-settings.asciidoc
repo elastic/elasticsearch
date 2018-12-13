@@ -89,7 +89,7 @@ can specify the following email account attributes:
   messages that are sent from the account. Valid values: `standard`, `gmail` and
   `outlook`. Defaults to `standard`.
 
-  `email_defaults.*`;;
+  `email_defaults.*` (<<cluster-update-settings,Dynamic>>);;
   An optional set of email attributes to use as defaults
   for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
   Email Action Attributes] for the supported attributes.

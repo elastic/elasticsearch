@@ -160,9 +160,11 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             clientSettings = clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false);
         }
 
-        Settings.Builder builder = Settings.builder().put(clientSettings, false)
-                .put(additionalSettings)
-                .put("cluster.name", node().settings().get("cluster.name"));
+        Settings.Builder builder = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put(clientSettings, false)
+            .put(additionalSettings)
+            .put("cluster.name", node().settings().get("cluster.name"));
         builder.remove(SecurityField.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
         return new TestXPackTransportClient(builder.build(), LocalStateSecurity.class);

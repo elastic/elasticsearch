@@ -53,7 +53,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::delimitedPayloadFilterCheck,
             IndexDeprecationChecks::percolatorUnmappedFieldsAsStringCheck,
             IndexDeprecationChecks::indexNameCheck,
-            IndexDeprecationChecks::nodeLeftDelayedTimeCheck
+			IndexDeprecationChecks::nodeLeftDelayedTimeCheck,
+            IndexDeprecationChecks::shardOnStartupCheck
             ));
 
     /**

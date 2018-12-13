@@ -18,14 +18,14 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum DateTimeExtractor {
         DAY_OF_MONTH(ChronoField.DAY_OF_MONTH),
-        DAY_OF_WEEK(ChronoField.DAY_OF_WEEK),
+        ISO_DAY_OF_WEEK(ChronoField.DAY_OF_WEEK),
         DAY_OF_YEAR(ChronoField.DAY_OF_YEAR),
         HOUR_OF_DAY(ChronoField.HOUR_OF_DAY),
         MINUTE_OF_DAY(ChronoField.MINUTE_OF_DAY),
         MINUTE_OF_HOUR(ChronoField.MINUTE_OF_HOUR),
         MONTH_OF_YEAR(ChronoField.MONTH_OF_YEAR),
         SECOND_OF_MINUTE(ChronoField.SECOND_OF_MINUTE),
-        WEEK_OF_YEAR(ChronoField.ALIGNED_WEEK_OF_YEAR),
+        ISO_WEEK_OF_YEAR(ChronoField.ALIGNED_WEEK_OF_YEAR),
         YEAR(ChronoField.YEAR);
 
         private final ChronoField field;

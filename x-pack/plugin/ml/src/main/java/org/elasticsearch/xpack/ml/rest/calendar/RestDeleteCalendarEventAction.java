@@ -25,6 +25,9 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.DELETE,
                 MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
                         ScheduledEvent.EVENT_ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.DELETE,
+                MachineLearning.V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
+                        ScheduledEvent.EVENT_ID.getPreferredName() + "}", this);
     }
 
     @Override

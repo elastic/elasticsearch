@@ -23,6 +23,8 @@ public class RestDeleteCalendarAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE,
                 MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.DELETE,
+                MachineLearning.V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", this);
     }
 
     @Override

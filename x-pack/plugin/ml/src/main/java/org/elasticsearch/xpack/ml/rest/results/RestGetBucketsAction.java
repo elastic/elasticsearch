@@ -28,14 +28,24 @@ public class RestGetBucketsAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                         + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.GET,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                        + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                        + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.POST,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                         + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
 
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
+        controller.registerHandler(RestRequest.Method.GET,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
+        controller.registerHandler(RestRequest.Method.POST,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
     }
 
     @Override

@@ -282,6 +282,7 @@ public class MockClientBuilder {
         when(builder.setIndicesOptions(any())).thenReturn(builder);
         when(builder.setQuery(any())).thenReturn(builder);
         when(builder.setSource(any())).thenReturn(builder);
+        when(builder.setSize(anyInt())).thenReturn(builder);
         SearchRequest request = new SearchRequest(indexName);
         when(builder.request()).thenReturn(request);
 
@@ -320,6 +321,7 @@ public class MockClientBuilder {
         when(builder.setIndicesOptions(any())).thenReturn(builder);
         when(builder.setQuery(any())).thenReturn(builder);
         when(builder.setSource(any())).thenReturn(builder);
+        when(builder.setSize(anyInt())).thenReturn(builder);
         SearchRequest request = new SearchRequest(indexName);
         when(builder.request()).thenReturn(request);
 

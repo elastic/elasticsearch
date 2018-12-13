@@ -38,14 +38,20 @@ public class DeprecationChecks {
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
+            NodeDeprecationChecks::httpEnabledSettingRemoved,
+            NodeDeprecationChecks::indexThreadPoolCheck,
+            NodeDeprecationChecks::tribeNodeCheck,
+            NodeDeprecationChecks::httpPipeliningCheck,
             NodeDeprecationChecks::azureRepositoryChanges,
-            NodeDeprecationChecks::gcsRepositoryChanges
+            NodeDeprecationChecks::gcsRepositoryChanges,
+            NodeDeprecationChecks::fileDiscoveryPluginRemoved
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::delimitedPayloadFilterCheck,
+            IndexDeprecationChecks::percolatorUnmappedFieldsAsStringCheck,
             IndexDeprecationChecks::indexNameCheck
             ));
 

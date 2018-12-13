@@ -39,7 +39,9 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     public RestPutPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(PUT, "/_xpack/security/privilege/", this);
+        controller.registerHandler(PUT, "/_security/privilege/", this);
         controller.registerHandler(POST, "/_xpack/security/privilege/", this);
+        controller.registerHandler(POST, "/_security/privilege/", this);
     }
 
     @Override

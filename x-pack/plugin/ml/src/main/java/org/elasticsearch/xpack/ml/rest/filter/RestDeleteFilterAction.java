@@ -23,6 +23,8 @@ public class RestDeleteFilterAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE,
                 MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.DELETE,
+                MachineLearning.V7_BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}", this);
     }
 
     @Override

@@ -23,9 +23,12 @@ public class RestGetFiltersAction extends BaseRestHandler {
 
     public RestGetFiltersAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
-                this);
+        controller.registerHandler(RestRequest.Method.GET,
+                MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.GET,
+                MachineLearning.V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "filters/", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH + "filters/", this);
     }
 
     @Override

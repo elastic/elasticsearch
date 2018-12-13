@@ -908,14 +908,16 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSearchNullSource() throws IOException {
+        String searchEndpoint = randomFrom("_" + randomAlphaOfLength(5));
         SearchRequest searchRequest = new SearchRequest();
-        Request request = RequestConverters.search(searchRequest);
+        Request request = RequestConverters.search(searchRequest, searchEndpoint);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_search", request.getEndpoint());
+        assertEquals("/" + searchEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
     }
 
     public void testSearch() throws Exception {
+        String searchEndpoint = randomFrom("_" + randomAlphaOfLength(5));
         String[] indices = randomIndicesNames(0, 5);
         SearchRequest searchRequest = new SearchRequest(indices);
 
@@ -976,7 +978,7 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
         }
 
-        Request request = RequestConverters.search(searchRequest);
+        Request request = RequestConverters.search(searchRequest, searchEndpoint);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {
@@ -986,7 +988,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (Strings.hasLength(type)) {
             endpoint.add(type);
         }
-        endpoint.add("_search");
+        endpoint.add(searchEndpoint);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());

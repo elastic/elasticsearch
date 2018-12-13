@@ -46,9 +46,13 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         this.securityContext = securityContext;
         controller.registerHandler(GET, "/_xpack/security/user/{username}/_has_privileges", this);
+        controller.registerHandler(GET, "/_security/user/{username}/_has_privileges", this);
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_has_privileges", this);
+        controller.registerHandler(POST, "/_security/user/{username}/_has_privileges", this);
         controller.registerHandler(GET, "/_xpack/security/user/_has_privileges", this);
+        controller.registerHandler(GET, "/_security/user/_has_privileges", this);
         controller.registerHandler(POST, "/_xpack/security/user/_has_privileges", this);
+        controller.registerHandler(POST, "/_security/user/_has_privileges", this);
     }
 
     @Override

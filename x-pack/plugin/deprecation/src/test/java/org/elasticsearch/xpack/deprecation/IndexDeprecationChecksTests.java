@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
@@ -69,6 +70,35 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         final String goodIndexName = randomAlphaOfLengthBetween(1,30);
         final IndexMetaData goodIndex = IndexMetaData.builder(goodIndexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1,100))
+            .numberOfReplicas(randomIntBetween(1,15))
+            .build();
+        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
+        assertTrue(noIssues.isEmpty());
+    }
+
+    public void testPercolatorUnmappedFieldsAsStringCheck() {
+        boolean settingValue = randomBoolean();
+        Settings settings = settings(
+            VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT)))
+            .put("index.percolator.map_unmapped_fields_as_text", settingValue).build();
+        final IndexMetaData badIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(1,30).toLowerCase(Locale.ROOT))
+            .settings(settings)
+            .numberOfShards(randomIntBetween(1,100))
+            .numberOfReplicas(randomIntBetween(1,15))
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Setting index.percolator.map_unmapped_fields_as_text has been renamed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_percolator",
+            "The index setting [index.percolator.map_unmapped_fields_as_text] currently set to [" + settingValue +
+                "] been removed in favor of [index.percolator.map_unmapped_fields_as_text].");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(badIndex));
+        assertEquals(singletonList(expected), issues);
+
+        final IndexMetaData goodIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(1,30).toLowerCase(Locale.ROOT))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1,100))
             .numberOfReplicas(randomIntBetween(1,15))

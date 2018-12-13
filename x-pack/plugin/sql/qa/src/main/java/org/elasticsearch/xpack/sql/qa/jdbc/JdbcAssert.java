@@ -1,4 +1,5 @@
 /*
+ /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
@@ -47,13 +48,12 @@ public class JdbcAssert {
         }
     }
 
-    public static void assertResultSets(ResultSet expected, ResultSet actual, boolean lenientFloatingNumbers) throws SQLException {
-        assertResultSets(expected, actual, null, lenientFloatingNumbers);
+    public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
+        assertResultSets(expected, actual, null);
     }
 
-    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientFloatingNumbers) 
-           throws SQLException {
-        assertResultSets(expected, actual, logger, false, lenientFloatingNumbers);
+    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
+        assertResultSets(expected, actual, logger, false);
     }
 
     /**
@@ -62,10 +62,19 @@ public class JdbcAssert {
      * This means promoting integer types to long and floating types to double and comparing their values.
      * For example in a non-lenient, strict case a comparison between an int and a tinyint would fail, with lenientDataType it will succeed
      * as long as the actual value is the same.
+     */
+    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType) throws SQLException {
+        assertResultSets(expected, actual, logger, lenientDataType, true);
+    }
+    
+    /**
+     * Assert the given result sets, potentially in a lenient way.
+     * When lenientDataType is specified, the type comparison of a column is widden to reach a common, compatible ground.
+     * This means promoting integer types to long and floating types to double and comparing their values.
+     * For example in a non-lenient, strict case a comparison between an int and a tinyint would fail, with lenientDataType it will succeed
+     * as long as the actual value is the same.
      * Also, has the option of treating the numeric results for floating point numbers in a leninent way, if chosen to. Usually,
-     * we would want lening treatment for floating point numbers in sql-spec tests where the comparison is being made with H2.
-     * Typically, H2 doesn't return floating point numbers for some functions (AVG() being on example), and we'd want
-     * to be lenient about this, so that we can still compare the average values between H2 and ES-SQL.
+     * we would want lenient treatment for floating point numbers in sql-spec tests where the comparison is being made with H2.
      */
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
@@ -80,8 +89,8 @@ public class JdbcAssert {
     }
 
     // metadata doesn't consume a ResultSet thus it shouldn't close it
-    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger,
-            boolean lenientDataType) throws SQLException {
+    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType)
+            throws SQLException {
         ResultSetMetaData expectedMeta = expected.getMetaData();
         ResultSetMetaData actualMeta = actual.getMetaData();
 
@@ -144,7 +153,7 @@ public class JdbcAssert {
                 expectedType = Types.NULL;
             }
 
-            // when lenientDataType is used, an int is equivalent to a short, etc...
+            // when lenient is used, an int is equivalent to a short, etc...
             assertEquals(
                     "Different column type for column [" + expectedName + "] (" + nameOf(expectedType) + " != " + nameOf(actualType) + ")",
                     expectedType, actualType);
@@ -157,9 +166,14 @@ public class JdbcAssert {
 
     // The ResultSet is consumed and thus it should be closed
     public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
-        assertResultSetData(expected, actual, logger, false, true);
+        assertResultSetData(expected, actual, logger, false);
     }
 
+    public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType)
+            throws SQLException {
+        assertResultSetData(expected, actual, logger, lenientDataType, true);
+    }
+    
     public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {

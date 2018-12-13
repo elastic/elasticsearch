@@ -80,6 +80,7 @@ incorporate the following change to a custom Logstash template.
   }
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 
 Additionally, you will need to configure the Elasticsearch output plugin to use
 this custom template.

@@ -108,8 +108,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
         assertTrue(noIssues.isEmpty());
     }
-	
-	public void testNodeLeftDelayedTimeCheck() {
+
+    public void testNodeLeftDelayedTimeCheck() {
         String negativeTimeValue = "-" + randomPositiveTimeValue();
         String indexName = randomAlphaOfLengthBetween(0, 10);
         String setting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey();

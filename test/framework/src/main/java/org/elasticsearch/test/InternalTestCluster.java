@@ -822,7 +822,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;
-        private Settings originalNodeSettings;
+        private final Settings originalNodeSettings;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);

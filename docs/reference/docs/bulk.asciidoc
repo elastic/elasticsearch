@@ -185,9 +185,10 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-The response to a bulk action is a large JSON structure with the
-individual results of each action that was performed. The failure of a
-single action does not affect the remaining actions.
+The response to a bulk action is a large JSON structure with the individual
+results of each action that was performed in the same order as the actions that
+appeared in the request. The failure of a single action does not affect the
+remaining actions.
 
 There is no "correct" number of actions to perform in a single bulk
 call. You should experiment with different settings to find the optimum

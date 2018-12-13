@@ -25,7 +25,7 @@ all users from the `ad1` realm:
 
 [source, js]
 ------------------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/_xpack/security/realm/ad1/_clear_cache'
+$ curl -XPOST 'http://localhost:9200/_security/realm/ad1/_clear_cache'
 ------------------------------------------------------------
 
 To clear the cache for multiple realms, specify the realms as a comma-separated
@@ -33,12 +33,12 @@ list:
 
 [source, js]
 ------------------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/_xpack/security/realm/ad1,ad2/_clear_cache'
+$ curl -XPOST 'http://localhost:9200/_security/realm/ad1,ad2/_clear_cache'
 ------------------------------------------------------------
 
 You can also evict specific users:
 
 [source, java]
 ------------------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/_xpack/security/realm/ad1/_clear_cache?usernames=rdeniro,alpacino'
+$ curl -XPOST 'http://localhost:9200/_security/realm/ad1/_clear_cache?usernames=rdeniro,alpacino'
 ------------------------------------------------------------

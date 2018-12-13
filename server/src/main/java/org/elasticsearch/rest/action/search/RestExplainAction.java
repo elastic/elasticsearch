@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestExplainAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestExplainAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying a type in explain requests is deprecated.";
 
     public RestExplainAction(Settings settings, RestController controller) {
@@ -64,7 +64,7 @@ public class RestExplainAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ExplainRequest explainRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("explain_with_types", TYPES_DEPRECATION_MESSAGE);
             explainRequest = new ExplainRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

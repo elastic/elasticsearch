@@ -78,6 +78,8 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_WEEK\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_YEAR\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*HOUR_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*ISODAYOFWEEK\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*ISO_DAY_OF_WEEK\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MINUTE_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }

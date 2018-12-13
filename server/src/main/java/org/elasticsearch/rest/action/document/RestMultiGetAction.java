@@ -65,7 +65,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.param("type") != null) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("mget_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();

@@ -76,7 +76,7 @@ final class BootstrapChecks {
         final List<BootstrapCheck> combinedChecks = new ArrayList<>(builtInChecks);
         combinedChecks.addAll(additionalChecks);
         check(  context,
-                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings)),
+                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())),
                 Collections.unmodifiableList(combinedChecks));
     }
 
@@ -210,6 +210,7 @@ final class BootstrapChecks {
         checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
         checks.add(new AllPermissionCheck());
+        checks.add(new ClusterNameInDataPathCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -296,7 +297,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings) && !isMemoryLocked()) {
+            if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings()) && !isMemoryLocked()) {
                 return BootstrapCheckResult.failure("memory locking requested for elasticsearch process but memory is not locked");
             } else {
                 return BootstrapCheckResult.success();
@@ -402,7 +403,7 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(final BootstrapContext context) {
             // we only enforce the check if mmapfs is an allowed store type
-            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings)) {
+            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings())) {
                 if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
                     final String message = String.format(
                             Locale.ROOT,
@@ -519,7 +520,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings) && !isSystemCallFilterInstalled()) {
+            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && !isSystemCallFilterInstalled()) {
                 final String message =  "system call filters failed to install; " +
                         "check the logs and fix your configuration or disable system call filters at your own risk";
                 return BootstrapCheckResult.failure(message);
@@ -723,7 +724,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            final Environment checkEnvironment = new Environment(context.settings, null);
+            final Environment checkEnvironment = new Environment(context.settings(), null);
             final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(checkEnvironment.settings());
             List<String> existingPathsWithClusterName = Arrays.stream(checkEnvironment.dataFiles())
                 .map(p -> p.resolve(clusterName.value()))

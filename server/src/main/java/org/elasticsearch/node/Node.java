@@ -738,7 +738,7 @@ public abstract class Node implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)
             .stream()

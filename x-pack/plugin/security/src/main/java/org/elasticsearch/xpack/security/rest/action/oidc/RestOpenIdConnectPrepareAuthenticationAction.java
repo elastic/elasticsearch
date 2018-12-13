@@ -40,7 +40,7 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
 
     public RestOpenIdConnectPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_xpath/security/oidc/prepare", this);
+        controller.registerHandler(POST, "/_security/oidc/prepare", this);
     }
 
     @Override

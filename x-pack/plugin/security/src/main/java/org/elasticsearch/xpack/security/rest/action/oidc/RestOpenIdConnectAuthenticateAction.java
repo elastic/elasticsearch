@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.security.rest.action.oidc;
 
 import org.elasticsearch.client.node.NodeClient;
@@ -16,7 +21,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateResponse;
-import org.elasticsearch.xpack.security.rest.action.oidc.OpenIdConnectBaseRestHandler;
 
 import java.io.IOException;
 
@@ -34,7 +38,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
 
     public RestOpenIdConnectAuthenticateAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_xpath/security/oidc/authenticate", this);
+        controller.registerHandler(POST, "/_security/oidc/authenticate", this);
     }
 
     @Override

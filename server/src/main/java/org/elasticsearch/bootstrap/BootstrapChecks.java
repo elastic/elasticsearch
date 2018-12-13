@@ -734,7 +734,7 @@ final class BootstrapChecks {
             } else {
                 final String paths = String.join(",", existingPathsWithClusterName);
                 return BootstrapCheckResult.failure(
-                    "node cannot have cluster names as subdirectories in " + Environment.PATH_DATA_SETTING.getKey() +  " [" + paths + "]");
+                    "node cannot have cluster names as subdirectories in data paths [" + paths + "]");
             }
         }
     }

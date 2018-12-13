@@ -706,6 +706,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         assertTrue(BootstrapChecks.checks().stream().anyMatch(c -> c instanceof BootstrapChecks.ClusterNameInDataPathCheck));
 
         final BootstrapChecks.ClusterNameInDataPathCheck check = new BootstrapChecks.ClusterNameInDataPathCheck();
+        assertTrue(check.alwaysEnforce());
         final List<BootstrapCheck> testChecks = Collections.singletonList(check);
 
         String clusterName = randomAlphaOfLengthBetween(3, 10);

@@ -737,5 +737,10 @@ final class BootstrapChecks {
                     "node cannot have cluster names as subdirectories in data paths [" + paths + "]");
             }
         }
+
+        @Override
+        public boolean alwaysEnforce() {
+            return true;
+        }
     }
 }

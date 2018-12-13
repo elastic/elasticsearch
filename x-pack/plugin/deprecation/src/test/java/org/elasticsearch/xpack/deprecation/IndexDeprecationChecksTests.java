@@ -137,7 +137,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
         assertTrue(noIssues.isEmpty());
     }
-	
+
     public void testShardOnStartupCheck() {
         String indexName = randomAlphaOfLengthBetween(0, 10);
         String setting = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();

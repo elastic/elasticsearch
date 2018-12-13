@@ -11,7 +11,10 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -126,6 +129,23 @@ public class IndexDeprecationChecks {
                     "#_percolator",
                 "The index setting [index.percolator.map_unmapped_fields_as_text] currently set to [" + settingValue +
                     "] been removed in favor of [index.percolator.map_unmapped_fields_as_text].");
+        }
+        return null;
+    }
+	
+	 static DeprecationIssue nodeLeftDelayedTimeCheck(IndexMetaData indexMetaData) {
+        String setting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey();
+        String value = indexMetaData.getSettings().get(setting);
+        if (Strings.isNullOrEmpty(value) == false) {
+            TimeValue parsedValue = TimeValue.parseTimeValue(value, setting);
+            if (parsedValue.getNanos() < 0) {
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Negative values for " + setting + " are deprecated and should be set to 0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                        "#_literal_index_unassigned_node_left_delayed_timeout_literal_may_no_longer_be_negative",
+                    "The index [" + indexMetaData.getIndex().getName() + "] has [" + setting + "] set to [" + value +
+                        "], but negative values are not allowed");
+            }
         }
         return null;
     }

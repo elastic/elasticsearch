@@ -69,7 +69,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final Client client;
     private final ClusterService clusterService;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final LongSupplier relativeTimeProvider;
+    private final LongSupplier relativeNanoTimeProvider;
 
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
 
@@ -83,12 +83,12 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             Client client,
             ClusterService clusterService,
             CcrLicenseChecker ccrLicenseChecker,
-            LongSupplier relativeTimeProvider) {
+            LongSupplier relativeNanoTimeProvider) {
 
         this.client = client;
         this.clusterService = clusterService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
-        this.relativeTimeProvider = relativeTimeProvider;
+        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         clusterService.addListener(this);
         this.recentAutoFollowErrors = new LinkedHashMap<String, ElasticsearchException>() {
             @Override
@@ -102,10 +102,10 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         final Map<String, AutoFollower> autoFollowers = this.autoFollowers;
         final TreeMap<String, Long> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
         for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
-            long timeSinceLastAutoFollow = entry.getValue().lastAutoFollowTime;
-            if (timeSinceLastAutoFollow != -1) {
+            long lastAutoFollowTimeInNanos = entry.getValue().lastAutoFollowTimeInNanos;
+            if (lastAutoFollowTimeInNanos != -1) {
                 long timeSinceLastAutoFollowInMillis =
-                    TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - timeSinceLastAutoFollow);
+                    TimeUnit.NANOSECONDS.toMillis(relativeNanoTimeProvider.getAsLong() - lastAutoFollowTimeInNanos);
                 timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), timeSinceLastAutoFollowInMillis);
             } else {
                 timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), -1L);
@@ -166,7 +166,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
-            AutoFollower autoFollower = new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeTimeProvider) {
+            AutoFollower autoFollower = new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeNanoTimeProvider) {
 
                 @Override
                 void getRemoteClusterState(final String remoteCluster,
@@ -261,7 +261,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private final Supplier<ClusterState> followerClusterStateSupplier;
         private final LongSupplier relativeTimeProvider;
 
-        private volatile long lastAutoFollowTime = -1;
+        private volatile long lastAutoFollowTimeInNanos = -1;
         private volatile long metadataVersion = 0;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
@@ -277,7 +277,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         void start() {
-            lastAutoFollowTime = relativeTimeProvider.getAsLong();
+            lastAutoFollowTimeInNanos = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metaData().custom(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {

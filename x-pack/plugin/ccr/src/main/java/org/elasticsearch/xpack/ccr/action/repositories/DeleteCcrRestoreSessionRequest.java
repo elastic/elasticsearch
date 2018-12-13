@@ -16,11 +16,16 @@ import java.io.IOException;
 
 public class DeleteCcrRestoreSessionRequest extends SingleShardRequest<DeleteCcrRestoreSessionRequest> {
 
-    public DeleteCcrRestoreSessionRequest() {
+    private String sessionUUID;
+    private ShardId shardId;
+
+    DeleteCcrRestoreSessionRequest() {
     }
 
-    public DeleteCcrRestoreSessionRequest(ShardId shardId) {
+    public DeleteCcrRestoreSessionRequest(String sessionUUID, ShardId shardId) {
         super(shardId.getIndexName());
+        this.sessionUUID = sessionUUID;
+        this.shardId = shardId;
     }
 
     @Override
@@ -29,12 +34,24 @@ public class DeleteCcrRestoreSessionRequest extends SingleShardRequest<DeleteCcr
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public void readFrom(StreamInput streamInput) throws IOException {
+        super.readFrom(streamInput);
+        sessionUUID = streamInput.readString();
+        shardId = ShardId.readShardId(streamInput);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    public void writeTo(StreamOutput streamOutput) throws IOException {
+        super.writeTo(streamOutput);
+        streamOutput.writeString(sessionUUID);
+        shardId.writeTo(streamOutput);
+    }
+
+    public String getSessionUUID() {
+        return sessionUUID;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 }

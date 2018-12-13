@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -24,13 +24,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(CcrRestoreSourceService.class);
 
-    private final AtomicBoolean isOpen = new AtomicBoolean(true);
     private final Map<String, Engine.IndexCommitRef> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
 
@@ -38,12 +36,15 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         super(settings);
     }
 
+    // TODO: Need to register with IndicesService
     @Override
     public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
+            logger.debug("shard [{}] closing, closing sessions", indexShard);
             HashSet<String> sessions = sessionsForShard.remove(indexShard);
             if (sessions != null) {
                 for (String sessionUUID : sessions) {
+                    logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
                     Engine.IndexCommitRef commit = onGoingRestores.remove(sessionUUID);
                     IOUtils.closeWhileHandlingException(commit);
                 }
@@ -63,12 +64,23 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     @Override
     protected void doClose() throws IOException {
-        if (isOpen.compareAndSet(true, false)) {
-            IOUtils.closeWhileHandlingException(onGoingRestores.values());
-        }
+        IOUtils.closeWhileHandlingException(onGoingRestores.values());
+    }
+
+    // default visibility for testing
+    synchronized HashSet<String> getSessionsForShard(IndexShard indexShard) {
+        return sessionsForShard.get(indexShard);
+    }
+
+    // default visibility for testing
+    synchronized Engine.IndexCommitRef getIndexCommit(String sessionUUID) {
+        return onGoingRestores.get(sessionUUID);
     }
 
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
+        logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard);
+        HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
+        sessions.add(sessionUUID);
         Engine.IndexCommitRef commit = indexShard.acquireSafeIndexCommit();
         onGoingRestores.put(sessionUUID, commit);
         indexShard.store().incRef();
@@ -80,9 +92,11 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     public synchronized void closeSession(String sessionUUID, IndexShard indexShard) {
-        Engine.IndexCommitRef commit = onGoingRestores.get(sessionUUID);
+        logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
+        Engine.IndexCommitRef commit = onGoingRestores.remove(sessionUUID);
         if (commit == null) {
-            throw new ElasticsearchException("commit for [" + sessionUUID + "] not found");
+            logger.info("could not close session [{}] for shard [{}] because session not found", sessionUUID, indexShard);
+            throw new ElasticsearchException("session [" + sessionUUID + "] not found");
         }
         IOUtils.closeWhileHandlingException(commit);
         HashSet<String> sessions = sessionsForShard.get(indexShard);

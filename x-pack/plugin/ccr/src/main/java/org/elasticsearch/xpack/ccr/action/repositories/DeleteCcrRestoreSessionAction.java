@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -60,7 +61,11 @@ public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessio
 
         @Override
         protected DeleteCcrRestoreSessionResponse shardOperation(DeleteCcrRestoreSessionRequest request, ShardId shardId) throws IOException {
-            // TODO: Implement
+            IndexShard indexShard = indicesService.getShardOrNull(shardId);
+            if (indexShard == null) {
+                throw new ShardNotFoundException(shardId);
+            }
+            ccrRestoreService.closeSession(request.getSessionUUID(), indexShard);
             return new DeleteCcrRestoreSessionResponse();
         }
 
@@ -76,7 +81,10 @@ public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessio
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            return null;
+            final ShardId shardId = request.request().getShardId();
+            // The index uuid is not correct if we restore with a rename
+            IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId.getIndexName(), shardId.id());
+            return shardRoutingTable.primaryShardIt();
         }
     }
 

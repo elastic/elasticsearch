@@ -40,10 +40,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
-    TransportVerifyShardBeforeCloseAction.ShardCloseRequest, TransportVerifyShardBeforeCloseAction.ShardCloseRequest, ReplicationResponse> {
+    TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
-    private static final ClusterBlock EXPECTED_BLOCK = MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
+    public static final ClusterBlock EXPECTED_BLOCK = MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
     @Inject
     public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
@@ -51,7 +51,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
                                                  final ThreadPool threadPool, final ShardStateAction stateAction,
                                                  final ActionFilters actionFilters, final IndexNameExpressionResolver resolver) {
         super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters, resolver,
-            ShardCloseRequest::new, ShardCloseRequest::new, ThreadPool.Names.MANAGEMENT);
+            ShardRequest::new, ShardRequest::new, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override
@@ -61,14 +61,14 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
     @Override
     protected void acquirePrimaryOperationPermit(final IndexShard primary,
-                                                 final ShardCloseRequest request,
+                                                 final ShardRequest request,
                                                  final ActionListener<Releasable> onAcquired) {
         primary.acquireAllPrimaryOperationsPermits(onAcquired, request.timeout());
     }
 
     @Override
     protected void acquireReplicaOperationPermit(final IndexShard replica,
-                                                 final ShardCloseRequest request,
+                                                 final ShardRequest request,
                                                  final ActionListener<Releasable> onAcquired,
                                                  final long primaryTerm,
                                                  final long globalCheckpoint,
@@ -77,14 +77,14 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected PrimaryResult<ShardCloseRequest, ReplicationResponse> shardOperationOnPrimary(final ShardCloseRequest shardRequest,
-                                                                                            final IndexShard primary) throws Exception {
+    protected PrimaryResult<ShardRequest, ReplicationResponse> shardOperationOnPrimary(final ShardRequest shardRequest,
+                                                                                       final IndexShard primary) throws Exception {
         executeShardOperation(primary);
         return new PrimaryResult<>(shardRequest, new ReplicationResponse());
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardCloseRequest shardRequest, final IndexShard replica) throws Exception {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws Exception {
         executeShardOperation(replica);
         return new ReplicaResult();
     }
@@ -109,18 +109,18 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         logger.debug("{} shard is ready for closing", shardId);
     }
 
-    public static class ShardCloseRequest extends ReplicationRequest<ShardCloseRequest> {
+    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
-        ShardCloseRequest(){
+        ShardRequest(){
         }
 
-        public ShardCloseRequest(final ShardId shardId) {
+        public ShardRequest(final ShardId shardId) {
             super(shardId);
         }
 
         @Override
         public String toString() {
-            return "close shard {" + shardId + "}";
+            return "verify shard before close {" + shardId + "}";
         }
     }
 }

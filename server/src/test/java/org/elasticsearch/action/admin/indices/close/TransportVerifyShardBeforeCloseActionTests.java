@@ -74,8 +74,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     }
 
     private void executeOnPrimaryOrReplica() throws Exception {
-        final TransportVerifyShardBeforeCloseAction.ShardCloseRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardCloseRequest(indexShard.shardId());
+        final TransportVerifyShardBeforeCloseAction.ShardRequest request =
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId());
         if (randomBoolean()) {
             assertNotNull(action.shardOperationOnPrimary(request, indexShard));
         } else {

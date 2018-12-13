@@ -669,7 +669,7 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS c
 
       min:i    |      max:i    |      avg:d    |     count:l     
 ---------------+---------------+---------------+---------------
-25324          |74999          |48248          |100  
+25324          |74999          |48248.55       |100  
 
 // end::groupByImplicitMultipleAggs
 ;
@@ -789,7 +789,7 @@ SELECT AVG(salary) AS avg FROM emp;
 
       avg:d      
 ---------------
-48248          
+48248.55          
 // end::aggAvg
 ;
 

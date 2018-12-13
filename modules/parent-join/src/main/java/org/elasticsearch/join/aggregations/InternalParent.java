@@ -54,8 +54,4 @@ public class InternalParent extends InternalSingleBucketAggregation implements P
         return new InternalParent(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
 
-    @Override
-    public boolean hasValue() {
-        return getDocCount() > 0;
-    }
 }

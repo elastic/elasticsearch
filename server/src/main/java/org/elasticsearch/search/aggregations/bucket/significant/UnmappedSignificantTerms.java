@@ -149,8 +149,4 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
         return 0;
     }
 
-    @Override
-    public boolean hasValue() {
-        return false;
-    }
 }

@@ -61,8 +61,4 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public boolean hasValue() {
-        return values.size() > 0;
-    }
 }

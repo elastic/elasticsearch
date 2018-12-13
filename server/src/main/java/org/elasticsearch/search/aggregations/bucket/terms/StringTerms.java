@@ -151,8 +151,4 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         return new Bucket[size];
     }
 
-    @Override
-    public boolean hasValue() {
-        return buckets.stream().anyMatch(b -> b.docCount > 0);
-    }
 }

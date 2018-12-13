@@ -126,14 +126,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                         .map((p) -> (InternalAggregation) p)
                         .collect(Collectors.toList());
-                    aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()) {
-                        @Override
-                        public boolean hasValue() {
-                            // movavg's are only added when an actual value has been encountered
-                            // so this is always true
-                            return true;
-                        }
-                    });
+                    aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()));
                     newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 }
 
@@ -163,14 +156,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                         .map((p) -> (InternalAggregation) p)
                         .collect(Collectors.toList());
-                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<>(), metaData()) {
-                        @Override
-                        public boolean hasValue() {
-                            // predictions are only added when there is an actual prediction
-                            // so this is always true
-                            return true;
-                        }
-                    });
+                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<>(), metaData()));
 
                     Bucket newBucket = factory.createBucket(newKey, bucket.getDocCount(), new InternalAggregations(aggs));
 
@@ -180,14 +166,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                 } else {
                     // Not seen before, create fresh
                     aggs = new ArrayList<>();
-                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<>(), metaData()) {
-                        @Override
-                        public boolean hasValue() {
-                            // predictions are only added when there is an actual prediction
-                            // so this is always true
-                            return true;
-                        }
-                    });
+                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<>(), metaData()));
 
                     Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(aggs));
 

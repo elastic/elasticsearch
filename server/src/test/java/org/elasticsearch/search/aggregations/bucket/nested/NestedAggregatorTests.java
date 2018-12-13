@@ -63,6 +63,7 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.VersionUtils;
 
@@ -124,7 +125,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
-                assertFalse(nested.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(nested));
             }
         }
     }
@@ -173,7 +174,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
 
-                assertTrue(nested.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(nested));
             }
         }
     }
@@ -223,7 +224,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
 
-                assertTrue(nested.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(nested));
             }
         }
     }
@@ -357,7 +358,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first segment are emitted as hits.
                 assertEquals(4L, nested.getDocCount());
 
-                assertTrue(nested.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(nested));
             }
         }
     }

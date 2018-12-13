@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.junit.Before;
 
 public class FilterAggregatorTests extends AggregatorTestCase {
@@ -57,7 +58,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);
         assertEquals(response.getDocCount(), 0);
-        assertFalse(response.hasValue());
+        assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
     }
@@ -98,9 +99,9 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             }
             assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
             if (expectedBucketCount[expectedBucketCount[value]] > 0) {
-                assertTrue(response.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(response));
             } else {
-                assertFalse(response.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(response));
             }
         }
         indexReader.close();

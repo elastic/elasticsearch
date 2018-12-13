@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 
@@ -79,7 +80,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                         numericFieldType);
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(5.0, min.getValue(), 0);
-                assertTrue(sampler.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
     }

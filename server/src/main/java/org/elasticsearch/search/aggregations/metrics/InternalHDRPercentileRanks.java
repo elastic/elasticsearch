@@ -87,11 +87,6 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return percentileRank;
     }
 
-    @Override
-    public boolean hasValue() {
-        return state.getTotalCount() > 0;
-    }
-
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;

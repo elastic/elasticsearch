@@ -71,10 +71,6 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         return percentile(key);
     }
 
-    @Override
-    public boolean hasValue() {
-        return state.getTotalCount() > 0;
-    }
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,

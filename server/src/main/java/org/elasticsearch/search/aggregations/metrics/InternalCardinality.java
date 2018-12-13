@@ -79,9 +79,8 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return counts == null ? 0 : counts.cardinality(0);
     }
 
-    @Override
-    public boolean hasValue() {
-        return counts != null;
+    HyperLogLogPlusPlus getCounts() {
+        return counts;
     }
 
     @Override

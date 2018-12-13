@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -88,7 +89,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (Histogram.Bucket bucket : buckets) {
                 sum += ((InternalAvg) (bucket.getAggregations().get("the_avg"))).value();
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
-                assertTrue(((InternalAvg) (bucket.getAggregations().get("the_avg"))).hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalAvg) (bucket.getAggregations().get("the_avg")))));
             }
         });
     }
@@ -112,11 +113,13 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < buckets.size(); i++) {
                 if (i == 0) {
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
-                    assertFalse(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).hasValue());
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 } else {
                     sum += 1.0;
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
-                    assertTrue(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).hasValue());
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 }
             }
         });
@@ -135,7 +138,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             double sum = 1.0;
             for (Histogram.Bucket bucket : buckets) {
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
-                assertTrue(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (bucket.getAggregations().get("cusum")))));
                 sum += 1.0;
             }
         });

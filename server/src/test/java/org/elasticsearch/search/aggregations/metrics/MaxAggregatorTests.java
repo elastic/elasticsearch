@@ -49,6 +49,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +70,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
-            assertFalse(max.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
 
@@ -79,7 +80,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
-            assertFalse(max.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
 
@@ -89,7 +90,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(7, max.getValue(), 0);
-            assertTrue(max.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
 
@@ -99,7 +100,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(7, max.getValue(), 0);
-            assertTrue(max.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
 
@@ -109,7 +110,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(1, max.getValue(), 0);
-            assertTrue(max.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
 
@@ -119,7 +120,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
-            assertFalse(max.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
 

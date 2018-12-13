@@ -35,6 +35,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -73,7 +74,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), writer -> {}, agg -> {
             assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-            assertFalse(agg.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(agg));
         });
     }
 
@@ -86,7 +87,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-                assertFalse(agg.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(agg));
             }
         );
     }
@@ -102,7 +103,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             }),
             agg -> {
                 assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
-                assertTrue(agg.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
             }
         );
     }
@@ -118,7 +119,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             }),
             agg -> {
                 assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
-                assertTrue(agg.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
             }
         );
     }
@@ -137,7 +138,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
-                assertTrue(agg.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
             }
         );
     }
@@ -151,7 +152,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-                assertFalse(agg.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(agg));
             }
         );
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             doc -> doc.add(new SortedNumericDocValuesField("field", randomLong())),
             internalMissing -> {
                 assertEquals(internalMissing.getDocCount(), 0);
-                assertFalse(internalMissing.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
             });
     }
 
@@ -59,7 +60,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             doc -> doc.add(new SortedNumericDocValuesField("another_field", randomLong())),
             internalMissing -> {
                 assertEquals(internalMissing.getDocCount(), numDocs);
-                assertTrue(internalMissing.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             });
     }
 
@@ -80,7 +81,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             internalMissing -> {
                 assertEquals(internalMissing.getDocCount(), count.get());
                 count.set(0);
-                assertTrue(internalMissing.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             });
     }
 
@@ -94,7 +95,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             },
             internalMissing -> {
                 assertEquals(internalMissing.getDocCount(), numDocs);
-                assertTrue(internalMissing.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             });
     }
 

@@ -30,6 +30,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 public class HistogramAggregatorTests extends AggregatorTestCase {
 
@@ -59,7 +60,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }
@@ -90,7 +91,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }
@@ -121,7 +122,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(Math.PI, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }
@@ -149,7 +150,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
                 assertEquals(0d, histogram.getBuckets().get(1).getKey());
                 assertEquals(3, histogram.getBuckets().get(1).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }
@@ -182,7 +183,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }
@@ -212,7 +213,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(1).getDocCount());
                 assertEquals(5 + Math.PI, histogram.getBuckets().get(2).getKey());
                 assertEquals(1, histogram.getBuckets().get(2).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }
@@ -248,7 +249,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(0, histogram.getBuckets().get(4).getDocCount());
                 assertEquals(10d, histogram.getBuckets().get(5).getKey());
                 assertEquals(0, histogram.getBuckets().get(5).getDocCount());
-                assertTrue(histogram.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
     }

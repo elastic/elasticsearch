@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -109,7 +110,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
                 assertNotNull(terms.getBucketByKey("even"));
 
-                assertTrue(sampler.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
     }
@@ -160,8 +161,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertFalse(terms.getBuckets().isEmpty());
                 assertEquals(terms, aliasTerms);
 
-                assertTrue(sampler.hasValue());
-                assertTrue(aliasSampler.hasValue());
+                assertTrue(AggregationInspectionHelper.hasValue(sampler));
+                assertTrue(AggregationInspectionHelper.hasValue(aliasSampler));
             }
         }
     }

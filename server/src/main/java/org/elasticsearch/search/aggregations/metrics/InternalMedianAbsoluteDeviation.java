@@ -121,7 +121,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         return MedianAbsoluteDeviationAggregationBuilder.NAME;
     }
 
-    public TDigestState getValuesSketch() {
+    TDigestState getValuesSketch() {
         return valuesSketch;
     }
 
@@ -135,8 +135,4 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         return medianAbsoluteDeviation;
     }
 
-    @Override
-    public boolean hasValue() {
-        return valuesSketch.size() > 0;
-    }
 }

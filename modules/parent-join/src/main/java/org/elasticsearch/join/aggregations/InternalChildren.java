@@ -54,8 +54,4 @@ public class InternalChildren extends InternalSingleBucketAggregation implements
         return new InternalChildren(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
 
-    @Override
-    public boolean hasValue() {
-        return getDocCount() > 0;
-    }
 }

@@ -52,9 +52,4 @@ public class InternalReverseNested extends InternalSingleBucketAggregation imple
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalReverseNested(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
-
-    @Override
-    public boolean hasValue() {
-        return getDocCount() > 0;
-    }
 }

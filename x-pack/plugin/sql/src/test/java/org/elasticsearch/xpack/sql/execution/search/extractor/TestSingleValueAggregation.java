@@ -64,8 +64,4 @@ public class TestSingleValueAggregation extends InternalAggregation {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public boolean hasValue() {
-        return value != null;
-    }
 }

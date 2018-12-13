@@ -145,11 +145,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public boolean hasValue() {
-        return count > 0;
-    }
-
-    @Override
     public InternalStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;

@@ -71,12 +71,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         String[] keys = minBucketKeys.toArray(new String[0]);
-        return new InternalBucketMetricValue(name(), keys, minValue, format, Collections.emptyList(), metaData()) {
-            @Override
-            public boolean hasValue() {
-                return minValue != Double.POSITIVE_INFINITY;
-            }
-        };
+        return new InternalBucketMetricValue(name(), keys, minValue, format, Collections.emptyList(), metaData());
     }
 
 }

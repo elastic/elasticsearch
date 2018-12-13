@@ -139,11 +139,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    public boolean hasValue() {
-        return count > 0;
-    }
-
-    @Override
     public InternalExtendedStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sumOfSqrs = 0;
         double compensationOfSqrs = 0;

@@ -39,6 +39,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,7 +56,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, count -> {
             assertEquals(0L, count.getValue(), 0d);
-            assertFalse(count.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -65,7 +66,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, count -> {
             assertEquals(0L, count.getValue(), 0d);
-            assertFalse(count.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -89,7 +90,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
         }, count -> {
             assertEquals(24L, count.getValue(), 0d);
-            assertTrue(count.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -102,7 +103,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
             assertEquals(15L, count.getValue(), 0d);
-            assertTrue(count.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -115,7 +116,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new StringField("match", "yes", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 5)));
         }, count -> {
             assertEquals(9L, count.getValue(), 0d);
-            assertTrue(count.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -125,7 +126,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             }, count -> {
                 assertEquals(0L, count.getValue(), 0d);
-                assertFalse(count.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(count));
             });
         });
         assertEquals("unexpected docvalues type SORTED for field 'field' (expected one of [SORTED_NUMERIC, NUMERIC]). " +

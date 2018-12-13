@@ -54,8 +54,4 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
         return new InternalGlobal(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
 
-    @Override
-    public boolean hasValue() {
-        return getDocCount() > 0;
-    }
 }

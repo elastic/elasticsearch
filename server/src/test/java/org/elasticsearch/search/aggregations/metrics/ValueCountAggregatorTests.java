@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -59,7 +60,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 // Intentionally not writing any docs
             }, count -> {
                 assertEquals(0L, count.getValue());
-                assertFalse(count.hasValue());
+                assertFalse(AggregationInspectionHelper.hasValue(count));
             });
         }
     }
@@ -70,7 +71,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, count -> {
             assertEquals(0L, count.getValue());
-            assertFalse(count.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -81,7 +82,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
             assertEquals(2L, count.getValue());
-            assertTrue(count.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -91,7 +92,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
             assertEquals(2L, count.getValue());
-            assertTrue(count.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -104,7 +105,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("level", 7), new SortedDocValuesField(FIELD_NAME, new BytesRef("baz"))));
         }, count -> {
             assertEquals(4L, count.getValue());
-            assertTrue(count.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
@@ -114,7 +115,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("level", 5), new SortedDocValuesField(FIELD_NAME, new BytesRef("baz"))));
         }, count -> {
             assertEquals(0L, count.getValue());
-            assertFalse(count.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 

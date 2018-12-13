@@ -156,11 +156,6 @@ public class InternalComposite
     }
 
     @Override
-    public boolean hasValue() {
-        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
-    }
-
-    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
         for (InternalAggregation agg : aggregations) {
@@ -231,7 +226,7 @@ public class InternalComposite
         }
     }
 
-    static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
             implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
 
         private final CompositeKey key;

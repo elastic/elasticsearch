@@ -35,6 +35,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +50,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
-            assertFalse(avg.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(avg));
         });
     }
 
@@ -59,7 +60,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
-            assertFalse(avg.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(avg));
         });
     }
 
@@ -70,7 +71,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
         }, avg -> {
             assertEquals(4, avg.getValue(), 0);
-            assertTrue(avg.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(avg));
         });
     }
 
@@ -81,7 +82,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, avg -> {
             assertEquals(4, avg.getValue(), 0);
-            assertTrue(avg.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(avg));
         });
     }
 
@@ -92,7 +93,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
         }, avg -> {
             assertEquals(2.5, avg.getValue(), 0);
-            assertTrue(avg.hasValue());
+            assertTrue(AggregationInspectionHelper.hasValue(avg));
         });
     }
 
@@ -103,7 +104,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 7)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
-            assertFalse(avg.hasValue());
+            assertFalse(AggregationInspectionHelper.hasValue(avg));
         });
     }
 

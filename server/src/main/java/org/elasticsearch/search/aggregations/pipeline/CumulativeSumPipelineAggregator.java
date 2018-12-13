@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.bucketPropertyHasValue;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
@@ -76,7 +75,6 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         HistogramFactory factory = (HistogramFactory) histo;
         List<Bucket> newBuckets = new ArrayList<>(buckets.size());
         double sum = 0;
-        boolean hasValue = false;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
 
@@ -85,19 +83,10 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
                 sum += thisBucketValue;
             }
 
-            // OR the values in, so that once we find a value the rest of the series becomes true
-            hasValue |= bucketPropertyHasValue(histo, bucket, bucketsPaths()[0]);
-
-            final boolean tempHasValue = hasValue;
             List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
-            aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<>(), metaData()) {
-                @Override
-                public boolean hasValue() {
-                    return tempHasValue;
-                }
-            });
+            aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<>(), metaData()));
             Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
             newBuckets.add(newBucket);
         }

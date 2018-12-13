@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,7 +64,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
                 histogram -> {
                     assertEquals(0, histogram.getBuckets().size());
-                    assertFalse(histogram.hasValue());
+                    assertFalse(AggregationInspectionHelper.hasValue(histogram));
                 }
         );
     }
@@ -75,21 +76,21 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
                 histogram -> {
                     assertEquals(6, histogram.getBuckets().size());
-                    assertTrue(histogram.hasValue());
+                    assertTrue(AggregationInspectionHelper.hasValue(histogram));
                 }
         );
         testSearchAndReduceCase(query, dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
                 histogram -> {
                     assertEquals(8, histogram.getBuckets().size());
-                    assertTrue(histogram.hasValue());
+                    assertTrue(AggregationInspectionHelper.hasValue(histogram));
                 }
         );
         testBothCases(query, dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD).minDocCount(1L),
                 histogram -> {
                     assertEquals(6, histogram.getBuckets().size());
-                    assertTrue(histogram.hasValue());
+                    assertTrue(AggregationInspectionHelper.hasValue(histogram));
                 }
         );
     }
@@ -103,7 +104,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchCase(query, dates, aggregation,
                 histogram -> {
                     assertEquals(0, histogram.getBuckets().size());
-                    assertFalse(histogram.hasValue());
+                    assertFalse(AggregationInspectionHelper.hasValue(histogram));
                 }
         );
         testSearchAndReduceCase(query, dates, aggregation,
@@ -116,7 +117,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field("wrong_field"),
                 histogram -> {
                     assertEquals(0, histogram.getBuckets().size());
-                    assertFalse(histogram.hasValue());
+                    assertFalse(AggregationInspectionHelper.hasValue(histogram));
                 }
         );
     }

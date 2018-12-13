@@ -51,8 +51,4 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
         return new InternalFilter(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
 
-    @Override
-    public boolean hasValue() {
-        return getDocCount() > 0;
-    }
 }

@@ -154,8 +154,4 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         return new Bucket[size];
     }
 
-    @Override
-    public boolean hasValue() {
-        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
-    }
 }

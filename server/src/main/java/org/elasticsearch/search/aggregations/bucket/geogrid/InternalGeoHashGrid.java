@@ -47,7 +47,7 @@ import static java.util.Collections.unmodifiableList;
  */
 public class InternalGeoHashGrid extends InternalMultiBucketAggregation<InternalGeoHashGrid, InternalGeoHashGrid.Bucket> implements
         GeoHashGrid {
-    static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
 
         protected long geohashAsLong;
         protected long docCount;
@@ -187,11 +187,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     @Override
     public List<InternalGeoHashGrid.Bucket> getBuckets() {
         return unmodifiableList(buckets);
-    }
-
-    @Override
-    public boolean hasValue() {
-        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
     }
 
     @Override

@@ -227,11 +227,6 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public boolean hasValue() {
-        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
-    }
-
-    @Override
     public InternalBinaryRange create(List<Bucket> buckets) {
         return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData);
     }

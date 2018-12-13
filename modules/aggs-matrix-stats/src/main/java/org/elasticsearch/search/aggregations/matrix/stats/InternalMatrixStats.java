@@ -150,11 +150,6 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results;
     }
 
-    @Override
-    public boolean hasValue() {
-        return getResults() != null;
-    }
-
     static class Fields {
         public static final String FIELDS = "fields";
         public static final String NAME = "name";

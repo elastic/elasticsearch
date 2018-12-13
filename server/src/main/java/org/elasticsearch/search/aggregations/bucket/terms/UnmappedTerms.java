@@ -142,8 +142,4 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
         return new Bucket[size];
     }
 
-    @Override
-    public boolean hasValue() {
-        return false;
-    }
 }

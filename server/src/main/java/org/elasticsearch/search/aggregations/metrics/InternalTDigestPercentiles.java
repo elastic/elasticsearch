@@ -68,11 +68,6 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     }
 
     @Override
-    public boolean hasValue() {
-        return state.size() > 0;
-    }
-
-    @Override
     protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         return new InternalTDigestPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);

@@ -16,40 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.bootstrap;
 
+package org.elasticsearch.test;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
-/**
- * Context that is passed to every bootstrap check to make decisions on.
- */
-public class BootstrapContext {
-    /**
-     * The node's environment
-     */
-    private final Environment environment;
+import java.nio.file.Path;
 
-    /**
-     * The node's local state metadata loaded on startup
-     */
-    private final MetaData metaData;
+public abstract class AbstractBootstrapCheckTestCase extends ESTestCase {
+    protected final BootstrapContext emptyContext;
 
-    public BootstrapContext(Environment environment, MetaData metaData) {
-        this.environment = environment;
-        this.metaData = metaData;
+    public AbstractBootstrapCheckTestCase() {
+        emptyContext = createTestContext(Settings.EMPTY, MetaData.EMPTY_META_DATA);
     }
 
-    public Environment environment() {
-        return environment;
-    }
-
-    public Settings settings() {
-        return environment.settings();
-    }
-
-    public MetaData metaData() {
-        return metaData;
+    protected BootstrapContext createTestContext(Settings settings, MetaData metaData) {
+        Path homePath = createTempDir();
+        Environment environment = new Environment(settings(Version.CURRENT)
+            .put(settings)
+            .put(Environment.PATH_HOME_SETTING.getKey(), homePath.toString()).build(), null);
+        return new BootstrapContext(environment, metaData);
     }
 }

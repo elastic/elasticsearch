@@ -249,7 +249,7 @@ POST _search
             { "match" : {
                 "query" : "the big wolf",
                 "ordered" : true,
-                "max_gaps" : 0 } },
+                "max_gaps" : 0 } }
            ]
         }
       }

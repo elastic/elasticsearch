@@ -272,11 +272,8 @@ public class IndexResolver {
 
             String name = entry.getKey();
 
-            // Skip internal fields (name starting with underscore and its type reported by field_caps starts with underscore
-            // as well). A meta field named "_version", for example, has the type named "_version".
-            // Also, skip any of the blacklisted field names.
-            if (false == (name.startsWith("_") && entry.getValue().values().stream().anyMatch(f -> f.getType().startsWith("_"))) &&
-                    false == FIELD_NAMES_BLACKLIST.contains(name)) {
+            // Skip any of the blacklisted field names.
+            if (!FIELD_NAMES_BLACKLIST.contains(name)) {
                 Map<String, FieldCapabilities> types = entry.getValue();
                 // field is mapped differently across indices
                 if (types.size() > 1) {
@@ -300,6 +297,12 @@ public class IndexResolver {
                 // type is okay, check aggregation
                 else {
                     fieldCap = types.values().iterator().next();
+                    
+                    // Skip internal fields (name starting with underscore and its type reported by field_caps starts with underscore
+                    // as well). A meta field named "_version", for example, has the type named "_version".
+                    if (name.startsWith("_") && fieldCap.getType().startsWith("_")) {
+                        continue;
+                    }
                     // validate search/agg-able
                     if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
                         errorMessage.append("mapped as aggregatable except in ");

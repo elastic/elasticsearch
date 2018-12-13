@@ -103,16 +103,18 @@ public class SecurityRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetUsers() {
-        final String[] users = new String[] {"test"};
+        final String[] users = randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5));
         GetUsersRequest getUsersRequest = new GetUsersRequest(users);
-        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
         Request request = SecurityRequestConverters.getUsers(getUsersRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_security/user/test", request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
+        if (users.length == 0) {
+            assertEquals("/_security/user", request.getEndpoint());
+        } else {
+            assertEquals("/_security/user/" + Strings.collectionToCommaDelimitedString(getUsersRequest.getUsernames()),
+                request.getEndpoint());
+        }
         assertNull(request.getEntity());
-
+        assertEquals(Collections.emptyMap(), request.getParameters());
     }
 
     public void testPutRoleMapping() throws IOException {

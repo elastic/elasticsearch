@@ -15,8 +15,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 
@@ -104,6 +106,11 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 logger.debug("session [{}] already exists", sessionUUID);
                 commit = onGoingRestores.get(sessionUUID);
             } else {
+                // TODO: Add test
+                if (indexShard.state() == IndexShardState.CLOSED) {
+                    throw new IllegalIndexShardStateException(indexShard.shardId(), IndexShardState.CLOSED,
+                        "cannot open ccr restore session if shard closed");
+                }
                 commit = indexShard.acquireSafeIndexCommit();
                 onGoingRestores.put(sessionUUID, commit);
                 openSessionListeners.forEach(c -> c.accept(sessionUUID));

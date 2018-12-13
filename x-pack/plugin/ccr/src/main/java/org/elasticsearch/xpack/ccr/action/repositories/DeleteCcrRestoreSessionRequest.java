@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,7 +16,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class DeleteCcrRestoreSessionRequest extends SingleShardRequest<DeleteCcrRestoreSessionRequest> {
+public class DeleteCcrRestoreSessionRequest extends BaseNodesRequest<DeleteCcrRestoreSessionRequest> {
 
     private String sessionUUID;
     private ShardId shardId;
@@ -53,5 +55,12 @@ public class DeleteCcrRestoreSessionRequest extends SingleShardRequest<DeleteCcr
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    static class DeleteRequest extends BaseNodeRequest {
+
+        DeleteRequest(){
+
+        }
     }
 }

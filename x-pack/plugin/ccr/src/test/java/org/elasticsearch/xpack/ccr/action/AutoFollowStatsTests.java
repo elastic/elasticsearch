@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,11 +49,11 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
         return readExceptions;
     }
 
-    static NavigableMap<String, Long> randomTrackingClusters() {
+    static NavigableMap<String, AutoFollowedCluster> randomTrackingClusters() {
         final int count = randomIntBetween(0, 16);
-        final NavigableMap<String, Long> readExceptions = new TreeMap<>();
+        final NavigableMap<String, AutoFollowedCluster> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
-            readExceptions.put("" + i, randomLong());
+            readExceptions.put("" + i, new AutoFollowedCluster(randomLong(), randomNonNegativeLong()));
         }
         return readExceptions;
     }

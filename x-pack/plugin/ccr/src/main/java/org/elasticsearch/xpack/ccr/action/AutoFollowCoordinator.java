@@ -57,6 +57,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
+
 /**
  * A component that runs only on the elected master node and follows leader indices automatically
  * if they match with a auto follow pattern that is defined in {@link AutoFollowMetadata}.
@@ -100,15 +102,17 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
     public synchronized AutoFollowStats getStats() {
         final Map<String, AutoFollower> autoFollowers = this.autoFollowers;
-        final TreeMap<String, Long> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
+        final TreeMap<String, AutoFollowedCluster> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
         for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
             long lastAutoFollowTimeInNanos = entry.getValue().lastAutoFollowTimeInNanos;
+            long lastSeenMetadataVersion = entry.getValue().metadataVersion;
             if (lastAutoFollowTimeInNanos != -1) {
                 long timeSinceLastAutoFollowInMillis =
                     TimeUnit.NANOSECONDS.toMillis(relativeNanoTimeProvider.getAsLong() - lastAutoFollowTimeInNanos);
-                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), timeSinceLastAutoFollowInMillis);
+                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(),
+                    new AutoFollowedCluster(timeSinceLastAutoFollowInMillis, lastSeenMetadataVersion));
             } else {
-                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), -1L);
+                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), new AutoFollowedCluster(-1L, lastSeenMetadataVersion));
             }
         }
 
@@ -166,7 +170,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
-            AutoFollower autoFollower = new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeNanoTimeProvider) {
+            AutoFollower autoFollower =
+                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeNanoTimeProvider) {
 
                 @Override
                 void getRemoteClusterState(final String remoteCluster,

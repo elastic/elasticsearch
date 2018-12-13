@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -75,10 +76,10 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                 randomAlphaOfLength(4),
                 new ElasticsearchException("cannot follow index")));
 
-        final NavigableMap<String, Long> trackingClusters =
+        final NavigableMap<String, AutoFollowedCluster> trackingClusters =
             new TreeMap<>(Collections.singletonMap(
                 randomAlphaOfLength(4),
-                1L));
+                new AutoFollowedCluster(1L, 1L)));
         final AutoFollowStats autoFollowStats =
             new AutoFollowStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), recentAutoFollowExceptions,
                 trackingClusters);
@@ -119,7 +120,10 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                         + "\"tracking_remote_clusters\":["
                             + "{"
                                 + "\"cluster_name\":\"" + trackingClusters.keySet().iterator().next() + "\","
-                                + "\"time_since_last_auto_follow_started_millis\":"  + trackingClusters.values().iterator().next()
+                                + "\"time_since_last_auto_follow_started_millis\":"  +
+                                    trackingClusters.values().iterator().next().getTimeSinceLastAutoFollowMillis() + ","
+                                + "\"last_seen_metadata_version\":"  +
+                                    trackingClusters.values().iterator().next().getLastSeenMetadataVersion()
                             + "}"
                         + "]"
                     + "}"
@@ -129,10 +133,10 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
     public void testShardFollowNodeTaskStatusFieldsMapped() throws IOException {
         final NavigableMap<String, ElasticsearchException> fetchExceptions =
             new TreeMap<>(Collections.singletonMap("leader_index", new ElasticsearchException("cannot follow index")));
-        final NavigableMap<String, Long> trackingClusters =
+        final NavigableMap<String, AutoFollowedCluster> trackingClusters =
             new TreeMap<>(Collections.singletonMap(
                 randomAlphaOfLength(4),
-                1L));
+                new AutoFollowedCluster(1L, 1L)));
         final AutoFollowStats status = new AutoFollowStats(1, 0, 2, fetchExceptions, trackingClusters);
         XContentBuilder builder = jsonBuilder();
         builder.value(status);

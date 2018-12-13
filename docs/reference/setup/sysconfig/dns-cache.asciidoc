@@ -4,7 +4,7 @@
 Elasticsearch runs with a security manager in place. With a security manager in
 place, the JVM defaults to caching positive hostname resolutions indefinitely
 and defaults to caching negative hostname resolutions for ten
-seconds. Elasticsearch  overrides this behavior with default values to cache
+seconds. Elasticsearch overrides this behavior with default values to cache
 positive lookups for sixty seconds, and to cache negative lookups for ten
 seconds. These values should be suitable for most environments, including
 environments where DNS resolutions vary with time. If not, you can edit the

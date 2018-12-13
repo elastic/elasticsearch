@@ -21,3 +21,5 @@ esplugin {
     description 'Adds advanced field mappers'
     classname 'org.elasticsearch.index.mapper.SearchAsYouTypePlugin'
 }
+
+tasks.integTest.enabled = false

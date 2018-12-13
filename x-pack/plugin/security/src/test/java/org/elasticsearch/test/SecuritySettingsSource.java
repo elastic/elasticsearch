@@ -222,6 +222,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     private void addNodeSSLSettings(Settings.Builder builder) {
         if (sslEnabled) {
+            builder.put("xpack.security.transport.ssl.enabled", true);
             if (usePEM) {
                 addSSLSettingsForNodePEMFiles(builder, "xpack.security.transport.", hostnameVerificationEnabled);
             } else {
@@ -262,12 +263,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                                                boolean sslEnabled, boolean hostnameVerificationEnabled,
                                                boolean transportClient) {
         Path store = resolveResourcePath(resourcePathToStore);
-
-        if (transportClient == false) {
-            builder.put("xpack.security.http.ssl.enabled", false);
-        }
-        builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslEnabled);
-
         builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         builder.put(prefix + "ssl.keystore.path", store);
         if (transportClient) {
@@ -328,12 +323,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,
                                                   String certificatePath, List<String> trustedCertificates, boolean sslEnabled,
                                                   boolean hostnameVerificationEnabled, boolean transportClient) {
-
-        if (transportClient == false) {
-            builder.put("xpack.security.http.ssl.enabled", false);
-        }
-        builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslEnabled);
-
         if (prefix.equals("")) {
             prefix = "xpack.security.transport.";
         }

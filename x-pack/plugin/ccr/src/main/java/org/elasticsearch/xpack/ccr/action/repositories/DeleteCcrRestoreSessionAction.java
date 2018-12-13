@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -77,9 +76,7 @@ public class DeleteCcrRestoreSessionAction extends Action<DeleteCcrRestoreSessio
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
             final ShardId shardId = request.request().getShardId();
-            // The index uuid is not correct if we restore with a rename
-            IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId.getIndexName(), shardId.id());
-            return shardRoutingTable.primaryShardIt();
+            return state.routingTable().shardRoutingTable(shardId).primaryShardIt();
         }
     }
 

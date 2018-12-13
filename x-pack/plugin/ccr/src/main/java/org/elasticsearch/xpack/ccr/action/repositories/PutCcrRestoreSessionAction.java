@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -22,16 +21,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
 
@@ -74,12 +69,8 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
-            Store.MetadataSnapshot sourceMetaData = ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
-            Store.RecoveryDiff recoveryDiff = sourceMetaData.recoveryDiff(request.getMetaData());
-
-            ArrayList<StoreFileMetaData> filesToRecover = new ArrayList<>(recoveryDiff.different);
-            filesToRecover.addAll(recoveryDiff.missing);
-            return new PutCcrRestoreSessionResponse(indexShard.routingEntry().currentNodeId(), recoveryDiff.identical, filesToRecover);
+            ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
+            return new PutCcrRestoreSessionResponse(indexShard.routingEntry().currentNodeId());
         }
 
         @Override
@@ -95,9 +86,7 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
             final ShardId shardId = request.request().getShardId();
-            // The index uuid is not correct if we restore with a rename
-            IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId.getIndexName(), shardId.id());
-            return shardRoutingTable.primaryShardIt();
+            return state.routingTable().shardRoutingTable(shardId).primaryShardIt();
         }
     }
 
@@ -105,51 +94,33 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
         private String nodeId;
-        private List<StoreFileMetaData> identicalFiles;
-        private List<StoreFileMetaData> filesToRecover;
 
         PutCcrRestoreSessionResponse() {
         }
 
-        PutCcrRestoreSessionResponse(String nodeId, List<StoreFileMetaData> identicalFiles, List<StoreFileMetaData> filesToRecover) {
+        PutCcrRestoreSessionResponse(String nodeId) {
             this.nodeId = nodeId;
-            this.identicalFiles = identicalFiles;
-            this.filesToRecover = filesToRecover;
         }
 
         PutCcrRestoreSessionResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
             nodeId = streamInput.readString();
-            identicalFiles = streamInput.readList(StoreFileMetaData::new);
-            filesToRecover = streamInput.readList(StoreFileMetaData::new);
         }
 
         @Override
         public void readFrom(StreamInput streamInput) throws IOException {
             super.readFrom(streamInput);
             nodeId = streamInput.readString();
-            identicalFiles = streamInput.readList(StoreFileMetaData::new);
-            filesToRecover = streamInput.readList(StoreFileMetaData::new);
         }
 
         @Override
         public void writeTo(StreamOutput streamOutput) throws IOException {
             super.writeTo(streamOutput);
             streamOutput.writeString(nodeId);
-            streamOutput.writeList(identicalFiles);
-            streamOutput.writeList(filesToRecover);
         }
 
         public String getNodeId() {
             return nodeId;
-        }
-
-        public List<StoreFileMetaData> getIdenticalFiles() {
-            return identicalFiles;
-        }
-
-        public List<StoreFileMetaData> getFilesToRecover() {
-            return filesToRecover;
         }
     }
 }

@@ -42,7 +42,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     // TODO: Need to register with IndicesService
     @Override
-    public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+    public synchronized void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             logger.debug("shard [{}] closing, closing sessions", indexShard);
             HashSet<String> sessions = sessionsForShard.remove(indexShard);
@@ -93,24 +93,37 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         return onGoingRestores.get(sessionUUID);
     }
 
+    // TODO: Add a local timeout for the session. This timeout might might be for the entire session to be
+    //  complete. Or it could be for session to have been touched.
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
         logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard);
-        Engine.IndexCommitRef commit;
-        if (onGoingRestores.containsKey(sessionUUID)) {
-            logger.debug("session [{}] already exists", sessionUUID);
-            commit = onGoingRestores.get(sessionUUID);
-        } else {
-            commit = indexShard.acquireSafeIndexCommit();
-            onGoingRestores.put(sessionUUID, commit);
-            openSessionListeners.forEach(c -> c.accept(sessionUUID));
-            HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
-            sessions.add(sessionUUID);
-        }
-        indexShard.store().incRef();
+        boolean success = false;
+        Engine.IndexCommitRef commit = null;
         try {
-            return indexShard.store().getMetadata(commit.getIndexCommit());
+            if (onGoingRestores.containsKey(sessionUUID)) {
+                logger.debug("session [{}] already exists", sessionUUID);
+                commit = onGoingRestores.get(sessionUUID);
+            } else {
+                commit = indexShard.acquireSafeIndexCommit();
+                onGoingRestores.put(sessionUUID, commit);
+                openSessionListeners.forEach(c -> c.accept(sessionUUID));
+                HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
+                sessions.add(sessionUUID);
+            }
+            indexShard.store().incRef();
+            try {
+                Store.MetadataSnapshot metadata = indexShard.store().getMetadata(commit.getIndexCommit());
+                success = true;
+                return metadata;
+            } finally {
+                indexShard.store().decRef();
+            }
         } finally {
-            indexShard.store().decRef();
+            if (success ==  false) {
+                onGoingRestores.remove(sessionUUID);
+                removeSessionForShard(sessionUUID, indexShard);
+                IOUtils.closeWhileHandlingException(commit);
+            }
         }
     }
 
@@ -122,7 +135,11 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             logger.info("could not close session [{}] for shard [{}] because session not found", sessionUUID, indexShard);
             throw new ElasticsearchException("session [" + sessionUUID + "] not found");
         }
+        removeSessionForShard(sessionUUID, indexShard);
         IOUtils.closeWhileHandlingException(commit);
+    }
+
+    private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
         HashSet<String> sessions = sessionsForShard.get(indexShard);
         sessions.remove(sessionUUID);
         if (sessions.isEmpty()) {

@@ -232,6 +232,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void restoreShard(IndexShard indexShard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId,
                              RecoveryState recoveryState) {
+        // TODO: Add timeouts to network calls / the restore process.
         final Store store = indexShard.store();
         store.incRef();
         try {
@@ -249,25 +250,42 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             throw new IndexShardRecoveryException(shardId, "failed access store metadata", e);
         }
 
+        Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        ShardId leaderShardId = new ShardId(shardId.getIndexName(), leaderUUID, shardId.getId());
+
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
-        PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
-            new PutCcrRestoreSessionRequest(sessionUUID, shardId, recoveryMetadata)).actionGet();
-        // The nodeId is necessary to route file chunk requests to appropriate node
-        String nodeId = response.getNodeId();
-
+        boolean success = false;
         try {
-            // Implement file restore
+            PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
+                new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
+            // The nodeId is necessary to route file chunk requests to appropriate node
+            String nodeId = response.getNodeId();
+
+            // TODO: Implement file restore
+            success = true;
         } catch (Exception e) {
+            try {
+                closeSession(remoteClient, sessionUUID, leaderShardId);
+            } catch (Exception closeException) {
+                e.addSuppressed(closeException);
+            }
             throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
         } finally {
-            DeleteCcrRestoreSessionRequest deleteRequest = new DeleteCcrRestoreSessionRequest(sessionUUID, shardId);
-            remoteClient.execute(DeleteCcrRestoreSessionAction.INSTANCE, deleteRequest).actionGet();
+            if (success) {
+                closeSession(remoteClient, sessionUUID, leaderShardId);
+            }
         }
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId leaderShardId) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
+    private void closeSession(Client remoteClient, String sessionUUID, ShardId leaderShardId) {
+        DeleteCcrRestoreSessionRequest deleteRequest = new DeleteCcrRestoreSessionRequest(sessionUUID, leaderShardId);
+        remoteClient.execute(DeleteCcrRestoreSessionAction.INSTANCE, deleteRequest).actionGet();
     }
 }

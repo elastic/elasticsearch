@@ -105,7 +105,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         assertEquals(2, restoreSourceService.getSessionsForShard(indexShard1).size());
         assertEquals(1, restoreSourceService.getSessionsForShard(indexShard2).size());
 
-        restoreSourceService.beforeIndexShardClosed(indexShard1.shardId(), indexShard1, Settings.EMPTY);
+        restoreSourceService.afterIndexShardClosed(indexShard1.shardId(), indexShard1, Settings.EMPTY);
 
         assertNull(restoreSourceService.getSessionsForShard(indexShard1));
         assertNull(restoreSourceService.getIndexCommit(sessionUUID1));

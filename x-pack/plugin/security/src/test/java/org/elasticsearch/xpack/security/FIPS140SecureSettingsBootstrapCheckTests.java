@@ -9,12 +9,11 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -25,7 +24,7 @@ import java.security.AccessControlException;
 import java.security.KeyStore;
 import java.util.Base64;
 
-public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
+public class FIPS140SecureSettingsBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testLegacySecureSettingsIsNotAllowed() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE is not available", inFipsJvm());
@@ -34,7 +33,7 @@ public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true");
         Environment env = TestEnvironment.newEnvironment(builder.build());
         generateV2Keystore(env);
-        assertTrue(new FIPS140SecureSettingsBootstrapCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
+        assertTrue(new FIPS140SecureSettingsBootstrapCheck(builder.build(), env).check(createTestContext(builder.build(),
             null)).isFailure());
     }
 
@@ -53,7 +52,7 @@ public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
                 throw e;
             }
         }
-        assertFalse(new FIPS140SecureSettingsBootstrapCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
+        assertFalse(new FIPS140SecureSettingsBootstrapCheck(builder.build(), env).check(createTestContext(builder.build(),
             null)).isFailure());
     }
 

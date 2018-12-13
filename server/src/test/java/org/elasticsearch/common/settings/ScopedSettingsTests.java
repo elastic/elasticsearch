@@ -136,6 +136,17 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(1, currentSettings.size());
     }
 
+    public void testNoopSettingsUpdate() {
+        String value = "192.168.0.1,127.0.0.1";
+        String setting = "index.routing.allocation.require._ip";
+        Settings currentSettings = Settings.builder().put(setting, value)
+            .build();
+        Settings updates = Settings.builder().put(setting, value).build();
+        IndexScopedSettings settings = new IndexScopedSettings(currentSettings,
+            new HashSet<>(Collections.singletonList(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING)));
+        assertFalse(settings.updateSettings(updates, Settings.builder().put(currentSettings), Settings.builder(), ""));
+    }
+
     public void testAddConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);

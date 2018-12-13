@@ -19,12 +19,37 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiValuesSourceFieldConfigTests extends ESTestCase {
+public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCase<MultiValuesSourceFieldConfig> {
+
+    @Override
+    protected MultiValuesSourceFieldConfig doParseInstance(XContentParser parser) throws IOException {
+        return MultiValuesSourceFieldConfig.PARSER.apply(true, true).apply(parser, null).build();
+    }
+
+    @Override
+    protected MultiValuesSourceFieldConfig createTestInstance() {
+        String field = randomAlphaOfLength(10);
+        Object missing = randomBoolean() ? randomAlphaOfLength(10) : null;
+        DateTimeZone timeZone = randomBoolean() ? randomDateTimeZone() : null;
+        return new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName(field).setMissing(missing).setScript(null).setTimeZone(timeZone).build();
+    }
+
+    @Override
+    protected Writeable.Reader<MultiValuesSourceFieldConfig> instanceReader() {
+        return MultiValuesSourceFieldConfig::new;
+    }
+
     public void testMissingFieldScript() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MultiValuesSourceFieldConfig.Builder().build());
         assertThat(e.getMessage(), equalTo("[field] and [script] cannot both be null.  Please specify one or the other."));

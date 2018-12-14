@@ -41,6 +41,7 @@ public class DeprecationChecks {
             NodeDeprecationChecks::httpEnabledSettingRemoved,
             NodeDeprecationChecks::indexThreadPoolCheck,
             NodeDeprecationChecks::tribeNodeCheck,
+            NodeDeprecationChecks::authRealmsTypeCheck,
             NodeDeprecationChecks::httpPipeliningCheck,
             NodeDeprecationChecks::azureRepositoryChanges,
             NodeDeprecationChecks::gcsRepositoryChanges,

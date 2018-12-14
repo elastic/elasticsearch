@@ -88,6 +88,17 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
     }
 
+    public void testAuthenticationRealmTypeCheck() {
+        String realm = randomAlphaOfLengthBetween(1, 20);
+        String authRealmType = "xpack.security.authc.realms." + realm + ".type";
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Security realm settings structure changed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#include-realm-type-in-setting",
+            "nodes and realms which must be updated: [[node: node_check, realms: [" + realm + "]]]");
+        assertSettingsAndIssue(authRealmType, randomAlphaOfLength(5), expected);
+    }
+
     public void testHttpPipeliningCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP pipelining setting removed as pipelining is now mandatory",

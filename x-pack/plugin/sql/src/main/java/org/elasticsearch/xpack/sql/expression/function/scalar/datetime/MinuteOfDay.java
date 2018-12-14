@@ -10,25 +10,25 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the minute of the day from a datetime.
  */
 public class MinuteOfDay extends DateTimeFunction {
 
-    public MinuteOfDay(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.MINUTE_OF_DAY);
+    public MinuteOfDay(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, DateTimeExtractor.MINUTE_OF_DAY);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return MinuteOfDay::new;
     }
 
     @Override
     protected MinuteOfDay replaceChild(Expression newChild) {
-        return new MinuteOfDay(location(), newChild, timeZone());
+        return new MinuteOfDay(location(), newChild, zoneId());
     }
 
     @Override

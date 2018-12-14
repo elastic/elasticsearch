@@ -23,10 +23,9 @@ slightly lighter:
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Index
-<2> Type
-<3> Document id
-<4> Disable fetching `_source`.
-<5> Disable fetching stored fields.
+<2> Document id
+<3> Disable fetching `_source`.
+<4> Disable fetching stored fields.
 
 include::../execution.asciidoc[]
 

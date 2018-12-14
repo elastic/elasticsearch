@@ -238,7 +238,13 @@ class ByteBufUtils {
 
         @Override
         public byte readByte() throws IOException {
-            return buffer.readByte();
+            try {
+                return buffer.readByte();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
         }
 
         @Override

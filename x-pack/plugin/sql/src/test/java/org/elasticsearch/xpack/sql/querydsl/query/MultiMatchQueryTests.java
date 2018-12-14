@@ -23,8 +23,7 @@ public class MultiMatchQueryTests extends ESTestCase {
         MultiMatchQueryBuilder qb = getBuilder("lenient=true");
         assertThat(qb.lenient(), equalTo(true));
 
-        qb = getBuilder("use_dis_max=true;type=best_fields");
-        assertThat(qb.useDisMax(), equalTo(true));
+        qb = getBuilder("type=best_fields");
         assertThat(qb.getType(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder("pizza=yummy"));

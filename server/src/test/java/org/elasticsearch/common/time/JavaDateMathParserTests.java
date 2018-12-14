@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaDateMathParserTests extends ESTestCase {
 
-    private final DateFormatter formatter = DateFormatters.forPattern("dateOptionalTime||epoch_millis");
+    private final DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();
 
     public void testBasicDates() {
@@ -239,7 +239,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
 
         // also check other time units
-        DateMathParser parser = DateFormatters.forPattern("epoch_second||dateOptionalTime").toDateMathParser();
+        DateMathParser parser = DateFormatter.forPattern("8epoch_second||8dateOptionalTime").toDateMathParser();
         long datetime = parser.parse("1418248078", () -> 0);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
@@ -252,12 +252,8 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     void assertParseException(String msg, String date, String exc) {
-        try {
-            parser.parse(date, () -> 0);
-            fail("Date: " + date + "\n" + msg);
-        } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString(exc));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
+        assertThat(msg, ExceptionsHelper.detailedMessage(e), containsString(exc));
     }
 
     public void testIllegalMathFormat() {
@@ -270,7 +266,7 @@ public class JavaDateMathParserTests extends ESTestCase {
 
     public void testIllegalDateFormat() {
         assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
-        assertParseException("Expected bad date format exception", "123bogus", "could not be parsed");
+        assertParseException("Expected bad date format exception", "123bogus", "Unrecognized chars at the end of [123bogus]");
     }
 
     public void testOnlyCallsNowIfNecessary() {

@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,7 +48,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -56,6 +55,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Matchers;
@@ -143,14 +143,14 @@ public class UnicastZenPingTests extends ESTestCase {
 
         NetworkService networkService = new NetworkService(Collections.emptyList());
 
-        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockTcpTransport(
+        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockNioTransport(
             s,
+            v,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
-            new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            v);
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService());
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier);
         closeables.push(handleA.transportService);
@@ -268,14 +268,14 @@ public class UnicastZenPingTests extends ESTestCase {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
 
         final Map<String, TransportAddress[]> addresses = new HashMap<>();
-        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockTcpTransport(
+        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockNioTransport(
             s,
+            v,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
-            new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            v) {
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService()) {
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
                 final TransportAddress[] transportAddresses = addresses.get(address);
@@ -372,13 +372,14 @@ public class UnicastZenPingTests extends ESTestCase {
 
     public void testPortLimit() throws InterruptedException {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
-        final Transport transport = new MockTcpTransport(
+        final Transport transport = new MockNioTransport(
             Settings.EMPTY,
+            Version.CURRENT,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService) {
+            new NoneCircuitBreakerService()) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -413,13 +414,14 @@ public class UnicastZenPingTests extends ESTestCase {
     public void testRemovingLocalAddresses() throws InterruptedException {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
-        final Transport transport = new MockTcpTransport(
+        final Transport transport = new MockNioTransport(
             Settings.EMPTY,
+            Version.CURRENT,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService) {
+            new NoneCircuitBreakerService()) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -458,13 +460,14 @@ public class UnicastZenPingTests extends ESTestCase {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final String hostname = randomAlphaOfLength(8);
         final UnknownHostException unknownHostException = new UnknownHostException(hostname);
-        final Transport transport = new MockTcpTransport(
+        final Transport transport = new MockNioTransport(
             Settings.EMPTY,
+            Version.CURRENT,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService) {
+            new NoneCircuitBreakerService()) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -504,13 +507,14 @@ public class UnicastZenPingTests extends ESTestCase {
         final Logger logger = mock(Logger.class);
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final CountDownLatch latch = new CountDownLatch(1);
-        final Transport transport = new MockTcpTransport(
+        final Transport transport = new MockNioTransport(
             Settings.EMPTY,
+            Version.CURRENT,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService) {
+            new NoneCircuitBreakerService()) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -569,13 +573,14 @@ public class UnicastZenPingTests extends ESTestCase {
 
         NetworkService networkService = new NetworkService(Collections.emptyList());
 
-        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockTcpTransport(
+        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockNioTransport(
             s,
+            Version.CURRENT,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService);
+            new NoneCircuitBreakerService());
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier, EnumSet.allOf(Role.class));
         closeables.push(handleA.transportService);
@@ -634,14 +639,14 @@ public class UnicastZenPingTests extends ESTestCase {
 
         NetworkService networkService = new NetworkService(Collections.emptyList());
 
-        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockTcpTransport(
+        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockNioTransport(
             s,
+            v,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
-            new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            v);
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService());
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier, EnumSet.allOf(Role.class));
         closeables.push(handleA.transportService);
@@ -689,15 +694,14 @@ public class UnicastZenPingTests extends ESTestCase {
 
     public void testInvalidHosts() throws InterruptedException {
         final Logger logger = mock(Logger.class);
-        final NetworkService networkService = new NetworkService(Collections.emptyList());
-        final Transport transport = new MockTcpTransport(
+        final Transport transport = new MockNioTransport(
             Settings.EMPTY,
+            Version.CURRENT,
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            new NoneCircuitBreakerService()) {
             @Override
             public BoundTransportAddress boundAddress() {
                 return new BoundTransportAddress(

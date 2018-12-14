@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -22,14 +22,13 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.anyString;
@@ -42,8 +41,6 @@ import static org.mockito.Mockito.when;
 
 public class MlMemoryTrackerTests extends ESTestCase {
 
-    private ClusterService clusterService;
-    private ThreadPool threadPool;
     private JobManager jobManager;
     private JobResultsProvider jobResultsProvider;
     private MlMemoryTracker memoryTracker;
@@ -51,8 +48,11 @@ public class MlMemoryTrackerTests extends ESTestCase {
     @Before
     public void setup() {
 
-        clusterService = mock(ClusterService.class);
-        threadPool = mock(ThreadPool.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -63,7 +63,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(executorService);
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
-        memoryTracker = new MlMemoryTracker(clusterService, threadPool, jobManager, jobResultsProvider);
+        memoryTracker = new MlMemoryTracker(Settings.EMPTY, clusterService, threadPool, jobManager, jobResultsProvider);
     }
 
     public void testRefreshAll() {
@@ -152,40 +152,6 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
         memoryTracker.removeJob(jobId);
         assertNull(memoryTracker.getJobMemoryRequirement(jobId));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testRecordUpdateTimeInClusterState() {
-
-        boolean isMaster = randomBoolean();
-        if (isMaster) {
-            memoryTracker.onMaster();
-        } else {
-            memoryTracker.offMaster();
-        }
-
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-
-        AtomicReference<Long> updateVersion = new AtomicReference<>();
-
-        doAnswer(invocation -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
-            ClusterState currentClusterState = ClusterState.EMPTY_STATE;
-            ClusterState newClusterState = task.execute(currentClusterState);
-            assertThat(currentClusterState, not(equalTo(newClusterState)));
-            MlMetadata newMlMetadata = MlMetadata.getMlMetadata(newClusterState);
-            updateVersion.set(newMlMetadata.getLastMemoryRefreshVersion());
-            task.onAllNodesAcked(null);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(AckedClusterStateUpdateTask.class));
-
-        memoryTracker.asyncRefresh(ActionListener.wrap(ESTestCase::assertTrue, ESTestCase::assertNull));
-
-        if (isMaster) {
-            assertNotNull(updateVersion.get());
-        } else {
-            assertNull(updateVersion.get());
-        }
     }
 
     private PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> makeTestTask(String jobId) {

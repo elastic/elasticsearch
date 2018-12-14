@@ -5274,7 +5274,7 @@ public class InternalEngineTests extends EngineTestCase {
         List<List<Engine.Operation>> commits = new ArrayList<>();
         commits.add(new ArrayList<>());
         try (Store store = createStore()) {
-            EngineConfig config = config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
             final List<DocIdSeqNoAndTerm> docs;
             try (InternalEngine engine = createEngine(config)) {
                 List<Engine.Operation> flushedOperations = new ArrayList<>();

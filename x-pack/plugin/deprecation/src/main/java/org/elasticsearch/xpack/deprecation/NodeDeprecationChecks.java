@@ -49,6 +49,20 @@ public class NodeDeprecationChecks {
         }
         return null;
     }
+    static DeprecationIssue bulkThreadPoolCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("thread_pool.bulk.").isEmpty() == false)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Bulk thread pool renamed to write thread pool",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "#write-thread-pool-fallback",
+                "nodes with bulk thread pool settings: " + nodesFound);
+        }
+        return null;
+    }
 
     static DeprecationIssue tribeNodeCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()

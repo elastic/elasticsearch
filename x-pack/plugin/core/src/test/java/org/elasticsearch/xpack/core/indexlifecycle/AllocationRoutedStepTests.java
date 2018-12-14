@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -36,37 +37,32 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
     public AllocationRoutedStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        boolean waitOnAllShardCopies = randomBoolean();
 
-        return new AllocationRoutedStep(stepKey, nextStepKey, waitOnAllShardCopies);
+        return new AllocationRoutedStep(stepKey, nextStepKey);
     }
 
     @Override
     public AllocationRoutedStep mutateInstance(AllocationRoutedStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        boolean waitOnAllShardCopies = instance.getWaitOnAllShardCopies();
 
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 1:
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
-        case 2:
-            waitOnAllShardCopies = waitOnAllShardCopies == false;
-            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new AllocationRoutedStep(key, nextKey, waitOnAllShardCopies);
+        return new AllocationRoutedStep(key, nextKey);
     }
 
     @Override
     public AllocationRoutedStep copyInstance(AllocationRoutedStep instance) {
-        return new AllocationRoutedStep(instance.getKey(), instance.getNextStepKey(), instance.getWaitOnAllShardCopies());
+        return new AllocationRoutedStep(instance.getKey(), instance.getNextStepKey());
     }
 
     public void testConditionMet() {
@@ -132,9 +128,38 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
                         ShardRoutingState.STARTED));
 
-        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey(), false);
+        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(true, null));
+                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
+    }
+
+    public void testConditionNotMetDueToRelocation() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Settings.Builder existingSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+        Settings.Builder expectedSettings = Settings.builder();
+        Settings.Builder node1Settings = Settings.builder();
+        Settings.Builder node2Settings = Settings.builder();
+        requires.forEach((k, v) -> {
+            existingSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
+            expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
+            node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
+        });
+        boolean primaryOnNode1 = randomBoolean();
+        ShardRouting shardOnNode1 = TestShardRouting.newShardRouting(new ShardId(index, 0),
+            "node1", primaryOnNode1, ShardRoutingState.STARTED);
+        shardOnNode1 = shardOnNode1.relocate("node3", 230);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(shardOnNode1)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+                ShardRoutingState.STARTED));
+
+        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
+        assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
+            new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 2, true)));
     }
 
     public void testExecuteAllocateNotComplete() throws Exception {
@@ -202,7 +227,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
                         ShardRoutingState.STARTED));
 
-        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey(), true);
+        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
     }

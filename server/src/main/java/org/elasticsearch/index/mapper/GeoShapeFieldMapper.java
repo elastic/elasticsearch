@@ -135,7 +135,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         public Builder coerce(boolean coerce) {
             this.coerce = coerce;
-            return builder;
+            return this;
         }
 
         @Override
@@ -155,7 +155,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
-            return builder;
+            return this;
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -496,7 +496,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 if (shapeBuilder == null) {
                     return;
                 }
-                shape = shapeBuilder.build();
+                shape = shapeBuilder.buildS4J();
             }
             if (fieldType().pointsOnly() == true) {
                 // index configured for pointsOnly

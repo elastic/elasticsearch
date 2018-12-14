@@ -21,16 +21,32 @@ GET twitter/_search
     },
     "sort": [
         {"date": "asc"},
-        {"_id": "desc"}
+        {"tie_breaker_id": "asc"}      <1>
     ]
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
-NOTE: A field with one unique value per document should be used as the tiebreaker of the sort specification.
-Otherwise the sort order for documents that have the same sort values would be undefined. The recommended way is to use
-the field `_id` which is certain to contain one unique value for each document.
+<1> A copy of the `_id` field with `doc_values` enabled
+
+[IMPORTANT]
+A field with one unique value per document should be used as the tiebreaker
+of the sort specification. Otherwise the sort order for documents that have
+the same sort values would be undefined and could lead to missing or duplicate
+results. The <<mapping-id-field,`_id` field>> has a unique value per document
+but it is not recommended to use it as a tiebreaker directly.
+Beware that `search_after` looks for the first document which fully or partially
+matches tiebreaker's provided value. Therefore if a document has a tiebreaker value of
+`"654323"` and you `search_after` for `"654"` it would still match that document
+and return results found after it.
+<<doc-values,doc value>> are disabled on this field so sorting on it requires
+to load a lot of data in memory. Instead it is advised to duplicate (client side
+ or with a <<ingest-processors,set ingest processor>>) the content
+of the <<mapping-id-field,`_id` field>> in another field that has
+<<doc-values,doc value>> enabled and to use this new field as the tiebreaker
+for the sort.
 
 The result from the above request includes an array of `sort values` for each document.
 These `sort values` can be used in conjunction with the `search_after` parameter to start returning results "after" any
@@ -50,12 +66,13 @@ GET twitter/_search
     "search_after": [1463538857, "654323"],
     "sort": [
         {"date": "asc"},
-        {"_id": "desc"}
+        {"tie_breaker_id": "asc"}
     ]
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.
 

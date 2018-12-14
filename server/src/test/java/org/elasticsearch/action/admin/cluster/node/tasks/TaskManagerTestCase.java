@@ -143,10 +143,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
+        AbstractTestNodesAction(String actionName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
-            super(settings, actionName, threadPool, clusterService, transportService,
+            super(actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()),
                 request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
@@ -192,8 +192,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, clusterService, transportService, actionFilters);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterService, transportService, actionFilters);
+            transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
+            transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }
 

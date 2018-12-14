@@ -17,6 +17,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -34,6 +35,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 2 }}
@@ -53,6 +55,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -72,6 +75,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   create_60_refresh_1
           body:
             query:   { term: { _id: create_60_refresh_id1 }}

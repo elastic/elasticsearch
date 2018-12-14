@@ -77,7 +77,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     }
 
     private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {
-        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_xpack/watcher/watch/" + watchId)));
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_watcher/watch/" + watchId)));
         String interval = path.evaluate("watch.trigger.schedule.interval");
         assertThat(interval, is("1m"));
     }
@@ -94,7 +94,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     private String createMonitoringWatch() throws Exception {
         String clusterUUID = getClusterUUID();
         String watchId = clusterUUID + "_kibana_version_mismatch";
-        Request request = new Request("PUT", "/_xpack/watcher/watch/" + watchId);
+        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
         request.setJsonEntity(WatchSourceBuilders.watchBuilder()
                 .trigger(TriggerBuilders.schedule(new IntervalSchedule(new IntervalSchedule.Interval(1000, MINUTES))))
                 .input(simpleInput())

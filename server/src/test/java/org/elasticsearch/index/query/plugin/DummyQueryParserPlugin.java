@@ -40,12 +40,7 @@ public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
     }
 
     public static class DummyQuery extends Query {
-        public final boolean isFilter;
         private final Query matchAllDocsQuery = new MatchAllDocsQuery();
-
-        public DummyQuery(boolean isFilter) {
-            this.isFilter = isFilter;
-        }
 
         @Override
         public String toString(String field) {

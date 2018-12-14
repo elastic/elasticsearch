@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,8 +25,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,7 +39,6 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
 
     @Inject
     public TransportCcrStatsAction(
-            Settings settings,
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
@@ -51,7 +49,6 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             Client client
     ) {
         super(
-            settings,
             CcrStatsAction.NAME,
             transportService,
             clusterService,

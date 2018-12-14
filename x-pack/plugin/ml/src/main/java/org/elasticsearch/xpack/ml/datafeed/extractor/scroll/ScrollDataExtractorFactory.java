@@ -44,7 +44,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 extractedFields,
                 datafeedConfig.getIndices(),
                 datafeedConfig.getTypes(),
-                datafeedConfig.getQuery(),
+                datafeedConfig.getParsedQuery(),
                 datafeedConfig.getScriptFields(),
                 datafeedConfig.getScrollSize(),
                 start,

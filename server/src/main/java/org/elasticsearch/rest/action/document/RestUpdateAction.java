@@ -25,7 +25,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -51,13 +50,9 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        final String type = request.param("type");
-        if (includeTypeName == false && MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the update API with the " +
-                    "[{index}/_doc/{id}/_update] endpoint.");
-        }
-        UpdateRequest updateRequest = new UpdateRequest(request.param("index"), type, request.param("id"));
+        UpdateRequest updateRequest = new UpdateRequest(request.param("index"),
+            request.param("type"),
+            request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));

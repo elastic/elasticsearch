@@ -53,5 +53,4 @@ public class ParentToChildrenAggregator extends ParentJoinAggregator {
         return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
                 metaData());
     }
-
 }

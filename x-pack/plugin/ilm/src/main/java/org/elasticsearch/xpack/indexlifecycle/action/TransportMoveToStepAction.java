@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
@@ -28,12 +27,11 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
 public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, Response> {
     IndexLifecycleService indexLifecycleService;
     @Inject
-    public TransportMoveToStepAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportMoveToStepAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                      IndexLifecycleService indexLifecycleService) {
-        super(settings, MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                Request::new);
+        super(MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            Request::new);
         this.indexLifecycleService = indexLifecycleService;
     }
 

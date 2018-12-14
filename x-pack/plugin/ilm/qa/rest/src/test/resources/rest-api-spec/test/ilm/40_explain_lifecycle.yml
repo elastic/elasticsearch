@@ -103,7 +103,7 @@ teardown:
   - match: { indices.my_index.phase: "new" }
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
-  - is_true: indices.my_index.phase_time
+  - is_true: indices.my_index.phase_time_millis
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -125,7 +125,7 @@ teardown:
   - match: { indices.my_index.phase: "new" }
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
-  - is_true: indices.my_index.phase_time
+  - is_true: indices.my_index.phase_time_millis
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -136,7 +136,7 @@ teardown:
   - match: { indices.my_index2.phase: "new" }
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
-  - is_true: indices.my_index2.phase_time
+  - is_true: indices.my_index2.phase_time_millis
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -158,7 +158,7 @@ teardown:
   - match: { indices.my_index.phase: "new" }
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
-  - is_true: indices.my_index.phase_time
+  - is_true: indices.my_index.phase_time_millis
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -169,7 +169,7 @@ teardown:
   - match: { indices.my_index2.phase: "new" }
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
-  - is_true: indices.my_index2.phase_time
+  - is_true: indices.my_index2.phase_time_millis
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -180,7 +180,7 @@ teardown:
   - match: { indices.another_index.phase: "new" }
   - match: { indices.another_index.action: "complete" }
   - match: { indices.another_index.step: "complete" }
-  - is_true: indices.another_index.phase_time
+  - is_true: indices.another_index.phase_time_millis
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   - is_false: indices.another_index.phase_execution
@@ -257,7 +257,7 @@ teardown:
   - match: { indices.foo.phase: "new" }
   - match: { indices.foo.action: "complete" }
   - match: { indices.foo.step: "complete" }
-  - is_true: indices.foo.phase_time
+  - is_true: indices.foo.phase_time_millis
   - is_false: indices.foo.failed_step
   - is_false: indices.foo.step_info
   - is_false: indices.foo.phase_execution

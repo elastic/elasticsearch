@@ -90,7 +90,8 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     /**
      * The document types to execute the count against. Defaults to be executed against all types.
      *
-     * @deprecated Types are going away, prefer filtering on a type.
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
     @Deprecated
     public CountRequest types(String... types) {
@@ -172,6 +173,11 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
         return this;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public String[] types() {
         return Arrays.copyOf(this.types, this.types.length);
     }

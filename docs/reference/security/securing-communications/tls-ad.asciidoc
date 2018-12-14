@@ -32,12 +32,12 @@ xpack:
     authc:
       realms:
         active_directory:
-          type: active_directory
-          order: 0
-          domain_name: ad.example.com
-          url: ldaps://ad.example.com:636
-          ssl:
-            certificate_authorities: [ "ES_PATH_CONF/cacert.pem" ]
+          ad_realm:
+            order: 0
+            domain_name: ad.example.com
+            url: ldaps://ad.example.com:636
+            ssl:
+              certificate_authorities: [ "ES_PATH_CONF/cacert.pem" ]
 --------------------------------------------------
 
 The CA cert must be a PEM encoded certificate.

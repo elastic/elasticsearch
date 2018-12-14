@@ -77,7 +77,7 @@ public class TransportNodesListGatewayStartedShards extends
                                                   TransportService transportService, ActionFilters actionFilters,
                                                   NodeEnvironment env, IndicesService indicesService,
                                                   NamedXContentRegistry namedXContentRegistry) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED, NodeGatewayStartedShards.class);
         this.settings = settings;
         this.nodeEnv = env;
@@ -89,11 +89,6 @@ public class TransportNodesListGatewayStartedShards extends
     public void list(ShardId shardId, DiscoveryNode[] nodes,
                      ActionListener<NodesGatewayStartedShards> listener) {
         execute(new Request(shardId, nodes), listener);
-    }
-
-    @Override
-    protected boolean transportCompress() {
-        return true; // this can become big...
     }
 
     @Override

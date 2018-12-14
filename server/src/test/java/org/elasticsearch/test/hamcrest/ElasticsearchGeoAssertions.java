@@ -33,7 +33,6 @@ import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPoint;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
-import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.impl.GeoCircle;
 import org.locationtech.spatial4j.shape.impl.RectangleImpl;
@@ -183,7 +182,8 @@ public class ElasticsearchGeoAssertions {
             assertEquals((MultiLineString) s1, (MultiLineString) s2);
 
         } else {
-            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]");
+            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " +
+                s2.getClass().getName() + "]");
         }
     }
 
@@ -198,7 +198,7 @@ public class ElasticsearchGeoAssertions {
         }
     }
 
-    public static void assertEquals(Shape s1, Shape s2) {
+    public static void assertEquals(Object s1, Object s2) {
         if(s1 instanceof JtsGeometry && s2 instanceof JtsGeometry) {
             assertEquals((JtsGeometry) s1, (JtsGeometry) s2);
         } else if(s1 instanceof JtsPoint && s2 instanceof JtsPoint) {
@@ -211,6 +211,17 @@ public class ElasticsearchGeoAssertions {
             Assert.assertEquals(s1, s2);
         } else if (s1 instanceof RectangleImpl && s2 instanceof RectangleImpl) {
             Assert.assertEquals(s1, s2);
+        } else if (s1 instanceof org.apache.lucene.geo.Line[] && s2 instanceof org.apache.lucene.geo.Line[]) {
+            Assert.assertArrayEquals((org.apache.lucene.geo.Line[])s1, (org.apache.lucene.geo.Line[])s2);
+        } else if (s1 instanceof org.apache.lucene.geo.Polygon[] && s2 instanceof  org.apache.lucene.geo.Polygon[]) {
+            Assert.assertArrayEquals((org.apache.lucene.geo.Polygon[]) s1, (org.apache.lucene.geo.Polygon[]) s2);
+        } else if ((s1 instanceof org.apache.lucene.geo.Line && s2 instanceof org.apache.lucene.geo.Line)
+            || (s1 instanceof org.apache.lucene.geo.Polygon && s2 instanceof org.apache.lucene.geo.Polygon)
+            || (s1 instanceof org.apache.lucene.geo.Rectangle && s2 instanceof org.apache.lucene.geo.Rectangle)
+            || (s1 instanceof GeoPoint && s2 instanceof GeoPoint)) {
+            Assert.assertEquals(s1, s2);
+        } else if (s1 instanceof Object[] && s2 instanceof Object[]) {
+            Assert.assertArrayEquals((Object[])s1, (Object[])s2);
         } else {
             //We want to know the type of the shape because we test shape equality in a special way...
             //... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.
@@ -219,25 +230,50 @@ public class ElasticsearchGeoAssertions {
         }
     }
 
-    private static Geometry unwrap(Shape shape) {
+    @Deprecated
+    private static Geometry unwrapJTS(Object shape) {
         assertThat(shape, instanceOf(JtsGeometry.class));
         return ((JtsGeometry)shape).getGeom();
     }
 
-    public static void assertMultiPolygon(Shape shape) {
-        assert(unwrap(shape) instanceof MultiPolygon): "expected MultiPolygon but found " + unwrap(shape).getClass().getName();
+    public static void assertMultiPolygon(Object shape, boolean useJTS) {
+        if (useJTS) {
+            assertTrue("expected MultiPolygon but found " + unwrapJTS(shape).getClass().getName(),
+                unwrapJTS(shape) instanceof MultiPolygon);
+        } else {
+            assertTrue("expected Polygon[] but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Polygon[]);
+        }
     }
 
-    public static void assertPolygon(Shape shape) {
-        assert(unwrap(shape) instanceof Polygon): "expected Polygon but found " + unwrap(shape).getClass().getName();
+    public static void assertPolygon(Object shape, boolean useJTS) {
+        if (useJTS) {
+            assertTrue("expected Polygon but found "
+                + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof Polygon);
+        } else {
+            assertTrue("expected Polygon but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Polygon);
+        }
     }
 
-    public static void assertLineString(Shape shape) {
-        assert(unwrap(shape) instanceof LineString): "expected LineString but found " + unwrap(shape).getClass().getName();
+    public static void assertLineString(Object shape, boolean useJTS) {
+        if (useJTS) {
+            assertTrue("expected LineString but found "
+                + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof LineString);
+        } else {
+            assertTrue("expected Line but found " + shape.getClass().getName(),
+            shape instanceof org.apache.lucene.geo.Line);
+        }
     }
 
-    public static void assertMultiLineString(Shape shape) {
-        assert(unwrap(shape) instanceof MultiLineString): "expected MultiLineString but found " + unwrap(shape).getClass().getName();
+    public static void assertMultiLineString(Object shape, boolean useJTS) {
+        if (useJTS) {
+            assertTrue("expected MultiLineString but found "
+                + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof MultiLineString);
+        } else {
+            assertTrue("expected Line[] but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Line[]);
+        }
     }
 
     public static void assertDistance(String geohash1, String geohash2, Matcher<Double> match) {
@@ -256,11 +292,11 @@ public class ElasticsearchGeoAssertions {
 
     public static void assertValidException(XContentParser parser, Class<?> expectedException) {
         try {
-            ShapeParser.parse(parser).build();
+            ShapeParser.parse(parser).buildS4J();
             Assert.fail("process completed successfully when " + expectedException.getName() + " expected");
         } catch (Exception e) {
-            assert(e.getClass().equals(expectedException)):
-                    "expected " + expectedException.getName() + " but found " + e.getClass().getName();
+            assertTrue("expected " + expectedException.getName() + " but found " + e.getClass().getName(),
+                e.getClass().equals(expectedException));
         }
     }
 }

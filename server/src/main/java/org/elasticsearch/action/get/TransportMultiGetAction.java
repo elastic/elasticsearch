@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -44,10 +44,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiGetAction(Settings settings, TransportService transportService,
-                                   ClusterService clusterService, TransportShardMultiGetAction shardAction,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver resolver) {
-        super(settings, MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
+    public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
+                                   TransportShardMultiGetAction shardAction, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver resolver) {
+        super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = resolver;
@@ -69,9 +69,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
 
                 item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
-                if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type()))) {
-                    String message = "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]";
-                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(), new IllegalArgumentException(message)));
+                if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex))) {
+                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(),
+                        new RoutingMissingException(concreteSingleIndex, item.type(), item.id())));
                     continue;
                 }
             } catch (Exception e) {
@@ -96,6 +96,12 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
             listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
         }
 
+        executeShardAction(listener, responses, shardRequests);
+    }
+
+    protected void executeShardAction(ActionListener<MultiGetResponse> listener,
+                                      AtomicArray<MultiGetItemResponse> responses,
+                                      Map<ShardId, MultiGetShardRequest> shardRequests) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {

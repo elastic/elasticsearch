@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -27,19 +28,31 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ConnectionProfileTests extends ESTestCase {
 
     public void testBuildConnectionProfile() {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
-        TimeValue handshaketTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        TimeValue handshakeTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        TimeValue pingInterval = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        boolean compressionEnabled = randomBoolean();
         final boolean setConnectTimeout = randomBoolean();
         if (setConnectTimeout) {
             builder.setConnectTimeout(connectTimeout);
         }
         final boolean setHandshakeTimeout = randomBoolean();
         if (setHandshakeTimeout) {
-            builder.setHandshakeTimeout(handshaketTimeout);
+            builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        final boolean setCompress = randomBoolean();
+        if (setCompress) {
+            builder.setCompressionEnabled(compressionEnabled);
+        }
+        final boolean setPingInterval = randomBoolean();
+        if (setPingInterval) {
+            builder.setPingInterval(pingInterval);
         }
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
@@ -63,9 +76,21 @@ public class ConnectionProfileTests extends ESTestCase {
         }
 
         if (setHandshakeTimeout) {
-            assertEquals(handshaketTimeout, build.getHandshakeTimeout());
+            assertEquals(handshakeTimeout, build.getHandshakeTimeout());
         } else {
             assertNull(build.getHandshakeTimeout());
+        }
+
+        if (setCompress) {
+            assertEquals(compressionEnabled, build.getCompressionEnabled());
+        } else {
+            assertNull(build.getCompressionEnabled());
+        }
+
+        if (setPingInterval) {
+            assertEquals(pingInterval, build.getPingInterval());
+        } else {
+            assertNull(build.getPingInterval());
         }
 
         List<Integer> list = new ArrayList<>(10);
@@ -125,5 +150,88 @@ public class ConnectionProfileTests extends ESTestCase {
         List<Integer> array = Collections.singletonList(0);
         assertEquals(Integer.valueOf(0), build.getHandles().get(0).getChannel(array));
         expectThrows(IllegalStateException.class, () -> build.getHandles().get(1).getChannel(array));
+    }
+
+    public void testConnectionProfileResolve() {
+        final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(defaultProfile, ConnectionProfile.resolveConnectionProfile(null, defaultProfile));
+
+        final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.BULK);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.REG);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.STATE);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.PING);
+
+        final boolean connectionTimeoutSet = randomBoolean();
+        if (connectionTimeoutSet) {
+            builder.setConnectTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        final boolean connectionHandshakeSet = randomBoolean();
+        if (connectionHandshakeSet) {
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        final boolean pingIntervalSet = randomBoolean();
+        if (pingIntervalSet) {
+            builder.setPingInterval(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        final boolean connectionCompressSet = randomBoolean();
+        if (connectionCompressSet) {
+            builder.setCompressionEnabled(randomBoolean());
+        }
+
+        final ConnectionProfile profile = builder.build();
+        final ConnectionProfile resolved = ConnectionProfile.resolveConnectionProfile(profile, defaultProfile);
+        assertNotEquals(resolved, defaultProfile);
+        assertThat(resolved.getNumConnections(), equalTo(profile.getNumConnections()));
+        assertThat(resolved.getHandles(), equalTo(profile.getHandles()));
+
+        assertThat(resolved.getConnectTimeout(),
+            equalTo(connectionTimeoutSet ? profile.getConnectTimeout() : defaultProfile.getConnectTimeout()));
+        assertThat(resolved.getHandshakeTimeout(),
+            equalTo(connectionHandshakeSet ? profile.getHandshakeTimeout() : defaultProfile.getHandshakeTimeout()));
+        assertThat(resolved.getPingInterval(),
+            equalTo(pingIntervalSet ? profile.getPingInterval() : defaultProfile.getPingInterval()));
+        assertThat(resolved.getCompressionEnabled(),
+            equalTo(connectionCompressSet ? profile.getCompressionEnabled() : defaultProfile.getCompressionEnabled()));
+    }
+
+    public void testDefaultConnectionProfile() {
+        ConnectionProfile profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(13, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(TransportService.TCP_CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
+        assertEquals(TransportService.TCP_CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
+        assertEquals(Transport.TRANSPORT_TCP_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
+        assertEquals(TcpTransport.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
+
+        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
+        assertEquals(12, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
+        assertEquals(11, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.data", false)
+            .put("node.master", false).build());
+        assertEquals(10, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
     }
 }

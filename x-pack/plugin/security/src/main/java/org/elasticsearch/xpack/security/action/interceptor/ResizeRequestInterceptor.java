@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
+import static org.elasticsearch.xpack.security.audit.AuditUtil.extractRequestId;
+
 public final class ResizeRequestInterceptor implements RequestInterceptor<ResizeRequest> {
 
     private final ThreadContext threadContext;
@@ -59,7 +61,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor<Resize
                 userPermissions.indices().allowedActionsMatcher(request.getTargetIndexRequest().index());
             if (Operations.subsetOf(targetIndexPermissions, sourceIndexPermissions) == false) {
                 // TODO we've already audited a access granted event so this is going to look ugly
-                auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
+                auditTrailService.accessDenied(extractRequestId(threadContext), authentication, action, request, userPermissions.names());
                 throw Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
                     "has more permissions than the source index");
             }

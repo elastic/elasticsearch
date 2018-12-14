@@ -6,23 +6,22 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
-import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
-import java.sql.JDBCType;
+import java.sql.Types;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class CliFormatterTests extends ESTestCase {
-    private final SqlQueryResponse firstResponse = new SqlQueryResponse("",
+    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", Mode.PLAIN,
             Arrays.asList(
-                    new ColumnInfo("", "foo", "string", JDBCType.VARCHAR, 0),
-                    new ColumnInfo("", "bar", "long", JDBCType.BIGINT, 15),
-                    new ColumnInfo("", "15charwidename!", "double", JDBCType.DOUBLE, 25),
-                    new ColumnInfo("", "superduperwidename!!!", "double", JDBCType.DOUBLE, 25),
-                    new ColumnInfo("", "baz", "keyword", JDBCType.VARCHAR, 0)),
+                    new ColumnInfo("", "foo", "string", Types.VARCHAR, 0),
+                    new ColumnInfo("", "bar", "long", Types.BIGINT, 15),
+                    new ColumnInfo("", "15charwidename!", "double", Types.DOUBLE, 25),
+                    new ColumnInfo("", "superduperwidename!!!", "double", Types.DOUBLE, 25),
+                    new ColumnInfo("", "baz", "keyword", Types.VARCHAR, 0)),
             Arrays.asList(
                 Arrays.asList("15charwidedata!", 1, 6.888, 12, "rabbit"),
                 Arrays.asList("dog", 1.7976931348623157E308, 123124.888, 9912, "goat")));

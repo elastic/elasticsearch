@@ -18,5 +18,6 @@ integTestCluster {
 }
 
 if (!pagerDutyServiceKey) {
-    integTest.enabled = false
+  integTest.enabled = false
+  testingConventions.enabled = false
 }

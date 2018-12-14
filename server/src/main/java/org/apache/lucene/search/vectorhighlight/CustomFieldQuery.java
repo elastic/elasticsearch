@@ -53,7 +53,7 @@ public class CustomFieldQuery extends FieldQuery {
     }
 
     @Override
-    void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
+    protected void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
         if (sourceQuery instanceof BoostQuery) {
             BoostQuery bq = (BoostQuery) sourceQuery;
             sourceQuery = bq.getQuery();

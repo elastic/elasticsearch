@@ -112,8 +112,8 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-To retrieve information about multiple repositories, specify a
-a comma-delimited list of repositories. You can also use the * wildcard when
+To retrieve information about multiple repositories, specify a comma-delimited 
+list of repositories. You can also use the * wildcard when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or
 contain `backup`:

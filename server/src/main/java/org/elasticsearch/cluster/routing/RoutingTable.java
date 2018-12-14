@@ -266,7 +266,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                                     Collections.singletonList(shardRouting.getTargetRelocatingShard())));
                         }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.<ShardRouting>emptyList()));
+                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.emptyList()));
                     }
                 }
             }
@@ -328,7 +328,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 if (primary.active()) {
                     set.add(primary.shardsIt());
                 } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                    set.add(new PlainShardIterator(primary.shardId(), Collections.<ShardRouting>emptyList()));
+                    set.add(new PlainShardIterator(primary.shardId(), Collections.emptyList()));
                 }
             }
         }
@@ -564,14 +564,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         public Builder add(IndexRoutingTable.Builder indexRoutingTableBuilder) {
             add(indexRoutingTableBuilder.build());
-            return this;
-        }
-
-        public Builder indicesRouting(Map<String, IndexRoutingTable> indicesRouting) {
-            if (indicesRouting == null) {
-                throw new IllegalStateException("once build is called the builder cannot be reused");
-            }
-            this.indicesRouting.putAll(indicesRouting);
             return this;
         }
 

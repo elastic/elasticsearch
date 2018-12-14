@@ -7,6 +7,7 @@ etc.
 
 This is conceptually very similar to the <<search-aggregations-pipeline-movavg-aggregation, Moving Average>> pipeline aggregation, except
 it provides more functionality.
+
 ==== Syntax
 
 A `moving_fn` aggregation looks like this in isolation:

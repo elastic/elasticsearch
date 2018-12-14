@@ -11,8 +11,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -24,18 +22,15 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.io.IOException;
-
 public class TransportKillProcessAction extends TransportJobTaskAction<KillProcessAction.Request, KillProcessAction.Response> {
 
     private final Auditor auditor;
 
     @Inject
-    public TransportKillProcessAction(Settings settings, TransportService transportService,
-                                      ClusterService clusterService, ActionFilters actionFilters,
+    public TransportKillProcessAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
                                       AutodetectProcessManager processManager, Auditor auditor) {
-        super(settings, KillProcessAction.NAME, clusterService, transportService, actionFilters,
-            KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
+        super(KillProcessAction.NAME, clusterService, transportService, actionFilters, KillProcessAction.Request::new,
+            KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
         this.auditor = auditor;
     }
 
@@ -74,9 +69,4 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
         super.doExecute(task, request, listener);
     }
 
-
-    @Override
-    protected KillProcessAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new KillProcessAction.Response(in);
-    }
 }

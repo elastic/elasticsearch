@@ -29,6 +29,26 @@ minimal:
         - create_index
         - indices:admin/refresh
 
+# Search and write on both source and destination indices. It should work if you could just search on the source and
+# write to the destination but that isn't how security works.
+minimal_with_task:
+  cluster:
+    - cluster:monitor/main
+    - cluster:monitor/task/get
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
 # Read only operations on indices
 readonly:
   cluster:

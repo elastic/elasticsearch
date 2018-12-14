@@ -106,7 +106,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    public void testFailLeaderReplicaShard() throws Exception {
+    public void testAddRemoveShardOnLeader() throws Exception {
         try (ReplicationGroup leaderGroup = createGroup(1 + randomInt(1));
              ReplicationGroup followerGroup = createFollowGroup(randomInt(2))) {
             leaderGroup.startAll();
@@ -120,31 +120,28 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
                     followerSeqNoStats.getMaxSeqNo());
-            int docCount = 256;
-            leaderGroup.appendDocs(1);
-            Runnable task = () -> {
-                try {
-                    leaderGroup.appendDocs(docCount - 1);
-                    leaderGroup.syncGlobalCheckpoint();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
+            int batches = between(0, 10);
+            int docCount = 0;
+            for (int i = 0; i < batches; i++) {
+                docCount += leaderGroup.indexDocs(between(1, 5));
+                if (leaderGroup.getReplicas().isEmpty() == false && randomInt(100) < 5) {
+                    IndexShard closingReplica = randomFrom(leaderGroup.getReplicas());
+                    leaderGroup.removeReplica(closingReplica);
+                    closingReplica.close("test", false);
+                    closingReplica.store().close();
+                } else if (leaderGroup.getReplicas().isEmpty() == false && rarely()) {
+                    IndexShard newPrimary = randomFrom(leaderGroup.getReplicas());
+                    leaderGroup.promoteReplicaToPrimary(newPrimary).get();
+                } else if (randomInt(100) < 5) {
+                    leaderGroup.addReplica();
+                    leaderGroup.startReplicas(1);
                 }
-            };
-            Thread thread = new Thread(task);
-            thread.start();
-
-            // Remove and add a new replica
-            IndexShard luckyReplica = randomFrom(leaderGroup.getReplicas());
-            leaderGroup.removeReplica(luckyReplica);
-            luckyReplica.close("stop replica", false);
-            luckyReplica.store().close();
-            leaderGroup.addReplica();
-            leaderGroup.startReplicas(1);
-            thread.join();
-
+                leaderGroup.syncGlobalCheckpoint();
+            }
             leaderGroup.assertAllEqual(docCount);
             assertThat(shardFollowTask.getFailure(), nullValue());
-            assertBusy(() -> followerGroup.assertAllEqual(docCount));
+            int expectedDoc = docCount;
+            assertBusy(() -> followerGroup.assertAllEqual(expectedDoc));
             shardFollowTask.markAsCompleted();
             assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
         }
@@ -403,6 +400,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
+            protected void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler) {
+                // no-op as settings updates are not tested here
+                handler.accept(1L);
+            }
+
+            @Override
             protected void innerSendBulkShardOperationsRequest(
                 final String followerHistoryUUID,
                 final List<Translog.Operation> operations,
@@ -432,7 +435,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
-                                handler.accept(ShardChangesAction.getResponse(1L, seqNoStats,
+                                handler.accept(ShardChangesAction.getResponse(1L, 1L, seqNoStats,
                                     maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY, 1L));
                                 return;
                             }
@@ -440,6 +443,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 maxOperationCount, recordedLeaderIndexHistoryUUID, params.getMaxReadRequestSize());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
+                                1L,
                                 1L,
                                 seqNoStats.getGlobalCheckpoint(),
                                 seqNoStats.getMaxSeqNo(),

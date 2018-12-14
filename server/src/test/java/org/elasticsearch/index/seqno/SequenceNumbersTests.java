@@ -20,6 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,4 +58,11 @@ public class SequenceNumbersTests extends ESTestCase {
         assertThat(e, hasToString(containsString("sequence number must be assigned")));
     }
 
+    public void testSeqNoStatsEqualsAndHashCode() {
+        final long maxSeqNo = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, Long.MAX_VALUE);
+        final long localCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, maxSeqNo);
+        final long globalCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, localCheckpoint);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint),
+            stats -> new SeqNoStats(stats.getMaxSeqNo(), stats.getLocalCheckpoint(), stats.getGlobalCheckpoint()));
+    }
 }

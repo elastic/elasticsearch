@@ -38,6 +38,5 @@ task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
 }
 
 thirdPartyAudit.enabled = false
-licenseHeaders.enabled = false
 test.enabled = false
 jarHell.enabled = false

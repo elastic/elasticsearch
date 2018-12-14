@@ -87,6 +87,16 @@ public abstract class DebPreservationTestCase extends PackagingTestCase {
             installation.config("log4j2.properties")
         );
 
+        if (distribution().isDefault()) {
+            assertPathsExist(
+                installation.config,
+                installation.config("role_mapping.yml"),
+                installation.config("roles.yml"),
+                installation.config("users"),
+                installation.config("users_roles")
+            );
+        }
+
         // keystore was removed
 
         assertPathsDontExist(

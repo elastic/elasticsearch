@@ -46,7 +46,7 @@ public class UsersToolTests extends CommandTestCase {
     // the mock filesystem we use so permissions/users/groups can be modified
     static FileSystem jimfs;
     String pathHomeParameter;
-    String fileTypeParameter;
+    String fileOrderParameter;
 
     // the config dir for each test to use
     Path confDir;
@@ -92,10 +92,10 @@ public class UsersToolTests extends CommandTestCase {
         settings =
                 Settings.builder()
                         .put("path.home", homeDir)
-                        .put("xpack.security.authc.realms.file.type", "file")
+                        .put("xpack.security.authc.realms.file.file.order", 0)
                         .build();
         pathHomeParameter = "-Epath.home=" + homeDir;
-        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
     }
 
     @AfterClass
@@ -329,18 +329,18 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddNoPassword() throws Exception {
         terminal.addSecretInput(SecuritySettingsSourceField.TEST_PASSWORD);
         terminal.addSecretInput(SecuritySettingsSourceField.TEST_PASSWORD);
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username");
+        execute("useradd", pathHomeParameter, fileOrderParameter, "username");
         assertUser("username", SecuritySettingsSourceField.TEST_PASSWORD);
     }
 
     public void testUseraddPasswordOption() throws Exception {
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+        execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         assertUser("username", SecuritySettingsSourceField.TEST_PASSWORD);
     }
 
     public void testUseraddUserExists() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("useradd", pathHomeParameter, fileTypeParameter, "existing_user", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+            execute("useradd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CODE_ERROR, e.exitCode);
         assertEquals("User [existing_user] already exists", e.getMessage());
@@ -349,7 +349,7 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddReservedUser() throws Exception {
         final String name = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         UserException e = expectThrows(UserException.class, () -> {
-            execute("useradd", pathHomeParameter, fileTypeParameter, name, "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+            execute("useradd", pathHomeParameter, fileOrderParameter, name, "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertEquals("Invalid username [" + name + "]... Username [" + name + "] is reserved and may not be used.", e.getMessage());
@@ -358,27 +358,27 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddNoRoles() throws Exception {
         Files.delete(confDir.resolve("users_roles"));
         Files.createFile(confDir.resolve("users_roles"));
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+        execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         List<String> lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
         assertTrue(lines.toString(), lines.isEmpty());
     }
 
     public void testUserdelUnknownUser() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("userdel", pathHomeParameter, fileTypeParameter, "unknown");
+            execute("userdel", pathHomeParameter, fileOrderParameter, "unknown");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
     public void testUserdel() throws Exception {
-        execute("userdel", pathHomeParameter, fileTypeParameter, "existing_user");
+        execute("userdel", pathHomeParameter, fileOrderParameter, "existing_user");
         assertNoUser("existing_user");
     }
 
     public void testPasswdUnknownUser() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("passwd", pathHomeParameter, fileTypeParameter, "unknown", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+            execute("passwd", pathHomeParameter, fileOrderParameter, "unknown", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
@@ -387,65 +387,65 @@ public class UsersToolTests extends CommandTestCase {
     public void testPasswdNoPasswordOption() throws Exception {
         terminal.addSecretInput("newpassword");
         terminal.addSecretInput("newpassword");
-        execute("passwd", pathHomeParameter, fileTypeParameter, "existing_user");
+        execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user");
         assertUser("existing_user", "newpassword");
         assertRole("test_admin", "existing_user", "existing_user2"); // roles unchanged
     }
 
     public void testPasswd() throws Exception {
-        execute("passwd", pathHomeParameter, fileTypeParameter, "existing_user", "-p", "newpassword");
+        execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
         assertUser("existing_user", "newpassword");
         assertRole("test_admin", "existing_user"); // roles unchanged
     }
 
     public void testRolesUnknownUser() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("roles", pathHomeParameter, fileTypeParameter, "unknown");
+            execute("roles", pathHomeParameter, fileOrderParameter, "unknown");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
     public void testRolesAdd() throws Exception {
-        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-a", "test_r1");
+        execute("roles", pathHomeParameter, fileOrderParameter, "existing_user", "-a", "test_r1");
         assertRole("test_admin", "existing_user");
         assertRole("test_r1", "existing_user");
     }
 
     public void testRolesRemove() throws Exception {
-        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-r", "test_admin");
+        execute("roles", pathHomeParameter, fileOrderParameter, "existing_user", "-r", "test_admin");
         assertRole("test_admin", "existing_user2");
     }
 
     public void testRolesAddAndRemove() throws Exception {
-        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-a", "test_r1", "-r", "test_admin");
+        execute("roles", pathHomeParameter, fileOrderParameter, "existing_user", "-a", "test_r1", "-r", "test_admin");
         assertRole("test_admin", "existing_user2");
         assertRole("test_r1", "existing_user");
     }
 
     public void testRolesRemoveLeavesExisting() throws Exception {
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD,
+        execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD,
                 "-r", "test_admin");
-        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-r", "test_admin");
+        execute("roles", pathHomeParameter, fileOrderParameter, "existing_user", "-r", "test_admin");
         assertRole("test_admin", "username");
     }
 
     public void testRolesNoAddOrRemove() throws Exception {
-        String output = execute("roles", pathHomeParameter, fileTypeParameter, "existing_user");
+        String output = execute("roles", pathHomeParameter, fileOrderParameter, "existing_user");
         assertTrue(output, output.contains("existing_user"));
         assertTrue(output, output.contains("test_admin"));
     }
 
     public void testListUnknownUser() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("list", pathHomeParameter, fileTypeParameter, "unknown");
+            execute("list", pathHomeParameter, fileOrderParameter, "unknown");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
     public void testListAllUsers() throws Exception {
-        String output = execute("list", pathHomeParameter, fileTypeParameter);
+        String output = execute("list", pathHomeParameter, fileOrderParameter);
         assertTrue(output, output.contains("existing_user"));
         assertTrue(output, output.contains("test_admin"));
         assertTrue(output, output.contains("existing_user2"));
@@ -456,7 +456,7 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testListSingleUser() throws Exception {
-        String output = execute("list", pathHomeParameter, fileTypeParameter, "existing_user");
+        String output = execute("list", pathHomeParameter, fileOrderParameter, "existing_user");
         assertTrue(output, output.contains("existing_user"));
         assertTrue(output, output.contains("test_admin"));
         assertFalse(output, output.contains("existing_user2"));
@@ -467,9 +467,9 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testListUnknownRoles() throws Exception {
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD,
+        execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD,
                 "-r", "test_r1,r2,r3");
-        String output = execute("list", pathHomeParameter, fileTypeParameter, "username");
+        String output = execute("list", pathHomeParameter, fileOrderParameter, "username");
         assertTrue(output, output.contains("username"));
         assertTrue(output, output.contains("r2*,r3*,test_r1"));
     }
@@ -479,14 +479,14 @@ public class UsersToolTests extends CommandTestCase {
         Files.createFile(confDir.resolve("users"));
         Files.delete(confDir.resolve("users_roles"));
         Files.createFile(confDir.resolve("users_roles"));
-        String output = execute("list", pathHomeParameter, fileTypeParameter);
+        String output = execute("list", pathHomeParameter, fileOrderParameter);
         assertTrue(output, output.contains("No users found"));
     }
 
     public void testListUserWithoutRoles() throws Exception {
-        String output = execute("list", pathHomeParameter, fileTypeParameter, "existing_user3");
+        String output = execute("list", pathHomeParameter, fileOrderParameter, "existing_user3");
         assertTrue(output, output.contains("existing_user3"));
-        output = execute("list", pathHomeParameter, fileTypeParameter);
+        output = execute("list", pathHomeParameter, fileOrderParameter);
         assertTrue(output, output.contains("existing_user3"));
 
         // output should not contain '*' which indicates unknown role
@@ -497,9 +497,9 @@ public class UsersToolTests extends CommandTestCase {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
-        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
         UserException e = expectThrows(UserException.class, () -> {
-            execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
+            execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
@@ -509,9 +509,9 @@ public class UsersToolTests extends CommandTestCase {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
-        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
         UserException e = expectThrows(UserException.class, () -> {
-            execute("list", pathHomeParameter, fileTypeParameter);
+            execute("list", pathHomeParameter, fileOrderParameter);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
@@ -521,9 +521,9 @@ public class UsersToolTests extends CommandTestCase {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
-        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
         UserException e = expectThrows(UserException.class, () -> {
-            execute("userdel", pathHomeParameter, fileTypeParameter, "username");
+            execute("userdel", pathHomeParameter, fileOrderParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
@@ -533,9 +533,9 @@ public class UsersToolTests extends CommandTestCase {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(confDir.resolve("users_roles"));
         pathHomeParameter = "-Epath.home=" + homeDir;
-        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
         UserException e = expectThrows(UserException.class, () -> {
-            execute("roles", pathHomeParameter, fileTypeParameter, "username");
+            execute("roles", pathHomeParameter, fileOrderParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users_roles] is missing"));

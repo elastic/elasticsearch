@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 /**
  * Subtraction function ({@code a - b}).
  */
-public class Sub extends ArithmeticOperation {
+public class Sub extends DateTimeArithmeticOperation {
 
     public Sub(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryArithmeticOperation.SUB);

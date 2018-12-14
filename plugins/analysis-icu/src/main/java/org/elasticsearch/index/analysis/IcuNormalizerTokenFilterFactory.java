@@ -37,9 +37,11 @@ import org.elasticsearch.index.IndexSettings;
  * <p>The {@code name} can be used to provide the type of normalization to perform.</p>
  * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
-public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
+
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(IcuNormalizerTokenFilterFactory.class));
+
     private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
@@ -54,16 +56,11 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
-
     static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,
                                                 final Normalizer2 normalizer,
                                                 final Settings settings) {
         String unicodeSetFilter = settings.get("unicodeSetFilter");
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             if (unicodeSetFilter != null) {
                 deprecationLogger.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
             } else {

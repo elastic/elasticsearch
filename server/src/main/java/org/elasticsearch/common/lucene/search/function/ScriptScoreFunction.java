@@ -69,6 +69,9 @@ public class ScriptScoreFunction extends ScoreFunction {
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute();
+                if (result < 0f) {
+                    throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
+                }
                 return result;
             }
 
@@ -82,16 +85,14 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue().floatValue());
+                    // info about params already included in sScript
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
-                    if (sScript.getParams() != null) {
-                        explanation += " and parameters: \n" + sScript.getParams().toString();
-                    }
                     Explanation scoreExp = Explanation.match(
-                            subQueryScore.getValue(), "_score: ",
-                            subQueryScore);
+                        subQueryScore.getValue(), "_score: ",
+                        subQueryScore);
                     return Explanation.match(
-                            (float) score, explanation,
-                            scoreExp);
+                        (float) score, explanation,
+                        scoreExp);
                 }
                 return exp;
             }

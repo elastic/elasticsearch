@@ -352,7 +352,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
-                // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first segment are emitted as hits.
+                // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first
+                // segment are emitted as hits.
                 assertEquals(4L, nested.getDocCount());
             }
         }

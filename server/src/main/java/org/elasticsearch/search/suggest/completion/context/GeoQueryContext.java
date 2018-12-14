@@ -114,7 +114,9 @@ public final class GeoQueryContext implements ToXContentObject {
 
     private static ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
     static {
-        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)), new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
+        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext,
+                geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),
+                new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext.Builder::setBoost, new ParseField(CONTEXT_BOOST));
         GEO_CONTEXT_PARSER.declareField((parser, builder, context) -> builder.setPrecision(parsePrecision(parser)),
             new ParseField(CONTEXT_PRECISION), ObjectParser.ValueType.INT);

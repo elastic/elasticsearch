@@ -27,6 +27,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Allocates all shards in a single index to one node.
+ * For example, as preparation for shrinking that index.
+ */
 public class SetSingleNodeAllocateStep extends AsyncActionStep {
     public static final String NAME = "set-single-node-allocation";
 

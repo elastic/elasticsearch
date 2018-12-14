@@ -22,6 +22,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -85,6 +87,12 @@ public final class ThreadContext implements Closeable, Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
+
+    /**
+     * Name for the {@link #stashWithOrigin origin} attribute.
+     */
+    public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
@@ -119,12 +127,37 @@ public final class ThreadContext implements Closeable, Writeable {
 
     /**
      * Removes the current context and resets a default context. The removed context can be
-     * restored when closing the returned {@link StoredContext}
+     * restored by closing the returned {@link StoredContext}.
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         threadLocal.set(null);
         return () -> threadLocal.set(context);
+    }
+
+    /**
+     * Removes the current context and resets a default context marked with as
+     * originating from the supplied string. The removed context can be
+     * restored by closing the returned {@link StoredContext}. Callers should
+     * be careful to save the current context before calling this method and
+     * restore it any listeners, likely with
+     * {@link ContextPreservingActionListener}. Use {@link OriginSettingClient}
+     * which can be used to do this automatically.
+     * <p>
+     * Without security the origin is ignored, but security uses it to authorize
+     * actions that are made up of many sub-actions. These actions call
+     * {@link #stashWithOrigin} before performing on behalf of a user that
+     * should be allowed even if the user doesn't have permission to perform
+     * those actions on their own.
+     * <p>
+     * For example, a user might not have permission to GET from the tasks index
+     * but the tasks API will perform a get on their behalf using this method
+     * if it can't find the task in memory.
+     */
+    public StoredContext stashWithOrigin(String origin) {
+        final ThreadContext.StoredContext storedContext = stashContext();
+        putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
+        return storedContext;
     }
 
     /**

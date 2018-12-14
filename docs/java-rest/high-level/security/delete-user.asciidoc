@@ -1,0 +1,32 @@
+--
+:api: delete-user
+:request: DeleteUserRequest
+:response: DeleteUserResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete User API
+
+[id="{upid}-{api}-request"]
+==== Delete User Request
+
+A user can be deleted as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Delete Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> whether the given user was found
+
+include::../execution.asciidoc[]

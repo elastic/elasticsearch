@@ -71,6 +71,7 @@ setup:
                 "search" : {
                   "request" : {
                     "indices" : "idx",
+                    "rest_total_hits_as_int": true,
                     "body" : {
                       "query" : {
                         "bool" : {
@@ -128,6 +129,7 @@ setup:
               "transform" : {
                 "search" : {
                   "request" : {
+                    "rest_total_hits_as_int": true,
                     "indices" : "idx",
                     "template" : {
                       "source" : "{\"query\": {\"bool\" : { \"must\": [{\"term\": {\"value\": \"val_{{ctx.payload.number}}\"}}]}}}"

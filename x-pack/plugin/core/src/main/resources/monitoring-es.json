@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 7000001,
+  "version": 7000099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -969,6 +969,9 @@
               "type": "long"
             },
             "follower_mapping_version": {
+              "type": "long"
+            },
+            "follower_settings_version": {
               "type": "long"
             },
             "total_read_time_millis": {

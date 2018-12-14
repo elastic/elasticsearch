@@ -41,7 +41,8 @@ public class AggregatedDfs implements Streamable {
     private AggregatedDfs() {
     }
 
-    public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics,
+            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;

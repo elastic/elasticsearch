@@ -74,7 +74,6 @@ task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
 }
 
 thirdPartyAudit.enabled = false
-licenseHeaders.enabled = false
 test.enabled = false
 
 // installKDC uses tabs in it for the Kerberos ACL file.

@@ -22,8 +22,10 @@ package org.elasticsearch.client;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetBasicStatusResponse;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseResponse;
+import org.elasticsearch.client.license.GetTrialStatusResponse;
 import org.elasticsearch.client.license.LicensesStatus;
 import org.elasticsearch.client.license.PutLicenseRequest;
 import org.elasticsearch.client.license.PutLicenseResponse;
@@ -197,5 +199,15 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
         final DeleteLicenseRequest request = new DeleteLicenseRequest();
         final AcknowledgedResponse response = highLevelClient().license().deleteLicense(request, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), equalTo(true));
+    }
+
+    public void testGetTrialStatus() throws IOException {
+        GetTrialStatusResponse trialStatus = highLevelClient().license().getTrialStatus(RequestOptions.DEFAULT);
+        assertFalse(trialStatus.isEligibleToStartTrial());
+    }
+
+    public void testGetBasicStatus() throws IOException {
+        GetBasicStatusResponse basicStatus = highLevelClient().license().getBasicStatus(RequestOptions.DEFAULT);
+        assertTrue(basicStatus.isEligibleToStartBasic());
     }
 }

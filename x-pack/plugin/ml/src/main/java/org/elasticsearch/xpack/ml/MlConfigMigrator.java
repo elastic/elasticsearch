@@ -9,10 +9,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,12 +35,14 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -90,12 +96,14 @@ public class MlConfigMigrator {
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private final AtomicBoolean migrationInProgress;
+    private final AtomicBoolean firstTime;
 
     public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
+        this.firstTime = new AtomicBoolean(true);
     }
 
     /**
@@ -127,9 +135,6 @@ public class MlConfigMigrator {
             return;
         }
 
-
-        logger.debug("migrating ml configurations");
-
         Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
         Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
                 .map(MlConfigMigrator::updateJobForMigration)
@@ -148,10 +153,23 @@ public class MlConfigMigrator {
                 }
         );
 
+        if (firstTime.get()) {
+            snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
+                    response -> {
+                        firstTime.set(false);
+                        unMarkMigrationInProgress.onResponse(Boolean.TRUE);
+                    },
+                    unMarkMigrationInProgress::onFailure
+            ));
+            return;
+        }
+
         if (jobsAndDatafeedsToMigrate.totalCount() == 0) {
             unMarkMigrationInProgress.onResponse(Boolean.FALSE);
             return;
         }
+
+        logger.debug("migrating ml configurations");
 
         writeConfigToIndex(jobsAndDatafeedsToMigrate.datafeedConfigs, jobsAndDatafeedsToMigrate.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
@@ -299,6 +317,44 @@ public class MlConfigMigrator {
         }
         return indexRequest;
     }
+
+
+    // public for testing
+    public void snapshotMlMeta(MlMetadata mlMetadata, ActionListener<Boolean> listener) {
+
+        if (mlMetadata.getJobs().isEmpty() && mlMetadata.getDatafeeds().isEmpty()) {
+            listener.onResponse(Boolean.TRUE);
+            return;
+        }
+
+        String documentId = "ml-config";
+        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
+                ElasticsearchMappings.DOC_TYPE, documentId)
+                .setOpType(DocWriteRequest.OpType.CREATE);
+
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            mlMetadata.toXContent(builder, params);
+            builder.endObject();
+
+            indexRequest.setSource(builder);
+        } catch (IOException e) {
+            logger.error("failed to serialise mlmetadata", e);
+            listener.onFailure(e);
+            return;
+        }
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
+                ActionListener.<IndexResponse>wrap(
+                        indexResponse -> {
+                            listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
+                        },
+                        listener::onFailure),
+                client::index
+        );
+    }
+
 
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);

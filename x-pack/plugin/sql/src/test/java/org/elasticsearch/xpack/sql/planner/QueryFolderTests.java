@@ -240,7 +240,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.convert(" +
+            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
                     "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
                     "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));

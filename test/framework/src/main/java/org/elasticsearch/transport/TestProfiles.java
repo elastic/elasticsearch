@@ -33,7 +33,11 @@ final class TestProfiles {
 
     static {
         ConnectionProfile source = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder(source);
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.setConnectTimeout(source.getConnectTimeout());
+        builder.setHandshakeTimeout(source.getHandshakeTimeout());
+        builder.setCompressionEnabled(source.getCompressionEnabled());
+        builder.setPingInterval(source.getPingInterval());
         builder.addConnections(1,
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.PING,

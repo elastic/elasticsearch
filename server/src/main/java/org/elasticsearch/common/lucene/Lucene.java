@@ -324,7 +324,7 @@ public class Lucene {
         } else if (type == 1) {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
-            SortField[] fields = readSortFields(in);
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
             for (int i = 0; i < fieldDocs.length; i++) {
                 fieldDocs[i] = readFieldDoc(in);
@@ -335,7 +335,7 @@ public class Lucene {
             float maxScore = in.readFloat();
 
             String field = in.readString();
-            SortField[] fields = readSortFields(in);
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             int size = in.readVInt();
             Object[] collapseValues = new Object[size];
             FieldDoc[] fieldDocs = new FieldDoc[size];
@@ -431,7 +431,7 @@ public class Lucene {
             out.writeFloat(topDocs.maxScore);
 
             out.writeString(collapseDocs.field);
-            writeSortFields(out, collapseDocs.fields);
+            out.writeArray(Lucene::writeSortField, collapseDocs.fields);
 
             out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
@@ -446,7 +446,7 @@ public class Lucene {
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
 
-            writeSortFields(out, topFieldDocs.fields);
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
 
             out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
@@ -562,14 +562,6 @@ public class Lucene {
             sortField.setMissingValue(missingValue);
         }
         return sortField;
-    }
-
-    public static SortField[] readSortFields(StreamInput in) throws IOException {
-        return in.readArray(Lucene::readSortField, SortField[]::new);
-    }
-
-    public static void writeSortFields(StreamOutput out, SortField[] sortFields) throws IOException {
-        out.writeArray(Lucene::writeSortField, sortFields);
     }
 
     public static void writeSortType(StreamOutput out, SortField.Type sortType) throws IOException {
@@ -1061,7 +1053,7 @@ public class Lucene {
             }
 
             public LeafMetaData getMetaData() {
-                return new LeafMetaData(Version.LATEST.major, Version.LATEST, (Sort)null);
+                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
             }
 
             public CacheHelper getCoreCacheHelper() {

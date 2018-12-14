@@ -516,18 +516,11 @@ public class LuceneTests extends ESTestCase {
         IOUtils.close(writer, dir);
     }
 
-    public void testSortFieldsSerialization() throws IOException {
-        int numItems = randomIntBetween(0, 10);
-        SortField[] sortFields = new SortField[numItems];
-        SortField[] expectedSortFields = new SortField[numItems];
-        for (int i = 0; i < numItems; i++) {
-            Tuple<SortField, SortField> sortFieldTuple = randomSortField();
-            sortFields[i] = sortFieldTuple.v1();
-            expectedSortFields[i] = sortFieldTuple.v2();
-        }
-        SortField[] deserialized = copyInstance(sortFields, EMPTY_REGISTRY, Lucene::writeSortFields, Lucene::readSortFields,
+    public void testSortFieldSerialization() throws IOException {
+        Tuple<SortField, SortField> sortFieldTuple = randomSortField();
+        SortField deserialized = copyInstance(sortFieldTuple.v1(), EMPTY_REGISTRY, Lucene::writeSortField, Lucene::readSortField,
             VersionUtils.randomVersion(random()));
-        assertArrayEquals(expectedSortFields, deserialized);
+        assertEquals(sortFieldTuple.v2(), deserialized);
     }
 
     public void testSortValueSerialization() throws IOException {

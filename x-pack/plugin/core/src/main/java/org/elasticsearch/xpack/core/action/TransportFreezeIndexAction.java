@@ -109,6 +109,12 @@ public final class TransportFreezeIndexAction extends
 
     @Override
     protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
+        throw new UnsupportedOperationException("The task parameter is required");
+    }
+
+    @Override
+    protected void masterOperation(Task task, TransportFreezeIndexAction.FreezeRequest request, ClusterState state,
+                                   ActionListener<TransportFreezeIndexAction.FreezeResponse> listener) throws Exception {
         final Index[] concreteIndices = resolveIndices(request, state);
         if (concreteIndices.length == 0) {
             listener.onResponse(new FreezeResponse(true, true));
@@ -118,6 +124,7 @@ public final class TransportFreezeIndexAction extends
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest()
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
+            .taskId(task.getId())
             .indices(concreteIndices);
 
         indexStateService.closeIndices(closeRequest, new ActionListener<AcknowledgedResponse>() {

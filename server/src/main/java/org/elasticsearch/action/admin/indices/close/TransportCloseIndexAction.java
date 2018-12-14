@@ -99,6 +99,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
+        throw new UnsupportedOperationException("The task parameter is required");
+    }
+
+    @Override
+    protected void masterOperation(final Task task, final CloseIndexRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new AcknowledgedResponse(true));
@@ -108,6 +114,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest()
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
+            .taskId(task.getId())
             .indices(concreteIndices);
 
         indexStateService.closeIndices(closeRequest, new ActionListener<AcknowledgedResponse>() {

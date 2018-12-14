@@ -166,21 +166,17 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     @SuppressWarnings("unchecked")
     private void waitForJobToBeAssigned(String jobId) throws Exception {
         assertBusy(() -> {
-            try {
-                Request getJobStats = new Request("GET", "_xpack/ml/anomaly_detectors/" + jobId + "/_stats");
-                Response response = client().performRequest(getJobStats);
+            Request getJobStats = new Request("GET", "_xpack/ml/anomaly_detectors/" + jobId + "/_stats");
+            Response response = client().performRequest(getJobStats);
 
-                Map<String, Object> stats = entityAsMap(response);
-                List<Map<String, Object>> jobStats =
-                        (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
+            Map<String, Object> stats = entityAsMap(response);
+            List<Map<String, Object>> jobStats =
+                    (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
 
-                assertEquals(jobId, XContentMapValues.extractValue("job_id", jobStats.get(0)));
-                assertEquals("opened", XContentMapValues.extractValue("state", jobStats.get(0)));
-                assertThat((String)XContentMapValues.extractValue("assignment_explanation", jobStats.get(0)), isEmptyOrNullString());
-                assertNotNull(XContentMapValues.extractValue("node", jobStats.get(0)));
-            } catch (IOException e) {
-
-            }
+            assertEquals(jobId, XContentMapValues.extractValue("job_id", jobStats.get(0)));
+            assertEquals("opened", XContentMapValues.extractValue("state", jobStats.get(0)));
+            assertThat((String) XContentMapValues.extractValue("assignment_explanation", jobStats.get(0)), isEmptyOrNullString());
+            assertNotNull(XContentMapValues.extractValue("node", jobStats.get(0)));
         }, 30, TimeUnit.SECONDS);
     }
 

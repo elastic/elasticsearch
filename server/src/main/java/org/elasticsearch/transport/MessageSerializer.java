@@ -24,54 +24,86 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class MessageSerializer {
 
-    private final TransportMessage request = null;
-    private boolean compressMessage =  false;
+    private final ThreadPool threadPool = null;
+    private final String[] features = new String[0];
+    private final Writeable message = null;
+    private final Version version = Version.CURRENT;
+    private final String action = null;
+    private final long requestId = -1;
+    private final boolean compressMessage = false;
     private byte status = 0;
 
 
-    public void thing() throws IOException {
-        // only compress if asked and the request is not bytes. Otherwise only
-        // the header part is compressed, and the "body" can't be extracted as compressed
-        final boolean compress = compressMessage && canCompress(request);
-
-        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
-        boolean addedReleaseListener = false;
-        if (compress) {
-            status = TransportStatus.setCompress(status);
-        }
-
-        // we pick the smallest of the 2, to support both backward and forward compatibility
-        // note, this is the only place we need to do this, since from here on, we use the serialized version
-        // as the version to use also when the node receiving this request will send the response with
-        Version version = Version.min(this.version, channelVersion);
-
-        stream.setVersion(version);
-        threadPool.getThreadContext().writeTo(stream);
+    public void request() throws IOException {
+        CompressibleBytesOutputStream stream = preamble();
         if (version.onOrAfter(Version.V_6_3_0)) {
             stream.writeStringArray(features);
         }
         stream.writeString(action);
-        BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream);
+
+        BytesReference postamble = postamble(stream);
     }
 
+    public void response() throws IOException {
+        final boolean compress = compressMessage && canCompress(message);
+        if (compress) {
+            status = TransportStatus.setCompress(status);
+        }
 
-    /**
-     * Serializes the given message into a bytes representation
-     */
-    private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message,
-                                        CompressibleBytesOutputStream stream) throws IOException {
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
+
+        stream.setVersion(version);
+        threadPool.getThreadContext().writeTo(stream);
+
+
+        Set<String> features = null;
+        stream.setFeatures(features);
+
+        BytesReference postamble = postamble(stream);
+    }
+
+    private final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+
+    private CompressibleBytesOutputStream preamble() throws IOException {
+        // only compress if asked and the request is not bytes. Otherwise only
+        // the header part is compressed, and the "body" can't be extracted as compressed
+        final boolean compress = compressMessage && canCompress(message);
+        if (compress) {
+            status = TransportStatus.setCompress(status);
+        }
+
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
+
+        stream.setVersion(version);
+        threadPool.getThreadContext().writeTo(stream);
+
+        return stream;
+    }
+
+    private BytesReference postamble(CompressibleBytesOutputStream stream) throws IOException {
         final BytesReference zeroCopyBuffer;
         if (message instanceof BytesTransportRequest) { // what a shitty optimization - we should use a direct send method instead
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
-            assert nodeVersion.equals(bRequest.version());
             bRequest.writeThin(stream);
             zeroCopyBuffer = bRequest.bytes;
+        } else if (message instanceof RemoteTransportException) {
+            stream.writeException((RemoteTransportException) message);
+            zeroCopyBuffer = BytesArray.EMPTY;
         } else {
             message.writeTo(stream);
             zeroCopyBuffer = BytesArray.EMPTY;
@@ -106,7 +138,7 @@ public class MessageSerializer {
         }
     }
 
-    private static boolean canCompress(TransportMessage message) {
+    private static boolean canCompress(Writeable message) {
         return message instanceof BytesTransportRequest == false;
     }
 }

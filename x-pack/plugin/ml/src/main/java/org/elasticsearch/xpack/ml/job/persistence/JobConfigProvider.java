@@ -478,8 +478,9 @@ public class JobConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder)
                 .setSize(ids.size())
-                .setSource(sourceBuilder).request();
+                .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -563,7 +564,9 @@ public class JobConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(searchSize)
+                .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
 

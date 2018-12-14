@@ -220,7 +220,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (iterator.hasNext()) {
             OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) iterator.next().getParams();
             refreshJobMemory(jobParams.getJobId(),
-                ActionListener.wrap(mem -> iterateMlJobTasks(iterator, refreshComplete), refreshComplete::onFailure));
+                ActionListener.wrap(
+                    // Do the next iteration in a different thread, otherwise stack overflow
+                    // can occur if the searches happen to be on the local node, as the huge
+                    // chain of listeners are all called in the same thread if only one node
+                    // is involved
+                    mem -> threadPool.executor(executorName()).submit(() -> iterateMlJobTasks(iterator, refreshComplete)),
+                    refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);
         }

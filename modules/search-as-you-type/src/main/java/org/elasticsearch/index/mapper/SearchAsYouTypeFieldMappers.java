@@ -280,7 +280,7 @@ public final class SearchAsYouTypeFieldMappers {
             if (hasEdgeNGrams) {
                 tokenStream = new EdgeNGramTokenFilter(tokenStream, Defaults.MIN_GRAM, Defaults.MAX_GRAM, true);
             }
-            return new TokenStreamComponents(components.getTokenizer(), tokenStream);
+            return new TokenStreamComponents(components.getSource(), tokenStream);
         }
 
         public boolean hasEdgeNGrams() {

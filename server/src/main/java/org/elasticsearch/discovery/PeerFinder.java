@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -258,20 +257,11 @@ public abstract class PeerFinder {
     private boolean handleWakeUp() {
         assert holdsLock() : "PeerFinder mutex not held";
 
-        final List<TransportAddress> peersAddressesToRemove = new ArrayList<>();
-        for (final Entry<TransportAddress, Peer> addressAndPeer : peersByAddress.entrySet()) {
-            if (addressAndPeer.getValue().handleWakeUp()) {
-                peersAddressesToRemove.add(addressAndPeer.getKey());
-            }
-        }
-        for (final TransportAddress peersAddressToRemove : peersAddressesToRemove) {
-            final Peer removedPeer = peersByAddress.remove(peersAddressToRemove);
-            assert removedPeer != null;
-        }
+        final boolean peersRemoved = peersByAddress.values().removeIf(Peer::handleWakeUp);
 
         if (active == false) {
             logger.trace("not active");
-            return peersAddressesToRemove.isEmpty() == false;
+            return peersRemoved;
         }
 
         logger.trace("probing master nodes from cluster state: {}", lastAcceptedNodes);
@@ -315,7 +305,7 @@ public abstract class PeerFinder {
             }
         });
 
-        return peersAddressesToRemove.isEmpty() == false;
+        return peersRemoved;
     }
 
     private void startProbe(TransportAddress transportAddress) {

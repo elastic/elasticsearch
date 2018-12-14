@@ -188,8 +188,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
-    //TODO add new tests that check returned values as part of SortedTopDocs. Test also with TopFieldDocs and CollapseTopFieldDocs
-
     private static AtomicArray<SearchPhaseResult> generateQueryResults(int nShards,
                                                                 List<CompletionSuggestion> suggestions,
                                                                 int searchHitsSize, boolean useConstantScore) {

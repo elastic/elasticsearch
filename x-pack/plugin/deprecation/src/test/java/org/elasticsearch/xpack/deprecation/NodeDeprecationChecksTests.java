@@ -47,6 +47,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("cluster.name", "elasticsearch")
             .put("node.name", "node_check")
+            .put("discovery.type", "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
             .put(key, value)
             .build();
         List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
@@ -95,6 +96,57 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "#remove-http-pipelining-setting",
             "nodes with http.pipelining set: [node_check]");
         assertSettingsAndIssue("http.pipelining", Boolean.toString(randomBoolean()), expected);
+    }
+
+    public void testDiscoveryConfigurationCheck() {
+        List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
+            null, null, null, null, new FsInfo(0L, null, paths), null, null, null,
+            null, null, null, null));
+        Settings baseSettings = Settings.builder()
+            .put("cluster.name", "elasticsearch")
+            .put("node.name", "node_check")
+            .build();
+
+        {
+            Settings hostsProviderSettings = Settings.builder().put(baseSettings)
+                .put("discovery.zen.hosts_provider", "file")
+                .build();
+            List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
+                discoveryNode, hostsProviderSettings, osInfo, null, null,
+                null, null, null, pluginsAndModules, null, null));
+
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+            assertTrue(issues.isEmpty());
+        }
+
+        {
+            Settings hostsProviderSettings = Settings.builder().put(baseSettings)
+                .put("discovery.zen.ping.unicast.hosts", "[1.2.3.4, 4.5.6.7]")
+                .build();
+            List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
+                discoveryNode, hostsProviderSettings, osInfo, null, null,
+                null, null, null, pluginsAndModules, null, null));
+
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+            assertTrue(issues.isEmpty());
+        }
+
+        {
+            Settings hostsProviderSettings = Settings.builder().put(baseSettings)
+                .build();
+            List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
+                discoveryNode, hostsProviderSettings, osInfo, null, null,
+                null, null, null, pluginsAndModules, null, null));
+
+            DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Discovery configuration is required in production mode",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "#_discovery_configuration_is_required_in_production",
+                "nodes which do not have discovery configured: [node_check]");
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+            assertEquals(singletonList(expected), issues);
+        }
+
     }
 
     public void testAzurePluginCheck() {

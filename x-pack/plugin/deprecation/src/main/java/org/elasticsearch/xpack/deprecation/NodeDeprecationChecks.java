@@ -80,6 +80,29 @@ public class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue discoveryConfigurationCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        if (nodeInfos.size() == 1
+            && nodeInfos.stream().anyMatch(nodeInfo -> "single-node".equals(nodeInfo.getSettings().get("discovery.type")))) {
+            // We are in single-node discovery mode, and therefore not in production mode, so this check doesn't need to apply.
+            return null;
+        }
+
+        // This only checks for `ping.unicast.hosts` and `hosts_provider` because `cluster.initial_master_nodes` does not exist in 6.x
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().hasValue("discovery.zen.ping.unicast.hosts") == false)
+            .filter(nodeInfo -> nodeInfo.getSettings().hasValue("discovery.zen.hosts_provider") == false)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Discovery configuration is required in production mode",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "#_discovery_configuration_is_required_in_production",
+                "nodes which do not have discovery configured: " + nodesFound);
+        }
+        return null;
+    }
+
     static DeprecationIssue azureRepositoryChanges(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()
             .filter(nodeInfo ->

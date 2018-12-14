@@ -178,9 +178,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     // GROUP BY
+    public void testGroupBySelectWithAlias() {
+        assertNotNull(accept("SELECT int AS i FROM test GROUP BY i"));
+    }
+
+    public void testGroupBySelectWithAliasOrderOnActualField() {
+        assertNotNull(accept("SELECT int AS i FROM test GROUP BY i ORDER BY int"));
+    }
+
     public void testGroupBySelectNonGrouped() {
         assertEquals("1:8: Cannot use non-grouped column [text], expected [int]",
                 error("SELECT text, int FROM test GROUP BY int"));
+    }
+
+    public void testGroupByFunctionSelectFieldFromGroupByFunction() {
+        assertEquals("1:8: Cannot use non-grouped column [int], expected [ABS(int)]",
+                error("SELECT int FROM test GROUP BY ABS(int)"));
     }
 
     public void testGroupByOrderByNonGrouped() {
@@ -201,6 +214,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByScalarOverNonGrouped() {
         assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
+    }
+
+    public void testGroupByOrderByFieldFromGroupByFunction() {
+        assertEquals("1:54: Cannot use non-grouped column [int], expected [ABS(int)]",
+                error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {

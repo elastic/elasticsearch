@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
@@ -153,6 +154,8 @@ public class FunctionRegistry {
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
+        // histogram
+        addToMap(def(Histogram.class, Histogram::new, "HISTOGRAM"));
         // Scalar functions
         // Conditional
         addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
@@ -445,6 +448,28 @@ public class FunctionRegistry {
 
     interface DatetimeUnaryFunctionBuilder<T> {
         T build(Location location, Expression target, TimeZone tz);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that
+     * requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+            if (children.size() != 2) {
+                throw new IllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), children.get(1), cfg.timeZone());
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface DatetimeBinaryFunctionBuilder<T> {
+        T build(Location location, Expression lhs, Expression rhs, TimeZone tz);
     }
 
     /**

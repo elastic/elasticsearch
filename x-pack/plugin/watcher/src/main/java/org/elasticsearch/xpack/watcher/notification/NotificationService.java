@@ -144,7 +144,8 @@ public abstract class NotificationService<Account> {
         return Collections.unmodifiableMap(accounts);
     }
 
-    private @Nullable LazyInitializable<Account, SettingsException> findDefaultAccountOrNull(Settings settings, Map<String, LazyInitializable<Account, SettingsException>> accounts) {
+    private @Nullable LazyInitializable<Account, SettingsException> findDefaultAccountOrNull(Settings settings,
+            Map<String, LazyInitializable<Account, SettingsException>> accounts) {
         final String defaultAccountName = getDefaultAccountName(settings);
         if (defaultAccountName == null) {
             if (accounts.isEmpty()) {

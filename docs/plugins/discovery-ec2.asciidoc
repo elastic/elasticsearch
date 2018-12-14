@@ -11,11 +11,12 @@ include::install_remove.asciidoc[]
 [[discovery-ec2-usage]]
 ==== Getting started with AWS
 
-The plugin provides a hosts provider for zen discovery named `ec2`. This hosts provider
-finds other Elasticsearch instances in EC2 through AWS metadata. Authentication is done using 
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
-credentials by default. The only necessary configuration change to enable the plugin
-is setting the unicast host provider for zen discovery:
+The plugin provides a hosts provider for zen discovery named `ec2`. This hosts
+provider finds other Elasticsearch instances in EC2 through AWS metadata.
+Authentication is done using
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM
+Role] credentials by default. To enable the plugin, set the unicast host
+provider for Zen discovery to `ec2`:
 
 [source,yaml]
 ----
@@ -51,9 +52,9 @@ Those that must be stored in the keystore are marked as `Secure`.
 
 `endpoint`::
 
-    The ec2 service endpoint to connect to. This will be automatically
-    figured out by the ec2 client based on the instance location, but
-    can be specified explicitly. See http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region.
+    The ec2 service endpoint to connect to. See
+    http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region. This
+    defaults to `ec2.us-east-1.amazonaws.com`.
 
 `protocol`::
 

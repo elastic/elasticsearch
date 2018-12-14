@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
@@ -131,7 +132,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Delete delete = (Translog.Delete) operation;
                 final Engine.Delete engineDelete = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
                         delete.primaryTerm(), delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(),
-                        origin, System.nanoTime());
+                        origin, System.nanoTime(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
                 return engineDelete;
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;

@@ -1067,7 +1067,7 @@
                 "cluster_name": {
                   "type": "keyword"
                 },
-                "time_since_last_auto_follow_started_millis": {
+                "time_since_last_auto_follow_millis": {
                   "type": "long"
                 },
                 "last_seen_metadata_version": {

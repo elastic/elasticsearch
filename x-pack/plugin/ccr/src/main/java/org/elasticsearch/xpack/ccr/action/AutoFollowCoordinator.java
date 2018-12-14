@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -71,7 +70,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final Client client;
     private final ClusterService clusterService;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final LongSupplier relativeNanoTimeProvider;
+    private final LongSupplier relativeMillisTimeProvider;
 
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
 
@@ -85,12 +84,12 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             Client client,
             ClusterService clusterService,
             CcrLicenseChecker ccrLicenseChecker,
-            LongSupplier relativeNanoTimeProvider) {
+            LongSupplier relativeMillisTimeProvider) {
 
         this.client = client;
         this.clusterService = clusterService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
-        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
+        this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         clusterService.addListener(this);
         this.recentAutoFollowErrors = new LinkedHashMap<String, ElasticsearchException>() {
             @Override
@@ -104,11 +103,10 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         final Map<String, AutoFollower> autoFollowers = this.autoFollowers;
         final TreeMap<String, AutoFollowedCluster> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
         for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
-            long lastAutoFollowTimeInNanos = entry.getValue().lastAutoFollowTimeInNanos;
+            long lastAutoFollowTimeInMillis = entry.getValue().lastAutoFollowTimeInMillis;
             long lastSeenMetadataVersion = entry.getValue().metadataVersion;
-            if (lastAutoFollowTimeInNanos != -1) {
-                long timeSinceLastAutoFollowInMillis =
-                    TimeUnit.NANOSECONDS.toMillis(relativeNanoTimeProvider.getAsLong() - lastAutoFollowTimeInNanos);
+            if (lastAutoFollowTimeInMillis != -1) {
+                long timeSinceLastAutoFollowInMillis = relativeMillisTimeProvider.getAsLong() - lastAutoFollowTimeInMillis;
                 timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(),
                     new AutoFollowedCluster(timeSinceLastAutoFollowInMillis, lastSeenMetadataVersion));
             } else {
@@ -171,7 +169,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
             AutoFollower autoFollower =
-                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeNanoTimeProvider) {
+                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeMillisTimeProvider) {
 
                 @Override
                 void getRemoteClusterState(final String remoteCluster,
@@ -266,7 +264,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private final Supplier<ClusterState> followerClusterStateSupplier;
         private final LongSupplier relativeTimeProvider;
 
-        private volatile long lastAutoFollowTimeInNanos = -1;
+        private volatile long lastAutoFollowTimeInMillis = -1;
         private volatile long metadataVersion = 0;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
@@ -282,7 +280,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         void start() {
-            lastAutoFollowTimeInNanos = relativeTimeProvider.getAsLong();
+            lastAutoFollowTimeInMillis = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metaData().custom(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {

@@ -37,8 +37,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     private static final ParseField AUTO_FOLLOW_EXCEPTION = new ParseField("auto_follow_exception");
     private static final ParseField AUTO_FOLLOWED_CLUSTERS = new ParseField("auto_followed_clusters");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
-    private static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS =
-        new ParseField("time_since_last_auto_follow_started_millis");
+    private static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS = new ParseField("time_since_last_auto_follow_millis");
     private static final ParseField LAST_SEEN_METADATA_VERSION = new ParseField("last_seen_metadata_version");
 
     @SuppressWarnings("unchecked")
@@ -73,7 +72,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             (p, c) -> ElasticsearchException.fromXContent(p),
             AUTO_FOLLOW_EXCEPTION);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
-        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS);
+        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SEEN_METADATA_VERSION);
 
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED);
@@ -189,7 +188,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
                 builder.startObject();
                 {
                     builder.field(CLUSTER_NAME.getPreferredName(), entry.getKey());
-                    builder.field(TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS.getPreferredName(),
+                    builder.field(TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS.getPreferredName(),
                         entry.getValue().getTimeSinceLastAutoFollowMillis());
                     builder.field(LAST_SEEN_METADATA_VERSION.getPreferredName(), entry.getValue().getLastSeenMetadataVersion());
                 }

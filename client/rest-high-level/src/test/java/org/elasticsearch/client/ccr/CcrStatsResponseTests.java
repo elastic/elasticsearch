@@ -191,7 +191,7 @@ public class CcrStatsResponseTests extends ESTestCase {
                     builder.startObject();
                     {
                         builder.field(AutoFollowStats.CLUSTER_NAME.getPreferredName(), entry.getKey());
-                        builder.field(AutoFollowStats.TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS.getPreferredName(),
+                        builder.field(AutoFollowStats.TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS.getPreferredName(),
                             entry.getValue().getTimeSinceLastAutoFollowMillis());
                         builder.field(AutoFollowStats.LAST_SEEN_METADATA_VERSION.getPreferredName(),
                             entry.getValue().getLastSeenMetadataVersion());

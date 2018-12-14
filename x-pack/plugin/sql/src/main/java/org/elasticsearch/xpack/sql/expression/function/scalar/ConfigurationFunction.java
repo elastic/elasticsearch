@@ -7,23 +7,24 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.script.Params;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
+import java.util.Objects;
 
-abstract class BaseSystemFunction extends ScalarFunction {
+public abstract class ConfigurationFunction extends ScalarFunction {
 
     private final Configuration configuration;
+    private final DataType dataType;
 
-    BaseSystemFunction(Location location, Configuration configuration) {
+    protected ConfigurationFunction(Location location, Configuration configuration, DataType dataType) {
         super(location);
         this.configuration = configuration;
+        this.dataType = dataType;
     }
 
     @Override
@@ -31,16 +32,28 @@ abstract class BaseSystemFunction extends ScalarFunction {
         throw new UnsupportedOperationException("this node doesn't have any children");
     }
 
+    protected Configuration configuration() {
+        return configuration;
+    }
+
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return dataType;
+    }
+
+    @Override
+    public boolean nullable() {
+        return false;
     }
 
     @Override
     public boolean foldable() {
         return true;
     }
-    
+
+    @Override
+    public abstract Object fold();
+
     @Override
     protected String functionArgs() {
         return StringUtils.EMPTY;
@@ -48,18 +61,16 @@ abstract class BaseSystemFunction extends ScalarFunction {
 
     @Override
     public ScriptTemplate asScript() {
-        return new ScriptTemplate((String) fold(), Params.EMPTY, DataType.KEYWORD);
-    }
-    
-    @Override
-    public abstract Object fold();
-
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return null;
+        return asScript(this);
     }
 
-    protected Configuration configuration() {
-        return configuration;
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), fold());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(fold(), ((ConfigurationFunction) obj).fold());
     }
 }

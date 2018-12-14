@@ -32,7 +32,7 @@ public class DiscoveryUpgradeServiceTests extends ESTestCase {
             = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode fakeNode = DiscoveryUpgradeService.createDiscoveryNodeWithImpossiblyHighId(discoveryNode);
         assertThat(discoveryNode.getId(), lessThan(fakeNode.getId()));
+        assertThat(UUIDs.randomBase64UUID(random()), lessThan(fakeNode.getId()));
         assertThat(fakeNode.getId(), containsString(discoveryNode.getId()));
-
     }
 }

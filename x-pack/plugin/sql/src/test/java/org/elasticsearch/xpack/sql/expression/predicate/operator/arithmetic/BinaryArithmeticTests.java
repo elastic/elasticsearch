@@ -78,7 +78,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testAddYearMonthIntervalToDate() {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
@@ -87,7 +87,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testAddDayTimeIntervalToDate() {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
@@ -96,7 +96,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testAddDayTimeIntervalToDateReverse() {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
@@ -125,7 +125,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testSubYearMonthIntervalToDate() {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
@@ -134,7 +134,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testSubYearMonthIntervalToDateIllegal() {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
@@ -149,7 +149,7 @@ public class BinaryArithmeticTests extends ESTestCase {
     }
 
     public void testSubDayTimeIntervalToDate() {
-        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC_ZI);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);

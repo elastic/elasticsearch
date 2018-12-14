@@ -21,9 +21,6 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -32,7 +29,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class AcknowledgedResponse implements ToXContentObject {
+public class AcknowledgedResponse {
 
     protected static final String PARSE_FIELD_NAME = "acknowledged";
     private static final ConstructingObjectParser<AcknowledgedResponse, Void> PARSER = AcknowledgedResponse
@@ -73,16 +70,6 @@ public class AcknowledgedResponse implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(acknowledged);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field(getFieldName(), isAcknowledged());
-        }
-        builder.endObject();
-        return builder;
     }
 
     /**

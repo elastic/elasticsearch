@@ -18,26 +18,33 @@
  */
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class AcknowledgedResponseTests extends AbstractXContentTestCase<AcknowledgedResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    @Override
-    protected AcknowledgedResponse createTestInstance() {
+public class AcknowledgedResponseTests extends ESTestCase {
+
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            this::createTestInstance,
+            AcknowledgedResponseTests::toXContent,
+            AcknowledgedResponse::fromXContent)
+            .supportsUnknownFields(false)
+            .test();
+    }
+    private AcknowledgedResponse createTestInstance() {
         return new AcknowledgedResponse(randomBoolean());
     }
 
-    @Override
-    protected AcknowledgedResponse doParseInstance(XContentParser parser) throws IOException {
-        return AcknowledgedResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    public static void toXContent(AcknowledgedResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        {
+            builder.field(response.getFieldName(), response.isAcknowledged());
+        }
+        builder.endObject();
     }
 
 }

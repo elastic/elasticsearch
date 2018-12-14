@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -86,10 +87,12 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * Opens a new connection to the given node and returns it. The returned connection is not managed by
-     * the transport implementation. This connection must be closed once it's not needed anymore.
+     * Opens a new connection to the given node. When the connection is fully connected, the listener is
+     * called. A {@link Releasable} is returned representing the pending connection. If the caller of this
+     * method decides to move on before the listener is called with the completed connection, they should
+     * release the pending connection to prevent hanging connections.
      */
-    Connection openConnection(DiscoveryNode node, ConnectionProfile profile);
+    Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
     TransportStats getStats();
 
@@ -114,10 +117,6 @@ public interface Transport extends LifecycleComponent {
          */
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
             IOException, TransportException;
-
-        default boolean sendPing() {
-            return false;
-        }
 
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this

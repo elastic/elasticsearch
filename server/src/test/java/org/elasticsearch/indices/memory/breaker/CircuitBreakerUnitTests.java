@@ -66,7 +66,8 @@ public class CircuitBreakerUnitTests extends ESTestCase {
     }
 
     public void testRegisterCustomBreaker() throws Exception {
-        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         String customName = "custom";
         BreakerSettings settings = new BreakerSettings(customName, 20, 1.0);
         service.registerBreaker(settings);

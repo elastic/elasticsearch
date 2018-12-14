@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -60,6 +59,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -97,6 +97,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -119,6 +120,21 @@ public class RestHighLevelClientTests extends ESTestCase {
     private static final String SUBMIT_TASK_SUFFIX = "_task";
     private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
     private static final RequestLine REQUEST_LINE = new BasicRequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
+
+    /**
+     * These APIs do not use a Request object (because they don't have a body, or any request parameters).
+     * The method naming/parameter assertions use this {@code Set} to determine which rules to apply.
+     * (This is also used for async variants of these APIs when they exist)
+     */
+    private static final Set<String> APIS_WITHOUT_REQUEST_OBJECT = Sets.newHashSet(
+        // core
+        "ping", "info",
+        // security
+        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges",
+        // license
+        "license.get_trial_status", "license.get_basic_status"
+
+    );
 
     private RestClient restClient;
     private RestHighLevelClient restHighLevelClient;
@@ -173,7 +189,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         SearchResponse searchResponse = restHighLevelClient.scroll(
                 new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)), RequestOptions.DEFAULT);
         assertEquals(mockSearchResponse.getScrollId(), searchResponse.getScrollId());
-        assertEquals(0, searchResponse.getHits().totalHits);
+        assertEquals(0, searchResponse.getHits().getTotalHits().value);
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(100, searchResponse.getTook().getMillis());
@@ -668,15 +684,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             "create",
             "get_source",
             "indices.delete_alias",
-            "indices.delete_template",
-            "indices.exists_template",
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
-            "mtermvectors",
             "render_search_template",
-            "scripts_painless_execute",
-            "tasks.get"
+            "scripts_painless_execute"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -736,7 +748,6 @@ public class RestHighLevelClientTests extends ESTestCase {
                 assertSubmitTaskMethod(methods, method, apiName, restSpec);
             } else {
                 assertSyncMethod(method, apiName);
-
                 boolean remove = apiSpec.remove(apiName);
                 if (remove == false) {
                     if (deprecatedMethods.contains(apiName)) {
@@ -753,7 +764,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("migration.") == false &&
                             apiName.startsWith("security.") == false &&
                             apiName.startsWith("index_lifecycle.") == false &&
-                            apiName.startsWith("ccr.") == false) {
+                            apiName.startsWith("ccr.") == false &&
+                            apiName.endsWith("freeze") == false) {
                             apiNotFound.add(apiName);
                         }
                     }
@@ -771,20 +783,22 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat("Some API are not supported but they should be: " + apiSpec, apiSpec.size(), equalTo(0));
     }
 
-    private void assertSyncMethod(Method method, String apiName) {
+    private static void assertSyncMethod(Method method, String apiName) {
         //A few methods return a boolean rather than a response object
         if (apiName.equals("ping") || apiName.contains("exist")) {
             assertThat("the return type for method [" + method + "] is incorrect",
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
-            assertThat("the return type for method [" + method + "] is incorrect",
-                method.getReturnType().getSimpleName(), endsWith("Response"));
+            // It's acceptable for 404s to be represented as empty Optionals 
+            if (!method.getReturnType().isAssignableFrom(Optional.class)) {
+                assertThat("the return type for method [" + method + "] is incorrect",
+                    method.getReturnType().getSimpleName(), endsWith("Response"));
+            }
         }
 
         assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
         //a few methods don't accept a request object as argument
-        if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")
-            || apiName.equals("security.authenticate")) {
+        if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName)) {
             assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
             assertThat("the parameter to method [" + method + "] is the wrong type",
                 method.getParameterTypes()[0], equalTo(RequestOptions.class));
@@ -797,12 +811,12 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
     }
 
-    private void assertAsyncMethod(Map<String, Method> methods, Method method, String apiName) {
+    private static void assertAsyncMethod(Map<String, Method> methods, Method method, String apiName) {
         assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                 methods.containsKey(apiName.substring(0, apiName.length() - 6)));
         assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
         assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
-        if (apiName.equals("security.authenticate_async") || apiName.equals("security.get_ssl_certificates_async")) {
+        if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName.replaceAll("_async$", ""))) {
             assertEquals(2, method.getParameterTypes().length);
             assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
             assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
@@ -817,7 +831,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
     }
 
-    private void assertSubmitTaskMethod(Map<String, Method> methods, Method method, String apiName, ClientYamlSuiteRestSpec restSpec) {
+    private static void assertSubmitTaskMethod(Map<String, Method> methods, Method method, String apiName,
+                                               ClientYamlSuiteRestSpec restSpec) {
         String methodName = extractMethodName(apiName);
         assertTrue("submit task method [" + method.getName() + "] doesn't have corresponding sync method",
             methods.containsKey(methodName));
@@ -831,11 +846,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             restSpec.getApi(methodName).getParams(), Matchers.hasKey("wait_for_completion"));
     }
 
-    private String extractMethodName(String apiName) {
+    private static String extractMethodName(String apiName) {
         return apiName.substring(SUBMIT_TASK_PREFIX.length(), apiName.length() - SUBMIT_TASK_SUFFIX.length());
     }
 
-    private boolean isSubmitTaskMethod(String apiName) {
+    private static boolean isSubmitTaskMethod(String apiName) {
         return apiName.startsWith(SUBMIT_TASK_PREFIX) && apiName.endsWith(SUBMIT_TASK_SUFFIX);
     }
 

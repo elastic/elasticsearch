@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.url;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -50,6 +52,7 @@ import java.util.function.Function;
  * </dl>
  */
 public class URLRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(URLRepository.class);
 
     public static final String TYPE = "url";
 

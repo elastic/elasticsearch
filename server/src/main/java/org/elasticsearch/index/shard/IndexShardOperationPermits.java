@@ -27,6 +27,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -124,12 +125,12 @@ final class IndexShardOperationPermits implements Closeable {
         delayOperations();
         threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
 
-            final AtomicBoolean released = new AtomicBoolean(false);
+            final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
 
             @Override
             public void onFailure(final Exception e) {
                 try {
-                    releaseDelayedOperationsIfNeeded(); // resume delayed operations as soon as possible
+                    released.run(); // resume delayed operations as soon as possible
                 } finally {
                     onAcquired.onFailure(e);
                 }
@@ -142,15 +143,9 @@ final class IndexShardOperationPermits implements Closeable {
                     try {
                         releasable.close();
                     } finally {
-                        releaseDelayedOperationsIfNeeded();
+                        released.run();
                     }
                 });
-            }
-
-            private void releaseDelayedOperationsIfNeeded() {
-                if (released.compareAndSet(false, true)) {
-                    releaseDelayedOperations();
-                }
             }
         });
     }
@@ -173,13 +168,11 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
         if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-            final AtomicBoolean closed = new AtomicBoolean();
-            return () -> {
-                if (closed.compareAndSet(false, true)) {
-                    assert semaphore.availablePermits() == 0;
-                    semaphore.release(TOTAL_PERMITS);
-                }
-            };
+            final RunOnce release = new RunOnce(() -> {
+                assert semaphore.availablePermits() == 0;
+                semaphore.release(TOTAL_PERMITS);
+            });
+            return release::run;
         } else {
             throw new TimeoutException("timeout while blocking operations");
         }

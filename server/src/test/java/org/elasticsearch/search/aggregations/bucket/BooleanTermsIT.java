@@ -87,7 +87,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -121,7 +121,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -156,7 +156,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(between(1, 5))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 

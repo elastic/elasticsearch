@@ -61,7 +61,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             int numResult = 0;
             for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
                 // collect contexts
-                Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
+                Map<String, Set<String>> contexts = Collections.emptyMap();
                 if (fieldType.hasContextMappings()) {
                     List<CharSequence> rawContexts = collector.getContexts(suggestDoc.doc);
                     if (rawContexts.size() > 0) {

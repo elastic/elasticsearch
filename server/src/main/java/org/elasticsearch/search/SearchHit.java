@@ -117,7 +117,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private Map<String, SearchHits> innerHits;
 
-    private SearchHit() {
+    SearchHit() {
 
     }
 
@@ -183,7 +183,11 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     /**
      * The type of the document.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
+    @Deprecated
     public String getType() {
         return type != null ? type.string() : null;
     }
@@ -788,6 +792,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
                 SearchHits value = SearchHits.readSearchHits(in);
                 innerHits.put(key, value);
             }
+        } else {
+            innerHits = null;
         }
     }
 

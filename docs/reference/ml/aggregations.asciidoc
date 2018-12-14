@@ -24,7 +24,7 @@ example:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/farequote
+PUT _ml/anomaly_detectors/farequote
 {
   "analysis_config": {
     "bucket_span": "60m",
@@ -55,7 +55,7 @@ The aggregations are defined in the {dfeed} as follows:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/datafeeds/datafeed-farequote
+PUT _ml/datafeeds/datafeed-farequote
 {
   "job_id":"farequote",
   "indices": ["farequote"],

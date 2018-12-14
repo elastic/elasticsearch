@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
 
@@ -110,6 +111,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
+            }
+            // check to make sure that step details are either all null or all set.
+            long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
+            if (numNull > 0 && numNull < 3) {
+                throw new IllegalArgumentException("managed index response must have complete step details [" +
+                    PHASE_FIELD.getPreferredName() + "=" + phase + ", " +
+                    ACTION_FIELD.getPreferredName() + "=" + action + ", " +
+                    STEP_FIELD.getPreferredName() + "=" + step + "]");
             }
         } else {
             if (policyName != null || lifecycleDate != null || phase != null || action != null || step != null || failedStep != null
@@ -244,15 +253,21 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
             }
-            builder.field(PHASE_FIELD.getPreferredName(), phase);
+            if (phase != null) {
+                builder.field(PHASE_FIELD.getPreferredName(), phase);
+            }
             if (phaseTime != null) {
                 builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
             }
-            builder.field(ACTION_FIELD.getPreferredName(), action);
+            if (action != null) {
+                builder.field(ACTION_FIELD.getPreferredName(), action);
+            }
             if (actionTime != null) {
                 builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
             }
-            builder.field(STEP_FIELD.getPreferredName(), step);
+            if (step != null) {
+                builder.field(STEP_FIELD.getPreferredName(), step);
+            }
             if (stepTime != null) {
                 builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
             }

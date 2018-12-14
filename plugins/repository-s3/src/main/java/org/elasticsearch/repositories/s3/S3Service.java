@@ -29,10 +29,11 @@ import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -41,7 +42,9 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 
-class S3Service extends AbstractComponent implements Closeable {
+class S3Service implements Closeable {
+    
+    private static final Logger logger = LogManager.getLogger(S3Service.class);
 
     private volatile Map<String, AmazonS3Reference> clientsCache = emptyMap();
     private volatile Map<String, S3ClientSettings> clientsSettings = emptyMap();

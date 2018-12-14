@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,11 +37,21 @@ public class EvilOsProbeTests extends ESTestCase {
     public void testOsPrettyName() throws IOException  {
         final OsInfo osInfo = OsProbe.getInstance().osInfo(randomLongBetween(1, 100), randomIntBetween(1, 8));
         if (Constants.LINUX) {
-            final List<String> lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
+            final List<String> lines;
+            if (Files.exists(PathUtils.get("/etc/os-release"))) {
+                lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
+            } else if (Files.exists(PathUtils.get("/usr/lib/os-release"))) {
+                lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
+            } else {
+                lines = Collections.singletonList(
+                        "PRETTY_NAME=\"" + Files.readAllLines(PathUtils.get("/etc/system-release")).get(0) + "\"");
+            }
             for (final String line : lines) {
                 if (line != null && line.startsWith("PRETTY_NAME=")) {
-                    final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(line);
-                    assert matcher.matches() : line;
+                    final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(line.trim());
+                    final boolean matches = matcher.matches();
+                    assert matches : line;
+                    assert matcher.groupCount() == 2 : line;
                     final String prettyName = matcher.group(2);
                     assertThat(osInfo.getPrettyName(), equalTo(prettyName));
                     return;

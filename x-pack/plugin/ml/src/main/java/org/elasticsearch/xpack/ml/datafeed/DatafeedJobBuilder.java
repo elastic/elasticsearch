@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -46,8 +48,9 @@ public class DatafeedJobBuilder {
         Consumer<Context> contextHanlder = context -> {
             TimeValue frequency = getFrequencyOrDefault(datafeed, job);
             TimeValue queryDelay = datafeed.getQueryDelay();
+            DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(job, datafeed, client);
             DatafeedJob datafeedJob = new DatafeedJob(job.getId(), buildDataDescription(job), frequency.millis(), queryDelay.millis(),
-                    context.dataExtractorFactory, client, auditor, currentTimeSupplier,
+                    context.dataExtractorFactory, client, auditor, currentTimeSupplier, delayedDataDetector,
                     context.latestFinalBucketEndMs, context.latestRecordTimeMs);
             listener.onResponse(datafeedJob);
         };

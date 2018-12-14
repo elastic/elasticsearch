@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -50,6 +48,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 actionFilters,
                 FollowStatsAction.StatsRequest::new,
                 FollowStatsAction.StatsResponses::new,
+                FollowStatsAction.StatsResponse::new,
                 Ccr.CCR_THREAD_POOL_NAME);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -76,14 +75,13 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected FollowStatsAction.StatsResponse readTaskResponse(final StreamInput in) throws IOException {
-        return new FollowStatsAction.StatsResponse(in);
-    }
-
-    @Override
     protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
         final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            return;
+        }
+
         final Set<String> followerIndices = persistentTasksMetaData.tasks().stream()
             .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
             .map(persistentTask -> {

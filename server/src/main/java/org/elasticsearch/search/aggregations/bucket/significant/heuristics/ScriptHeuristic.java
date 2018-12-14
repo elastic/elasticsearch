@@ -95,14 +95,16 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService().compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
+        SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService().compile(script,
+                SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, factory.newInstance());
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
         QueryShardContext shardContext = context.getQueryShardContext();
-        SignificantTermsHeuristicScoreScript.Factory compiledScript = shardContext.getScriptService().compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = shardContext.getScriptService().compile(script,
+                SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }
 
@@ -118,7 +120,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready for use");
+        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready " +
+                "for use");
     }
 
     @Override
@@ -165,13 +168,15 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     script = Script.parse(parser);
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
+                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]",
+                            heuristicName, currentFieldName);
                 }
             }
         }
 
         if (script == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic", heuristicName);
+            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic",
+                    heuristicName);
         }
         return new ScriptHeuristic(script);
     }

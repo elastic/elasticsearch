@@ -35,7 +35,7 @@ public final class MonitoringTemplateUtils {
      */
     public static final String TEMPLATE_VERSION = "6";
     /**
-     * The previous version of templates, which we still support via the REST _xpack/monitoring/_bulk endpoint because
+     * The previous version of templates, which we still support via the REST /_monitoring/bulk endpoint because
      * nothing changed for those documents.
      */
     public static final String OLD_TEMPLATE_VERSION = "2";

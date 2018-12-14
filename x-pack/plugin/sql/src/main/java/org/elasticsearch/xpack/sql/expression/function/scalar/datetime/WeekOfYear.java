@@ -6,19 +6,19 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
 import java.util.TimeZone;
 
 /**
- * Extract the week of the year from a datetime.
+ * Extract the week of the year from a datetime following the non-ISO standard.
  */
-public class WeekOfYear extends DateTimeFunction {
+public class WeekOfYear extends NonIsoDateTimeFunction {
+    
     public WeekOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, NonIsoDateTimeExtractor.WEEK_OF_YEAR);
     }
 
     @Override
@@ -29,20 +29,5 @@ public class WeekOfYear extends DateTimeFunction {
     @Override
     protected WeekOfYear replaceChild(Expression newChild) {
         return new WeekOfYear(location(), newChild, timeZone());
-    }
-
-    @Override
-    public String dateTimeFormat() {
-        return "w";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.ALIGNED_WEEK_OF_YEAR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.WEEK_OF_YEAR;
     }
 }

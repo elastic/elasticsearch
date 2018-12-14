@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -33,8 +34,8 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
     }
 
     @Override
-    protected Object doFold(long millis, String tzId) {
-        return nameExtractor.extract(millis, tzId);
+    protected Object doFold(ZonedDateTime dateTime) {
+        return nameExtractor.extract(dateTime);
     }
 
     @Override

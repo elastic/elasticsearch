@@ -341,6 +341,7 @@ public class SearchModuleTests extends ESTestCase {
             "range",
             "regexp",
             "script",
+            "script_score",
             "simple_query_string",
             "span_containing",
             "span_first",

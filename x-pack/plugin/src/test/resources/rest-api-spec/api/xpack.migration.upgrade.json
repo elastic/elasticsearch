@@ -3,9 +3,9 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-upgrade.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/migration/upgrade/{index}",
+      "path": "/_migration/upgrade/{index}",
       "paths": [
-        "/_xpack/migration/upgrade/{index}"
+        "/_migration/upgrade/{index}"
       ],
       "parts": {
         "index": {

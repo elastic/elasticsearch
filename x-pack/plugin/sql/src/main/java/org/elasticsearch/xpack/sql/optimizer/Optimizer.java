@@ -41,7 +41,9 @@ import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -130,7 +133,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceFoldableAttributes(),
                 new FoldNull(),
                 new ConstantFolding(),
-                new SimplifyCoalesce(),
+                new SimplifyConditional(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1172,6 +1175,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
+            } else if (e instanceof NullIf) {
+                return e;
+
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
@@ -1197,37 +1203,39 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
     
-    static class SimplifyCoalesce extends OptimizerExpressionRule {
+    static class SimplifyConditional extends OptimizerExpressionRule {
 
-        SimplifyCoalesce() {
+        SimplifyConditional() {
             super(TransformDirection.DOWN);
         }
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Coalesce) {
-                Coalesce c = (Coalesce) e;
+            if (e instanceof ArbitraryConditionalFunction) {
+                ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                // find the first non-null foldable child (if any) and remove the rest
-                // while at it, exclude any nulls found
+                // exclude any nulls found
                 List<Expression> newChildren = new ArrayList<>();
-
                 for (Expression child : c.children()) {
                     if (Expressions.isNull(child) == false) {
                         newChildren.add(child);
-                        if (child.foldable()) {
+
+                        // For Coalesce find the first non-null foldable child (if any) and break early
+                        if (e instanceof Coalesce && child.foldable()) {
                             break;
                         }
                     }
                 }
 
                 if (newChildren.size() < c.children().size()) {
-                    return new Coalesce(c.location(), newChildren);
+                    return c.replaceChildren(newChildren);
                 }
             }
+
             return e;
         }
     }
+
 
     static class BooleanSimplification extends OptimizerExpressionRule {
 
@@ -1373,6 +1381,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return TRUE;
                 }
             }
+            if (bc instanceof NullEquals) {
+                if (l.semanticEquals(r)) {
+                    return TRUE;
+                }
+                if (Expressions.isNull(r)) {
+                    return new IsNull(bc.location(), l);
+                }
+            }
 
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
@@ -1427,7 +1443,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // combine conjunction
         private Expression propagate(And and) {
             List<Range> ranges = new ArrayList<>();
-            List<Equals> equals = new ArrayList<>();
+            List<BinaryComparison> equals = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
@@ -1435,11 +1451,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             for (Expression ex : Predicates.splitAnd(and)) {
                 if (ex instanceof Range) {
                     ranges.add((Range) ex);
-                } else if (ex instanceof Equals) {
-                    Equals otherEq = (Equals) ex;
+                } else if (ex instanceof Equals || ex instanceof NullEquals) {
+                    BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
                     if (otherEq.right().foldable()) {
-                        for (Equals eq : equals) {
+                        for (BinaryComparison eq : equals) {
                             // cannot evaluate equals so skip it
                             if (!eq.right().foldable()) {
                                 continue;
@@ -1464,7 +1480,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // check
-            for (Equals eq : equals) {
+            for (BinaryComparison eq : equals) {
                 // cannot evaluate equals so skip it
                 if (!eq.right().foldable()) {
                     continue;

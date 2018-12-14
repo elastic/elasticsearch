@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -78,12 +78,11 @@ import java.util.stream.Collectors;
  * <li>starting/stopping of datafeed jobs</li>
  * </ul>
  */
-public class JobManager extends AbstractComponent {
+public class JobManager {
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(JobManager.class));
+    private static final Logger logger = LogManager.getLogger(JobManager.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private final Settings settings;
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
@@ -99,7 +98,6 @@ public class JobManager extends AbstractComponent {
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
                       ClusterService clusterService, Auditor auditor,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
-        this.settings = settings;
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);

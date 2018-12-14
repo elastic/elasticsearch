@@ -20,8 +20,14 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
-DAY             |SCALAR         
-DAYNAME         |SCALAR         
+GREATEST        |CONDITIONAL
+IFNULL          |CONDITIONAL
+ISNULL          |CONDITIONAL
+LEAST           |CONDITIONAL
+NULLIF          |CONDITIONAL
+NVL             |CONDITIONAL
+DAY             |SCALAR
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         
@@ -34,6 +40,15 @@ DOW             |SCALAR
 DOY             |SCALAR         
 HOUR            |SCALAR         
 HOUR_OF_DAY     |SCALAR         
+IDOW            |SCALAR
+ISODAYOFWEEK    |SCALAR
+ISODOW          |SCALAR
+ISOWEEK         |SCALAR
+ISOWEEKOFYEAR   |SCALAR
+ISO_DAY_OF_WEEK |SCALAR
+ISO_WEEK_OF_YEAR|SCALAR
+IW              |SCALAR
+IWOY            |SCALAR
 MINUTE          |SCALAR         
 MINUTE_OF_DAY   |SCALAR         
 MINUTE_OF_HOUR  |SCALAR         
@@ -102,6 +117,8 @@ SUBSTRING       |SCALAR
 UCASE           |SCALAR         
 CAST            |SCALAR
 CONVERT         |SCALAR
+DATABASE        |SCALAR
+USER            |SCALAR
 SCORE           |SCORE
 ;
 
@@ -148,6 +165,8 @@ DAY_OF_MONTH   |SCALAR
 DAY_OF_WEEK    |SCALAR
 DAY_OF_YEAR    |SCALAR
 HOUR_OF_DAY    |SCALAR         
+ISODAYOFWEEK   |SCALAR
+ISO_DAY_OF_WEEK|SCALAR
 MINUTE_OF_DAY  |SCALAR         
 ;
 

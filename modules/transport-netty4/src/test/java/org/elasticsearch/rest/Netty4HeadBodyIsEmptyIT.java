@@ -34,7 +34,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
@@ -151,7 +150,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     public void testGetSourceAction() throws IOException {
         createTestDoc();
         headTestCase("/test/test/1/_source", emptyMap(), greaterThan(0));
-        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
+        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -176,7 +175,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
             createTestDoc("test-no-source", "test-no-source");
-            headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
+            headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
         }
     }
 

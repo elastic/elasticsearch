@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -91,9 +90,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class TypeFieldType extends StringFieldType {
+    public static final class TypeFieldType extends StringFieldType {
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
+        public static final String TYPES_DEPRECATION_MESSAGE =
+            "[types removal] Referring to types within search queries is deprecated, filter on a field instead.";
 
         TypeFieldType() {
         }
@@ -114,13 +115,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            if (hasDocValues()) {
-                return new DocValuesIndexFieldData.Builder();
-            } else {
-                // means the index has a single type and the type field is implicit
-                Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
-                return new ConstantIndexFieldData.Builder(typeFunction);
-            }
+            Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
+            return new ConstantIndexFieldData.Builder(typeFunction);
         }
 
         @Override
@@ -130,6 +126,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
+            deprecationLogger.deprecatedAndMaybeLog("exists_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             return new MatchAllDocsQuery();
         }
 
@@ -140,6 +137,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
+            deprecationLogger.deprecatedAndMaybeLog("term_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             DocumentMapper mapper = context.getMapperService().documentMapper();
             if (mapper == null) {
                 return new MatchNoDocsQuery("No types");
@@ -161,9 +159,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            deprecationLogger.deprecatedAndMaybeLog("range_single_type",
-                    "Running [range] query on [_type] field for an index with a single type."
-                        + " As types are deprecated, this functionality will be removed in future releases.");
+            deprecationLogger.deprecatedAndMaybeLog("range_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             Query result = new MatchAllDocsQuery();
             String type = context.getMapperService().documentMapper().type();
             if (type != null) {

@@ -98,7 +98,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
         @Override
         public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
             return Collections.singletonList(PreConfiguredTokenizer.singleton("mock-whitespace",
-                () -> new MockTokenizer(MockTokenizer.WHITESPACE, false), null));
+                () -> new MockTokenizer(MockTokenizer.WHITESPACE, false)));
         }
 
         // Based on DelimitedPayloadTokenFilter:

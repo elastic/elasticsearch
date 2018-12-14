@@ -155,7 +155,7 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isInteger, operationName, paramOrd, "integer");
+        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {

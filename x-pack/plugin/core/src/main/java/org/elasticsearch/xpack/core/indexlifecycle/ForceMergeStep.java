@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Objects;
 
+/**
+ * Invokes a force merge on a single index.
+ */
 public class ForceMergeStep extends AsyncActionStep {
     public static final String NAME = "forcemerge";
     private final int maxNumSegments;

@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import java.util.Set;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -67,6 +69,8 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
  * enable or disable this decider. It defaults to false (disabled).
  */
 public class DiskThresholdDecider extends AllocationDecider {
+
+    private static final Logger logger = LogManager.getLogger(DiskThresholdDecider.class);
 
     public static final String NAME = "disk_threshold";
 

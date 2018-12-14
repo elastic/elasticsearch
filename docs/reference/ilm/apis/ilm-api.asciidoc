@@ -1,6 +1,8 @@
 [[index-lifecycle-management-api]]
 == Index Lifecycle Management API
 
+beta[]
+
 You can use the following APIs to manage policies on indices.
 
 [float]
@@ -33,7 +35,7 @@ include::get-lifecycle.asciidoc[]
 include::delete-lifecycle.asciidoc[]
 
 include::move-to-step.asciidoc[]
-include::remove-policy.asciidoc[]
+include::remove-policy-from-index.asciidoc[]
 include::retry-policy.asciidoc[]
 
 include::get-status.asciidoc[]

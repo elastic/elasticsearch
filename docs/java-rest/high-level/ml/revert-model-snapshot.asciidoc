@@ -1,0 +1,46 @@
+--
+:api: revert-model-snapshot
+:request: RevertModelSnapshotRequest
+:response: RevertModelSnapshotResponse
+--
+[id="{upid}-{api}"]
+=== Revert Model Snapshot API
+
+The Revert Model Snapshot API provides the ability to revert to a previous {ml} model snapshot.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Revert Model Snapshot Request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing `jobId` and `snapshotId` values.
+
+==== Optional Arguments
+
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-delete-intervening-results]
+--------------------------------------------------
+<1> A flag indicating whether or not results in the period between the timestamp on the reverted snapshot and the latest results should be deleted
+
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Revert Job Response
+
+A +{response}+ contains the full representation of the reverted `ModelSnapshot`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The reverted `ModelSnapshot`

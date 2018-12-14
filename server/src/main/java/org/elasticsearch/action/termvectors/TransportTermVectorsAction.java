@@ -79,13 +79,14 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
     }
 
     @Override
-    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
+    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId,
+                                       ActionListener<TermVectorsResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles

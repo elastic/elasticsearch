@@ -107,13 +107,12 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
-            .field("number", version.toString())
+            .field("number", build.getQualifiedVersion())
             .field("build_flavor", build.flavor().displayName())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.shortHash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
-            .field("qualified", build.getQualifiedVersion())
             .field("lucene_version", version.luceneVersion.toString())
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
@@ -141,9 +140,13 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
                             (boolean) value.get("build_snapshot"),
-                            (String) value.get("qualified")
+                            (String) value.get("number")
                     );
-            response.version = Version.fromString((String) value.get("number"));
+            response.version = Version.fromString(
+                ((String) value.get("number"))
+                    .replace("-SNAPSHOT", "")
+                    .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+            );
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
@@ -170,5 +173,16 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(nodeName, version, clusterUuid, build, clusterName);
+    }
+
+    @Override
+    public String toString() {
+        return "MainResponse{" +
+            "nodeName='" + nodeName + '\'' +
+            ", version=" + version +
+            ", clusterName=" + clusterName +
+            ", clusterUuid='" + clusterUuid + '\'' +
+            ", build=" + build +
+            '}';
     }
 }

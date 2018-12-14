@@ -446,7 +446,7 @@ setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
 '''
 setups['role_mapping'] = '''
   - do:
-        xpack.security.put_role_mapping:
+        security.put_role_mapping:
          name: "mapping1"
          body:  >
             {
@@ -712,7 +712,7 @@ setups['sensor_prefab_data'] = '''
 '''
 setups['admin_role'] = '''
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "my_admin_role"
         body: >
           {
@@ -726,7 +726,7 @@ setups['admin_role'] = '''
 '''
 setups['jacknich_user'] = '''
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "jacknich"
         body:  >
           {
@@ -739,7 +739,7 @@ setups['jacknich_user'] = '''
 '''
 setups['app0102_privileges'] = '''
   - do:
-        xpack.security.put_privileges:
+        security.put_privileges:
           body: >
             {
               "myapp": {

@@ -8,7 +8,7 @@ This API enables you to update your license.
 [float]
 ==== Request
 
-`PUT _xpack/license`
+`PUT /_license`
 
 [float]
 ==== Description
@@ -54,7 +54,7 @@ The following example updates to a basic license:
 
 [source,js]
 ------------------------------------------------------------
-POST _xpack/license
+POST /_license
 {
   "licenses": [
     {
@@ -81,7 +81,7 @@ You can alternatively use a `curl` command, for example:
 [source,js]
 [source,shell]
 ------------------------------------------------------------
-curl -XPUT -u <user> 'http://<host>:<port>/_xpack/license' -H "Content-Type: application/json" -d @license.json
+curl -XPUT -u <user> 'http://<host>:<port>/_license' -H "Content-Type: application/json" -d @license.json
 ------------------------------------------------------------
 // NOTCONSOLE
 
@@ -89,7 +89,7 @@ On Windows machine, use the following command:
 
 [source,shell]
 ------------------------------------------------------------
-gc .\license.json |  Invoke-WebRequest -uri http://<host>:<port>/_xpack/license -Credential elastic -Method Put -ContentType "application/json"
+gc .\license.json |  Invoke-WebRequest -uri http://<host>:<port>/_license -Credential elastic -Method Put -ContentType "application/json"
 ------------------------------------------------------------
 
 In these examples,
@@ -131,7 +131,7 @@ To complete the update, you must re-submit the API request and set the
 
 [source,js]
 ------------------------------------------------------------
-POST _xpack/license?acknowledge=true
+POST /_license?acknowledge=true
 {
   "licenses": [
     {
@@ -154,7 +154,7 @@ Alternatively:
 
 [source,sh]
 ------------------------------------------------------------
-curl -XPUT -u elastic 'http://<host>:<port>/_xpack/license?acknowledge=true' -H "Content-Type: application/json" -d @license.json
+curl -XPUT -u elastic 'http://<host>:<port>/_license?acknowledge=true' -H "Content-Type: application/json" -d @license.json
 ------------------------------------------------------------
 // NOTCONSOLE
 

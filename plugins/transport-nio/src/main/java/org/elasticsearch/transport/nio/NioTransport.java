@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,7 +29,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -49,6 +50,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -56,21 +58,21 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class NioTransport extends TcpTransport {
 
+    private static final Logger logger = LogManager.getLogger(NioTransport.class);
+
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
 
-    protected final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private volatile NioGroup nioGroup;
-    private volatile TcpChannelFactory clientChannelFactory;
+    private volatile Function<DiscoveryNode, TcpChannelFactory> clientChannelFactory;
 
-    protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+    protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                            CircuitBreakerService circuitBreakerService) {
-        super("nio", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.pageCacheRecycler = pageCacheRecycler;
+        super("nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
     }
 
     @Override
@@ -82,8 +84,7 @@ public class NioTransport extends TcpTransport {
     @Override
     protected NioTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
-        NioTcpChannel channel = nioGroup.openChannel(address, clientChannelFactory);
-        return channel;
+        return nioGroup.openChannel(address, clientChannelFactory.apply(node));
     }
 
     @Override
@@ -94,13 +95,13 @@ public class NioTransport extends TcpTransport {
                 NioTransport.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
-            clientChannelFactory = channelFactory(clientProfileSettings, true);
+            clientChannelFactory = clientChannelFactoryFunction(clientProfileSettings);
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
                     String profileName = profileSettings.profileName;
-                    TcpChannelFactory factory = channelFactory(profileSettings, false);
+                    TcpChannelFactory factory = serverChannelFactory(profileSettings);
                     profileToChannelFactory.putIfAbsent(profileName, factory);
                     bindServer(profileSettings);
                 }
@@ -131,8 +132,12 @@ public class NioTransport extends TcpTransport {
         serverAcceptedChannel((NioTcpChannel) channel);
     }
 
-    protected TcpChannelFactory channelFactory(ProfileSettings settings, boolean isClient) {
-        return new TcpChannelFactoryImpl(settings);
+    protected TcpChannelFactory serverChannelFactory(ProfileSettings profileSettings) {
+        return new TcpChannelFactoryImpl(profileSettings, false);
+    }
+
+    protected Function<DiscoveryNode, TcpChannelFactory> clientChannelFactoryFunction(ProfileSettings profileSettings) {
+        return (n) -> new TcpChannelFactoryImpl(profileSettings, true);
     }
 
     protected abstract class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
@@ -144,20 +149,22 @@ public class NioTransport extends TcpTransport {
 
     private class TcpChannelFactoryImpl extends TcpChannelFactory {
 
+        private final boolean isClient;
         private final String profileName;
 
-        private TcpChannelFactoryImpl(ProfileSettings profileSettings) {
+        private TcpChannelFactoryImpl(ProfileSettings profileSettings, boolean isClient) {
             super(new RawChannelFactory(profileSettings.tcpNoDelay,
                 profileSettings.tcpKeepAlive,
                 profileSettings.reuseAddress,
                 Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes())));
+            this.isClient = isClient;
             this.profileName = profileSettings.profileName;
         }
 
         @Override
-        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            NioTcpChannel nioChannel = new NioTcpChannel(profileName, channel);
+        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) {
+            NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
@@ -171,7 +178,7 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
             NioTcpServerChannel nioChannel = new NioTcpServerChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = NioTransport.this::acceptChannel;

@@ -28,9 +28,11 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -40,6 +42,7 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 /**
@@ -66,9 +69,24 @@ public final class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
     private volatile DirectoryReader lastOpenedReader;
+    private final DirectoryReader canMatchReader;
 
     public FrozenEngine(EngineConfig config) {
         super(config, null, null, true, Function.identity());
+
+        boolean success = false;
+        Directory directory = store.directory();
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
+                config.getShardId());
+            success = true;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            if (success == false) {
+                closeNoLock("failed on construction", new CountDownLatch(1));
+            }
+        }
     }
 
     @Override
@@ -142,7 +160,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     listeners.beforeRefresh();
                 }
                 reader = DirectoryReader.open(engineConfig.getStore().directory());
-                searcherFactory.processReaders(reader, null);
+                processReaders(reader, null);
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
@@ -189,10 +207,12 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     assert false : "this is a read-only engine";
                 case "doc_stats":
                     assert false : "doc_stats are overwritten";
+                case "refresh_needed":
+                    assert false : "refresh_needed is always false";
                 case "segments":
                 case "segments_stats":
                 case "completion_stats":
-                case "refresh_needed":
+                case "can_match": // special case for can_match phase - we use the cached point values reader
                     maybeOpenReader = false;
                     break;
                 default:
@@ -205,6 +225,10 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 // we just hand out a searcher on top of an empty reader that we opened for the ReadOnlyEngine in the #open(IndexCommit)
                 // method. this is the case when we don't have a reader open right now and we get a stats call any other that falls in
                 // the category that doesn't trigger a reopen
+                if ("can_match".equals(source)) {
+                    canMatchReader.incRef();
+                    return new Searcher(source, new IndexSearcher(canMatchReader), canMatchReader::decRef);
+                }
                 return super.acquireSearcher(source, scope);
             } else {
                 try {

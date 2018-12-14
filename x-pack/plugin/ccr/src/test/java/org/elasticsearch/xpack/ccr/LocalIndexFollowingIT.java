@@ -40,7 +40,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(client().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs));
+            assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
         });
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
@@ -49,7 +49,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(client().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs + secondBatchNumDocs));
+            assertThat(client().prepareSearch("follower").get()
+                .getHits().getTotalHits().value, equalTo(firstBatchNumDocs + secondBatchNumDocs));
         });
 
         PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
@@ -62,7 +63,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest()).get();
         assertBusy(() -> {
-            assertThat(client().prepareSearch("follower").get().getHits().totalHits,
+            assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
         ensureEmptyWriteBuffers();

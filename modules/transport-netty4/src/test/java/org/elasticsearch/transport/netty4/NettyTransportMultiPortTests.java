@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -53,7 +54,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
         Settings settings = Settings.builder()
             .put("network.host", host)
-            .put(TcpTransport.PORT.getKey(), 22) // will not actually bind to this
+            .put(TransportSettings.PORT.getKey(), 22) // will not actually bind to this
             .put("transport.profiles.default.port", 0)
             .put("transport.profiles.client1.port", 0)
             .build();
@@ -70,7 +71,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     public void testThatDefaultProfileInheritsFromStandardSettings() throws Exception {
         Settings settings = Settings.builder()
             .put("network.host", host)
-            .put(TcpTransport.PORT.getKey(), 0)
+            .put(TransportSettings.PORT.getKey(), 0)
             .put("transport.profiles.client1.port", 0)
             .build();
 
@@ -87,7 +88,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put("network.host", host)
-            .put(TcpTransport.PORT.getKey(), 0)
+            .put(TransportSettings.PORT.getKey(), 0)
             .put("transport.profiles.client1.whatever", "foo")
             .build();
 
@@ -103,7 +104,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
         Settings settings = Settings.builder()
             .put("network.host", host)
-            .put(TcpTransport.PORT.getKey(), 22) // will not actually bind to this
+            .put(TransportSettings.PORT.getKey(), 22) // will not actually bind to this
             .put("transport.profiles.default.port", 0)
             .build();
 

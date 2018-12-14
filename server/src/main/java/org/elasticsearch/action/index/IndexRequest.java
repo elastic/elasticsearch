@@ -582,7 +582,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             ifPrimaryTermMatch = in.readVLong();
         } else {
             ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            ifPrimaryTermMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            ifPrimaryTermMatch = 0;
         }
     }
 

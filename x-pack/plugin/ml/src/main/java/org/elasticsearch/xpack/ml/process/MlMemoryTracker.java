@@ -11,8 +11,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -54,14 +57,22 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final JobResultsProvider jobResultsProvider;
     private volatile boolean isMaster;
     private volatile Instant lastUpdateTime;
+    private volatile Duration reassignmentRecheckInterval;
 
-    public MlMemoryTracker(ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
+    public MlMemoryTracker(Settings settings, ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
                            JobResultsProvider jobResultsProvider) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
+        setReassignmentRecheckInterval(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
         clusterService.addLocalNodeMasterListener(this);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setReassignmentRecheckInterval);
+    }
+
+    private void setReassignmentRecheckInterval(TimeValue recheckInterval) {
+        reassignmentRecheckInterval = Duration.ofNanos(recheckInterval.getNanos());
     }
 
     @Override
@@ -85,12 +96,12 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     /**
      * Is the information in this object sufficiently up to date
-     * for valid allocation decisions to be made using it?
+     * for valid task assignment decisions to be made using it?
      */
     public boolean isRecentlyRefreshed() {
         Instant localLastUpdateTime = lastUpdateTime;
-        // TODO add on PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING once PR 36069 is merged
-        return localLastUpdateTime != null && localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).isAfter(Instant.now());
+        return localLastUpdateTime != null &&
+            localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(reassignmentRecheckInterval).isAfter(Instant.now());
     }
 
     /**

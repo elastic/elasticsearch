@@ -134,5 +134,5 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Casting
 #
-  def convert(Object, String)
+  def cast(Object, String)
 }

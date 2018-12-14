@@ -463,11 +463,7 @@ public final class InternalSqlScriptUtils {
     //
     // Casting
     //
-    public static Object convert(Object value, String typeName) {
-        if (value == null) {
-            return null;
-        }
-        
+    public static Object cast(Object value, String typeName) {
         return DataTypeConversion.convert(value, DataType.fromTypeName(typeName));
     }
 }

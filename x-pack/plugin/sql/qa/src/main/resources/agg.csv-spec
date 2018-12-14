@@ -178,3 +178,16 @@ CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))):i|   COUNT(1):l
 1                                                |15
 null                                             |10
 ;
+
+aggAndOrderByCastedFunctionValue
+SELECT ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)), 2), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
+
+ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2):d|  COUNT(1):l
+-------------------------------------------------+---------------
+12.17                                            |21
+7.42                                             |18
+4.47                                             |17
+2.65                                             |19
+1.73                                             |15
+null                                             |10
+;

@@ -82,7 +82,7 @@ public class Cast extends UnaryScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
         return new ScriptTemplate(
-                formatTemplate(String.format(Locale.ROOT, "{sql}.convert(%s,{})", fieldAsScript.template())),
+                formatTemplate(String.format(Locale.ROOT, "{sql}.cast(%s,{})", fieldAsScript.template())),
                 paramsBuilder()
                     .script(fieldAsScript.params())
                     .variable(dataType.name())

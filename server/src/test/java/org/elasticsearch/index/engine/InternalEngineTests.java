@@ -3609,8 +3609,8 @@ public class InternalEngineTests extends EngineTestCase {
         }
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            int count = searcher.searcher().count(new MatchAllDocsQuery());
+            assertEquals(numDocs, count);
         }
         if (primary) {
             // primaries rely on lucene dedup and may index the same document twice
@@ -3716,8 +3716,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(docs.size(), topDocs.totalHits.value);
+            int count = searcher.searcher().count(new MatchAllDocsQuery());
+            assertEquals(docs.size(), count);
         }
         assertEquals(0, engine.getNumVersionLookups());
         assertEquals(0, engine.getNumIndexVersionsLookups());

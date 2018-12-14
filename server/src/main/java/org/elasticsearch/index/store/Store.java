@@ -1169,10 +1169,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     return;
                 }
             }
+
+            ByteSizeValue size = new ByteSizeValue((long) 12.7);
+            BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_"+metadata.name(), metadata, size);
+
             throw new CorruptIndexException("verification failed (hardware problem?) : expected=" + metadata.checksum() +
                     " actual=" + actualChecksum + " footer=" + footerDigest +" writtenLength=" + writtenBytes + " expectedLength=" +
-                    metadata.length() + " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
+                    metadata.length() + " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + info.physicalName() + ")");
         }
+
 
         @Override
         public void writeByte(byte b) throws IOException {

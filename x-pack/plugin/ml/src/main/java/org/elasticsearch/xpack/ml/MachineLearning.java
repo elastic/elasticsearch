@@ -419,7 +419,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.datafeedManager.set(datafeedManager);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager);
-        MlMemoryTracker memoryTracker = new MlMemoryTracker(clusterService, threadPool, jobManager, jobResultsProvider);
+        MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider);
         this.memoryTracker.set(memoryTracker);
 
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it

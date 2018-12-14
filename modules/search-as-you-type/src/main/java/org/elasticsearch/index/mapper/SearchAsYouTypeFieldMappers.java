@@ -161,8 +161,8 @@ public final class SearchAsYouTypeFieldMappers {
 
             final SuggesterizedFieldType withEdgeNgrams =
                 new SuggesterizedFieldType(name() + "._with_edge_ngrams", false, -1, true);
-            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(originalAnalyzer);
-            final SearchAsYouTypeAnalyzer unmodified = SearchAsYouTypeAnalyzer.withNeither(originalAnalyzer);
+            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(originalAnalyzer.analyzer());
+            final SearchAsYouTypeAnalyzer unmodified = SearchAsYouTypeAnalyzer.withNeither(originalAnalyzer.analyzer());
             withEdgeNgrams.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, wrappedWithEdgeNGrams));
             withEdgeNgrams.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, unmodified));
             final SuggesterizedFieldMapper withEdgeNGramsMapper = new SuggesterizedFieldMapper(withEdgeNgrams, context.indexSettings());
@@ -175,9 +175,9 @@ public final class SearchAsYouTypeFieldMappers {
                     name() + "._with_" + numberOfShingles + "_shingles", true, numberOfShingles, false, withShinglesAndEdgeNGrams);
 
                 final SearchAsYouTypeAnalyzer withShinglesAnalyzer =
-                    SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer, numberOfShingles);
+                    SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer.analyzer(), numberOfShingles);
                 final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
-                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(originalAnalyzer, numberOfShingles);
+                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(originalAnalyzer.analyzer(), numberOfShingles);
 
                 withShinglesAndEdgeNGrams.setIndexAnalyzer(
                     new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAndEdgeNGramsAnalyzer));

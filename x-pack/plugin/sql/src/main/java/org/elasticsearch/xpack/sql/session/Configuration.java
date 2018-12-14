@@ -9,15 +9,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
+import java.time.ZonedDateTime;
 import java.util.TimeZone;
 
-// Typed object holding properties for a given action
+// Typed object holding properties for a given query
 public class Configuration {
-    public static final Configuration DEFAULT = new Configuration(TimeZone.getTimeZone("UTC"),
-        Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null);
-
     private final TimeZone timeZone;
     private final int pageSize;
     private final TimeValue requestTimeout;
@@ -25,6 +22,7 @@ public class Configuration {
     private final Mode mode;
     private final String username;
     private final String clusterName;
+    private final ZonedDateTime now;
 
     @Nullable
     private QueryBuilder filter;
@@ -39,6 +37,7 @@ public class Configuration {
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.username = username;
         this.clusterName = clusterName;
+        this.now = ZonedDateTime.now(timeZone.toZoneId().normalized());
     }
 
     public TimeZone timeZone() {
@@ -70,5 +69,9 @@ public class Configuration {
 
     public String clusterName() {
         return clusterName;
+    }
+
+    public ZonedDateTime now() {
+        return now;
     }
 }

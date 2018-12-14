@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.LiteralTests;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -459,8 +461,11 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             if (argClass == Expression.class) {
                 return LiteralTests.randomLiteral();
             }
+        } else if (toBuildClass == CurrentDateTime.class) {
+            if (argClass == Expression.class) {
+                return Literal.of(LocationTests.randomLocation(), randomInt(9));
+            }
         }
-
         if (Expression.class == argClass) {
             /*
              * Rather than use any old subclass of expression lets

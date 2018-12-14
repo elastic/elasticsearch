@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -31,7 +33,6 @@ import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -62,7 +63,7 @@ public class QueryTranslatorTests extends ESTestCase {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
     }
 
     @AfterClass
@@ -398,6 +399,31 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
 
+    public void testTranslateCoalesce_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT COALESCE(int, 10) FROM test GROUP BY 1");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0),params.v1])",
+            scriptTemplate.toString());
+        assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
+    }
+
+    public void testTranslateNullIf_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT NULLIF(int, 10) FROM test GROUP BY 1");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.nullif(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)",
+            scriptTemplate.toString());
+        assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
+    }
     public void testGroupByDateHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(int, 1000)");
         assertTrue(p instanceof Aggregate);
@@ -412,6 +438,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(FieldAttribute.class, field.getClass());
         assertEquals(DataType.INTEGER, field.dataType());
     }
+
 
     public void testGroupByHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS)");

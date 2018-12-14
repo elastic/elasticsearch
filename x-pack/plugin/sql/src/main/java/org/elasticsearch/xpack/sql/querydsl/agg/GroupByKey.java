@@ -63,6 +63,10 @@ public abstract class GroupByKey extends Agg {
         return this.direction == direction ? this : copy(id(), fieldName(), script, direction);
     }
 
+    public ScriptTemplate script() {
+        return script;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(id(), fieldName(), script, direction);

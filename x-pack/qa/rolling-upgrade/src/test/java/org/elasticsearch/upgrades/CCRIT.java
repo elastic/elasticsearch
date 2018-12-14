@@ -98,40 +98,40 @@ public class CCRIT extends AbstractUpgradeTestCase {
                 index(leaderIndex1, "1");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex1;
-                    assertDocumentExists(followerIndex, "1");
                     assertNumberOfSuccessfulFollowedIndices(1);
                     assertFollowerGlobalCheckpoint(followerIndex, 0);
+                    assertDocumentExists(followerIndex, "1");
                 });
                 break;
             case MIXED:
                 index(leaderIndex1, "2");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex1;
-                    assertDocumentExists(followerIndex, "2");
                     assertFollowerGlobalCheckpoint(followerIndex, 1);
+                    assertDocumentExists(followerIndex, "2");
                 });
 
                 createIndex(leaderIndex2, indexSettings);
                 index(leaderIndex2, "1");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex2;
-                    assertDocumentExists(followerIndex, "1");
                     assertNumberOfSuccessfulFollowedIndices(2);
                     assertFollowerGlobalCheckpoint(followerIndex, 0);
+                    assertDocumentExists(followerIndex, "1");
                 });
                 break;
             case UPGRADED:
                 index(leaderIndex1, "3");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex1;
-                    assertDocumentExists(followerIndex, "3");
                     assertFollowerGlobalCheckpoint(followerIndex, 2);
+                    assertDocumentExists(followerIndex, "3");
                 });
                 index(leaderIndex2, "2");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex2;
-                    assertDocumentExists(followerIndex, "2");
                     assertFollowerGlobalCheckpoint(followerIndex, 1);
+                    assertDocumentExists(followerIndex, "2");
                 });
 
                 deleteAutoFollowPattern("test_pattern");

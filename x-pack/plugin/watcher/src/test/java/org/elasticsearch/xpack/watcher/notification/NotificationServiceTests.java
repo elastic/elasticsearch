@@ -40,6 +40,7 @@ public class NotificationServiceTests extends ESTestCase {
         assertThat(service.getAccount(accountName), is(accountName));
         // single account, this will also be the default
         assertThat(service.getAccount("non-existing"), is(accountName));
+        assertThat(service.getAccount(null), is(accountName));
     }
 
     public void testMultipleAccountsWithExistingDefault() {
@@ -113,6 +114,26 @@ public class NotificationServiceTests extends ESTestCase {
         assertThat(service.getAccount(null), anyOf(is("secure_only"), is("unsecure_only"), is("mixed")));
     }
 
+    public void testAccountCreationCached() {
+        String accountName = randomAlphaOfLength(10);
+        Settings settings = Settings.builder().put("xpack.notification.test.account." + accountName, "bar").build();
+        final AtomicInteger validationInvocationCount = new AtomicInteger(0);
+
+        TestNotificationService service = new TestNotificationService(settings, (String name, Settings accountSettings) -> {
+            validationInvocationCount.incrementAndGet();
+        });
+        assertThat(validationInvocationCount.get(), is(0));
+        assertThat(service.getAccount(accountName), is(accountName));
+        assertThat(validationInvocationCount.get(), is(1));
+        if (randomBoolean()) {
+            assertThat(service.getAccount(accountName), is(accountName));
+        } else {
+            assertThat(service.getAccount(null), is(accountName));
+        }
+        // counter is still 1 because the account is cached
+        assertThat(validationInvocationCount.get(), is(1));
+    }
+
     public void testAccountUpdateSettings() throws Exception {
         final Setting<SecureString> secureSetting = SecureSetting.secureString("xpack.notification.test.account.x.secure", null);
         final Setting<String> setting = Setting.simpleString("xpack.notification.test.account.x.dynamic", Setting.Property.Dynamic,
@@ -135,42 +156,43 @@ public class NotificationServiceTests extends ESTestCase {
         service.getAccount(null);
         assertThat(validationInvocationCount.get(), is(1));
         // update secure setting only
-        secureSettingValue.set(randomAlphaOfLength(4));
-        secureSettingsMap.put(secureSetting.getKey(), secureSettingValue.get().toCharArray());
-        service.reload(settingsBuilder.build());
+        updateSecureSetting(secureSettingValue, secureSetting, secureSettingsMap, settingsBuilder, service);
         assertThat(validationInvocationCount.get(), is(1));
         service.getAccount(null);
         assertThat(validationInvocationCount.get(), is(2));
-        // update dynamic cluster setting only
-        settingValue.set(randomAlphaOfLength(4));
-        settingsBuilder.put(setting.getKey(), settingValue.get());
-        service.clusterSettingsConsumer(settingsBuilder.build());
+        updateDynamicClusterSetting(settingValue, setting, settingsBuilder, service);
         assertThat(validationInvocationCount.get(), is(2));
         service.getAccount(null);
         assertThat(validationInvocationCount.get(), is(3));
         // update both
         if (randomBoolean()) {
             // update secure first
-            secureSettingValue.set(randomAlphaOfLength(4));
-            secureSettingsMap.put(secureSetting.getKey(), secureSettingValue.get().toCharArray());
-            service.reload(settingsBuilder.build());
+            updateSecureSetting(secureSettingValue, secureSetting, secureSettingsMap, settingsBuilder, service);
             // update cluster second
-            settingValue.set(randomAlphaOfLength(4));
-            settingsBuilder.put(setting.getKey(), settingValue.get());
-            service.clusterSettingsConsumer(settingsBuilder.build());
+            updateDynamicClusterSetting(settingValue, setting, settingsBuilder, service);
         } else {
             // update cluster first
-            settingValue.set(randomAlphaOfLength(4));
-            settingsBuilder.put(setting.getKey(), settingValue.get());
-            service.clusterSettingsConsumer(settingsBuilder.build());
+            updateDynamicClusterSetting(settingValue, setting, settingsBuilder, service);
             // update secure second
-            secureSettingValue.set(randomAlphaOfLength(4));
-            secureSettingsMap.put(secureSetting.getKey(), secureSettingValue.get().toCharArray());
-            service.reload(settingsBuilder.build());
+            updateSecureSetting(secureSettingValue, secureSetting, secureSettingsMap, settingsBuilder, service);
         }
         assertThat(validationInvocationCount.get(), is(3));
         service.getAccount(null);
         assertThat(validationInvocationCount.get(), is(4));
+    }
+
+    private static void updateDynamicClusterSetting(AtomicReference<String> settingValue, Setting<String> setting,
+            Settings.Builder settingsBuilder, TestNotificationService service) {
+        settingValue.set(randomAlphaOfLength(4));
+        settingsBuilder.put(setting.getKey(), settingValue.get());
+        service.clusterSettingsConsumer(settingsBuilder.build());
+    }
+
+    private static void updateSecureSetting(AtomicReference<String> secureSettingValue, Setting<SecureString> secureSetting,
+            Map<String, char[]> secureSettingsMap, Settings.Builder settingsBuilder, TestNotificationService service) {
+        secureSettingValue.set(randomAlphaOfLength(4));
+        secureSettingsMap.put(secureSetting.getKey(), secureSettingValue.get().toCharArray());
+        service.reload(settingsBuilder.build());
     }
 
     private static class TestNotificationService extends NotificationService<String> {
@@ -189,6 +211,10 @@ public class NotificationServiceTests extends ESTestCase {
 
         TestNotificationService(Settings settings) {
             this(settings, Collections.emptyList(), (x, y) -> {});
+        }
+
+        TestNotificationService(Settings settings, BiConsumer<String, Settings> validator) {
+            this(settings, Collections.emptyList(), validator);
         }
 
         @Override

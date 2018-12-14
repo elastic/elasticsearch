@@ -122,8 +122,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String getString(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        return val != null ? val.toString() : null;
+        return getObject(columnIndex, String.class);
     }
 
     @Override

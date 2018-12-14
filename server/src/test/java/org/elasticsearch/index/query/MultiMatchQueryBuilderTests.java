@@ -125,9 +125,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.fuzzyRewrite(getRandomRewriteMethod());
         }
         if (randomBoolean()) {
-            query.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
         if (randomBoolean()) {
@@ -474,6 +471,19 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 0f), BooleanClause.Occur.SHOULD)
             .build();
         assertEquals(expected, query);
+    }
+
+    public void testDisMaxDeprecation() throws Exception {
+        String json =
+                "{\n" +
+                "  \"multi_match\" : {\n" +
+                "    \"query\" : \"foo:bar\",\n" +
+                "    \"use_dis_max\" : true\n" +
+                "  }\n" +
+                "}";
+
+        parseQuery(json);
+        assertWarnings("Deprecated field [use_dis_max] used, replaced by [use tie_breaker instead]");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

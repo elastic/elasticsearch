@@ -86,7 +86,7 @@ public class ResultsIndexUpgradeService {
 
     //Was the index created in the current major version
     public static boolean checkInternalIndexVersion(IndexMetaData indexMetaData) {
-        return indexMetaData.getCreationVersion().major == Version.CURRENT.major;
+        return indexMetaData.getCreationVersion().major == INDEX_VERSION;
     }
 
     /**
@@ -329,13 +329,7 @@ public class ResultsIndexUpgradeService {
                 client.threadPool().executor(executor),
                 (createIndexResponse) -> { // If there are errors in the reindex, we should stop
                     Tuple<RestStatus, Throwable> status = getStatusAndCause(createIndexResponse);
-                    if (status.v1().equals(RestStatus.OK)) {
-                        return true;
-                    } else {
-                        // Throw an unchecked exception to keep from executing the rest of the reindexing requests
-                        //   and return the failure to the end user.
-                        throw new ElasticsearchException(status.v2());
-                    }
+                    return status.v1().equals(RestStatus.OK);
                 },
                 (exception -> true)); // Short circuit and call onFailure for any exception
 
@@ -345,7 +339,7 @@ public class ResultsIndexUpgradeService {
             reindexRequest.setSourceBatchSize(request.getReindexBatchSize());
             reindexRequest.setSourceIndices(oldIndex);
             reindexRequest.setDestIndex(newIndex);
-            // Don't worry if these indices already exist, we validated index.format earlier
+            // Don't worry if these indices already exist, we validated settings.index.created.version earlier
             reindexRequest.setConflicts("proceed");
             // If the document exists already in the new index, don't want to update or overwrite as we are pulling from "old data"
             reindexRequest.setDestOpType("create");
@@ -359,7 +353,16 @@ public class ResultsIndexUpgradeService {
         });
 
         chainTaskExecutor.execute(ActionListener.wrap(
-            bulkScrollingResponses -> listener.onResponse(true),
+            bulkScrollingResponses -> {
+                BulkByScrollResponse response = bulkScrollingResponses.get(bulkScrollingResponses.size() - 1);
+                Tuple<RestStatus, Throwable> status = getStatusAndCause(response);
+                if (status.v1().equals(RestStatus.OK)) {
+                    listener.onResponse(true);
+                } else {
+                    logger.error("Failed to reindex old results indices.", status.v2());
+                    listener.onFailure(new ElasticsearchException("Failed to reindex old results indices.",status.v2()));
+                }
+            },
             failure -> {
                 logger.error("Failed to re-index documents");
                 List<String> createdIndices = newIndices.subList(0, chainTaskExecutor.getCollectedResponses().size());

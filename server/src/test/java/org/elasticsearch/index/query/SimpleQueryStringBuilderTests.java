@@ -68,7 +68,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
+        String queryText = randomAlphaOfLengthBetween(1, 10);
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -105,9 +106,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
         }
-        // special handling if query is "now" and no field specified. This hits the "mapped_date" field which leads to the query not being
-        // cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
-        if (fieldCount == 0 && result.value().equalsIgnoreCase("now")) {
+        // special handling if query start with "now" and no field specified. This hits the "mapped_date" field which leads to the query not
+        // being cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
+        if (fieldCount == 0 && queryText.length() >= 3 && queryText.substring(0,3).equalsIgnoreCase("now")) {
             fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
         }
 

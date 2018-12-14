@@ -12,7 +12,7 @@
   - do:
       index:
         index:   test
-        type:    place
+        type:    _doc
         id:      1
         refresh: true
         body:    { "name": "bob! house" }
@@ -20,7 +20,7 @@
   - do:
       indices.put_mapping:
         index: test
-        type:  place
+        type:  _doc
         body:
           properties:
             name:

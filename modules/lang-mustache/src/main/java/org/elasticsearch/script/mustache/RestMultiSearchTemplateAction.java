@@ -41,7 +41,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestMultiSearchAction.class));
+        LogManager.getLogger(RestMultiSearchTemplateAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in multi search template requests is deprecated.";
+
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -89,8 +92,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
                     if (searchRequest.types().length > 0) {
-                        deprecationLogger.deprecatedAndMaybeLog("msearch_template_with_types",
-                            RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.deprecatedAndMaybeLog("msearch_template_with_types", TYPES_DEPRECATION_MESSAGE);
                     }
                     SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                     if (searchTemplateRequest.getScript() != null) {

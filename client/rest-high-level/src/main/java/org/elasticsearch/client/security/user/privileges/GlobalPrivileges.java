@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -49,7 +48,7 @@ public final class GlobalPrivileges implements ToXContentObject {
 
     // When categories change, adapting this field should suffice. Categories are NOT
     // opaque "named_objects", we wish to maintain control over these namespaces
-    static final List<String> CATEGORIES = Collections.unmodifiableList(Arrays.asList("application"));
+    public static final List<String> CATEGORIES = Collections.singletonList("application");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_category_privileges",

@@ -51,7 +51,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
-    private static final DateFormatter FORMATTER = DateFormatters.forPattern(DATE_FORMAT);
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern(DATE_FORMAT);
 
     private ZonedDateTime date(String date) {
         return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));

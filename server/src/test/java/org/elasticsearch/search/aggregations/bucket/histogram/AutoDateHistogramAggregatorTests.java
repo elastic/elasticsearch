@@ -33,7 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -402,7 +402,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
             histogram -> {
                 final List<String> dateStrings = datesForHourInterval.stream()
-                    .map(dateTime -> DateFormatters.forPattern("strict_date_time")
+                    .map(dateTime -> DateFormatter.forPattern("strict_date_time")
                         .format(dateTime.withZoneSameInstant(ZoneOffset.ofHours(-1)))).collect(Collectors.toList());
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(datesForHourInterval.size(), buckets.size());

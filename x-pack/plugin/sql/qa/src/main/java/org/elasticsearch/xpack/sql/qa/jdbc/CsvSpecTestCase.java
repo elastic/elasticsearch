@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,5 +59,11 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
             ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
             assertResults(expected, elasticResults);
         }
+    }
+
+    @Override
+    protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
+        Logger log = logEsResultSet() ? logger : null;
+        JdbcAssert.assertResultSets(expected, elastic, log, false, false);
     }
 }

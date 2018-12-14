@@ -20,7 +20,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTime;
 
 import java.time.Instant;
@@ -129,16 +128,18 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, Locale.ROOT);
-    }
-
-    static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            formatters.add(Joda.forPattern(pattern, locale));
+            if (Strings.hasLength(input) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+            if (pattern.startsWith("8")) {
+                pattern = pattern.substring(1);
+            }
+            formatters.add(DateFormatters.forPattern(pattern));
         }
 
         if (formatters.size() == 1) {

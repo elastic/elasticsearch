@@ -27,7 +27,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -248,7 +247,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date")
                 .setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time");
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
         indexRandom(true, client.prepareIndex("index-1", "type", "1").setSource("d", formatter.format(now)),
             client.prepareIndex("index-1", "type", "2").setSource("d", formatter.format(now.minusDays(1))),
             client.prepareIndex("index-1", "type", "3").setSource("d", formatter.format(now.minusDays(2))),

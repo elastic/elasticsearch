@@ -24,7 +24,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
@@ -46,7 +45,7 @@ public class RootObjectMapper extends ObjectMapper {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new DateFormatter[]{
                         DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                        DateFormatters.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis")
+                        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis")
                 };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;

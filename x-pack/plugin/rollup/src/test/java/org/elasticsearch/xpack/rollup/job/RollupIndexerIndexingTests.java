@@ -30,7 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -604,7 +604,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
             final ZoneId timeZone = range.timeZone() != null ? ZoneId.of(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, DateFormatters.forPattern(range.format()).toDateMathParser(), queryShardContext);
+                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), queryShardContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));

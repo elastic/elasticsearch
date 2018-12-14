@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +41,8 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+// TODO DELETE THIS CLASS, UNNEEDED
+@LuceneTestCase.AwaitsFix(bugUrl = "THIS CAN BE DELETED!!")
 public class SimpleJodaTests extends ESTestCase {
     public void testMultiParsers() {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
@@ -123,10 +126,10 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testSlashInFormat() {
-        DateFormatter formatter = DateFormatter.forPattern("MM/yyyy");
+        DateFormatter formatter = Joda.forPattern("MM/yyyy");
         formatter.parseMillis("01/2001");
 
-        DateFormatter formatter2 = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss");
+        DateFormatter formatter2 = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
         long millis = formatter2.parseMillis("1970/01/01 00:00:00");
         formatter2.formatMillis(millis);
 
@@ -141,16 +144,16 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testMultipleDifferentFormats() {
-        DateFormatter formatter = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        DateFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
         String input = "1970/01/01 00:00:00";
         long millis = formatter.parseMillis(input);
         assertThat(input, is(formatter.formatMillis(millis)));
 
-        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||dateOptionalTime");
-        DateFormatter.forPattern("dateOptionalTime||yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
-        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||dateOptionalTime||yyyy/MM/dd");
-        DateFormatter.forPattern("date_time||date_time_no_millis");
-        DateFormatter.forPattern(" date_time || date_time_no_millis");
+        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||dateOptionalTime");
+        Joda.forPattern("dateOptionalTime||yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        Joda.forPattern("yyyy/MM/dd HH:mm:ss||dateOptionalTime||yyyy/MM/dd");
+        Joda.forPattern("date_time||date_time_no_millis");
+        Joda.forPattern(" date_time || date_time_no_millis");
     }
 
     public void testInvalidPatterns() {
@@ -165,7 +168,7 @@ public class SimpleJodaTests extends ESTestCase {
 
     private void expectInvalidPattern(String pattern, String errorMessage) {
         try {
-            DateFormatter.forPattern(pattern);
+            Joda.forPattern(pattern);
             fail("Pattern " + pattern + " should have thrown an exception but did not");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString(errorMessage));
@@ -345,11 +348,11 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testThatEpochParserIsPrinter() {
-        JodaDateFormatter formatter = Joda.forPattern("epoch_millis", Locale.ROOT);
+        JodaDateFormatter formatter = Joda.forPattern("epoch_millis");
         assertThat(formatter.parser.isPrinter(), is(true));
         assertThat(formatter.printer.isPrinter(), is(true));
 
-        JodaDateFormatter epochSecondFormatter = Joda.forPattern("epoch_second", Locale.ROOT);
+        JodaDateFormatter epochSecondFormatter = Joda.forPattern("epoch_second");
         assertThat(epochSecondFormatter.parser.isPrinter(), is(true));
         assertThat(epochSecondFormatter.printer.isPrinter(), is(true));
     }
@@ -701,18 +704,35 @@ public class SimpleJodaTests extends ESTestCase {
         assertDateFormatParsingThrowingException("strictYearMonthDay", "2014-05-5");
     }
 
+    public void testDeprecatedFormatSpecifiers() {
+        Joda.forPattern("CC");
+        assertWarnings("Use of 'C' (century-of-era) is deprecated and will not be supported in the" +
+            " next major version of Elasticsearch.");
+        Joda.forPattern("YYYY");
+        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the" +
+            " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+        Joda.forPattern("xxxx");
+        assertWarnings("Use of 'x' (week-based-year) will change" +
+            " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+        // multiple deprecations
+        Joda.forPattern("CC-YYYY");
+        assertWarnings("Use of 'C' (century-of-era) is deprecated and will not be supported in the" +
+            " next major version of Elasticsearch.", "Use of 'Y' (year-of-era) will change to 'y' in the" +
+            " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+    }
+
     private void assertValidDateFormatParsing(String pattern, String dateToParse) {
         assertValidDateFormatParsing(pattern, dateToParse, dateToParse);
     }
 
     private void assertValidDateFormatParsing(String pattern, String dateToParse, String expectedDate) {
-        DateFormatter formatter = DateFormatter.forPattern(pattern);
+        DateFormatter formatter = Joda.forPattern(pattern);
         assertThat(formatter.formatMillis(formatter.parseMillis(dateToParse)), is(expectedDate));
     }
 
     private void assertDateFormatParsingThrowingException(String pattern, String invalidDate) {
         try {
-            DateFormatter formatter = DateFormatter.forPattern(pattern);
+            DateFormatter formatter = Joda.forPattern(pattern);
             formatter.parseMillis(invalidDate);
             fail(String.format(Locale.ROOT, "Expected parsing exception for pattern [%s] with date [%s], but did not happen",
                 pattern, invalidDate));

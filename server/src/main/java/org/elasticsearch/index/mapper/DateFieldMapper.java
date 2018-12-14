@@ -65,7 +65,7 @@ import java.util.Objects;
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
@@ -131,7 +131,7 @@ public class DateFieldMapper extends FieldMapper {
             String pattern = this.format.value();
             DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
             if ((Objects.equals(pattern, dateTimeFormatter.pattern()) == false && Strings.isEmpty(pattern) == false)) {
-                fieldType().setDateTimeFormatter(DateFormatters.forPattern(pattern).withLocale(locale));
+                fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
             } else if (locale.equals(dateTimeFormatter.locale()) == false) {
                 fieldType().setDateTimeFormatter(dateTimeFormatter.withLocale(locale));
             }
@@ -389,7 +389,7 @@ public class DateFieldMapper extends FieldMapper {
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
             DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
-                dateTimeFormatter = DateFormatters.forPattern(format).withLocale(dateTimeFormatter.locale());
+                dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
             }
             if (timeZone == null) {
                 timeZone = ZoneOffset.UTC;

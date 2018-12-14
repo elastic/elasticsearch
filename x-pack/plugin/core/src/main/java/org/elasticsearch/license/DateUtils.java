@@ -15,8 +15,8 @@ import java.time.temporal.ChronoField;
 
 public class DateUtils {
 
-    private static final DateFormatter dateOnlyFormatter = DateFormatters.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
-    private static final DateFormatter dateTimeFormatter = DateFormatters.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
+    private static final DateFormatter dateOnlyFormatter = DateFormatter.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    private static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
 
     public static long endOfTheDay(String date) {
         try {

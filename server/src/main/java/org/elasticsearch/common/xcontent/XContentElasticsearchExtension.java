@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
@@ -65,9 +64,9 @@ import java.util.function.Function;
 public class XContentElasticsearchExtension implements XContentBuilderExtension {
 
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
-    public static final DateFormatter DEFAULT_FORMATTER = DateFormatters.forPattern("strict_date_optional_time_nanos");
-    public static final DateFormatter LOCAL_TIME_FORMATTER = DateFormatters.forPattern("HH:mm:ss.SSS");
-    public static final DateFormatter OFFSET_TIME_FORMATTER = DateFormatters.forPattern("HH:mm:ss.SSSZZZZZ");
+    public static final DateFormatter DEFAULT_FORMATTER = DateFormatter.forPattern("strict_date_optional_time_nanos");
+    public static final DateFormatter LOCAL_TIME_FORMATTER = DateFormatter.forPattern("HH:mm:ss.SSS");
+    public static final DateFormatter OFFSET_TIME_FORMATTER = DateFormatter.forPattern("HH:mm:ss.SSSZZZZZ");
 
     @Override
     public Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {

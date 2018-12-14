@@ -565,18 +565,11 @@ public class Lucene {
     }
 
     public static SortField[] readSortFields(StreamInput in) throws IOException {
-        SortField[] fields = new SortField[in.readVInt()];
-        for (int i = 0; i < fields.length; i++) {
-            fields[i] = readSortField(in);
-        }
-        return fields;
+        return in.readArray(Lucene::readSortField, SortField[]::new);
     }
 
     public static void writeSortFields(StreamOutput out, SortField[] sortFields) throws IOException {
-        out.writeVInt(sortFields.length);
-        for (SortField sortField : sortFields) {
-            writeSortField(out, sortField);
-        }
+        out.writeArray(Lucene::writeSortField, sortFields);
     }
 
     public static void writeSortType(StreamOutput out, SortField.Type sortType) throws IOException {

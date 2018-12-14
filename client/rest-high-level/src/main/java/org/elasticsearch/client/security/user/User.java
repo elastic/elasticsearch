@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-
 /**
  * A user to be utilized with security APIs.
  * Can be an existing authenticated user or it can be a new user to be enrolled to the native realm.

@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-public class TestingConventionRule {
+public class TestingConventionRule implements Serializable {
 
     private final String name;
 

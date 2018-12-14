@@ -327,6 +327,7 @@ public class MlConfigMigrator {
             return;
         }
 
+        logger.debug("taking a snapshot of mlmetadata");
         String documentId = "ml-config";
         IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
                 ElasticsearchMappings.DOC_TYPE, documentId)

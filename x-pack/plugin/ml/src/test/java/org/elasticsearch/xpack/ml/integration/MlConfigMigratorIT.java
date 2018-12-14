@@ -134,20 +134,13 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
-        // the first time this is called mlmetadata will be snasshotted
+        // the first time this is called mlmetadata will be snap-shotted
         blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertTrue(responseHolder.get());
         assertSnapshot(mlMetadata.build());
-
-        // now call again to trigger the actual migration
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
-                responseHolder, exceptionHolder);
-
-        assertNull(exceptionHolder.get());
-        assertTrue(responseHolder.get());
 
         // check the jobs have been migrated
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();

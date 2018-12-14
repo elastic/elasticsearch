@@ -230,7 +230,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 String pipeline = indexRequest.getPipeline();
                 if (pipeline == null) {
                     IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
-                    if (indexMetaData == null) {
+                    if (indexMetaData == null && indexRequest.index() != null) {
                         //check the alias
                         AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
                         if (indexOrAlias != null && indexOrAlias.isAlias()) {

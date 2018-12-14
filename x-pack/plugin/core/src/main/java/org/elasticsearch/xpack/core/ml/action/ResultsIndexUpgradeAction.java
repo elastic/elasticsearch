@@ -116,8 +116,13 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
             ResultsIndexUpgradeAction.Request request = (ResultsIndexUpgradeAction.Request) o;
             return Objects.equals(reindexBatchSize, request.reindexBatchSize);
         }

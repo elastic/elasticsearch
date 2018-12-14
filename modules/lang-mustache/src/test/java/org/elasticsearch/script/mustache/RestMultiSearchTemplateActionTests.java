@@ -18,35 +18,21 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.test.rest.RestActionTestCase;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 
-import static org.mockito.Mockito.mock;
+public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
 
-public class RestMultiSearchTemplateActionTests extends ESTestCase {
-    private RestController controller;
-
-    public void setUp() throws Exception {
-        super.setUp();
-        controller = new RestController(Collections.emptySet(), null,
-            mock(NodeClient.class),
-            new NoneCircuitBreakerService(),
-            new UsageService());
-        new RestMultiSearchTemplateAction(Settings.EMPTY, controller);
+    @Before
+    public void setUpAction() {
+        new RestMultiSearchTemplateAction(Settings.EMPTY, controller());
     }
 
     public void testTypeInPath() {
@@ -60,7 +46,7 @@ public class RestMultiSearchTemplateActionTests extends ESTestCase {
             .withContent(bytesContent, XContentType.JSON)
             .build();
 
-        performRequest(request);
+        dispatchRequest(request);
         assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 
@@ -74,13 +60,7 @@ public class RestMultiSearchTemplateActionTests extends ESTestCase {
             .withContent(bytesContent, XContentType.JSON)
             .build();
 
-        performRequest(request);
+        dispatchRequest(request);
         assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
     }
 }

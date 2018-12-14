@@ -501,7 +501,8 @@ public class Node implements Closeable {
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
             final PersistentTasksClusterService persistentTasksClusterService =
-                new PersistentTasksClusterService(settings, registry, clusterService);
+                new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
+            resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
             modules.add(b -> {
@@ -677,7 +678,7 @@ public class Node implements Closeable {
             onDiskMetadata = MetaData.EMPTY_META_DATA;
         }
         assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
-        validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)
             .stream()

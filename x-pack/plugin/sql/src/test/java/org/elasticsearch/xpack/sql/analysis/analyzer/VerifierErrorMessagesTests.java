@@ -163,7 +163,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingExtractSimilarMany() {
-        assertEquals("1:8: Unknown datetime field [DOP], did you mean any of [DOM, DOW, DOY]?",
+        assertEquals("1:8: Unknown datetime field [DOP], did you mean any of [DOM, DOW, DOY, IDOW]?",
             error("SELECT EXTRACT(DOP FROM date) FROM test"));
     }
 

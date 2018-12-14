@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        type:    test
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -17,7 +17,7 @@
   - do:
       index:
         index:   test
-        type:    test
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -31,7 +31,7 @@
   - do:
       index:
         index:   test
-        type:    test
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -47,20 +47,20 @@
         index: test
         body:
           mappings:
-            test:
+            _doc:
               _source:
                 enabled: false
   - do:
       index:
         index:  test
-        type:   test
+        type:   _doc
         id:     1
         body:   { age: 23 }
   - do:
       indices.refresh: {}
 
   - do:
-      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      catch: /\[test\]\[_doc\]\[1\] didn't store _source/
       update_by_query:
         index: test
 

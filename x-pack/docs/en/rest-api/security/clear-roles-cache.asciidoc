@@ -6,7 +6,7 @@ Evicts roles from the native role cache.
 
 ==== Request
 
-`POST /_xpack/security/role/<name>/_clear_cache` 
+`POST /_security/role/<name>/_clear_cache` 
 
 ==== Description
 
@@ -34,6 +34,6 @@ to clear the cache for `my_admin_role`:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/role/my_admin_role/_clear_cache
+POST /_security/role/my_admin_role/_clear_cache
 --------------------------------------------------
 // CONSOLE

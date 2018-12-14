@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMappers.SearchAsYouTypeAnalyzer;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMappers.SearchAsYouTypeFieldMapper;
@@ -129,6 +132,40 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
             topLevelFieldMapper, "simple", 5);
     }
 
+    public void testDocumentParsing() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("a_field")
+            .field("type", "search_as_you_type")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper defaultMapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        final String value = randomAlphaOfLengthBetween(5, 20);
+        final ParsedDocument parsedDocument = defaultMapper.parse(
+            SourceToParse.source("test", "_doc", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("a_field", value)
+                    .endObject()),
+                XContentType.JSON));
+
+        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field"), value, false, -1, false);
+        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_edge_ngrams"), value, false, -1, true);
+        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_2_shingles"), value, true, 2, false);
+        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_2_shingles_and_edge_ngrams"), value, true, 2, true);
+        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_3_shingles"), value, true, 3, false);
+        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_3_shingles_and_edge_ngrams"), value, true, 3, true);
+    }
+
     private static void assertTopLevelFieldMapper(SearchAsYouTypeFieldMapper mapper, String analyzerName) {
         final SuggesterizedFieldType fieldType = mapper.fieldType();
         assertFalse(fieldType.hasShingles());
@@ -178,6 +215,20 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
 
         assertAnalyzer(withShinglesFieldType, analyzerName, true, numberOfShingles, false);
         assertAnalyzer(withShinglesAndEdgeNGramsFieldType, analyzerName, true, numberOfShingles, true);
+    }
+
+    private static void assertIndexableFields(IndexableField[] indexableFields,
+                                              String value,
+                                              boolean hasShingles,
+                                              int shingleSize,
+                                              boolean hasEdgeNGrams) {
+
+        assertThat(indexableFields.length, equalTo(1));
+        final IndexableField field = indexableFields[0];
+        assertThat(field.stringValue(), equalTo(value));
+        assertThat(field.fieldType(), instanceOf(SuggesterizedFieldType.class));
+        final SuggesterizedFieldType fieldType = (SuggesterizedFieldType) field.fieldType();
+        assertFieldType(fieldType, hasShingles, shingleSize, hasEdgeNGrams);
     }
 
     private static void assertFieldType(SuggesterizedFieldType fieldType,

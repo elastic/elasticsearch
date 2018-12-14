@@ -1,7 +1,7 @@
 [[release-notes-7.0.0-alpha2]]
-== 7.0.0-alpha2 release notes
+== {es} version 7.0.0-alpha2
 
-The changes listed below have been released for the first time in Elasticsearch 7.0.0-alpha2.
+coming[7.0.0-alpha2]
 
 [[breaking-7.0.0-alpha2]]
 [float]

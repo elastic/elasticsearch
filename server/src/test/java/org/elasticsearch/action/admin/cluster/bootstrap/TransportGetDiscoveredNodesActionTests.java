@@ -24,11 +24,19 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.ClusterAlreadyBootstrappedException;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.NoOpClusterApplier;
 import org.elasticsearch.cluster.coordination.PeersResponse;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.coordination.PublishWithJoinResponse;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,6 +50,7 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -62,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -113,10 +123,14 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             Settings.builder().put(CLUSTER_NAME_SETTING.getKey(), clusterName).build(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService, writableRegistry(),
-            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService("local", Settings.EMPTY, threadPool),
+        final Settings settings = Settings.builder()
+            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
+                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)).build(); // suppress auto-bootstrap
+
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        coordinator = new Coordinator("local", settings, clusterSettings, transportService, writableRegistry(),
+            ESAllocationTestCase.createAllocationService(settings),
+            new MasterService("local", settings, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName(clusterName)).build()), r -> emptyList(),
             new NoOpClusterApplier(), new Random(random().nextLong()));
     }
@@ -152,7 +166,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testFailsOnNonMasterEligibleNodes() throws InterruptedException {
+    public void testFailsOnMasterIneligibleNodes() throws InterruptedException {
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         // transport service only picks up local node when started, so we can change it here ^
 
@@ -228,6 +242,101 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         }
+    }
+
+    public void testFailsIfAlreadyBootstrapped() throws InterruptedException {
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        coordinator.start();
+        coordinator.startInitialJoin();
+        coordinator.setInitialConfiguration(new VotingConfiguration(singleton(localNode.getId())));
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(2);
+        getDiscoveredNodesRequest.setTimeout(null);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                if (exp.getRootCause() instanceof ClusterAlreadyBootstrappedException) {
+                    countDownLatch.countDown();
+                } else {
+                    throw new AssertionError("should not be called", exp);
+                }
+            }
+        });
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testFailsIfAcceptsClusterStateWithNonemptyConfiguration() throws InterruptedException, IOException {
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        coordinator.start();
+        coordinator.startInitialJoin();
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(3);
+        getDiscoveredNodesRequest.setTimeout(null);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                if (exp.getRootCause() instanceof ClusterAlreadyBootstrappedException) {
+                    countDownLatch.countDown();
+                } else {
+                    throw new AssertionError("should not be called", exp);
+                }
+            }
+        });
+
+        ClusterState.Builder publishedClusterState = ClusterState.builder(ClusterName.DEFAULT);
+        publishedClusterState.incrementVersion();
+        publishedClusterState.nodes(DiscoveryNodes.builder()
+            .add(localNode).add(otherNode).localNodeId(localNode.getId()).masterNodeId(otherNode.getId()));
+        publishedClusterState.metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+            .term(1)
+            .lastAcceptedConfiguration(new VotingConfiguration(singleton(otherNode.getId())))
+            .lastCommittedConfiguration(new VotingConfiguration(singleton(otherNode.getId())))
+            .build()));
+
+        transportService.sendRequest(localNode, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+            new BytesTransportRequest(PublicationTransportHandler.serializeFullClusterState(publishedClusterState.build(), Version.CURRENT),
+                Version.CURRENT),
+            new TransportResponseHandler<PublishWithJoinResponse>() {
+                @Override
+                public void handleResponse(PublishWithJoinResponse response) {
+                    // do nothing
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called", exp);
+                }
+
+                @Override
+                public String executor() {
+                    return Names.SAME;
+                }
+
+                @Override
+                public PublishWithJoinResponse read(StreamInput in) throws IOException {
+                    return new PublishWithJoinResponse(in);
+                }
+            });
+
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
     public void testGetsDiscoveredNodesWithZeroTimeout() throws InterruptedException {

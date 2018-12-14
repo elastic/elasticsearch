@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 public class BootstrapClusterAction extends Action<BootstrapClusterResponse> {
     public static final BootstrapClusterAction INSTANCE = new BootstrapClusterAction();
-    public static final String NAME = "cluster:admin/bootstrap_cluster";
+    public static final String NAME = "cluster:admin/bootstrap/set_voting_config";
 
     private BootstrapClusterAction() {
         super(NAME);

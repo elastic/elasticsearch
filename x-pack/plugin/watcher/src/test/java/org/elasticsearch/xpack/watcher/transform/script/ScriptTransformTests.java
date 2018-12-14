@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.Watcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -191,6 +193,8 @@ public class ScriptTransformTests extends ESTestCase {
         when(watcherContext.id()).thenReturn(mock(Wid.class));
         when(watcherContext.watch()).thenReturn(mock(Watch.class));
         when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        when(watcherContext.executionTime()).thenReturn(now);
         Payload payload = mock(Payload.class);
         WatcherTransformScript watcherScript = new WatcherTransformScript(Collections.emptyMap(), watcherContext, payload) {
             @Override

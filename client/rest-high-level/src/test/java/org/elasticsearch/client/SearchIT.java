@@ -118,10 +118,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/doc/1");
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
             doc1.setJsonEntity("{\"field\":\"value1\", \"rating\": 7}");
             client().performRequest(doc1);
-            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/doc/2");
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/2");
             doc2.setJsonEntity("{\"field\":\"value2\"}");
             client().performRequest(doc2);
         }
@@ -131,7 +131,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             create.setJsonEntity(
                 "{" +
                 "  \"mappings\": {" +
-                "    \"doc\": {" +
+                "    \"_doc\": {" +
                 "      \"properties\": {" +
                 "        \"rating\": {" +
                 "          \"type\":  \"keyword\"" +
@@ -141,19 +141,19 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "  }" +
                 "}");
             client().performRequest(create);
-            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/doc/3");
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/3");
             doc3.setJsonEntity("{\"field\":\"value1\", \"rating\": \"good\"}");
             client().performRequest(doc3);
-            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index2/doc/4");
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/4");
             doc4.setJsonEntity("{\"field\":\"value2\"}");
             client().performRequest(doc4);
         }
 
         {
-            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index3/doc/5");
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/5");
             doc5.setJsonEntity("{\"field\":\"value1\"}");
             client().performRequest(doc5);
-            Request doc6 = new Request(HttpPut.METHOD_NAME, "/index3/doc/6");
+            Request doc6 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/6");
             doc6.setJsonEntity("{\"field\":\"value2\"}");
             client().performRequest(doc6);
         }
@@ -163,7 +163,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             create.setJsonEntity(
                     "{" +
                     "  \"mappings\": {" +
-                    "    \"doc\": {" +
+                    "    \"_doc\": {" +
                     "      \"properties\": {" +
                     "        \"field1\": {" +
                     "          \"type\":  \"keyword\"," +
@@ -178,7 +178,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                     "  }" +
                     "}");
             client().performRequest(create);
-            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/doc/1");
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/_doc/1");
             doc1.setJsonEntity("{\"field1\":\"value1\", \"field2\":\"value2\"}");
             client().performRequest(doc1);
 
@@ -1010,13 +1010,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     public void testExplain() throws IOException {
         {
-            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index1", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1025,13 +1025,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertNull(explainResponse.getGetResult());
         }
         {
-            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index1", "1");
             explainRequest.query(QueryBuilders.termQuery("field", "value1"));
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1040,13 +1040,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertNull(explainResponse.getGetResult());
         }
         {
-            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index1", "1");
             explainRequest.query(QueryBuilders.termQuery("field", "value2"));
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1054,7 +1054,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertNull(explainResponse.getGetResult());
         }
         {
-            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index1", "1");
             explainRequest.query(QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("field", "value1"))
                 .must(QueryBuilders.termQuery("field", "value2")));
@@ -1062,7 +1062,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1074,7 +1074,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainNonExistent() throws IOException {
         {
-            ExplainRequest explainRequest = new ExplainRequest("non_existent_index", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("non_existent_index", "1");
             explainRequest.query(QueryBuilders.matchQuery("field", "value"));
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync));
@@ -1084,13 +1084,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
-            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "999");
+            ExplainRequest explainRequest = new ExplainRequest("index1", "999");
             explainRequest.query(QueryBuilders.matchQuery("field", "value1"));
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(explainResponse.getId(), equalTo("999"));
             assertFalse(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1101,7 +1101,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainWithStoredFields() throws IOException {
         {
-            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
             explainRequest.storedFields(new String[]{"field1"});
 
@@ -1117,7 +1117,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(explainResponse.getGetResult().isSourceEmpty());
         }
         {
-            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
             explainRequest.storedFields(new String[]{"field1", "field2"});
 
@@ -1137,7 +1137,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainWithFetchSource() throws IOException {
         {
-            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
             explainRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, null));
 
@@ -1151,7 +1151,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertThat(explainResponse.getGetResult().getSource(), equalTo(Collections.singletonMap("field1", "value1")));
         }
         {
-            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
             explainRequest.fetchSourceContext(new FetchSourceContext(true, null, new String[] {"field2"}));
 
@@ -1167,7 +1167,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testExplainWithAliasFilter() throws IOException {
-        ExplainRequest explainRequest = new ExplainRequest("alias4", "doc", "1");
+        ExplainRequest explainRequest = new ExplainRequest("alias4", "1");
         explainRequest.query(QueryBuilders.matchAllQuery());
 
         ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
@@ -1254,6 +1254,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
+        // add logging to get more info about why https://github.com/elastic/elasticsearch/issues/35644 is failing
+        // TODO remove this once #35644 is fixed
+        if (countResponse.getCount() != 12) {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().size(20));
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            logger.info("Unexpected hit count, was expecting 12 hits but got: " + searchResponse.toString());
+        }
         assertEquals(12, countResponse.getCount());
     }
 

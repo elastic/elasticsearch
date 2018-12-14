@@ -43,4 +43,14 @@ public class VerifyVersionConstantsIT extends ESRestTestCase {
         assertThat(elasticsearchVersion.luceneVersion, equalTo(luceneVersion));
     }
 
+    @Override
+    public boolean preserveClusterUponCompletion() {
+        /*
+         * We don't perform any writes to the cluster so there won't be anything
+         * to clean up. Also, our cleanup code is really only compatible with
+         * *write* compatible versions but this runs with *index* compatible
+         * versions.
+         */
+        return true;
+    }
 }

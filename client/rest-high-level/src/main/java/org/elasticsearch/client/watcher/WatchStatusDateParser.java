@@ -20,7 +20,7 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.joda.time.DateTime;
@@ -30,7 +30,7 @@ import java.io.IOException;
 
 public final class WatchStatusDateParser {
 
-    private static final FormatDateTimeFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+    private static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     private WatchStatusDateParser() {
         // Prevent instantiation.

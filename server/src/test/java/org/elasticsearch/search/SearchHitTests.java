@@ -19,15 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Predicate;
-
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
@@ -51,6 +42,15 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.RandomObjects;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -64,7 +64,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
 
-    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean withShardTarget) {
+    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
         Text type = new Text(randomAlphaOfLengthBetween(5, 10));
@@ -119,12 +119,12 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
                 Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
                 for (int i = 0; i < innerHitsSize; i++) {
                     innerHits.put(randomAlphaOfLength(5),
-                        SearchHitsTests.createTestItem(xContentType, false, withShardTarget));
+                        SearchHitsTests.createTestItem(xContentType, false, transportSerialization));
                 }
                 hit.setInnerHits(innerHits);
             }
         }
-        if (withShardTarget && randomBoolean()) {
+        if (transportSerialization && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),

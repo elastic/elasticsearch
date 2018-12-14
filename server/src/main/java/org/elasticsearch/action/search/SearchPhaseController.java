@@ -207,18 +207,23 @@ public final class SearchPhaseController {
                     }
                 }
             }
-            final boolean isSortedByField;
-            final SortField[] sortFields;
+            boolean isSortedByField = false;
+            SortField[] sortFields = null;
+            String collapseField = null;
+            Object[] collapseValues = null;
             if (mergedTopDocs instanceof TopFieldDocs) {
                 TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
-                isSortedByField = (fieldDocs instanceof CollapseTopFieldDocs &&
-                    fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
                 sortFields = fieldDocs.fields;
-            } else {
-                isSortedByField = false;
-                sortFields = null;
+                if (fieldDocs instanceof CollapseTopFieldDocs) {
+                    isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
+                    CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) fieldDocs;
+                    collapseField = collapseTopFieldDocs.field;
+                    collapseValues = collapseTopFieldDocs.collapseValues;
+                } else {
+                    isSortedByField = true;
+                }
             }
-            return new SortedTopDocs(scoreDocs, isSortedByField, sortFields);
+            return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues);
         } else {
             // no relevant docs
             return SortedTopDocs.EMPTY;
@@ -262,7 +267,7 @@ public final class SearchPhaseController {
     public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase, int numShards) {
         final ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];
         if (reducedQueryPhase.isEmptyResult == false) {
-            final ScoreDoc[] sortedScoreDocs = reducedQueryPhase.scoreDocs;
+            final ScoreDoc[] sortedScoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
             // from is always zero as when we use scroll, we ignore from
             long size = Math.min(reducedQueryPhase.fetchHits, reducedQueryPhase.size);
             // with collapsing we can have more hits than sorted docs
@@ -303,7 +308,7 @@ public final class SearchPhaseController {
         if (reducedQueryPhase.isEmptyResult) {
             return InternalSearchResponse.empty();
         }
-        ScoreDoc[] sortedDocs = reducedQueryPhase.scoreDocs;
+        ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
         if (reducedQueryPhase.suggest != null) {
             if (!fetchResults.isEmpty()) {
@@ -341,12 +346,12 @@ public final class SearchPhaseController {
 
     private SearchHits getHits(ReducedQueryPhase reducedQueryPhase, boolean ignoreFrom,
                                Collection<? extends SearchPhaseResult> fetchResults, IntFunction<SearchPhaseResult> resultsLookup) {
-        final boolean sorted = reducedQueryPhase.isSortedByField;
-        ScoreDoc[] sortedDocs = reducedQueryPhase.scoreDocs;
+        SortedTopDocs sortedTopDocs = reducedQueryPhase.sortedTopDocs;
         int sortScoreIndex = -1;
-        if (sorted) {
-            for (int i = 0; i < reducedQueryPhase.sortField.length; i++) {
-                if (reducedQueryPhase.sortField[i].getType() == SortField.Type.SCORE) {
+        if (sortedTopDocs.isSortedByField) {
+            SortField[] sortFields = sortedTopDocs.sortFields;
+            for (int i = 0; i < sortFields.length; i++) {
+                if (sortFields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;
                 }
             }
@@ -358,12 +363,12 @@ public final class SearchPhaseController {
         int from = ignoreFrom ? 0 : reducedQueryPhase.from;
         int numSearchHits = (int) Math.min(reducedQueryPhase.fetchHits - from, reducedQueryPhase.size);
         // with collapsing we can have more fetch hits than sorted docs
-        numSearchHits = Math.min(sortedDocs.length, numSearchHits);
+        numSearchHits = Math.min(sortedTopDocs.scoreDocs.length, numSearchHits);
         // merge hits
         List<SearchHit> hits = new ArrayList<>();
         if (!fetchResults.isEmpty()) {
             for (int i = 0; i < numSearchHits; i++) {
-                ScoreDoc shardDoc = sortedDocs[i];
+                ScoreDoc shardDoc = sortedTopDocs.scoreDocs[i];
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
                 if (fetchResultProvider == null) {
                     // this can happen if we are hitting a shard failure during the fetch phase
@@ -379,7 +384,7 @@ public final class SearchPhaseController {
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.score(shardDoc.score);
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (sorted) {
+                if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
                     if (sortScoreIndex != -1) {
@@ -389,7 +394,8 @@ public final class SearchPhaseController {
                 hits.add(searchHit);
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[0]), reducedQueryPhase.totalHits, reducedQueryPhase.maxScore);
+        return new SearchHits(hits.toArray(new SearchHit[0]), reducedQueryPhase.totalHits,
+            reducedQueryPhase.maxScore, sortedTopDocs.sortFields, sortedTopDocs.collapseField, sortedTopDocs.collapseValues);
     }
 
     /**
@@ -429,7 +435,7 @@ public final class SearchPhaseController {
         Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
-                timedOut, terminatedEarly, null, null, null, EMPTY_DOCS, null, null, numReducePhases, false, 0, 0, true);
+                timedOut, terminatedEarly, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
         }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
@@ -491,10 +497,10 @@ public final class SearchPhaseController {
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
-        final SortedTopDocs scoreDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
+        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
         return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
-            timedOut, terminatedEarly, suggest, aggregations, shardResults, scoreDocs.scoreDocs, scoreDocs.sortFields,
-            firstResult.sortValueFormats(), numReducePhases, scoreDocs.isSortedByField, size, from, false);
+            timedOut, terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
+            firstResult.sortValueFormats(), numReducePhases, size, from, firstResult == null);
     }
 
     /**
@@ -542,12 +548,8 @@ public final class SearchPhaseController {
         final SearchProfileShardResults shardResults;
         // the number of reduces phases
         final int numReducePhases;
-        // the searches merged top docs
-        final ScoreDoc[] scoreDocs;
-        // the top docs sort fields used to sort the score docs, <code>null</code> if the results are not sorted
-        final SortField[] sortField;
-        // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
-        final boolean isSortedByField;
+        //encloses info about the merged top docs, the sort fields used to sort the score docs etc.
+        final SortedTopDocs sortedTopDocs;
         // the size of the top hits to return
         final int size;
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
@@ -558,9 +560,8 @@ public final class SearchPhaseController {
         final DocValueFormat[] sortValueFormats;
 
         ReducedQueryPhase(long totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
-                          InternalAggregations aggregations, SearchProfileShardResults shardResults, ScoreDoc[] scoreDocs,
-                          SortField[] sortFields, DocValueFormat[] sortValueFormats, int numReducePhases, boolean isSortedByField, int size,
-                          int from, boolean isEmptyResult) {
+                          InternalAggregations aggregations, SearchProfileShardResults shardResults, SortedTopDocs sortedTopDocs,
+                          DocValueFormat[] sortValueFormats, int numReducePhases, int size, int from, boolean isEmptyResult) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
             }
@@ -577,9 +578,7 @@ public final class SearchPhaseController {
             this.aggregations = aggregations;
             this.shardResults = shardResults;
             this.numReducePhases = numReducePhases;
-            this.scoreDocs = scoreDocs;
-            this.sortField = sortFields;
-            this.isSortedByField = isSortedByField;
+            this.sortedTopDocs = sortedTopDocs;
             this.size = size;
             this.from = from;
             this.isEmptyResult = isEmptyResult;
@@ -719,7 +718,7 @@ public final class SearchPhaseController {
         }
         return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
-            public ReducedQueryPhase reduce() {
+            ReducedQueryPhase reduce() {
                 return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);
             }
         };
@@ -752,15 +751,23 @@ public final class SearchPhaseController {
     }
 
     static final class SortedTopDocs {
-        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null);
+        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null);
+        // the searches merged top docs
         final ScoreDoc[] scoreDocs;
+        // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
         final boolean isSortedByField;
+        // the top docs sort fields used to sort the score docs, <code>null</code> if the results are not sorted
         final SortField[] sortFields;
+        final String collapseField;
+        final Object[] collapseValues;
 
-        SortedTopDocs(ScoreDoc[] scoreDocs, boolean isSortedByField, SortField[] sortFields) {
+        SortedTopDocs(ScoreDoc[] scoreDocs, boolean isSortedByField, SortField[] sortFields,
+                      String collapseField, Object[] collapseValues) {
             this.scoreDocs = scoreDocs;
             this.isSortedByField = isSortedByField;
             this.sortFields = sortFields;
+            this.collapseField = collapseField;
+            this.collapseValues = collapseValues;
         }
     }
 }

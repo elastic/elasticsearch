@@ -98,9 +98,9 @@ which they are specified.  Defaults to `false`
 An optional <<interval_filter,interval filter>>
 
 [[intervals-any_of]]
-==== `any_of` source
+==== `any_of`
 
-The `or` rule will match any of its nested sub-rules.
+The `any_of` rule emits intervals produced by any of its sub-rules.
 
 [horizontal]
 `intervals`::

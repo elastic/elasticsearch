@@ -131,7 +131,8 @@ if (isEclipse) {
   project(":libs:grok").buildFileName = 'eclipse-build.gradle'
   project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
   project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
-}
+  project(":libs:geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
+  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'}
 
 // look for extra plugins for elasticsearch
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")

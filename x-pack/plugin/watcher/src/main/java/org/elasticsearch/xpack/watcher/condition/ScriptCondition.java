@@ -58,10 +58,6 @@ public final class ScriptCondition implements ExecutableCondition {
     }
 
     public Result doExecute(WatchExecutionContext ctx) {
-        Map<String, Object> parameters = Variables.createCtxParamsMap(ctx, ctx.payload());
-        if (script.getParams() != null && !script.getParams().isEmpty()) {
-            parameters.putAll(script.getParams());
-        }
         WatcherConditionScript conditionScript = scriptFactory.newInstance(script.getParams(), ctx);
         return conditionScript.execute() ? MET : UNMET;
     }

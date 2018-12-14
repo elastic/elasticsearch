@@ -129,11 +129,8 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   #### Joda methods that exist in java time
   boolean equals(Object)
   int hashCode()
-  boolean isAfter(ZonedDateTime)
   boolean isAfter(JodaCompatibleZonedDateTime)
-  boolean isBefore(ZonedDateTime)
   boolean isBefore(JodaCompatibleZonedDateTime)
-  boolean isEqual(ZonedDateTime)
   boolean isEqual(JodaCompatibleZonedDateTime)
   String toString()
 

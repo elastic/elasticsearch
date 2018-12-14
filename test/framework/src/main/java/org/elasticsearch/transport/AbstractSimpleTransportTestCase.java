@@ -42,7 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -56,6 +56,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -1521,7 +1522,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws IOException {
@@ -1572,7 +1573,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
 
@@ -2033,8 +2034,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
-        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
+        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
+            new NoneCircuitBreakerService()) {
             @Override
             protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
                                            int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)

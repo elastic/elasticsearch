@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,6 +22,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -44,7 +48,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
     @Before
     public void setup() {
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -56,7 +63,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(executorService);
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
-        memoryTracker = new MlMemoryTracker(clusterService, threadPool, jobManager, jobResultsProvider);
+        memoryTracker = new MlMemoryTracker(Settings.EMPTY, clusterService, threadPool, jobManager, jobResultsProvider);
     }
 
     public void testRefreshAll() {

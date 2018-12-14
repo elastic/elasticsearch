@@ -1169,13 +1169,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     return;
                 }
             }
-
-            ByteSizeValue size = new ByteSizeValue((long) 12.7);
-            BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_"+metadata.name(), metadata, size);
-
             throw new CorruptIndexException("verification failed (hardware problem?) : expected=" + metadata.checksum() +
                     " actual=" + actualChecksum + " footer=" + footerDigest +" writtenLength=" + writtenBytes + " expectedLength=" +
-                    metadata.length() + " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + info.physicalName() + ")");
+                    metadata.length() + " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
         }
 
 
@@ -1204,9 +1200,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private void readAndCompareChecksum() throws IOException {
             actualChecksum = digestToString(getChecksum());
             if (!metadata.checksum().equals(actualChecksum)) {
+                
+                ByteSizeValue size = new ByteSizeValue((long) 12.7);
+                BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_"+metadata.name(), metadata, size);
+                
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + metadata.checksum() +
                         " actual=" + actualChecksum +
-                        " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
+                        " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + info.physicalName() + ")");
             }
         }
 

@@ -267,7 +267,12 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
+        String endpoint = new EndpointBuilder()
+                .addPathPart(getRequest.index())
+                .addPathPartAsIs("_source")
+                .addPathPart(getRequest.id())
+                .build();
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
         parameters.withPreference(getRequest.preference());

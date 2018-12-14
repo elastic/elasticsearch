@@ -176,7 +176,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertNotNull("Should have created begin snapshot task", beginSnapshotTask);
         clusterState.runStateUpdateTask(beginSnapshotTask);
 
-        successfulSnapshotStart.get(30L, TimeUnit.SECONDS);
+        successfulSnapshotStart.get(0L, TimeUnit.SECONDS);
 
         String primaryNode = clusterState.currentState(masterNode.node.getId()).routingTable().allShards(index)
             .stream()

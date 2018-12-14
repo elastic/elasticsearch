@@ -674,6 +674,8 @@ public final class TokenService {
      * @param attemptCount    the number of attempts to invalidate that have already been tried
      * @param srcPrefix       the prefix to use when constructing the doc to update, either refresh_token or access_token depending on
      *                        what type of tokens should be invalidated
+     * @param previousResult  if this not the initial attempt for invalidation, it contains the result of invalidating
+     *                        tokens up to the point of the retry. This result is added to the result of the current attempt
      */
     private void indexInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
                                    AtomicInteger attemptCount, String srcPrefix, @Nullable TokensInvalidationResult previousResult) {
@@ -940,11 +942,15 @@ public final class TokenService {
     }
 
     /**
-     * Find all stored refresh and access tokens that have not been invalidated or expired, and were issued against
+     * Find stored refresh and access tokens that have not been invalidated or expired, and were issued against
      *  the specified realm.
+     *
+     * @param realmName The name of the realm for which to get the tokens
+     * @param listener The listener to notify upon completion
+     * @param filter an optional Predicate to test the source of the found documents against
      */
     public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener,
-                                         @Nullable Predicate filter) {
+                                         @Nullable Predicate<Map<String, Object>> filter) {
         ensureEnabled();
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
@@ -963,7 +969,10 @@ public final class TokenService {
                         .must(QueryBuilders.termQuery("access_token.invalidated", false))
                         .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
                     )
-                    .should(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                    .should(QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli() - TimeValue.timeValueHours(24).millis()))
+                    )
                 );
 
             final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -978,6 +987,13 @@ public final class TokenService {
         }
     }
 
+    /**
+     * Find stored refresh and access tokens that have not been invalidated or expired, and were issued for
+     * the specified user.
+     *
+     * @param username The user for which to get the tokens
+     * @param listener The listener to notify upon completion
+     */
     public void findActiveTokensForUser(String username, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
 
@@ -997,7 +1013,10 @@ public final class TokenService {
                         .must(QueryBuilders.termQuery("access_token.invalidated", false))
                         .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
                     )
-                    .should(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                    .should(QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli() - TimeValue.timeValueHours(24).millis()))
+                    )
                 );
 
             final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -1029,7 +1048,7 @@ public final class TokenService {
     }
 
 
-    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate filter) {
+    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter) {
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
@@ -1050,7 +1069,8 @@ public final class TokenService {
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
      *         satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate filter) throws IOException {
+    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
+        throws IOException {
 
         final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
@@ -1090,7 +1110,7 @@ public final class TokenService {
     }
 
     private static String getTokenIdFromDocumentId(String docId) {
-        if (docId.substring(0, "token_".length()).equals("token_") == false) {
+        if (docId.startsWith("token_") == false) {
             throw new IllegalStateException("TokenDocument ID [" + docId + "] has unexpected value");
         } else {
             return docId.substring("token_".length());
@@ -1099,7 +1119,7 @@ public final class TokenService {
 
     private static String getTokenIdFromInvalidatedTokenDocumentId(String docId) {
         final String invalidatedTokenDocPrefix = INVALIDATED_TOKEN_DOC_TYPE + "_";
-        if (docId.substring(0, invalidatedTokenDocPrefix.length()).equals(invalidatedTokenDocPrefix) == false) {
+        if (docId.startsWith(invalidatedTokenDocPrefix) == false) {
             throw new IllegalStateException("InvalidatedTokenDocument ID [" + docId + "] has unexpected value");
         } else {
             return docId.substring(invalidatedTokenDocPrefix.length());

@@ -7,13 +7,17 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Cast extends UnaryScalarFunction {
 
@@ -72,6 +76,18 @@ public class Cast extends UnaryScalarFunction {
     @Override
     protected Processor makeProcessor() {
         return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        ScriptTemplate fieldAsScript = asScript(field());
+        return new ScriptTemplate(
+                formatTemplate(String.format(Locale.ROOT, "{sql}.convert(%s,{})", fieldAsScript.template())),
+                paramsBuilder()
+                    .script(fieldAsScript.params())
+                    .variable(dataType.name())
+                    .build(),
+                dataType());
     }
 
     @Override

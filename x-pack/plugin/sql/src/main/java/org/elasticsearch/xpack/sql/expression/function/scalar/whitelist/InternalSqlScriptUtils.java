@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -457,5 +458,16 @@ public final class InternalSqlScriptUtils {
 
     public static String ucase(String s) {
         return (String) StringOperation.UCASE.apply(s);
+    }
+    
+    //
+    // Casting
+    //
+    public static Object convert(Object value, String typeName) {
+        if (value == null) {
+            return null;
+        }
+        
+        return DataTypeConversion.convert(value, DataType.fromTypeName(typeName));
     }
 }

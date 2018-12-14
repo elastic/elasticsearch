@@ -130,10 +130,51 @@ SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages
        FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
 
       max:bt   |      min:bt   |      sum:bt   |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
----------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
-null           |null           |null           |null           |null           |null           |null           |null           
-1              |1              |15             |1              |1.0            |100.0          |NaN            |NaN            
-2              |2              |38             |2              |2.0            |100.0          |NaN            |NaN            
-3              |3              |51             |3              |3.0            |100.0          |NaN            |NaN            
-4              |4              |72             |4              |4.0            |0.0            |NaN            |NaN   
+---------------+---------------+---------------+--------------+---------------+---------------+---------------+---------------
+null           |null           |null           |null          |null           |null           |null           |null           
+1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN            
+2              |2              |38             |2             |2.0            |100.0          |NaN            |NaN            
+3              |3              |51             |3             |3.0            |100.0          |NaN            |NaN            
+4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
+;
+
+aggByComplexCastedValue
+SELECT CONVERT(CONCAT(LTRIM(CONVERT("emp_no", SQL_VARCHAR)), LTRIM(CONVERT("languages", SQL_VARCHAR))), SQL_BIGINT) AS "TEMP"
+FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;
+
+    TEMP:l      
+---------------
+10020          
+10021          
+10022          
+10023          
+10024          
+10025          
+10026          
+10027          
+10028          
+10029          
+100012         
+100025         
+100034         
+100045         
+100051         
+100063         
+100074         
+100082         
+100091         
+100104         
+;
+
+aggAndOrderByCastedValue
+SELECT CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
+
+CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))):i|   COUNT(1):l
+-------------------------------------------------+---------------
+5                                                |21
+4                                                |18
+3                                                |17
+2                                                |19
+1                                                |15
+null                                             |10
 ;

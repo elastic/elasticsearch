@@ -240,10 +240,10 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.docValue(doc,params.v0)\",\"lang\":\"painless\"," +
-                "\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
+            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.convert(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));

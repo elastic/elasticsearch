@@ -130,4 +130,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  space(Number)
   String  substring(String, Number, Number)
   String  ucase(String)
+  
+#
+# Casting
+#
+  def convert(Object, String)
 }

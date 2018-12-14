@@ -61,6 +61,10 @@ public class GetUsersResponseTests extends ESTestCase {
                 @Override
                 public void usedDeprecatedField(String usedName, String replacedWith) {
                 }
+
+                @Override
+                public void deprecated(String message, Object... params) {
+                }
             }, json)));
         assertThat(response.getUsers().size(), equalTo(1));
         final User user = response.getUsers().iterator().next();

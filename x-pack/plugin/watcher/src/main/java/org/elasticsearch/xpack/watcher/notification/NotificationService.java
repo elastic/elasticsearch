@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * Basic notification service
@@ -35,8 +36,8 @@ public abstract class NotificationService<Account> {
     private final Settings bootSettings;
     private final List<Setting<?>> pluginSecureSettings;
     // all are guarded by this
-    private volatile Map<String, Account> accounts;
-    private volatile Account defaultAccount;
+    private volatile Map<String, Supplier<Account>> accounts;
+    private volatile Supplier<Account> defaultAccount;
     // cached cluster setting, required when recreating the notification clients
     // using the new "reloaded" secure settings
     private volatile Settings cachedClusterSettings;
@@ -59,7 +60,7 @@ public abstract class NotificationService<Account> {
         this.pluginSecureSettings = pluginSecureSettings;
     }
 
-    private synchronized void clusterSettingsConsumer(Settings settings) {
+    protected synchronized void clusterSettingsConsumer(Settings settings) {
         // update cached cluster settings
         this.cachedClusterSettings = settings;
         // use these new dynamic cluster settings together with the previously cached
@@ -102,13 +103,13 @@ public abstract class NotificationService<Account> {
     public Account getAccount(String name) {
         // note this is not final since we mock it in tests and that causes
         // trouble since final methods can't be mocked...
-        final Map<String, Account> accounts;
-        final Account defaultAccount;
+        final Map<String, Supplier<Account>> accounts;
+        final Supplier<Account> defaultAccount;
         synchronized (this) { // must read under sync block otherwise it might be inconsistent
             accounts = this.accounts;
             defaultAccount = this.defaultAccount;
         }
-        Account theAccount = accounts.getOrDefault(name, defaultAccount);
+        Supplier<Account> theAccount = accounts.getOrDefault(name, defaultAccount);
         if (theAccount == null && name == null) {
             throw new IllegalArgumentException("no accounts of type [" + type + "] configured. " +
                     "Please set up an account using the [xpack.notification." + type +"] settings");
@@ -116,7 +117,7 @@ public abstract class NotificationService<Account> {
         if (theAccount == null) {
             throw new IllegalArgumentException("no account found for name: [" + name + "]");
         }
-        return theAccount;
+        return theAccount.get();
     }
 
     private String getNotificationsAccountPrefix() {
@@ -124,27 +125,26 @@ public abstract class NotificationService<Account> {
     }
 
     private Set<String> getAccountNames(Settings settings) {
-        // secure settings are not responsible for the client names
-        final Settings noSecureSettings = Settings.builder().put(settings, false).build();
-        return noSecureSettings.getByPrefix(getNotificationsAccountPrefix()).names();
+        return settings.getByPrefix(getNotificationsAccountPrefix()).names();
     }
 
     private @Nullable String getDefaultAccountName(Settings settings) {
         return settings.get("xpack.notification." + type + ".default_account");
     }
 
-    private Map<String, Account> createAccounts(Settings settings, Set<String> accountNames,
+    private Map<String, Supplier<Account>> createAccounts(Settings settings, Set<String> accountNames,
             BiFunction<String, Settings, Account> accountFactory) {
-        final Map<String, Account> accounts = new HashMap<>();
+        final Map<String, Supplier<Account>> accounts = new HashMap<>();
         for (final String accountName : accountNames) {
             final Settings accountSettings = settings.getAsSettings(getNotificationsAccountPrefix() + accountName);
-            final Account account = accountFactory.apply(accountName, accountSettings);
-            accounts.put(accountName, account);
+            accounts.put(accountName, () -> {
+                return accountFactory.apply(accountName, accountSettings);
+            });
         }
         return Collections.unmodifiableMap(accounts);
     }
 
-    private @Nullable Account findDefaultAccountOrNull(Settings settings, Map<String, Account> accounts) {
+    private @Nullable Supplier<Account> findDefaultAccountOrNull(Settings settings, Map<String, Supplier<Account>> accounts) {
         final String defaultAccountName = getDefaultAccountName(settings);
         if (defaultAccountName == null) {
             if (accounts.isEmpty()) {
@@ -153,7 +153,7 @@ public abstract class NotificationService<Account> {
                 return accounts.values().iterator().next();
             }
         } else {
-            final Account account = accounts.get(defaultAccountName);
+            final Supplier<Account> account = accounts.get(defaultAccountName);
             if (account == null) {
                 throw new SettingsException("could not find default account [" + defaultAccountName + "]");
             }

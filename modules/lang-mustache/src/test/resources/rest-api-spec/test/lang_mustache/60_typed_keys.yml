@@ -60,6 +60,7 @@ setup:
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test-*
         typed_keys: true
         body:
@@ -103,6 +104,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           - index: test-*

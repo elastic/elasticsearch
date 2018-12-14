@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -12,6 +13,7 @@ import org.elasticsearch.xpack.sql.tree.LocationTests;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -50,14 +52,15 @@ public class BoolQueryTests extends ESTestCase {
 
     public void testAddNestedField() {
         Query q = boolQueryWithoutNestedChildren();
-        assertSame(q, q.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), randomBoolean()));
+        assertSame(q, q.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT,
+                randomBoolean()));
 
         String path = randomAlphaOfLength(5);
         String field = randomAlphaOfLength(5);
         q = boolQueryWithNestedChildren(path, field);
         String newField = randomAlphaOfLength(5);
         boolean hasDocValues = randomBoolean();
-        Query rewritten = q.addNestedField(path, newField, hasDocValues);
+        Query rewritten = q.addNestedField(path, newField, DocValueFieldsContext.USE_DEFAULT_FORMAT, hasDocValues);
         assertNotSame(q, rewritten);
         assertTrue(rewritten.containsNestedField(path, newField));
     }
@@ -83,7 +86,8 @@ public class BoolQueryTests extends ESTestCase {
 
     private Query boolQueryWithNestedChildren(String path, String field) {
         NestedQuery match = new NestedQuery(LocationTests.randomLocation(), path,
-                singletonMap(field, randomBoolean()), new MatchAll(LocationTests.randomLocation()));
+                singletonMap(field, new SimpleImmutableEntry<>(randomBoolean(), DocValueFieldsContext.USE_DEFAULT_FORMAT)),
+                new MatchAll(LocationTests.randomLocation()));
         Query matchAll = new MatchAll(LocationTests.randomLocation());
         Query left;
         Query right;

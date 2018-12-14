@@ -23,14 +23,27 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 class JavaDateFormatter implements DateFormatter {
+
+    // base fields which should be used for default parsing, when we round up for date math
+    private static final Map<TemporalField, Long> ROUND_UP_BASE_FIELDS = new HashMap<>(6);
+    {
+        ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);
+        ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);
+        ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
+        ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
+        ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
+        ROUND_UP_BASE_FIELDS.put(ChronoField.MILLI_OF_SECOND, 999L);
+    }
 
     private final String format;
     private final DateTimeFormatter printer;
@@ -116,8 +129,7 @@ class JavaDateFormatter implements DateFormatter {
         return format;
     }
 
-    @Override
-    public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
+    JavaDateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
         final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(printer);
         fields.forEach(parseDefaultingBuilder::parseDefaulting);
         if (parsers.length == 1 && parsers[0].equals(printer)) {
@@ -134,18 +146,23 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     @Override
-    public Locale getLocale() {
+    public Locale locale() {
         return this.printer.getLocale();
     }
 
     @Override
-    public ZoneId getZone() {
+    public ZoneId zone() {
         return this.printer.getZone();
     }
 
     @Override
+    public DateMathParser toDateMathParser() {
+        return new JavaDateMathParser(this, this.parseDefaulting(ROUND_UP_BASE_FIELDS));
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(getLocale(), printer.getZone(), format);
+        return Objects.hash(locale(), printer.getZone(), format);
     }
 
     @Override
@@ -156,12 +173,12 @@ class JavaDateFormatter implements DateFormatter {
         JavaDateFormatter other = (JavaDateFormatter) obj;
 
         return Objects.equals(format, other.format) &&
-               Objects.equals(getLocale(), other.getLocale()) &&
+               Objects.equals(locale(), other.locale()) &&
                Objects.equals(this.printer.getZone(), other.printer.getZone());
     }
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "format[%s] locale[%s]", format, getLocale());
+        return String.format(Locale.ROOT, "format[%s] locale[%s]", format, locale());
     }
 }

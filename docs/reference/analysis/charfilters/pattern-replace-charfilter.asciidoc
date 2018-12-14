@@ -241,7 +241,10 @@ The output from the above is:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.2876821,
     "hits": [
       {

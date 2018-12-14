@@ -39,10 +39,12 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -157,13 +159,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Engine.GetResult get = null;
         if (type != null) {
-            Term uidTerm = mapperService.createUidTerm(type, id);
-            if (uidTerm != null) {
-                get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
-                        .version(version).versionType(versionType));
-                if (get.exists() == false) {
-                    get.close();
-                }
+            Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
+                    .version(version).versionType(versionType));
+            if (get.exists() == false) {
+                get.close();
             }
         }
 
@@ -202,7 +202,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        DocumentMapper docMapper = mapperService.documentMapper(type);
+        DocumentMapper docMapper = mapperService.documentMapper();
 
         if (gFields != null && gFields.length > 0) {
             for (String field : gFields) {

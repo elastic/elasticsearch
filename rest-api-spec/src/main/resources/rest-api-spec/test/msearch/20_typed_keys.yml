@@ -59,6 +59,7 @@ setup:
 "Multisearch test with typed_keys parameter":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           # Testing aggegrations
@@ -93,6 +94,7 @@ setup:
 "Multisearch test with typed_keys parameter for sampler and significant terms":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           - index: test-*

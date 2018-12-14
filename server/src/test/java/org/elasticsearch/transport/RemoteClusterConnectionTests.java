@@ -1439,8 +1439,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             throw new IllegalArgumentException("nodeMap must be non-empty");
         }
 
-        StubbableTransport stubbableTransport = new StubbableTransport(MockTransportService.newMockTransport(Settings.EMPTY, Version
-            .CURRENT, threadPool));
+        StubbableTransport stubbableTransport = new StubbableTransport(MockTransportService.newMockTransport(Settings.EMPTY,
+            Version.CURRENT, threadPool));
         stubbableTransport.setDefaultConnectBehavior((t, node,  profile, listener) -> {
                 Map<String, DiscoveryNode> proxyMapping = nodeMap.get(node.getAddress().toString());
                 if (proxyMapping == null) {

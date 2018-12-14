@@ -3,6 +3,8 @@
 [[sql-operators]]
 === Comparison Operators
 
+beta[]
+
 Boolean operator for comparing against one or multiple expressions.
 
 * Equality (`=`)

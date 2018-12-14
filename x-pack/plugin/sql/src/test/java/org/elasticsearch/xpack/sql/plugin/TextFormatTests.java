@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -117,7 +118,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private static SqlQueryResponse emptyData() {
-        return new SqlQueryResponse(null, singletonList(new ColumnInfo("index", "name", "keyword")), emptyList());
+        return new SqlQueryResponse(null, Mode.JDBC, singletonList(new ColumnInfo("index", "name", "keyword")), emptyList());
     }
 
     private static SqlQueryResponse regularData() {
@@ -131,7 +132,7 @@ public class TextFormatTests extends ESTestCase {
         values.add(asList("Along The River Bank", 11 * 60 + 48));
         values.add(asList("Mind Train", 4 * 60 + 40));
 
-        return new SqlQueryResponse(null, headers, values);
+        return new SqlQueryResponse(null, Mode.JDBC, headers, values);
     }
 
     private static SqlQueryResponse escapedData() {
@@ -145,7 +146,7 @@ public class TextFormatTests extends ESTestCase {
         values.add(asList("normal", "\"quo\"ted\",\n"));
         values.add(asList("commas", "a,b,c,\n,d,e,\t\n"));
 
-        return new SqlQueryResponse(null, headers, values);
+        return new SqlQueryResponse(null, Mode.JDBC, headers, values);
     }
 
     private static RestRequest req() {

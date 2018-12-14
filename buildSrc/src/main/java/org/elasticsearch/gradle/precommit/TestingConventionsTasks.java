@@ -20,15 +20,19 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.testing.Test;
+import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
@@ -40,8 +44,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,7 +63,7 @@ public class TestingConventionsTasks extends DefaultTask {
      */
     private Boolean activeTestsExists;
 
-    private List<String> testClassNames;
+    private Map<String, File> testClassNames;
 
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
@@ -68,56 +74,172 @@ public class TestingConventionsTasks extends DefaultTask {
     @TaskAction
     public void doCheck() throws IOException {
         activeTestsExists = false;
-        final List<String> problems;
+        final String problems;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(
             getTestsClassPath().getFiles().stream().map(this::fileToUrl).toArray(URL[]::new)
         )) {
-            List<? extends Class<?>> classes = getTestClassNames().stream()
-                .map(name -> loadClassWithoutInitializing(name, isolatedClassLoader))
-                .collect(Collectors.toList());
-
             Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
             Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
-            Predicate<Class<?>> implementsNamingConvention = clazz -> clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
-                clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
+            Predicate<Class<?>> implementsNamingConvention = clazz ->
+                clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
+                    clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
 
-            problems = Stream.concat(
+            Map<File, ? extends Class<?>> classes = getTestClassNames().entrySet().stream()
+                .collect(Collectors.toMap(
+                    Map.Entry::getValue,
+                    entry -> loadClassWithoutInitializing(entry.getKey(), isolatedClassLoader))
+                );
+
+            FileTree allTestClassFiles = getProject().files(
+                classes.values().stream()
+                    .filter(isStaticClass.negate())
+                    .filter(isPublicClass)
+                    .filter(implementsNamingConvention)
+                    .map(clazz -> testClassNames.get(clazz.getName()))
+                    .collect(Collectors.toList())
+            ).getAsFileTree();
+
+            final Map<String, Set<File>> classFilesPerTask = classFilesPerTask(allTestClassFiles);
+
+            Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet().stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                            .map(classes::get)
+                            .filter(implementsNamingConvention)
+                            .collect(Collectors.toSet())
+                    )
+                );
+            
+            problems = collectProblems(
                 checkNoneExists(
                     "Test classes implemented by inner classes will not run",
-                    classes.stream()
+                    classes.values().stream()
                         .filter(isStaticClass)
                         .filter(implementsNamingConvention.or(this::seemsLikeATest))
-                ).stream(),
+                ),
                 checkNoneExists(
                     "Seem like test classes but don't match naming convention",
-                    classes.stream()
+                    classes.values().stream()
                         .filter(isStaticClass.negate())
                         .filter(isPublicClass)
                         .filter(this::seemsLikeATest)
                         .filter(implementsNamingConvention.negate())
-                ).stream()
-            ).collect(Collectors.toList());
+                ),
+                collectProblems(
+                    testClassesPerTask.entrySet().stream()
+                    .map( entry ->
+                        checkAtLeastOneExists(
+                            "test class in " + entry.getKey(),
+                            entry.getValue().stream()
+                        )
+                    )
+                    .collect(Collectors.joining())
+                ),
+                checkNoneExists(
+                    "Test classes are not included in any enabled task (" +
+                        classFilesPerTask.keySet().stream()
+                            .collect(Collectors.joining(",")) + ")",
+                    allTestClassFiles.getFiles().stream()
+                        .filter(testFile ->
+                            classFilesPerTask.values().stream()
+                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false
+                        )
+                        .map(classes::get)
+                )
+            );
         }
 
         if (problems.isEmpty()) {
+            getLogger().error(problems);
+            throw new IllegalStateException("Testing conventions are not honored");
+        } else {
             getSuccessMarker().getParentFile().mkdirs();
             Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
-        } else {
-            problems.forEach(getProject().getLogger()::error);
-            throw new IllegalStateException("Testing conventions are not honored");
+        }
+    }
+
+
+    private String collectProblems(String... problems) {
+        return Stream.of(problems)
+            .map(String::trim)
+            .filter(String::isEmpty)
+            .map(each -> each + "\n")
+            .collect(Collectors.joining());
+    }
+
+    @Input
+    public Map<String, Set<File>> classFilesPerTask(FileTree testClassFiles) {
+        Map<String, Set<File>> collector = new HashMap<>();
+        // RandomizedTestingTask
+        collector.putAll(
+            Stream.concat(
+                getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
+                // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
+                // different configurations
+                getProject().getSubprojects().stream().flatMap(subproject ->
+                    subproject.getTasks().withType(getRandomizedTestingTask()).stream()
+                )
+            )
+                .filter(Task::getEnabled)
+                .collect(Collectors.toMap(
+                    Task::getPath,
+                    task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
+            ))
+        );
+        // Gradle Test
+        collector.putAll(
+            Stream.concat(
+                getProject().getTasks().withType(Test.class).stream(),
+                getProject().getSubprojects().stream().flatMap(subproject ->
+                        subproject.getTasks().withType(Test.class).stream()
+                )
+            )
+                .filter(Task::getEnabled)
+                .collect(Collectors.toMap(
+                    Task::getPath,
+                    task -> task.getCandidateClassFiles().getFiles()
+                ))
+        );
+        return Collections.unmodifiableMap(collector);
+    }
+
+    @SuppressWarnings("unchecked")
+    private PatternFilterable getRandomizedTestingPatternSet(Task task) {
+        try {
+            if (
+                getRandomizedTestingTask().isAssignableFrom(task.getClass()) == false
+            ) {
+                throw new IllegalStateException("Expected " + task + " to be RandomizedTestingTask or Test but it was " + task.getClass());
+            }
+            Method getPatternSet = task.getClass().getMethod("getPatternSet");
+            return (PatternFilterable) getPatternSet.invoke(task);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("Expecte task to have a `patternSet` " + task, e);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to get pattern set from task" + task, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Class<? extends Task> getRandomizedTestingTask() {
+        try {
+            return (Class<? extends Task>) Class.forName("com.carrotsearch.gradle.junit4.RandomizedTestingTask");
+        } catch (ClassNotFoundException | ClassCastException e) {
+            throw new IllegalStateException("Failed to load randomized testing class", e);
         }
     }
 
     @Input
-    @SkipWhenEmpty
-    public List<String> getTestClassNames() {
+    public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
             testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
                 .getFiles().stream()
                 .filter(File::exists)
-                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
-                .collect(Collectors.toList());
+                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
         return testClassNames;
     }
@@ -127,16 +249,23 @@ public class TestingConventionsTasks extends DefaultTask {
         return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
-    private List<String> checkNoneExists(String message, Stream<? extends Class<?>> stream) {
-        List<String> problems = new ArrayList<>();
-        List<Class<?>> entries = stream.collect(Collectors.toList());
-        if (entries.isEmpty() == false) {
-            problems.add(message + ":");
-            entries.stream()
-                .map(each -> "  * " + each.getName())
-            .forEach(problems::add);
+    private String checkNoneExists(String message, Stream<? extends Class<?>> stream) {
+        String problem = stream
+            .map(each -> "  * " + each.getName())
+            .collect(Collectors.joining("\n"));
+        if (problem.isEmpty() == false) {
+            return message + ":\n" + problem;
+        } else{
+            return "";
         }
-        return problems;
+    }
+
+    private String checkAtLeastOneExists(String message, Stream<? extends Class<?>> stream) {
+        if (stream.findAny().isPresent()) {
+            return "";
+        } else {
+            return "Expected at least one " + message + ", but found none.\n";
+        }
     }
 
     private boolean seemsLikeATest(Class<?> clazz) {
@@ -159,7 +288,10 @@ public class TestingConventionsTasks extends DefaultTask {
             }
             return false;
         } catch (NoClassDefFoundError e) {
-            throw new IllegalStateException("Failed to inspect class " + clazz.getName(), e);
+            // Include the message to get more info to get more a more useful message when running Gradle without -s
+            throw new IllegalStateException(
+                "Failed to inspect class " + clazz.getName() + ". Missing class? " + e.getMessage(),
+                e);
         }
     }
 
@@ -187,9 +319,13 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private FileCollection getTestsClassPath() {
-        // This is doesn't need to be annotated with @Classpath because we only really care about the test source set
+        // Loading the classes depends on the classpath, so we could make this an input annotated with @Classpath.
+        // The reason we don't is that test classes are already inputs and while the dependencies are needed to load
+        // the classes these don't influence the checks done by this task.
+        // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
+        // running the tests.
         return getProject().files(
-            getProject().getConfigurations().getByName("testCompile").resolve(),
+            getProject().getConfigurations().getByName("testRuntime").resolve(),
             Boilerplate.getJavaSourceSets(getProject())
                 .stream()
                 .flatMap(sourceSet -> sourceSet.getOutput().getClassesDirs().getFiles().stream())
@@ -197,8 +333,8 @@ public class TestingConventionsTasks extends DefaultTask {
         );
     }
 
-    private List<String> walkPathAndLoadClasses(File testRoot) {
-        List<String> classes = new ArrayList<>();
+    private Map<String, File> walkPathAndLoadClasses(File testRoot) {
+        Map<String, File> classes = new HashMap<>();
         try {
             Files.walkFileTree(testRoot.toPath(), new FileVisitor<Path>() {
                 private String packageName;
@@ -227,7 +363,7 @@ public class TestingConventionsTasks extends DefaultTask {
                     String filename = file.getFileName().toString();
                     if (filename.endsWith(".class")) {
                         String className = filename.substring(0, filename.length() - ".class".length());
-                        classes.add(packageName + className);
+                        classes.put(packageName + className, file.toFile());
                     }
                     return FileVisitResult.CONTINUE;
                 }

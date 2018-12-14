@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -19,7 +21,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.rest.MonitoringRestHandler;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,20 +35,25 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestMonitoringBulkAction extends MonitoringRestHandler {
+public class RestMonitoringBulkAction extends XPackRestHandler {
 
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestMonitoringBulkAction.class));
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
     public RestMonitoringBulkAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, URI_BASE + "/_bulk", this);
-        controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
-        controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);
-        controller.registerHandler(PUT, URI_BASE + "/{type}/_bulk", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
+            POST, "/_xpack/monitoring/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
+            PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/_monitoring/{type}/bulk", this,
+            POST, "/_xpack/monitoring/{type}/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/{type}/bulk", this,
+            PUT, "/_xpack/monitoring/{type}/_bulk", deprecationLogger);
 
         final List<String> allVersions = Arrays.asList(
                 MonitoringTemplateUtils.TEMPLATE_VERSION,
@@ -63,7 +70,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_monitoring_bulk_action";
+        return "monitoring_bulk";
     }
 
     @Override

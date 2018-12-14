@@ -161,7 +161,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
                 .setSize(1)
                 .get();
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits(), equalTo(1L));
+        assertThat(hits.getTotalHits().value, equalTo(1L));
         try {
             XContentParser parser = JsonXContent.jsonXContent
                     .createParser(null, LoggingDeprecationHandler.INSTANCE, hits.getAt(0).getSourceAsString());

@@ -9,7 +9,7 @@ setup:
 
   # Create some privileges
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body: >
           {
             "myapp": {
@@ -33,7 +33,7 @@ setup:
 
   # Store 2 test roles
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "myapp_engineering_read"
         body:  >
             {
@@ -59,7 +59,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "myapp_engineering_write"
         body:  >
             {
@@ -86,7 +86,7 @@ setup:
 
   # And a user for each role
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "eng_read"
           body:  >
               {
@@ -94,7 +94,7 @@ setup:
                 "roles" : [ "myapp_engineering_read" ]
               }
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "eng_write"
           body:  >
               {
@@ -105,35 +105,35 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: myapp
         name: "user,read,write"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "eng_read"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "eng_write"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "myapp_engineering_read"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "myapp_engineering_write"
         ignore: 404
 ---
 "Test has_privileges with application-privileges":
   - do:
       headers: { Authorization: "Basic ZW5nX3JlYWQ6cEBzc3cwcmQ=" } # eng_read
-      xpack.security.has_privileges:
+      security.has_privileges:
         user: null
         body: >
           {

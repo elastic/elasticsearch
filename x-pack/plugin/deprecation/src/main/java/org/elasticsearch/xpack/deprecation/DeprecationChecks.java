@@ -55,7 +55,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::indexNameCheck,
 			IndexDeprecationChecks::nodeLeftDelayedTimeCheck,
             IndexDeprecationChecks::shardOnStartupCheck,
-            IndexDeprecationChecks::classicSimilarityCheck
+            IndexDeprecationChecks::classicSimilarityMappingCheck,
+            IndexDeprecationChecks::classicSimilaritySettingsCheck
             ));
 
     /**

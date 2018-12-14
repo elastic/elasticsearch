@@ -110,7 +110,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertTrue(noIssues.isEmpty());
     }
 
-    public void testClassicSimilarityCheck() throws IOException {
+    public void testClassicSimilarityMappingCheck() throws IOException {
         String mappingJson = "{\n" +
             "  \"properties\": {\n" +
             "    \"default_field\": {\n" +
@@ -123,7 +123,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "  }\n" +
             "}";
         IndexMetaData index = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
-            .settings(settings(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+            .settings(settings(
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
             .numberOfShards(randomIntBetween(1,100))
             .numberOfReplicas(randomIntBetween(1, 100))
             .putMapping("_doc", mappingJson)
@@ -133,6 +134,25 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "#_the_literal_classic_literal_similarity_has_been_removed",
             "Fields which use classic similarity: [[type: _doc, field: classic_sim_field]]");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testClassicSimilaritySettingsCheck() {
+        IndexMetaData index = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT)))
+                .put("index.similarity.my_classic_similarity.type", "classic")
+                .put("index.similarity.my_okay_similarity.type", "BM25"))
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 100))
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Classic similarity has been removed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "#_the_literal_classic_literal_similarity_has_been_removed",
+            "Custom similarities defined using classic similarity: [my_classic_similarity]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
         assertEquals(singletonList(expected), issues);
     }

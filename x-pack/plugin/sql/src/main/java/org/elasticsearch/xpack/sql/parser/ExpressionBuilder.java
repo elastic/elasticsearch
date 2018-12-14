@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BuiltinDateTimeFunctionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
@@ -104,6 +106,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralC
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -121,6 +124,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
@@ -452,6 +456,36 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String fieldString = visitIdentifier(template.field);
         return new UnresolvedFunction(source(template), fieldString,
                 UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(template.valueExpression())));
+    }
+
+    @Override
+    public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
+        // maps current_XXX to their respective functions
+        // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
+        Location source = source(ctx);
+        Literal p = null;
+
+        if (ctx.precision != null) {
+            try {
+                Location pSource = source(ctx.precision);
+                short safeShort = DataTypeConversion.safeToShort(StringUtils.parseLong(ctx.precision.getText()));
+                if (safeShort > 9 || safeShort < 0) {
+                    throw new ParsingException(pSource, "Precision needs to be between [0-9], received [{}]", safeShort);
+                }
+                p = Literal.of(pSource, Short.valueOf(safeShort));
+            } catch (SqlIllegalArgumentException siae) {
+                throw new ParsingException(source, siae.getMessage());
+            }
+        }
+        
+        String functionName = ctx.name.getText();
+        
+        switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_TIMESTAMP:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+        }
+
+        throw new ParsingException(source, "Unknown function [{}]", functionName);
     }
 
     @Override

@@ -329,4 +329,28 @@ public class ExpressionTests extends ESTestCase {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
+
+    public void testCurrentTimestamp() {
+        Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTimestampPrecision() {
+        Expression expr = parser.createExpression("CURRENT_TIMESTAMP(4)");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals(1, ur.children().size());
+        Expression child = ur.children().get(0);
+        assertEquals(Literal.class, child.getClass());
+        assertEquals(Short.valueOf((short) 4), child.fold());
+    }
+
+    public void testCurrentTimestampInvalidPrecision() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
+        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
+    }
 }

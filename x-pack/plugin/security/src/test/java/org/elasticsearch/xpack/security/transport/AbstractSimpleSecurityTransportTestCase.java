@@ -118,7 +118,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
             .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
             .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put("transport.tcp.port", port)
+            .put(TransportSettings.PORT.getKey(), port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {

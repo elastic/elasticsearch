@@ -53,6 +53,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -65,6 +67,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -112,6 +115,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private IndicesAndAliasesResolver defaultIndicesResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Map<String, RoleDescriptor> roleMap;
+    private FieldPermissionsCache fieldPermissionsCache;
 
     @Before
     public void setup() {
@@ -168,7 +172,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("barbaz", "foofoobar").privileges("read", "write").build() },
             null));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         mockCompositeRolesStore(settings);
 
@@ -176,7 +180,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
-                new AnonymousUser(settings));
+                new AnonymousUser(settings), mock(ApiKeyService.class), fieldPermissionsCache);
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }
 
@@ -185,11 +189,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         NativePrivilegeStore nativePrivilegeStore = mock(NativePrivilegeStore.class);
         CompositeRolesStore rolesStoreInstance = new CompositeRolesStore(settings, mock(FileRolesStore.class), mock(NativeRolesStore.class),
                 mock(ReservedRolesStore.class), nativePrivilegeStore, Collections.emptyList(), null, mock(XPackLicenseState.class),
-                anonymousUser);
+                fieldPermissionsCache, anonymousUser);
         rolesStore = spy(rolesStoreInstance);
         doAnswer((i) -> {
-            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
-            FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) i.getArguments()[1];
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
             Set<String> names = (Set<String>) i.getArguments()[0];
             assertNotNull(names);
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
@@ -207,7 +210,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                         ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure));
             }
             return Void.TYPE;
-        }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        }).when(rolesStore).roles(any(Set.class), any(ActionListener.class));
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {
@@ -1380,7 +1383,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
-        authzService.roles(user, rolesListener);
+        final Authentication authentication =
+            new Authentication(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"), null);
+        authzService.roles(user, authentication, rolesListener);
         return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
     }
 

@@ -1558,18 +1558,16 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::term-vectors-request
-            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
+            TermVectorsRequest request = new TermVectorsRequest("authors", "1");
             request.setFields("user");
             // end::term-vectors-request
         }
 
         {
             // tag::term-vectors-request-artificial
-
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
             TermVectorsRequest request = new TermVectorsRequest("authors",
-                "_doc",
                 docBuilder); // <1>
             // end::term-vectors-request-artificial
 
@@ -1600,7 +1598,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::term-vectors-request-optional-arguments
         }
 
-        TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
+        TermVectorsRequest request = new TermVectorsRequest("authors", "1");
         request.setFields("user");
 
         // tag::term-vectors-execute
@@ -1687,21 +1685,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::multi-term-vectors-request
             MultiTermVectorsRequest request = new MultiTermVectorsRequest(); // <1>
             TermVectorsRequest tvrequest1 =
-                new TermVectorsRequest("authors", "_doc", "1");
+                new TermVectorsRequest("authors", "1");
             tvrequest1.setFields("user");
             request.add(tvrequest1); // <2>
 
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
             TermVectorsRequest tvrequest2 =
-                new TermVectorsRequest("authors", "_doc", docBuilder);
+                new TermVectorsRequest("authors", docBuilder);
             request.add(tvrequest2); // <3>
             // end::multi-term-vectors-request
         }
 
         // tag::multi-term-vectors-request-template
         TermVectorsRequest tvrequestTemplate =
-            new TermVectorsRequest("authors", "_doc", "fake_id"); // <1>
+            new TermVectorsRequest("authors", "fake_id"); // <1>
         tvrequestTemplate.setFields("user");
         String[] ids = {"1", "2"};
         MultiTermVectorsRequest request =

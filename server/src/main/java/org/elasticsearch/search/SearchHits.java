@@ -21,12 +21,12 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -276,14 +276,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         final TotalHits in;
 
         Total(StreamInput in) throws IOException {
-            final long value = in.readVLong();
-            final Relation relation;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                relation = in.readEnum(Relation.class);
-            } else {
-                relation = Relation.EQUAL_TO;
-            }
-            this.in = new TotalHits(value, relation);
+            this.in = Lucene.readTotalHits(in);
         }
 
         Total(TotalHits in) {
@@ -306,12 +299,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(in.value);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeEnum(in.relation);
-            } else {
-                assert in.relation == Relation.EQUAL_TO;
-            }
+            Lucene.writeTotalHits(out, in);
         }
 
         @Override

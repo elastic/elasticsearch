@@ -1137,7 +1137,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // test _termvectors on real documents
-            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "1");
             tvRequest.setFields("field");
             TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
@@ -1160,7 +1160,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
 
-            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, docBuilder);
             TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
             TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
@@ -1180,7 +1180,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermvectorsWithNonExistentIndex() {
-        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent", "non-existent");
+        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
@@ -1214,7 +1214,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test _mtermvectors where MultiTermVectorsRequest is constructed with ids and a template
             String[] expectedIds = {"1", "2"};
-            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "_doc", "fake_id");
+            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "fake_id");
             tvRequestTemplate.setFields("field");
             MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest(expectedIds, tvRequestTemplate);
 
@@ -1233,13 +1233,13 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test _mtermvectors where MultiTermVectorsRequest constructed with adding each separate request
             MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
-            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "1");
             tvRequest1.setFields("field");
             mtvRequest.add(tvRequest1);
 
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
-            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, docBuilder);
             mtvRequest.add(tvRequest2);
 
             MultiTermVectorsResponse mtvResponse =

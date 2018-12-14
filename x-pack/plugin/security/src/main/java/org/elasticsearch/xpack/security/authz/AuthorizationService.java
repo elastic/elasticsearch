@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -106,12 +107,14 @@ public class AuthorizationService {
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
     private final FieldPermissionsCache fieldPermissionsCache;
+    private final ApiKeyService apiKeyService;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool, AnonymousUser anonymousUser) {
+                                ThreadPool threadPool, AnonymousUser anonymousUser, ApiKeyService apiKeyService,
+                                FieldPermissionsCache fieldPermissionsCache) {
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
@@ -121,7 +124,8 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.fieldPermissionsCache = fieldPermissionsCache;
+        this.apiKeyService = apiKeyService;
     }
 
     /**
@@ -457,18 +461,12 @@ public class AuthorizationService {
         }
     }
 
-    public void roles(User user, ActionListener<Role> roleActionListener) {
-        rolesStore.roles(user, fieldPermissionsCache, roleActionListener);
-    }
-
-    /**
-     * Build the {@link Role} response for a given list of role descriptors.
-     *
-     * @param roleDescriptors list of {@link RoleDescriptor} objects
-     * @param roleActionListener listener for a response or a failure.
-     */
-    public void roles(final List<RoleDescriptor> roleDescriptors, final ActionListener<Role> roleActionListener) {
-        rolesStore.roles(roleDescriptors, fieldPermissionsCache, roleActionListener);
+    public void roles(User user, Authentication authentication, ActionListener<Role> roleActionListener) {
+        if (authentication != null && authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY) {
+            apiKeyService.getRoleForApiKey(authentication, rolesStore, roleActionListener);
+        } else {
+            rolesStore.roles(user, roleActionListener);
+        }
     }
 
     /**

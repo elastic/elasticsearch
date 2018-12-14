@@ -67,7 +67,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
     private ScriptService mockScriptService = mock(ScriptService.class);
     private ClusterService mockClusterService = mock(ClusterService.class);
     private SecurityIndexManager mockSecurityIndexManager = mock(SecurityIndexManager.class);
-    private Clock mockCock = mock(Clock.class);
+    private Clock mockClock = mock(Clock.class);
     private Client mockClient = mock(Client.class);
     private ApiKeyService apiKeyService;
 
@@ -81,7 +81,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(mse.getType(), mse);
         Map<String, ScriptContext<?>> contexts = Collections.singletonMap(TemplateScript.CONTEXT.name, TemplateScript.CONTEXT);
         mockScriptService = new ScriptService(Settings.EMPTY, engines, contexts);
-        apiKeyService = new ApiKeyService(Settings.EMPTY, mockCock, mockClient, mockSecurityIndexManager, mockClusterService,
+        apiKeyService = new ApiKeyService(Settings.EMPTY, mockClock, mockClient, mockSecurityIndexManager, mockClusterService,
                 compositeRolesStore, mockScriptService, xContentRegistry());
         userForNotASubsetRole = new User("user_not_a_subset", "not-a-subset-role");
         userWithSuperUserRole = new User("super_user", "superuser");
@@ -264,28 +264,26 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
     private void mockRolesForRoleDescriptors() {
         doAnswer((Answer) invocation -> {
             final List<RoleDescriptor> roleDescriptors = (List<RoleDescriptor>) invocation.getArguments()[0];
-            final FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) invocation.getArguments()[1];
-            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[2];
-            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
+            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[1];
+            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, new FieldPermissionsCache(Settings.EMPTY), null,
                     roleActionListener);
 
             return null;
-        }).when(compositeRolesStore).roles(any(List.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        }).when(compositeRolesStore).roles(any(List.class), any(ActionListener.class));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void mockRolesForUser() {
         doAnswer((Answer) invocation -> {
             final User user = (User) invocation.getArguments()[0];
-            final FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) invocation.getArguments()[1];
-            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[2];
+            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[1];
 
             switch (user.principal()) {
             case "user_not_a_subset": {
                 final PlainActionFuture<Set<RoleDescriptor>> roleDescriptorsActionListener = new PlainActionFuture<>();
                 compositeRolesStore.getRoleDescriptors(user, roleDescriptorsActionListener);
                 Set<RoleDescriptor> roleDescriptors = roleDescriptorsActionListener.actionGet();
-                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
+                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, new FieldPermissionsCache(Settings.EMPTY), null,
                         roleActionListener);
                 break;
             }
@@ -297,14 +295,14 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                 final PlainActionFuture<Set<RoleDescriptor>> roleDescriptorsActionListener = new PlainActionFuture<>();
                 compositeRolesStore.getRoleDescriptors(user, roleDescriptorsActionListener);
                 Set<RoleDescriptor> roleDescriptors = roleDescriptorsActionListener.actionGet();
-                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
+                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, new FieldPermissionsCache(Settings.EMPTY), null,
                         roleActionListener);
                 break;
             }
             }
 
             return null;
-        }).when(compositeRolesStore).roles(any(User.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        }).when(compositeRolesStore).roles(any(User.class), any(ActionListener.class));
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

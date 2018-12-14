@@ -266,7 +266,7 @@ public class XPackLicenseState {
         }
     }
 
-    private final List<Runnable> listeners;
+    private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
 
@@ -315,17 +315,17 @@ public class XPackLicenseState {
                 }
             }
         }
-        listeners.forEach(Runnable::run);
+        listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
     /** Add a listener to be notified on license change */
-    public void addListener(Runnable runnable) {
-        listeners.add(Objects.requireNonNull(runnable));
+    public void addListener(final LicenseStateListener listener) {
+        listeners.add(Objects.requireNonNull(listener));
     }
 
     /** Remove a listener */
-    public void removeListener(Runnable runnable) {
-        listeners.remove(runnable);
+    public void removeListener(final LicenseStateListener listener) {
+        listeners.remove(Objects.requireNonNull(listener));
     }
 
     /** Return the current license type. */

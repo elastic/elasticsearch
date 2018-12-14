@@ -11,11 +11,11 @@ import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.ZoneOffset;
+
 public class DateUtils {
 
-    private static final FormatDateTimeFormatter formatDateOnlyFormatter = Joda.forPattern("yyyy-MM-dd");
-
-    private static final DateTimeFormatter dateOnlyFormatter = formatDateOnlyFormatter.parser().withZoneUTC();
+    private static final FormatDateTimeFormatter dateOnlyFormatter = Joda.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
 
     private static final DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
 
@@ -25,7 +25,7 @@ public class DateUtils {
             return dateTimeFormatter.parseDateTime(date).getMillis();
         } catch (IllegalArgumentException ex) {
             // Fall back to the date only format
-            MutableDateTime dateTime = dateOnlyFormatter.parseMutableDateTime(date);
+            MutableDateTime dateTime = new MutableDateTime(dateOnlyFormatter.parseMillis(date));
             dateTime.millisOfDay().set(dateTime.millisOfDay().getMaximumValue());
             return dateTime.getMillis();
         }
@@ -37,7 +37,7 @@ public class DateUtils {
             return dateTimeFormatter.parseDateTime(date).getMillis();
         } catch (IllegalArgumentException ex) {
             // Fall back to the date only format
-            return dateOnlyFormatter.parseDateTime(date).getMillis();
+            return dateOnlyFormatter.parseMillis(date);
         }
 
     }

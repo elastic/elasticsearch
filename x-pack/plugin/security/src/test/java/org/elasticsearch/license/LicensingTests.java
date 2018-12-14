@@ -300,6 +300,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put("path.home", home)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
             .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
             .build();

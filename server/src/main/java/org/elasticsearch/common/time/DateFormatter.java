@@ -19,13 +19,16 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.joda.time.DateTime;
+
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public interface DateFormatter {
@@ -38,6 +41,21 @@ public interface DateFormatter {
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);
+
+    /**
+     * Parse the given input into millis-since-epoch.
+     */
+    default long parseMillis(String input) {
+        return Instant.from(parse(input)).toEpochMilli();
+    }
+
+    /**
+     * Parse the given input into a Joda {@link DateTime}.
+     */
+    default DateTime parseJoda(String input) {
+        ZonedDateTime dateTime = ZonedDateTime.from(parse(input));
+        return new DateTime(dateTime.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dateTime.getZone()));
+    }
 
     /**
      * Create a copy of this formatter that is configured to parse dates in the specified time zone
@@ -64,6 +82,21 @@ public interface DateFormatter {
     String format(TemporalAccessor accessor);
 
     /**
+     * Return the given millis-since-epoch formatted with this format.
+     */
+    default String formatMillis(long millis) {
+        return format(Instant.ofEpochMilli(millis));
+    }
+
+    /**
+     * Return the given Joda {@link DateTime} formatted with this format.
+     */
+    default String formatJoda(DateTime dateTime) {
+        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateTime.getMillis()),
+            DateUtils.dateTimeZoneToZoneId(dateTime.getZone())));
+    }
+
+    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *
@@ -76,23 +109,19 @@ public interface DateFormatter {
      *
      * @return The locale of this formatter
      */
-    Locale getLocale();
+    Locale locale();
 
     /**
      * Returns the configured time zone of the date formatter
      *
      * @return The time zone of this formatter
      */
-    ZoneId getZone();
+    ZoneId zone();
 
     /**
-     * Configure a formatter using default fields for a TemporalAccessor that should be used in case
-     * the supplied date is not having all of those fields
-     *
-     * @param fields A <code>Map&lt;TemporalField, Long&gt;</code> of fields to be used as fallbacks
-     * @return       A new date formatter instance, that will use those fields during parsing
+     * Return a {@link DateMathParser} built from this formatter.
      */
-    DateFormatter parseDefaulting(Map<TemporalField, Long> fields);
+    DateMathParser toDateMathParser();
 
     /**
      * Merge several date formatters into a single one. Useful if you need to have several formatters with
@@ -102,7 +131,7 @@ public interface DateFormatter {
      * @param formatters The list of date formatters to be merged together
      * @return           The new date formtter containing the specified date formatters
      */
-    static DateFormatter merge(DateFormatter ... formatters) {
+    static DateFormatter merge(DateFormatter... formatters) {
         return new MergedDateFormatter(formatters);
     }
 
@@ -110,10 +139,12 @@ public interface DateFormatter {
 
         private final String format;
         private final DateFormatter[] formatters;
+        private final DateMathParser[] dateMathParsers;
 
-        MergedDateFormatter(DateFormatter ... formatters) {
+        MergedDateFormatter(DateFormatter... formatters) {
             this.formatters = formatters;
             this.format = Arrays.stream(formatters).map(DateFormatter::pattern).collect(Collectors.joining("||"));
+            this.dateMathParsers = Arrays.stream(formatters).map(DateFormatter::toDateMathParser).toArray(DateMathParser[]::new);
         }
 
         @Override
@@ -154,18 +185,32 @@ public interface DateFormatter {
         }
 
         @Override
-        public Locale getLocale() {
-            return formatters[0].getLocale();
+        public Locale locale() {
+            return formatters[0].locale();
         }
 
         @Override
-        public ZoneId getZone() {
-            return formatters[0].getZone();
+        public ZoneId zone() {
+            return formatters[0].zone();
         }
 
         @Override
-        public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.parseDefaulting(fields)).toArray(DateFormatter[]::new));
+        public DateMathParser toDateMathParser() {
+            return (text, now, roundUp, tz) -> {
+                ElasticsearchParseException failure = null;
+                for (DateMathParser parser : dateMathParsers) {
+                    try {
+                        return parser.parse(text, now, roundUp, tz);
+                    } catch (ElasticsearchParseException e) {
+                        if (failure == null) {
+                            failure = e;
+                        } else {
+                            failure.addSuppressed(e);
+                        }
+                    }
+                }
+                throw failure;
+            };
         }
     }
 }

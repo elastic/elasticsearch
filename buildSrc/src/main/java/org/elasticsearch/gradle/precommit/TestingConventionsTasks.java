@@ -25,7 +25,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -103,6 +102,22 @@ public class TestingConventionsTasks extends DefaultTask {
             final Map<String, Set<File>> classFilesPerRandomizedTestingTask = classFilesPerRandomizedTestingTask(allTestClassFiles);
             final Map<String, Set<File>> classFilesPerGradleTestTask = classFilesPerGradleTestTask();
 
+            Map<String, Set<Class<?>>> testClassesPerTask =
+                Stream.concat(
+                    classFilesPerGradleTestTask.entrySet().stream(),
+                    classFilesPerRandomizedTestingTask.entrySet().stream()
+                )
+                    .collect(
+                        Collectors.toMap(
+                            Map.Entry::getKey,
+                            entry -> entry.getValue().stream()
+                                .map(classes::get)
+                                .filter(implementsNamingConvention)
+                                .collect(Collectors.toSet())
+                        )
+                    );
+
+
             problems = collectProblems(
                 checkNoneExists(
                     "Test classes implemented by inner classes will not run",
@@ -117,6 +132,16 @@ public class TestingConventionsTasks extends DefaultTask {
                         .filter(isPublicClass)
                         .filter(this::seemsLikeATest)
                         .filter(implementsNamingConvention.negate())
+                ),
+                collectProblems(
+                    testClassesPerTask.entrySet().stream()
+                    .map( entry ->
+                        checkAtLeastOneExists(
+                            "test class in " + entry.getKey(),
+                            entry.getValue().stream()
+                        )
+                    )
+                    .collect(Collectors.joining())
                 ),
                 checkNoneExists(
                     "Test classes are not included in any enabled task (" +
@@ -215,7 +240,6 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     @Input
-    @SkipWhenEmpty
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
             testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
@@ -240,6 +264,14 @@ public class TestingConventionsTasks extends DefaultTask {
             return message + ":\n" + problem;
         } else{
             return "";
+        }
+    }
+
+    private String checkAtLeastOneExists(String message, Stream<? extends Class<?>> stream) {
+        if (stream.findAny().isPresent()) {
+            return "";
+        } else {
+            return "Expected at least one " + message + ", but found none.\n";
         }
     }
 

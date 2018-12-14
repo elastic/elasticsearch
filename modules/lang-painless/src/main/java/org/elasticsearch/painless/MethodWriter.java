@@ -40,20 +40,20 @@ import java.util.List;
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_BYTE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_CHAR_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_CHAR_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_DOUBLE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_FLOAT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_INT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_INT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_LONG_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
@@ -146,25 +146,25 @@ public final class MethodWriter extends GeneratorAdapter {
                 if (cast.originalType == def.class) {
                     if (cast.explicitCast) {
                         if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
+                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_EXPLICIT);
+                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_EXPLICIT);
+                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_EXPLICIT);
+                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_EXPLICIT);
+                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_EXPLICIT);
+                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_EXPLICIT);
+                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_EXPLICIT);
                         else {
                             throw new IllegalStateException("Illegal tree structure.");
                         }
                     } else {
                         if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
+                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_IMPLICIT);
+                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_IMPLICIT);
+                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_IMPLICIT);
+                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_IMPLICIT);
+                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_IMPLICIT);
+                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_IMPLICIT);
+                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_IMPLICIT);
                         else {
                             throw new IllegalStateException("Illegal tree structure.");
                         }

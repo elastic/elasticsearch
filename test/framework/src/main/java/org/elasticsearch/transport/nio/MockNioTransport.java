@@ -74,9 +74,9 @@ public class MockNioTransport extends TcpTransport {
     private volatile NioGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
-    MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                     PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                     CircuitBreakerService circuitBreakerService) {
+    public MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                            CircuitBreakerService circuitBreakerService) {
         super("mock-nio", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageCacheRecycler = pageCacheRecycler;
     }

@@ -105,8 +105,8 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new FormatDateTimeFormatter(input,
-                    ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC), locale);
+                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(locale).withZone(DateTimeZone.UTC),
+                    ISODateTimeFormat.dateTime().withLocale(locale).withZone(DateTimeZone.UTC));
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -182,8 +182,8 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new FormatDateTimeFormatter(input,
-                    StrictISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
-                    StrictISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC), locale);
+                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(locale).withZone(DateTimeZone.UTC),
+                    StrictISODateTimeFormat.dateTime().withLocale(locale).withZone(DateTimeZone.UTC));
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
             formatter = StrictISODateTimeFormat.dateTime();
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
@@ -259,7 +259,8 @@ public class Joda {
             }
         }
 
-        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC), locale);
+        formatter = formatter.withLocale(locale).withZone(DateTimeZone.UTC);
+        return new FormatDateTimeFormatter(input, formatter, formatter);
     }
 
     public static FormatDateTimeFormatter getStrictStandardDateFormatter() {
@@ -292,8 +293,8 @@ public class Joda {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(),
             new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis",
-            builder.toFormatter().withZone(DateTimeZone.UTC), Locale.ROOT);
+        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", formatter, formatter);
     }
 
 

@@ -83,7 +83,8 @@ public abstract class AbstractScopedSettings {
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
             if (setting.getProperties().contains(scope) == false) {
-                throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
+                throw new IllegalArgumentException("Setting " + setting + " must be a "
+                    + scope + " setting but has: " + setting.getProperties());
             }
             validateSettingKey(setting);
 

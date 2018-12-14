@@ -20,10 +20,12 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
+import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.time.ZoneId;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * A simple wrapper around {@link DateTimeFormatter} that retains the
@@ -31,27 +33,28 @@ import java.util.Objects;
  */
 public class FormatDateTimeFormatter {
 
-    private final String format;
+    private final String pattern;
 
     private final DateTimeFormatter parser;
 
     private final DateTimeFormatter printer;
 
-    private final Locale locale;
-
-    public FormatDateTimeFormatter(String format, DateTimeFormatter parser, Locale locale) {
-        this(format, parser, parser, locale);
+    public FormatDateTimeFormatter(String pattern, DateTimeFormatter parser, DateTimeFormatter printer) {
+        this.pattern = pattern;
+        this.printer = printer.withDefaultYear(1970);
+        this.parser = parser.withDefaultYear(1970);
     }
 
-    public FormatDateTimeFormatter(String format, DateTimeFormatter parser, DateTimeFormatter printer, Locale locale) {
-        this.format = format;
-        this.locale = Objects.requireNonNull(locale, "A locale is required as JODA otherwise uses the default locale");
-        this.printer = printer.withLocale(locale).withDefaultYear(1970);
-        this.parser = parser.withLocale(locale).withDefaultYear(1970);
+    public String pattern() {
+        return pattern;
     }
 
-    public String format() {
-        return format;
+    public long parseMillis(String input) {
+        return parser.parseMillis(input);
+    }
+
+    public DateTime parseJoda(String input) {
+        return parser.parseDateTime(input);
     }
 
     public DateTimeFormatter parser() {
@@ -62,8 +65,32 @@ public class FormatDateTimeFormatter {
         return this.printer;
     }
 
+    public String formatJoda(DateTime dateTime) {
+        return printer.print(dateTime);
+    }
+
+    public String formatMillis(long millis) {
+        return printer.print(millis);
+    }
+
+    public FormatDateTimeFormatter withZone(ZoneId zoneId) {
+        DateTimeFormatter parser = this.parser.withZone(DateUtils.zoneIdToDateTimeZone(zoneId));
+        DateTimeFormatter printer = this.printer.withZone(DateUtils.zoneIdToDateTimeZone(zoneId));
+        return new FormatDateTimeFormatter(pattern, parser, printer);
+    }
+
+    public FormatDateTimeFormatter withLocale(Locale locale) {
+        DateTimeFormatter parser = this.parser.withLocale(locale);
+        DateTimeFormatter printer = this.printer.withLocale(locale);
+        return new FormatDateTimeFormatter(this.pattern, parser, printer);
+    }
+
     public Locale locale() {
-        return locale;
+        return parser.getLocale();
+    }
+
+    public ZoneId zone() {
+        return DateUtils.dateTimeZoneToZoneId(parser.getZone());
     }
 
     public DateMathParser toDateMathParser() {

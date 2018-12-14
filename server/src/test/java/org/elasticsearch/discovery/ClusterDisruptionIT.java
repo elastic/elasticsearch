@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
@@ -285,6 +286,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     // simulate handling of sending shard failure during an isolation
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36428")
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
@@ -356,8 +358,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        Settings zen1Settings = Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build(); // TODO: needs adaptions for Zen2
+        String masterNode = internalCluster().startMasterOnlyNode(zen1Settings);
+        internalCluster().startDataOnlyNode(zen1Settings);
         ensureStableCluster(2);
         assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("index", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());

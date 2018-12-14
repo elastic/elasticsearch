@@ -38,6 +38,10 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         while (aggregateFunction.matcher(line).matches()) {
             line = readLine();
         }
+        Pattern groupingFunction = Pattern.compile("\\s*[A-Z0-9_~]+\\s*\\|\\s*GROUPING\\s*");
+        while (groupingFunction.matcher(line).matches()) {
+            line = readLine();
+        }
         Pattern conditionalFunction = Pattern.compile("\\s*[A-Z0-9_~]+\\s*\\|\\s*CONDITIONAL\\s*");
         while (conditionalFunction.matcher(line).matches()) {
             line = readLine();

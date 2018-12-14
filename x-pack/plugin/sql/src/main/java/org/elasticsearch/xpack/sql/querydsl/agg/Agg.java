@@ -27,7 +27,7 @@ public abstract class Agg {
         return id;
     }
 
-    public String fieldName() {
+    protected String fieldName() {
         return fieldName;
     }
 

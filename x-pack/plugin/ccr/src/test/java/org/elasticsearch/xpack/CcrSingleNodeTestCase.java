@@ -67,19 +67,19 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
-    protected ResumeFollowAction.Request getResumeFollowRequest() {
+    protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex("follower");
+        request.setFollowerIndex(followerIndex);
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 
-    protected PutFollowAction.Request getPutFollowRequest() {
+    protected PutFollowAction.Request getPutFollowRequest(String leaderIndex, String followerIndex) {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster("local");
-        request.setLeaderIndex("leader");
-        request.setFollowRequest(getResumeFollowRequest());
+        request.setLeaderIndex(leaderIndex);
+        request.setFollowRequest(getResumeFollowRequest(followerIndex));
         return request;
     }
 

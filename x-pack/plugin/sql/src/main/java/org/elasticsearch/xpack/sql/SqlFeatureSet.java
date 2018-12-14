@@ -31,7 +31,7 @@ public class SqlFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    private Client client;
+    private final Client client;
     
     @Inject
     public SqlFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, Client client) {

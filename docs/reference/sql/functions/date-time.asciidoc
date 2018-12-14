@@ -26,7 +26,7 @@ NOW()
 
 Returns the date/time when the current query reached the server.
 As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
-parameter for rounding the second fractional digits (microseconds).
+parameter for rounding the second fractional digits (nanoseconds).
 
 This method always returns the same value within a query.
 

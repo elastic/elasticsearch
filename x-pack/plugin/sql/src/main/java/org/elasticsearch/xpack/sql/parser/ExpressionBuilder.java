@@ -460,6 +460,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
+        // maps current_XXX to their respective functions
+        // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Location source = source(ctx);
         Literal p = null;
 

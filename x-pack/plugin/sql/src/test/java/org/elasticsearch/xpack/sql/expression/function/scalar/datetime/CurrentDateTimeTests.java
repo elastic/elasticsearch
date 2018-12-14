@@ -14,6 +14,7 @@ public class CurrentDateTimeTests extends ESTestCase {
 
     public void testNanoPrecision() throws Exception {
         ZonedDateTime zdt = ZonedDateTime.parse("2018-01-23T12:34:45.123456789Z");
+        assertEquals(000_000_000, CurrentDateTime.nanoPrecision(zdt, 0).getNano());
         assertEquals(100_000_000, CurrentDateTime.nanoPrecision(zdt, 1).getNano());
         assertEquals(120_000_000, CurrentDateTime.nanoPrecision(zdt, 2).getNano());
         assertEquals(123_000_000, CurrentDateTime.nanoPrecision(zdt, 3).getNano());

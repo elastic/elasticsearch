@@ -59,7 +59,7 @@ public class CurrentDateTime extends ConfigurationFunction {
     static ZonedDateTime nanoPrecision(ZonedDateTime zdt, int precision) {
         if (zdt != null) {
             int nano = zdt.getNano();
-            if (precision > 0 && precision < 10) {
+            if (precision >= 0 && precision < 10) {
                 // remove the remainder
                 nano = nano - nano % (int) Math.pow(10, (9 - precision));
                 return zdt.withNano(nano);

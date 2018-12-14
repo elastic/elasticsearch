@@ -190,7 +190,7 @@ public class MetaDataIndexTemplateService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new PutResponse(true, templateBuilder.build()));
+                listener.onResponse(new PutResponse(true));
             }
         });
     }
@@ -393,19 +393,13 @@ public class MetaDataIndexTemplateService {
 
     public static class PutResponse {
         private final boolean acknowledged;
-        private final IndexTemplateMetaData template;
 
-        public PutResponse(boolean acknowledged, IndexTemplateMetaData template) {
+        public PutResponse(boolean acknowledged) {
             this.acknowledged = acknowledged;
-            this.template = template;
         }
 
         public boolean acknowledged() {
             return acknowledged;
-        }
-
-        public IndexTemplateMetaData template() {
-            return template;
         }
     }
 

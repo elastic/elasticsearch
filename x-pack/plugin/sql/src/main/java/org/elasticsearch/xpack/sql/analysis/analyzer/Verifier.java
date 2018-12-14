@@ -462,7 +462,7 @@ public final class Verifier {
 
             Map<Expression, Node<?>> missing = new LinkedHashMap<>();
             a.aggregates().forEach(ne ->
-            ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
+                ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
 
             if (!missing.isEmpty()) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
@@ -478,6 +478,13 @@ public final class Verifier {
 
     private static boolean checkGroupMatch(Expression e, Node<?> source, List<Expression> groupings,
             Map<Expression, Node<?>> missing, Map<String, Function> functions) {
+
+        // 1:1 match
+        if (Expressions.match(groupings, e::semanticEquals)) {
+            return true;
+        }
+
+
         // resolve FunctionAttribute to backing functions
         if (e instanceof FunctionAttribute) {
             FunctionAttribute fa = (FunctionAttribute) e;
@@ -521,12 +528,14 @@ public final class Verifier {
         if (Functions.isAggregate(e)) {
             return true;
         }
+        
         // left without leaves which have to match; if not there's a failure
-
+        // make sure to match directly on the expression and not on the tree
+        // (since otherwise exp might match the function argument which would be incorrect)
         final Expression exp = e;
         if (e.children().isEmpty()) {
-            if (!Expressions.anyMatch(groupings, c -> exp.semanticEquals(exp instanceof Attribute ? Expressions.attribute(c) : c))) {
-                missing.put(e, source);
+            if (Expressions.match(groupings, c -> exp.semanticEquals(exp instanceof Attribute ? Expressions.attribute(c) : c)) == false) {
+                missing.put(exp, source);
             }
             return true;
         }

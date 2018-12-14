@@ -17,10 +17,10 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     public void testFindFirstMatchGivenNoMatch() {
 
-        assertNull(TimestampFormatFinder.findFirstMatch(""));
-        assertNull(TimestampFormatFinder.findFirstMatch("no timestamps in here"));
-        assertNull(TimestampFormatFinder.findFirstMatch(":::"));
-        assertNull(TimestampFormatFinder.findFirstMatch("/+"));
+        assertNull(TimestampFormatFinder.findFirstMatch("", NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstMatch("no timestamps in here", NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstMatch(":::", NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstMatch("/+", NOOP_TIMEOUT_CHECKER));
     }
 
     public void testFindFirstMatchGivenOnlyIso8601() {
@@ -132,23 +132,23 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
     public void testFindFirstMatchGivenOnlySystemDate() {
 
         assertEquals(new TimestampMatch(26, "", "UNIX_MS", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
-            TimestampFormatFinder.findFirstMatch("1526400896374"));
+            TimestampFormatFinder.findFirstMatch("1526400896374", NOOP_TIMEOUT_CHECKER));
         assertEquals(new TimestampMatch(26, "", "UNIX_MS", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
-            TimestampFormatFinder.findFirstFullMatch("1526400896374"));
+            TimestampFormatFinder.findFirstFullMatch("1526400896374", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(27, "", "UNIX", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
-            TimestampFormatFinder.findFirstMatch("1526400896.736"));
+            TimestampFormatFinder.findFirstMatch("1526400896.736", NOOP_TIMEOUT_CHECKER));
         assertEquals(new TimestampMatch(27, "", "UNIX", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
-            TimestampFormatFinder.findFirstFullMatch("1526400896.736"));
+            TimestampFormatFinder.findFirstFullMatch("1526400896.736", NOOP_TIMEOUT_CHECKER));
         assertEquals(new TimestampMatch(28, "", "UNIX", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
-            TimestampFormatFinder.findFirstMatch("1526400896"));
+            TimestampFormatFinder.findFirstMatch("1526400896", NOOP_TIMEOUT_CHECKER));
         assertEquals(new TimestampMatch(28, "", "UNIX", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
-            TimestampFormatFinder.findFirstFullMatch("1526400896"));
+            TimestampFormatFinder.findFirstFullMatch("1526400896", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(29, "", "TAI64N", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
-            TimestampFormatFinder.findFirstMatch("400000005afb159a164ac980"));
+            TimestampFormatFinder.findFirstMatch("400000005afb159a164ac980", NOOP_TIMEOUT_CHECKER));
         assertEquals(new TimestampMatch(29, "", "TAI64N", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
-            TimestampFormatFinder.findFirstFullMatch("400000005afb159a164ac980"));
+            TimestampFormatFinder.findFirstFullMatch("400000005afb159a164ac980", NOOP_TIMEOUT_CHECKER));
     }
 
     public void testFindFirstMatchGivenRealLogMessages() {
@@ -157,45 +157,47 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                 "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", "TIMESTAMP_ISO8601",
                 "][INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [3.9gb], compressed ordinary object pointers [true]"),
             TimestampFormatFinder.findFirstMatch("[2018-05-11T17:07:29,553][INFO ][o.e.e.NodeEnvironment    ] [node-0] " +
-                "heap size [3.9gb], compressed ordinary object pointers [true]"));
+                "heap size [3.9gb], compressed ordinary object pointers [true]", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(23, "192.168.62.101 - - [", "dd/MMM/YYYY:HH:mm:ss Z", "dd/MMM/yyyy:HH:mm:ss XX",
                 "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ", "HTTPDATE",
                 "] \"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384"),
             TimestampFormatFinder.findFirstMatch("192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] " +
-                "\"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384"));
+                "\"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(24, "", "MMM dd, YYYY h:mm:ss a", "MMM dd, yyyy h:mm:ss a",
                 "\\b[A-Z]\\S{2,8} \\d{1,2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b", "CATALINA_DATESTAMP",
                 " org.apache.tomcat.util.http.Parameters processParameters"),
-            TimestampFormatFinder.findFirstMatch("Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters"));
+            TimestampFormatFinder.findFirstMatch("Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters",
+                NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(22, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
                 Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
                 "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP", " esxi1.acme.com Vpxa: " +
                     "[3CB3FB90 verbose 'vpxavpxaInvtVm' opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"),
             TimestampFormatFinder.findFirstMatch("Oct 19 17:04:44 esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' " +
-                "opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"));
+                "opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(10, "559550912540598297\t", "ISO8601", "ISO8601", "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}",
                 "TIMESTAMP_ISO8601",
                 "\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t192.168.114.28\tAuthpriv\tInfo\tsshd\tsubsystem request for sftp"),
             TimestampFormatFinder.findFirstMatch("559550912540598297\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t" +
-                "192.168.114.28\tAuthpriv\tInfo\tsshd\tsubsystem request for sftp"));
+                "192.168.114.28\tAuthpriv\tInfo\tsshd\tsubsystem request for sftp", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(22, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
                 Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
                 "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP",
                 " dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving 'www.elastic.co/A/IN': 95.110.68.206#53"),
             TimestampFormatFinder.findFirstMatch("Sep  8 11:55:35 dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving " +
-                "'www.elastic.co/A/IN': 95.110.68.206#53"));
+                "'www.elastic.co/A/IN': 95.110.68.206#53", NOOP_TIMEOUT_CHECKER));
 
         assertEquals(new TimestampMatch(3, "", "YYYY-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSSSSS",
                 "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}", "TIMESTAMP_ISO8601",
                 "|INFO    |VirtualServer |1  |client  'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client " +
                     "'User1'(id:2) in channel '3er Instanz'(id:2)"),
             TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
-                " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)"));
+                " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)",
+                NOOP_TIMEOUT_CHECKER));
 
         // Differs from the above as the required format is specified
         assertEquals(new TimestampMatch(3, "", "YYYY-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSSSSS",
@@ -204,12 +206,12 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                     "'User1'(id:2) in channel '3er Instanz'(id:2)"),
             TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
                 " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)",
-                randomFrom("YYYY-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSSSSS")));
+                randomFrom("YYYY-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSSSSS"), NOOP_TIMEOUT_CHECKER));
 
         // Non-matching required format specified
         assertNull(TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
                 " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)",
-            randomFrom("UNIX", "EEE MMM dd YYYY HH:mm zzz")));
+            randomFrom("UNIX", "EEE MMM dd YYYY HH:mm zzz"), NOOP_TIMEOUT_CHECKER));
     }
 
     public void testAdjustRequiredFormat() {
@@ -246,18 +248,20 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     private void validateTimestampMatch(TimestampMatch expected, String text, long expectedEpochMs) {
 
-        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text));
-        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text));
-        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, expected.candidateIndex));
-        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, expected.candidateIndex));
-        assertNull(TimestampFormatFinder.findFirstMatch(text, Integer.MAX_VALUE));
-        assertNull(TimestampFormatFinder.findFirstFullMatch(text, Integer.MAX_VALUE));
-        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, randomFrom(expected.jodaTimestampFormats)));
-        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, randomFrom(expected.jodaTimestampFormats)));
-        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, randomFrom(expected.javaTimestampFormats)));
-        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, randomFrom(expected.javaTimestampFormats)));
-        assertNull(TimestampFormatFinder.findFirstMatch(text, "wrong format"));
-        assertNull(TimestampFormatFinder.findFirstFullMatch(text, "wrong format"));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, expected.candidateIndex, NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, expected.candidateIndex, NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstMatch(text, Integer.MAX_VALUE, NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstFullMatch(text, Integer.MAX_VALUE, NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, randomFrom(expected.jodaTimestampFormats), NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, randomFrom(expected.jodaTimestampFormats),
+            NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, randomFrom(expected.javaTimestampFormats), NOOP_TIMEOUT_CHECKER));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, randomFrom(expected.javaTimestampFormats),
+            NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstMatch(text, "wrong format", NOOP_TIMEOUT_CHECKER));
+        assertNull(TimestampFormatFinder.findFirstFullMatch(text, "wrong format", NOOP_TIMEOUT_CHECKER));
 
         validateJodaTimestampFormats(expected.jodaTimestampFormats, text, expectedEpochMs);
         validateJavaTimestampFormats(expected.javaTimestampFormats, text, expectedEpochMs);

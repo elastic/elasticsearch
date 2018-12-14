@@ -11,11 +11,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -31,7 +33,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
-        final PutFollowAction.Request followRequest = getPutFollowRequest();
+        final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
@@ -61,7 +63,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
         }
 
-        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest()).get();
+        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
         assertBusy(() -> {
             assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
@@ -69,13 +71,46 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureEmptyWriteBuffers();
     }
 
+    public void testFollowStatsApiFollowerIndexFiltering() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+        assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader2");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        followRequest = getPutFollowRequest("leader2", "follower2");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower1"});
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower2"});
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower2"));
+
+        response = client().execute(FollowStatsAction.INSTANCE,  new FollowStatsAction.StatsRequest()).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(2));
+        response.getStatsResponses().sort(Comparator.comparing(o -> o.status().followerIndex()));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+        assertThat(response.getStatsResponses().get(1).status().followerIndex(), equalTo("follower2"));
+    }
+
     public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
         assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        ResumeFollowAction.Request followRequest = getResumeFollowRequest();
+        ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
         followRequest.setFollowerIndex("follower-index");
-        PutFollowAction.Request putFollowRequest = getPutFollowRequest();
+        PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
         putFollowRequest.setLeaderIndex("leader-index");
         putFollowRequest.setFollowRequest(followRequest);
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,

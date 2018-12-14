@@ -700,13 +700,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testConnectionDenied() throws Exception {
         final InetAddress inetAddress = InetAddress.getLoopbackAddress();
         final SecurityIpFilterRule rule = new SecurityIpFilterRule(false, "_all");
-        final String profile = randomAlphaOfLengthBetween(1, 6);
+        final String profile = randomBoolean() ? IPFilter.HTTP_PROFILE_NAME : randomAlphaOfLengthBetween(1, 6);
 
         auditTrail.connectionDenied(inetAddress, profile, rule);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "connection_denied")
-                .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
+                .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME,
+                        IPFilter.HTTP_PROFILE_NAME.equals(profile) ? LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE
+                                : LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .put(LoggingAuditTrail.RULE_FIELD_NAME, "deny _all");
@@ -727,7 +729,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testConnectionGranted() throws Exception {
         final InetAddress inetAddress = InetAddress.getLoopbackAddress();
         final SecurityIpFilterRule rule = IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
-        final String profile = randomAlphaOfLengthBetween(1, 6);
+        final String profile = randomBoolean() ? IPFilter.HTTP_PROFILE_NAME : randomAlphaOfLengthBetween(1, 6);
 
         auditTrail.connectionGranted(inetAddress, profile, rule);
         assertEmptyLog(logger);
@@ -742,7 +744,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "connection_granted")
-                .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
+                .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME,
+                        IPFilter.HTTP_PROFILE_NAME.equals(profile) ? LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE
+                                : LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .put(LoggingAuditTrail.RULE_FIELD_NAME, "allow default:accept_all");

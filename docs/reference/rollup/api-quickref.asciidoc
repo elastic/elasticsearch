@@ -9,7 +9,7 @@ Most {rollup} endpoints have the following base:
 
 [source,js]
 ----
-/_xpack/rollup/
+/_rollup/
 ----
 // NOTCONSOLE
 
@@ -17,18 +17,18 @@ Most {rollup} endpoints have the following base:
 [[rollup-api-jobs]]
 === /job/
 
-* {ref}/rollup-put-job.html[PUT /_xpack/rollup/job/<job_id+++>+++]: Create a job
-* {ref}/rollup-get-job.html[GET /_xpack/rollup/job]: List jobs
-* {ref}/rollup-get-job.html[GET /_xpack/rollup/job/<job_id+++>+++]: Get job details
-* {ref}/rollup-start-job.html[POST /_xpack/rollup/job/<job_id>/_start]: Start a job
-* {ref}/rollup-stop-job.html[POST /_xpack/rollup/job/<job_id>/_stop]: Stop a job
-* {ref}/rollup-delete-job.html[DELETE /_xpack/rollup/job/<job_id+++>+++]: Delete a job
+* {ref}/rollup-put-job.html[PUT /_rollup/job/<job_id+++>+++]: Create a job
+* {ref}/rollup-get-job.html[GET /_rollup/job]: List jobs
+* {ref}/rollup-get-job.html[GET /_rollup/job/<job_id+++>+++]: Get job details
+* {ref}/rollup-start-job.html[POST /_rollup/job/<job_id>/_start]: Start a job
+* {ref}/rollup-stop-job.html[POST /_rollup/job/<job_id>/_stop]: Stop a job
+* {ref}/rollup-delete-job.html[DELETE /_rollup/job/<job_id+++>+++]: Delete a job
 
 [float]
 [[rollup-api-data]]
 === /data/
 
-* {ref}/rollup-get-rollup-caps.html[GET /_xpack/rollup/data/<index_pattern+++>/_rollup_caps+++]: Get Rollup Capabilities
+* {ref}/rollup-get-rollup-caps.html[GET /_rollup/data/<index_pattern+++>/_rollup_caps+++]: Get Rollup Capabilities
 * {ref}/rollup-get-rollup-index-caps.html[GET /<index_name+++>/_rollup/data/+++]: Get Rollup Index Capabilities
 
 [float]

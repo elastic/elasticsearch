@@ -22,15 +22,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -49,9 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
@@ -182,7 +180,8 @@ public class ApiKeyService {
                         ActionListener.wrap(roleDescriptors -> {
                             builder.startObject("role_descriptors");
                             for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
-                                builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                                builder.field(descriptor.getName(),
+                                        (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
                             }
                             builder.endObject();
                             builder.endObject();

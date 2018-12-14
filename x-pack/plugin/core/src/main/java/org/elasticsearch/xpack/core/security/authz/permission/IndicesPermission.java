@@ -172,22 +172,22 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         }
         Set<Set<String>> combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = new HashSet<>();
         for (Group thisGroup : this.groups()) {
-            boolean granted = false;
+            boolean notASubset = true;
             Set<Set<String>> maybeGroupIndices = Collections.emptySet();
             if (other.groups() != null) {
                 for (Group otherGroup : other.groups()) {
                     final SubsetResult result = thisGroup.isSubsetOf(otherGroup);
                     if (result.result() == Result.YES) {
-                        granted = true;
+                        notASubset = false;
                         maybeGroupIndices.clear();
                         break;
                     } else if (result.result() == Result.MAYBE) {
-                        granted = true;
+                        notASubset = false;
                         maybeGroupIndices = Sets.union(maybeGroupIndices, result.setOfIndexNamesForCombiningDLSQueries());
                     }
                 }
             }
-            if (granted == false) {
+            if (notASubset) {
                 return SubsetResult.isNotASubset();
             } else {
                 combineDLSQueriesFromIndexPrivilegeMatchingTheseNames.addAll(maybeGroupIndices);

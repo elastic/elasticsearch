@@ -268,7 +268,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
             Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
-        Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
@@ -308,7 +308,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
                         AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
-                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP));
+                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
+                        MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION));
     }
 
     public Settings additionalSettings() {
@@ -444,7 +445,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                new MlAssignmentNotifier(auditor, threadPool, client, clusterService),
+                new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
                 memoryTracker
         );
     }

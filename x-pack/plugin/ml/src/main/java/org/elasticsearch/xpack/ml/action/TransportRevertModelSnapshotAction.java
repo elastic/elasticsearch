@@ -24,12 +24,12 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.MlConfigMigrator;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.Date;
@@ -42,6 +42,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
     private final JobDataCountsPersister jobDataCountsPersister;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
     public TransportRevertModelSnapshotAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -54,6 +55,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobDataCountsPersister = jobDataCountsPersister;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -69,7 +71,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     @Override
     protected void masterOperation(RevertModelSnapshotAction.Request request, ClusterState state,
                                    ActionListener<RevertModelSnapshotAction.Response> listener) {
-        if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), state)) {
+        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", request.getJobId()));
             return;
         }

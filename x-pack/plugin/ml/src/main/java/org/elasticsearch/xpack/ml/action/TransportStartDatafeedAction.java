@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlConfigMigrator;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
@@ -78,6 +78,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final JobManager jobManager;
     private final DatafeedConfigReader datafeedConfigReader;
     private final Auditor auditor;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -94,6 +95,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.jobManager = jobManager;
         this.datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
         this.auditor = auditor;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     static void validate(Job job, DatafeedConfig datafeedConfig, PersistentTasksCustomMetaData tasks) {
@@ -140,7 +142,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return;
         }
 
-        if (MlConfigMigrator.datafeedIsEligibleForMigration(request.getParams().getDatafeedId(), state)) {
+        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getParams().getDatafeedId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("start datafeed", request.getParams().getDatafeedId()));
             return;
         }

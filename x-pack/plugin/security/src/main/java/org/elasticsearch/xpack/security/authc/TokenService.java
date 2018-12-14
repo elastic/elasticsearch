@@ -606,6 +606,8 @@ public final class TokenService {
      * @param listener             the listener to notify upon completion
      * @param attemptCount         the number of attempts to invalidate that have already been tried
      * @param expirationEpochMilli the expiration time as milliseconds since the epoch
+     * @param previousResult       if this not the initial attempt for invalidation, it contains the result of invalidating
+     *                             tokens up to the point of the retry. This result is added to the result of the current attempt
      */
     private void indexBwcInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
                                       AtomicInteger attemptCount, long expirationEpochMilli,

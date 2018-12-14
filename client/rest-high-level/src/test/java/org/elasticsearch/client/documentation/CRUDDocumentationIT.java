@@ -823,10 +823,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::reindex-request-conflicts
-            // tag::reindex-request-typeOrQuery
-            request.setSourceDocTypes("_doc"); // <1>
-            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <2>
-            // end::reindex-request-typeOrQuery
+            // tag::reindex-request-query
+            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            // end::reindex-request-query
             // tag::reindex-request-size
             request.setSize(10); // <1>
             // end::reindex-request-size

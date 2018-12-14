@@ -45,7 +45,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestGetAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     public RestGetAction(final RestController controller) {
@@ -62,7 +62,7 @@ public class RestGetAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String type = request.param("type");
         if (!type.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetRequest getRequest = new GetRequest(request.param("index"), type, request.param("id"));

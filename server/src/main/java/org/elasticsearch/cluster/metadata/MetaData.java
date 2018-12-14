@@ -172,7 +172,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int totalOpenIndexShards;
-    private final int numberOfShards;
 
     private final String[] allIndices;
     private final String[] allOpenIndices;
@@ -196,17 +195,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         this.templates = templates;
         int totalNumberOfShards = 0;
         int totalOpenIndexShards = 0;
-        int numberOfShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
             totalNumberOfShards += cursor.value.getTotalNumberOfShards();
-            numberOfShards += cursor.value.getNumberOfShards();
             if (IndexMetaData.State.OPEN.equals(cursor.value.getState())) {
                 totalOpenIndexShards += cursor.value.getTotalNumberOfShards();
             }
         }
         this.totalNumberOfShards = totalNumberOfShards;
         this.totalOpenIndexShards = totalOpenIndexShards;
-        this.numberOfShards = numberOfShards;
 
         this.allIndices = allIndices;
         this.allOpenIndices = allOpenIndices;
@@ -707,15 +703,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     public int getTotalOpenIndexShards() {
         return this.totalOpenIndexShards;
-    }
-
-    /**
-     * Gets the number of primary shards from all indices, not including
-     * replicas.
-     * @return The number of primary shards from all indices.
-     */
-    public int getNumberOfShards() {
-        return this.numberOfShards;
     }
 
     /**

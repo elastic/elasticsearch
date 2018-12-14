@@ -5,6 +5,53 @@
 
 beta[]
 
+[[sql-functions-current-timestamp]]
+==== `CURRENT_TIMESTAMP`/`NOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_TIMESTAMP
+CURRENT_TIMESTAMP(precision <1>)
+NOW()
+--------------------------------------------------
+
+*Input*:
+
+<1> fractional digits - optional
+
+*Output*: date/time
+
+.Description:
+
+Returns the date/time when the current query reached the server.
+As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
+parameter for rounding the second fractional digits (nanoseconds).
+
+This method always returns the same value within a query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curTs]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curTsFunction]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curTsFunctionPrecision]
+--------------------------------------------------
+
+Typically this function is used for relative date/time filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterNow]
+--------------------------------------------------
+
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH`/`DOM`/`DAY`
 

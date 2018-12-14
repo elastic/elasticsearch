@@ -380,17 +380,6 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
-    public static Object[] readSortValues(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Object[] values = new Object[size];
-        if (size > 0) {
-            for (int i = 0; i < size; i++) {
-                values[i] = readSortValue(in);
-            }
-        }
-        return values;
-    }
-
     public static Comparable readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
@@ -497,13 +486,6 @@ public class Lucene {
             return SortField.STRING_LAST;
         default:
             throw new IOException("Unknown missing value id: " + id);
-        }
-    }
-
-    public static void writeSortValues(StreamOutput out, Object[] values) throws IOException {
-        out.writeVInt(values.length);
-        for (Object value : values) {
-            writeSortValue(out, value);
         }
     }
 

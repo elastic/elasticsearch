@@ -48,7 +48,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.rawSortValues = EMPTY_ARRAY;
     }
 
-    SearchSortValues(Object[] rawSortValues, DocValueFormat[] sortValueFormats) {
+    public SearchSortValues(Object[] rawSortValues, DocValueFormat[] sortValueFormats) {
         Objects.requireNonNull(rawSortValues);
         Objects.requireNonNull(sortValueFormats);
         if (rawSortValues.length != sortValueFormats.length) {
@@ -66,9 +66,9 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     }
 
     SearchSortValues(StreamInput in) throws IOException {
-        this.formattedSortValues = Lucene.readSortValues(in);
+        this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            this.rawSortValues = Lucene.readSortValues(in);
+            this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
         } else {
             this.rawSortValues = EMPTY_ARRAY;
         }
@@ -76,9 +76,9 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Lucene.writeSortValues(out, this.formattedSortValues);
+        out.writeArray(Lucene::writeSortValue, this.formattedSortValues);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            Lucene.writeSortValues(out, this.rawSortValues);
+            out.writeArray(Lucene::writeSortValue, this.rawSortValues);
         }
     }
 

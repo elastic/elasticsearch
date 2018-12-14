@@ -460,7 +460,7 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
                         + "] is temporarily pending migration", true);
 
         if (datafeedDeleted && randomBoolean()) {
-            // delete job if the datafeed that refers to it was deleted  
+            // delete job if the datafeed that refers to it was deleted
             // otherwise the request is invalid
             Request deleteJob = new Request("DELETE", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_EXTRA_ID);
             updateJobExpectingSuccessOr503(OLD_CLUSTER_CLOSED_JOB_EXTRA_ID, deleteJob, "cannot update job as the configuration ["

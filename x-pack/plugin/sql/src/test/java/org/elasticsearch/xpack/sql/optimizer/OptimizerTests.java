@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -111,6 +112,8 @@ public class OptimizerTests extends ESTestCase {
     private static final Literal FOUR = L(4);
     private static final Literal FIVE = L(5);
     private static final Literal SIX = L(6);
+    
+    private static final String EMPTY_STRING = "";
 
     public static class DummyBooleanExpression extends Expression {
 
@@ -519,6 +522,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
+    }
+    
+    public void testConcatFoldingIsNotNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, Literal.NULL, ONE)).fold());
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, ONE, Literal.NULL)).fold());
+        assertEquals(EMPTY_STRING, foldNull.rule(new Concat(EMPTY, Literal.NULL, Literal.NULL)).fold());
     }
 
     //

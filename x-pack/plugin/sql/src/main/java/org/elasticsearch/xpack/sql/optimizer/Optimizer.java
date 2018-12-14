@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
@@ -110,11 +111,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch resolution = new Batch("Finish Analysis",
-                new PruneSubqueryAliases(),
-                CleanAliases.INSTANCE
-                );
-
         Batch aggregate = new Batch("Aggregation",
                 new PruneDuplicatesInGroupBy(),
                 new ReplaceDuplicateAggsWithReferences(),
@@ -162,69 +158,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(resolution, aggregate, operators, local, label);
+        return Arrays.asList(aggregate, operators, local, label);
     }
 
-
-    static class PruneSubqueryAliases extends OptimizerRule<SubQueryAlias> {
-
-        PruneSubqueryAliases() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(SubQueryAlias alias) {
-            return alias.child();
-        }
-    }
-
-    static class CleanAliases extends OptimizerRule<LogicalPlan> {
-
-        private static final CleanAliases INSTANCE = new CleanAliases();
-
-        CleanAliases() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Project) {
-                Project p = (Project) plan;
-                return new Project(p.location(), p.child(), cleanExpressions(p.projections()));
-            }
-
-            if (plan instanceof Aggregate) {
-                Aggregate a = (Aggregate) plan;
-                // clean group expressions
-                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
-                return new Aggregate(a.location(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
-            }
-
-            return plan.transformExpressionsOnly(e -> {
-                if (e instanceof Alias) {
-                    return ((Alias) e).child();
-                }
-                return e;
-            });
-        }
-
-        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
-            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast)
-                    .collect(toList());
-        }
-
-        static Expression trimNonTopLevelAliases(Expression e) {
-            if (e instanceof Alias) {
-                Alias a = (Alias) e;
-                return new Alias(a.location(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
-            }
-            return trimAliases(e);
-        }
-
-        private static Expression trimAliases(Expression e) {
-            return e.transformDown(Alias::child, Alias.class);
-        }
-    }
 
     static class PruneDuplicatesInGroupBy extends OptimizerRule<Aggregate> {
 

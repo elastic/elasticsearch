@@ -108,7 +108,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         @Override
         public double execute() {
-            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).getValues().get(0)).doubleValue();
+            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).get(0)).doubleValue();
         }
     }
 

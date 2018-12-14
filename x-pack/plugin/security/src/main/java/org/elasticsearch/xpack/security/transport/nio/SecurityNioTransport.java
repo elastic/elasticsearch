@@ -28,7 +28,7 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.transport.nio.NioTcpServerChannel;
 import org.elasticsearch.transport.nio.NioTransport;
@@ -214,7 +214,7 @@ public class SecurityNioTransport extends NioTransport {
 
         protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
             SSLEngine sslEngine;
-            SSLConfiguration defaultConfig = profileConfiguration.get(TcpTransport.DEFAULT_PROFILE);
+            SSLConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
             SSLConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
             boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
             if (hostnameVerificationEnabled) {
@@ -233,7 +233,7 @@ public class SecurityNioTransport extends NioTransport {
         private final SNIHostName serverName;
 
         private SecurityClientTcpChannelFactory(RawChannelFactory rawChannelFactory, SNIHostName serverName) {
-            super(rawChannelFactory, TcpTransport.DEFAULT_PROFILE, true);
+            super(rawChannelFactory, TransportSettings.DEFAULT_PROFILE, true);
             this.serverName = serverName;
         }
 

@@ -95,16 +95,16 @@ public class JodaCompatibleZonedDateTime {
         return DATE_FORMATTER.format(dt);
     }
 
-    public boolean isAfter(ZonedDateTime o) {
-        return dt.isAfter(o);
+    public boolean isAfter(JodaCompatibleZonedDateTime o) {
+        return dt.isAfter(o.getZonedDateTime());
     }
 
-    public boolean isBefore(ZonedDateTime o) {
-        return dt.isBefore(o);
+    public boolean isBefore(JodaCompatibleZonedDateTime o) {
+        return dt.isBefore(o.getZonedDateTime());
     }
 
-    public boolean isEqual(ZonedDateTime o) {
-        return dt.isEqual(o);
+    public boolean isEqual(JodaCompatibleZonedDateTime o) {
+        return dt.isEqual(o.getZonedDateTime());
     }
 
     public int getDayOfMonth() {

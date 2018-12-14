@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -155,12 +156,13 @@ public class FunctionRegistry {
         // Scalar functions
         // Conditional
         addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
-                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
-                 def(NullIf.class, NullIf::new, "NULLIF"),
-                 def(Greatest.class, Greatest::new, "GREATEST"),
-                 def(Least.class, Least::new, "LEAST"));
+                def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
+                def(NullIf.class, NullIf::new, "NULLIF"),
+                def(Greatest.class, Greatest::new, "GREATEST"),
+                def(Least.class, Least::new, "LEAST"));
         // Date
-        addToMap(def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
+        addToMap(def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
+                def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
@@ -281,7 +283,7 @@ public class FunctionRegistry {
         // It is worth double checking if we need this copy. These are immutable anyway.
         return defs.entrySet().stream()
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().datetime(), e.getValue().builder()))
+                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -291,7 +293,7 @@ public class FunctionRegistry {
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().datetime(), e.getValue().builder()))
+                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -336,6 +338,32 @@ public class FunctionRegistry {
     interface ConfigurationAwareFunctionBuilder<T> {
         T build(Location location, Configuration configuration);
     }
+
+    /**
+    * Build a {@linkplain FunctionDefinition} for a one-argument function that
+    * is not aware of time zone, does not support {@code DISTINCT} and needs
+    * the configuration object.
+    */
+    @SuppressWarnings("overloads")
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+            if (children.size() > 1) {
+                throw new IllegalArgumentException("expects exactly one argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            Expression ex = children.size() == 1 ? children.get(0) : null;
+            return ctorRef.build(location, ex, cfg);
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface UnaryConfigurationAwareFunctionBuilder<T> {
+        T build(Location location, Expression exp, Configuration configuration);
+    }
+
 
     /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not

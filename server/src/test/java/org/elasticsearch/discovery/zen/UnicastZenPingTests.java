@@ -48,13 +48,13 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
@@ -137,9 +137,9 @@ public class UnicastZenPingTests extends ESTestCase {
 
     public void testSimplePings() throws IOException, InterruptedException, ExecutionException {
         // use ephemeral ports
-        final Settings settings = Settings.builder().put("cluster.name", "test").put(TcpTransport.PORT.getKey(), 0).build();
+        final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
         final Settings settingsMismatch =
-            Settings.builder().put(settings).put("cluster.name", "mismatch").put(TcpTransport.PORT.getKey(), 0).build();
+            Settings.builder().put(settings).put("cluster.name", "mismatch").put(TransportSettings.PORT.getKey(), 0).build();
 
         NetworkService networkService = new NetworkService(Collections.emptyList());
 
@@ -263,7 +263,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
     public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {
         // use ephemeral ports
-        final Settings settings = Settings.builder().put("cluster.name", "test").put(TcpTransport.PORT.getKey(), 0).build();
+        final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
         final NetworkService networkService = new NetworkService(Collections.emptyList());
 
@@ -569,7 +569,7 @@ public class UnicastZenPingTests extends ESTestCase {
     }
 
     public void testResolveReuseExistingNodeConnections() throws ExecutionException, InterruptedException {
-        final Settings settings = Settings.builder().put("cluster.name", "test").put(TcpTransport.PORT.getKey(), 0).build();
+        final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
         NetworkService networkService = new NetworkService(Collections.emptyList());
 
@@ -635,7 +635,7 @@ public class UnicastZenPingTests extends ESTestCase {
     }
 
     public void testPingingTemporalPings() throws ExecutionException, InterruptedException {
-        final Settings settings = Settings.builder().put("cluster.name", "test").put(TcpTransport.PORT.getKey(), 0).build();
+        final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
         NetworkService networkService = new NetworkService(Collections.emptyList());
 
@@ -774,7 +774,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final Set<Role> nodeRoles) {
         final Settings nodeSettings = Settings.builder().put(settings)
             .put("node.name", nodeId)
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "internal:discovery/zen/unicast")
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "internal:discovery/zen/unicast")
             .build();
         final Transport transport = supplier.apply(nodeSettings, version);
         final MockTransportService transportService =

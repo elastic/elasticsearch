@@ -70,6 +70,15 @@ public final class Expressions {
         return false;
     }
 
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
+        for (Expression exp : exps) {
+            if (predicate.test(exp)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean nullable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
             if (exp.nullable()) {

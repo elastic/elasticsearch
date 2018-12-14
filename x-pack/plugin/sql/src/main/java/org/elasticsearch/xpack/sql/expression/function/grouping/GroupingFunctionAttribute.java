@@ -13,58 +13,38 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Objects;
-
 public class GroupingFunctionAttribute extends FunctionAttribute {
 
-    private final String propertyPath;
-
-    GroupingFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
-            String functionId, String propertyPath) {
-        this(location, name, dataType, null, false, id, false, functionId, propertyPath);
+    GroupingFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, String functionId) {
+        this(location, name, dataType, null, false, id, false, functionId);
     }
 
     public GroupingFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
+            boolean nullable, ExpressionId id, boolean synthetic, String functionId) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
-        this.propertyPath = propertyPath;
     }
 
     @Override
     protected NodeInfo<GroupingFunctionAttribute> info() {
         return NodeInfo.create(this, GroupingFunctionAttribute::new,
-            name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId(), propertyPath);
-    }
-
-    public String propertyPath() {
-        return propertyPath;
+                name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId());
     }
 
     @Override
     protected Expression canonicalize() {
-        return new GroupingFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, "<none>", null);
+        return new GroupingFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, "<none>");
     }
 
     @Override
     protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new GroupingFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);
+        return new GroupingFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId());
     }
 
     public GroupingFunctionAttribute withFunctionId(String functionId, String propertyPath) {
         return new GroupingFunctionAttribute(location(), name(), dataType(), qualifier(), nullable(),
-                id(), synthetic(), functionId, propertyPath);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), propertyPath);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(propertyPath(), ((GroupingFunctionAttribute) obj).propertyPath());
+                id(), synthetic(), functionId);
     }
 
     @Override

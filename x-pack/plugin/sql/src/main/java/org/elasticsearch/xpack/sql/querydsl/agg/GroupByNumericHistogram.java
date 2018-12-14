@@ -52,7 +52,7 @@ public class GroupByNumericHistogram extends GroupByKey {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             GroupByNumericHistogram other = (GroupByNumericHistogram) obj;
-            return Objects.equals(interval, other.interval);
+            return interval == other.interval;
         }
         return false;
     }

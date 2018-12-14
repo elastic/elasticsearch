@@ -23,7 +23,6 @@ import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_HOUR;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_MINUTE;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR_TO_MONTH;
@@ -149,13 +148,6 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(INTERVAL_YEAR, interval.dataType());
         Period p = interval.interval();
         assertEquals(Period.ofYears(2).negated(), p);
-    }
-
-    public void testMulTypeResolution() throws Exception {
-        Literal l = interval(Duration.ofHours(2), INTERVAL_HOUR);
-        Literal r = interval(Duration.ofHours(2), INTERVAL_MINUTE);
-        Mul mul = new Mul(EMPTY, l, r);
-        assertTrue(mul.typeResolved().unresolved());
     }
 
     @SuppressWarnings("unchecked")

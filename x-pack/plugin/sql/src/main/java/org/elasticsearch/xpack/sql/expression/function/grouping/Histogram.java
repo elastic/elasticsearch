@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.TimeZone;
 
@@ -53,15 +52,14 @@ public class Histogram extends GroupingFunction {
         return resolution;
     }
 
+    @Override
+    protected GroupingFunction replaceChild(Expression newChild) {
+        return new Histogram(location(), newChild, interval, timeZone);
+    }
 
     @Override
     public DataType dataType() {
         return field().dataType();
-    }
-
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new Histogram(location(), newChildren.get(0), interval, timeZone);
     }
 
     @Override

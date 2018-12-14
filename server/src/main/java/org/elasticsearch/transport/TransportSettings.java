@@ -88,39 +88,52 @@ public final class TransportSettings {
     public static final Setting.AffixSetting<Boolean> OLD_TCP_NO_DELAY_PROFILE =
         affixKeySetting("transport.profiles.", "tcp_no_delay", key -> boolSetting(key, TCP_NO_DELAY, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<Boolean> TCP_NO_DELAY_PROFILE =
-        affixKeySetting("transport.profiles.", "tcp.no_delay", key -> boolSetting(key, OLD_TCP_NO_DELAY_PROFILE,
-            Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "tcp.no_delay",
+            key -> boolSetting(key,
+                fallback(key, OLD_TCP_NO_DELAY_PROFILE, "tcp\\.no_delay$", "tcp_no_delay"),
+                Setting.Property.NodeScope));
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         boolSetting("transport.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
     // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<Boolean> OLD_TCP_KEEP_ALIVE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp_keep_alive", key -> boolSetting(key, TCP_KEEP_ALIVE, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<Boolean> TCP_KEEP_ALIVE_PROFILE =
-        affixKeySetting("transport.profiles.", "tcp.keep_alive", key -> boolSetting(key, OLD_TCP_KEEP_ALIVE_PROFILE,
-            Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "tcp.keep_alive",
+            key -> boolSetting(key,
+                fallback(key, OLD_TCP_KEEP_ALIVE_PROFILE, "tcp\\.keep_alive$", "tcp_keep_alive"),
+                Setting.Property.NodeScope));
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         boolSetting("transport.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
     // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<Boolean> OLD_TCP_REUSE_ADDRESS_PROFILE =
         affixKeySetting("transport.profiles.", "reuse_address", key -> boolSetting(key, TCP_REUSE_ADDRESS, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<Boolean> TCP_REUSE_ADDRESS_PROFILE =
-        affixKeySetting("transport.profiles.", "tcp.reuse_address", key -> boolSetting(key, OLD_TCP_REUSE_ADDRESS_PROFILE,
-            Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "tcp.reuse_address",
+            key -> boolSetting(key,
+                fallback(key, OLD_TCP_REUSE_ADDRESS_PROFILE, "tcp\\.reuse_address$", "reuse_address"),
+                Setting.Property.NodeScope));
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope);
     // TODO: Deprecate in 7.0
-    public static final Setting.AffixSetting<ByteSizeValue> OLD_TCP_SEND_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
-        "send_buffer_size", key -> Setting.byteSizeSetting(key, TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<ByteSizeValue> TCP_SEND_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
-        "tcp.send_buffer_size", key -> Setting.byteSizeSetting(key, OLD_TCP_SEND_BUFFER_SIZE_PROFILE, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<ByteSizeValue> OLD_TCP_SEND_BUFFER_SIZE_PROFILE =
+        affixKeySetting("transport.profiles.", "send_buffer_size",
+            key -> Setting.byteSizeSetting(key, TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<ByteSizeValue> TCP_SEND_BUFFER_SIZE_PROFILE =
+        affixKeySetting("transport.profiles.", "tcp.send_buffer_size",
+            key -> Setting.byteSizeSetting(key,
+                fallback(key, OLD_TCP_SEND_BUFFER_SIZE_PROFILE, "tcp\\.send_buffer_size$", "send_buffer_size"),
+                Setting.Property.NodeScope));
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
     // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<ByteSizeValue> OLD_TCP_RECEIVE_BUFFER_SIZE_PROFILE =
-        affixKeySetting("transport.profiles.", "receive_buffer_size", key -> Setting.byteSizeSetting(key, TCP_RECEIVE_BUFFER_SIZE,
-            Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
-        "tcp.receive_buffer_size", key -> Setting.byteSizeSetting(key, OLD_TCP_RECEIVE_BUFFER_SIZE_PROFILE, Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "receive_buffer_size",
+            key -> Setting.byteSizeSetting(key, TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE_PROFILE =
+        affixKeySetting("transport.profiles.", "tcp.receive_buffer_size",
+            key -> Setting.byteSizeSetting(key,
+                fallback(key, OLD_TCP_RECEIVE_BUFFER_SIZE_PROFILE, "tcp\\.receive_buffer_size$", "receive_buffer_size"),
+                Setting.Property.NodeScope));
 
     // Connections per node settings
 
@@ -145,5 +158,10 @@ public final class TransportSettings {
             Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private TransportSettings() {
+    }
+
+    private static  <T> Setting<T> fallback(String key, Setting.AffixSetting<T> affixSetting, String regex, String replacement) {
+        return "_na_".equals(key) ? affixSetting.getConcreteSettingForNamespace(key)
+            : affixSetting.getConcreteSetting(key.replaceAll(regex, replacement));
     }
 }

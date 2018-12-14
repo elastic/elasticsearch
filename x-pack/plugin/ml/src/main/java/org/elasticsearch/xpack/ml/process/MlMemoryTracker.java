@@ -225,7 +225,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).submit(() -> iterateMlJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(executorName()).execute(() -> iterateMlJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);

@@ -204,9 +204,9 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     public void testStatusSerializationAsNamedWriteable() throws IOException {
         PrimaryReplicaSyncer.ResyncTask.Status status = new PrimaryReplicaSyncer.ResyncTask.Status(randomAlphaOfLength(10),
             randomIntBetween(0, 1000), randomIntBetween(0, 1000), randomIntBetween(0, 1000));
-        try (final BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeNamedWriteable(status);
-            try (final StreamInput in = new NamedWriteableAwareStreamInput(
+            try (StreamInput in = new NamedWriteableAwareStreamInput(
                 new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes)),
                 new NamedWriteableRegistry(NetworkModule.getNamedWriteables()))) {
                 assertThat(in.readNamedWriteable(Task.Status.class), equalTo(status));

@@ -306,7 +306,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         sortValues(new SearchSortValues(sortValues, sortValueFormats));
     }
 
-    void sortValues(SearchSortValues sortValues) {
+    public void sortValues(SearchSortValues sortValues) {
         this.sortValues = sortValues;
     }
 

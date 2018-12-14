@@ -19,8 +19,10 @@
 package org.elasticsearch.client.benchmark.transport;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.benchmark.AbstractBenchmark;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
@@ -32,10 +34,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
-import org.elasticsearch.plugin.noop.action.bulk.NoopBulkRequestBuilder;
 import org.elasticsearch.plugin.noop.action.search.NoopSearchAction;
-import org.elasticsearch.plugin.noop.action.search.NoopSearchRequestBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 import java.net.InetAddress;
@@ -79,13 +80,13 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
 
         @Override
         public boolean bulkIndex(List<String> bulkData) {
-            NoopBulkRequestBuilder builder = new NoopBulkRequestBuilder(client,NoopBulkAction.INSTANCE);
+            BulkRequest bulkRequest = new BulkRequest();
             for (String bulkItem : bulkData) {
-                builder.add(new IndexRequest(indexName, typeName).source(bulkItem.getBytes(StandardCharsets.UTF_8), XContentType.JSON));
+                bulkRequest.add(new IndexRequest(indexName, typeName).source(bulkItem.getBytes(StandardCharsets.UTF_8), XContentType.JSON));
             }
             BulkResponse bulkResponse;
             try {
-                bulkResponse = builder.execute().get();
+                bulkResponse = client.execute(NoopBulkAction.INSTANCE, bulkRequest).get();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return false;
@@ -108,11 +109,12 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
         @Override
         public boolean search(String source) {
             final SearchResponse response;
-            NoopSearchRequestBuilder builder = new NoopSearchRequestBuilder(client, NoopSearchAction.INSTANCE);
             try {
-                builder.setIndices(indexName);
-                builder.setQuery(QueryBuilders.wrapperQuery(source));
-                response = client.execute(NoopSearchAction.INSTANCE, builder.request()).get();
+                final SearchRequest searchRequest = new SearchRequest(indexName);
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+                searchRequest.source(searchSourceBuilder);
+                searchSourceBuilder.query(QueryBuilders.wrapperQuery(source));
+                response = client.execute(NoopSearchAction.INSTANCE, searchRequest).get();
                 return response.status() == RestStatus.OK;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

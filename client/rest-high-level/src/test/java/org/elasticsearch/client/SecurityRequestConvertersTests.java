@@ -34,6 +34,7 @@ import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
@@ -99,6 +100,21 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_security/user/" + name, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testGetUsers() {
+        final String[] users = randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5));
+        GetUsersRequest getUsersRequest = new GetUsersRequest(users);
+        Request request = SecurityRequestConverters.getUsers(getUsersRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        if (users.length == 0) {
+            assertEquals("/_security/user", request.getEndpoint());
+        } else {
+            assertEquals("/_security/user/" + Strings.collectionToCommaDelimitedString(getUsersRequest.getUsernames()),
+                request.getEndpoint());
+        }
+        assertNull(request.getEntity());
+        assertEquals(Collections.emptyMap(), request.getParameters());
     }
 
     public void testPutRoleMapping() throws IOException {

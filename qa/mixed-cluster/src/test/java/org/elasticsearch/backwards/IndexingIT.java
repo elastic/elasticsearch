@@ -26,6 +26,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -37,6 +38,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -273,6 +277,81 @@ public class IndexingIT extends ESRestTestCase {
         request = new Request("PUT", "/_snapshot/repo/mixed-snapshot");
         request.addParameter("wait_for_completion", "true");
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+    }
+
+    public void testResyncFromNewNodeToOldNode() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        logger.info("cluster discovered: {}", nodes.toString());
+        assumeTrue("require at least one new node", nodes.getNewNodes().size() >= 1);
+        assumeTrue("require at least two old nodes", nodes.getNewNodes().size() >= 2);
+        List<Node> oldNodes = nodes.getBWCNodes();
+        Node oldPrimaryOnOldNode = randomFrom(oldNodes);
+        oldNodes.remove(oldPrimaryOnOldNode);
+        Node replicaOnOldNode = randomFrom(oldNodes);
+        Node replicaOnNewNode = randomFrom(nodes.getNewNodes());
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put("index.routing.allocation.include._name", oldPrimaryOnOldNode.getNodeName());
+        String index = "resync_from_new_node_to_old_node";
+        createIndex(index, settings.build());
+        ensureGreen(index);
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicInteger totalDocs = new AtomicInteger();
+        logger.info("--> allocations: old-primary={}, replica-on-old-node={} replica-on-new-node={}",
+            oldPrimaryOnOldNode.nodeName, replicaOnOldNode.nodeName, replicaOnNewNode.nodeName);
+        updateIndexSettings(index, Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+            .put("index.routing.allocation.include._name",
+                String.join(",", oldPrimaryOnOldNode.getNodeName(), replicaOnNewNode.getNodeName(), replicaOnOldNode.getNodeName())));
+        ensureGreen(index);
+        Thread[] indexers = new Thread[between(2, 4)]; // need a background indexing so primary-replica resync could happen.
+        for (int i = 0; i < indexers.length; i++) {
+            indexers[i] = new Thread(() -> {
+                while (done.get() == false) {
+                    String id = Integer.toString(totalDocs.incrementAndGet());
+                    logger.info("--> indexing {}", id);
+                    Request request = new Request("PUT", index + "/doc/" + id);
+                    request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(100) + "\"}");
+                    try {
+                        client().performRequest(request);
+                    } catch (Exception e) {
+                        throw new AssertionError("failed to index", e);
+                    }
+                }
+            });
+            indexers[i].start();
+        }
+        XContentBuilder cancelAllocationCommand = JsonXContent.contentBuilder()
+            .startObject()
+                .startArray("commands")
+                    .startObject()
+                        .startObject("cancel")
+                            .field("index", index)
+                            .field("shard", 0)
+                            .field("node", oldPrimaryOnOldNode.getNodeName())
+                            .field("allow_primary", true)
+                        .endObject()
+                    .endObject()
+                .endArray()
+            .endObject();
+        Request cancelAllocationRequest = new Request("POST", "/_cluster/reroute");
+        cancelAllocationRequest.setJsonEntity(Strings.toString(cancelAllocationCommand));
+        logger.info("--> cancel allocation on the primary {}", oldPrimaryOnOldNode.nodeName);
+        adminClient().performRequest(cancelAllocationRequest);
+        done.set(true);
+        for (Thread indexer : indexers) {
+            indexer.join();
+        }
+        updateIndexSettings(index, Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put("index.routing.allocation.include._name",
+                String.join(",", replicaOnNewNode.getNodeName(), replicaOnOldNode.getNodeName())));
+        assertBusy(() -> ensureGreen(index), 2, TimeUnit.MINUTES);
+        assertBusy(() -> {
+            assertCount(index, "_only_nodes:" + replicaOnNewNode.getNodeName(), totalDocs.get());
+            assertCount(index, "_only_nodes:" + replicaOnOldNode.getNodeName(), totalDocs.get());
+        });
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {

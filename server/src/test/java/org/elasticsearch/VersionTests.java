@@ -125,7 +125,8 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (version != Version.CURRENT) {
-                assertThat("Version: " + version + " should be before: " + Version.CURRENT + " but wasn't", version.before(Version.CURRENT), is(true));
+                assertThat("Version: " + version + " should be before: " + Version.CURRENT + " but wasn't",
+                    version.before(Version.CURRENT), is(true));
             }
         }
     }
@@ -161,7 +162,11 @@ public class VersionTests extends ESTestCase {
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
         final Version version = Version.V_6_0_0_beta1;
-        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
+        assertEquals(version, Version.indexCreated(
+            Settings.builder()
+                .put(IndexMetaData.SETTING_INDEX_UUID, "foo")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build()));
     }
 
     public void testMinCompatVersion() {

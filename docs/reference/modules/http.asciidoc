@@ -96,9 +96,7 @@ and stack traces in response output. Note: When set to `false` and the `error_tr
 parameter is specified, an error will be returned; when `error_trace` is not specified, a
 simple message will be returned. Defaults to `true`
 
-|`http.pipelining` |Enable or disable HTTP pipelining, defaults to `true`.
-
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
 
 |`http.max_warning_header_count` |The maximum number of warning headers in
  client HTTP responses, defaults to unbounded.
@@ -110,16 +108,3 @@ client HTTP responses, defaults to unbounded.
 
 It also uses the common
 <<modules-network,network settings>>.
-
-[float]
-=== Disable HTTP
-
-The http module can be completely disabled and not started by setting
-`http.enabled` to `false`. Elasticsearch nodes (and Java clients) communicate
-internally using the <<modules-transport,transport interface>>, not HTTP. It
-might make  sense to disable the `http` layer entirely on nodes which are not
-meant to serve REST requests directly. For instance, you could disable HTTP on
-<<modules-node,data-only nodes>> if you also have
-<<modules-node,client nodes>> which are intended to serve all REST requests.
-Be aware, however, that you will not be able to send any REST requests (eg to
-retrieve node stats) directly to nodes which have HTTP disabled.

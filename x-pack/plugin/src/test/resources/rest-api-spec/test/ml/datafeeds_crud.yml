@@ -1,15 +1,18 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: datafeeds-crud-1
         body:  >
           {
             "job_id":"datafeeds-crud-1",
             "analysis_config" : {
                 "bucket_span": "1h",
-                "detectors" :[{"function":"count"}]
+                "detectors" :[{"function":"count"}],
+                "summary_count_field_name": "doc_count"
             },
             "data_description" : {
                 "format":"xcontent",
@@ -21,7 +24,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: datafeeds-crud-2
         body:  >
           {
@@ -38,13 +41,13 @@ setup:
 "Test get all datafeeds and stats given no datafeed exists":
 
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: "_all"
   - match: { count: 0 }
   - match: { datafeeds: [] }
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: "_all"
   - match: { count: 0 }
   - match: { datafeeds: [] }
@@ -53,7 +56,7 @@ setup:
 "Test get datafeed with expression that does not match and allow_no_datafeeds":
 
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: "missing-*"
         allow_no_datafeeds: true
   - match: { count: 0 }
@@ -64,7 +67,7 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: "missing-*"
         allow_no_datafeeds: false
 
@@ -72,7 +75,7 @@ setup:
 "Test put datafeed referring to missing job_id":
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -85,7 +88,7 @@ setup:
 "Test put datafeed with security headers in the body":
   - do:
       catch: /unknown field \[headers\], parser not found/
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -97,7 +100,7 @@ setup:
 ---
 "Test put datafeed referring to existing job_id":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -116,7 +119,7 @@ setup:
 ---
 "Test put datafeed whose id is already taken":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -128,7 +131,7 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -140,7 +143,7 @@ setup:
 ---
 "Test put datafeed with job_id that is already used by another datafeed":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -152,7 +155,7 @@ setup:
 
   - do:
       catch: /A datafeed \[test-datafeed-1\] already exists for job \[datafeeds-crud-1\]/
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-2
         body:  >
           {
@@ -165,20 +168,20 @@ setup:
 "Test put datafeed with invalid query":
   - do:
       catch: /parsing_exception/
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
-            "query":{"match_all_mispelled":{}}
+            "query":{"match_all_misspelled":{}}
           }
 
 ---
 "Test update datafeed":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -191,7 +194,7 @@ setup:
           }
 
   - do:
-      xpack.ml.update_datafeed:
+      ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -211,7 +214,7 @@ setup:
 ---
 "Test update datafeed to point to different job":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -222,7 +225,7 @@ setup:
           }
 
   - do:
-      xpack.ml.update_datafeed:
+      ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -238,7 +241,7 @@ setup:
 
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.update_datafeed:
+      ml.update_datafeed:
         datafeed_id: a-missing-datafeed
         body:  >
           {}
@@ -246,7 +249,7 @@ setup:
 ---
 "Test update datafeed to point to missing job":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -258,7 +261,7 @@ setup:
 
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.update_datafeed:
+      ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -268,7 +271,7 @@ setup:
 ---
 "Test update datafeed to point to job already attached to another datafeed":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -278,7 +281,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-2
         body:  >
           {
@@ -289,7 +292,7 @@ setup:
 
   - do:
       catch: /A datafeed \[test-datafeed-2\] already exists for job \[datafeeds-crud-2\]/
-      xpack.ml.update_datafeed:
+      ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -300,13 +303,13 @@ setup:
 "Test delete datafeed with missing id":
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.delete_datafeed:
+      ml.delete_datafeed:
         datafeed_id: a-missing-datafeed
 
 ---
 "Test put datafeed with chunking_config":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -320,9 +323,64 @@ setup:
   - match: { chunking_config.time_span: "1h" }
 
 ---
+"Test put datafeed with aggregations":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-aggs-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indices":["index-foo"],
+            "types":["type-bar"],
+            "aggs": {
+              "histogram_buckets":{
+                "date_histogram": {
+                  "field": "@timestamp",
+                  "interval": "5m",
+                  "time_zone": "UTC",
+                  "min_doc_count": 0
+                },
+                "aggs": {
+                  "@timestamp": {
+                     "max": {
+                        "field": "@timestamp"
+                     }
+                  },
+                  "bytes_in_avg": {
+                    "avg": {
+                       "field": "system.network.in.bytes"
+                    }
+                  },
+                  "bytes_in_derivative": {
+                    "derivative": {
+                      "buckets_path": "bytes_in_avg"
+                    }
+                  },
+                  "non_negative_bytes": {
+                    "bucket_script": {
+                      "buckets_path": {
+                        "bytes": "bytes_in_derivative"
+                      },
+                      "script": "params.bytes > 0 ? params.bytes : null"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-aggs-1
+  - match: { datafeeds.0.datafeed_id: "test-datafeed-aggs-1" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.date_histogram.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.@timestamp.max.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.bytes_in_avg.avg.field: "system.network.in.bytes" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
+
+---
 "Test delete datafeed":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -333,14 +391,14 @@ setup:
   - match: { datafeed_id: "test-datafeed-1" }
 
   - do:
-      xpack.ml.delete_datafeed:
+      ml.delete_datafeed:
         datafeed_id: test-datafeed-1
   - match: { acknowledged: true }
 
 ---
 "Test force delete datafeed":
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
@@ -351,7 +409,7 @@ setup:
   - match: { datafeed_id: "test-datafeed-1" }
 
   - do:
-      xpack.ml.delete_datafeed:
+      ml.delete_datafeed:
         datafeed_id: test-datafeed-1
         force: true
   - match: { acknowledged: true }

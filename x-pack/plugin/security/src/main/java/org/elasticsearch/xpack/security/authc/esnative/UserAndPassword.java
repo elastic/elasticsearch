@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 
 /**
@@ -20,10 +22,12 @@ class UserAndPassword {
 
     private final User user;
     private final char[] passwordHash;
+    private final Hasher hasher;
 
     UserAndPassword(User user, char[] passwordHash) {
         this.user = user;
         this.passwordHash = passwordHash;
+        this.hasher = Hasher.resolveFromHash(this.passwordHash);
     }
 
     public User user() {
@@ -32,6 +36,10 @@ class UserAndPassword {
 
     public char[] passwordHash() {
         return this.passwordHash;
+    }
+
+    boolean verifyPassword(SecureString data) {
+        return hasher.verify(data, this.passwordHash);
     }
 
     @Override

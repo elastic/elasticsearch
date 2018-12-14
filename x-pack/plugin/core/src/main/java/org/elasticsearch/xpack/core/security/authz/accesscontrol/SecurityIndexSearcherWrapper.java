@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,14 +31,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -73,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
@@ -87,19 +88,18 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * instance.
  */
 public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
+    private static final Logger logger = LogManager.getLogger(SecurityIndexSearcherWrapper.class);
 
     private final Function<ShardId, QueryShardContext> queryShardContextProvider;
     private final BitsetFilterCache bitsetFilterCache;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
-    private final Logger logger;
     private final ScriptService scriptService;
 
-    public SecurityIndexSearcherWrapper(IndexSettings indexSettings, Function<ShardId, QueryShardContext> queryShardContextProvider,
+    public SecurityIndexSearcherWrapper(Function<ShardId, QueryShardContext> queryShardContextProvider,
                                         BitsetFilterCache bitsetFilterCache, ThreadContext threadContext, XPackLicenseState licenseState,
                                         ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.queryShardContextProvider = queryShardContextProvider;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;
@@ -108,7 +108,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected DirectoryReader wrap(DirectoryReader reader) {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }
 
@@ -136,9 +136,16 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(queryBuilder, queryShardContext);
-                        Query roleQuery = queryShardContext.toFilter(queryBuilder).query();
+                        Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
                         filter.add(roleQuery, SHOULD);
                         if (queryShardContext.getMapperService().hasNested()) {
+                            NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
+                            if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
+                                roleQuery = new BooleanQuery.Builder()
+                                    .add(roleQuery, FILTER)
+                                    .add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()), FILTER)
+                                    .build();
+                            }
                             // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
                             BitSetProducer rootDocs = queryShardContext.bitsetFilter(
                                     Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
@@ -162,7 +169,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return searcher;
         }
 
@@ -174,7 +181,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             IndexSearcher indexSearcher = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
             indexSearcher.setQueryCache(indexSearcher.getQueryCache());
             indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
-            indexSearcher.setSimilarity(indexSearcher.getSimilarity(true));
+            indexSearcher.setSimilarity(indexSearcher.getSimilarity());
             return indexSearcher;
         }
         return searcher;

@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PersistJobAction extends Action<PersistJobAction.Request, PersistJobAction.Response, PersistJobAction.RequestBuilder> {
+public class PersistJobAction extends Action<PersistJobAction.Response> {
 
     public static final PersistJobAction INSTANCE = new PersistJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/persist";
@@ -26,18 +26,31 @@ public class PersistJobAction extends Action<PersistJobAction.Request, PersistJo
     }
 
     @Override
-    public PersistJobAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
+    public Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends JobTaskRequest<PersistJobAction.Request> {
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            // isBackground for fwc
+            in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            // isBackground for fwc
+            out.writeBoolean(true);
         }
 
         public Request(String jobId) {
@@ -50,20 +63,6 @@ public class PersistJobAction extends Action<PersistJobAction.Request, PersistJo
 
         public boolean isForeground() {
             return !isBackGround();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            // isBackground for fwc
-            in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            // isBackground for fwc
-            out.writeBoolean(true);
         }
 
         @Override
@@ -86,24 +85,15 @@ public class PersistJobAction extends Action<PersistJobAction.Request, PersistJo
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        boolean persisted;
-
-        public Response() {
-            super(null, null);
-        }
+        private final boolean persisted;
 
         public Response(boolean persisted) {
             super(null, null);
             this.persisted = persisted;
         }
 
-        public boolean isPersisted() {
-            return persisted;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             persisted = in.readBoolean();
         }
 
@@ -111,6 +101,10 @@ public class PersistJobAction extends Action<PersistJobAction.Request, PersistJo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(persisted);
+        }
+
+        public boolean isPersisted() {
+            return persisted;
         }
 
         @Override
@@ -127,7 +121,7 @@ public class PersistJobAction extends Action<PersistJobAction.Request, PersistJo
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
         RequestBuilder(ElasticsearchClient client, PersistJobAction action) {
             super(client, action, new PersistJobAction.Request());
         }

@@ -42,7 +42,8 @@ public class SinglePackedOrdinals extends Ordinals {
         assert builder.getNumMultiValuesDocs() == 0;
         this.valueCount = (int) builder.getValueCount();
         // We don't reuse the builder as-is because it might have been built with a higher overhead ratio
-        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(valueCount), acceptableOverheadRatio);
+        final PackedInts.Mutable reader =
+            PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(valueCount), acceptableOverheadRatio);
         PackedInts.copy(builder.getFirstOrdinals(), 0, reader, 0, builder.maxDoc(), 8 * 1024);
         this.reader = reader;
     }

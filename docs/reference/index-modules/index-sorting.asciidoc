@@ -1,8 +1,6 @@
 [[index-modules-index-sorting]]
 == Index Sorting
 
-beta[]
-
 When creating a new index in Elasticsearch it is possible to configure how the Segments
 inside each Shard will be sorted. By default Lucene does not apply any sort.
 The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
@@ -190,8 +188,7 @@ as soon as N documents have been collected per segment.
 --------------------------------------------------
 {
   "_shards": ...
-   "hits" : {
-      "total" : -1,     <1>
+   "hits" : {  <1>
       "max_score" : null,
       "hits" : []
   },

@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -27,9 +26,9 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -40,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.test.SecurityTestUtils.getClusterIndexHealth;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -74,10 +72,10 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 Arrays.asList("mutants"), Collections.emptyMap(), false);
 
         final Client client = mock(Client.class);
-        final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
-        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityIndex.isAvailable()).thenReturn(true);
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, lifecycleService) {
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 final List<ExpressionRoleMapping> mappings = Arrays.asList(mapping1, mapping2, mapping3, mapping4);
@@ -86,8 +84,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
         };
 
-        final RealmConfig realm = new RealmConfig("ldap1", Settings.EMPTY, Settings.EMPTY, mock(Environment.class),
-                new ThreadContext(Settings.EMPTY));
+        final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY,
+                mock(Environment.class), new ThreadContext(Settings.EMPTY));
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
@@ -125,6 +123,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         return dn;
     }
 
+    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
+    }
 
     public void testCacheClearOnIndexHealthChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
@@ -132,34 +133,34 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         int expectedInvalidation = 0;
         // existing to no longer present
-        ClusterIndexHealth previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        ClusterIndexHealth currentHealth = null;
-        store.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.State currentState = dummyState(null);
+        store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // doesn't exist to exists
-        previousHealth = null;
-        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        store.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(null);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green or yellow to red
-        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
-        store.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(ClusterHealthStatus.RED);
+        store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
 
         // red to non red
-        previousHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
-        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        store.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(ClusterHealthStatus.RED);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green to yellow or yellow to green
-        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentHealth = getClusterIndexHealth(
-                previousHealth.getStatus() == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
-        store.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
 
@@ -167,10 +168,14 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation);
 
-        store.onSecurityIndexOutOfDateChange(false, true);
+        store.onSecurityIndexStateChange(
+            new SecurityIndexManager.State(true, false, true, true, null, null),
+            new SecurityIndexManager.State(true, true, true, true, null, null));
         assertEquals(1, numInvalidation.get());
 
-        store.onSecurityIndexOutOfDateChange(true, false);
+        store.onSecurityIndexStateChange(
+            new SecurityIndexManager.State(true, true, true, true, null, null),
+            new SecurityIndexManager.State(true, false, true, true, null, null));
         assertEquals(2, numInvalidation.get());
     }
 
@@ -192,8 +197,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), any(ActionListener.class));
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final RealmConfig realmConfig = new RealmConfig(getTestName(), Settings.EMPTY, settings, env, threadContext);
-        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm("test", realmConfig) {
+        final RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", getTestName()),
+                settings, env, threadContext);
+        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 listener.onResponse(AuthenticationResult.notHandled());
@@ -204,7 +210,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityLifecycleService.class));
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityIndexManager.class));
         store.refreshRealmOnChange(mockRealm);
         return store;
     }

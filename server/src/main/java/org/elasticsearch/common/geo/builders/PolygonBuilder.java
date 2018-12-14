@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
@@ -46,6 +45,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
+import static org.apache.lucene.geo.GeoUtils.orient;
 
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
@@ -225,8 +228,19 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
     }
 
     @Override
-    public JtsGeometry build() {
-        return jtsGeometry(buildGeometry(FACTORY, wrapdateline));
+    public JtsGeometry buildS4J() {
+        return jtsGeometry(buildS4JGeometry(FACTORY, wrapdateline));
+    }
+
+    @Override
+    public Object buildLucene() {
+        if (wrapdateline) {
+            Coordinate[][][] polygons = coordinates();
+            return polygons.length == 1
+                ? polygonLucene(polygons[0])
+                : multipolygonLucene(polygons);
+        }
+        return toPolygonLucene();
     }
 
     protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {
@@ -249,32 +263,46 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return builder;
     }
 
-    public Geometry buildGeometry(GeometryFactory factory, boolean fixDateline) {
+    public Geometry buildS4JGeometry(GeometryFactory factory, boolean fixDateline) {
         if(fixDateline) {
             Coordinate[][][] polygons = coordinates();
             return polygons.length == 1
-                    ? polygon(factory, polygons[0])
-                    : multipolygon(factory, polygons);
+                    ? polygonS4J(factory, polygons[0])
+                    : multipolygonS4J(factory, polygons);
         } else {
-            return toPolygon(factory);
+            return toPolygonS4J(factory);
         }
     }
 
-    public Polygon toPolygon() {
-        return toPolygon(FACTORY);
+    public Polygon toPolygonS4J() {
+        return toPolygonS4J(FACTORY);
     }
 
-    protected Polygon toPolygon(GeometryFactory factory) {
-        final LinearRing shell = linearRing(factory, this.shell.coordinates);
+    protected Polygon toPolygonS4J(GeometryFactory factory) {
+        final LinearRing shell = linearRingS4J(factory, this.shell.coordinates);
         final LinearRing[] holes = new LinearRing[this.holes.size()];
         Iterator<LineStringBuilder> iterator = this.holes.iterator();
         for (int i = 0; iterator.hasNext(); i++) {
-            holes[i] = linearRing(factory, iterator.next().coordinates);
+            holes[i] = linearRingS4J(factory, iterator.next().coordinates);
         }
         return factory.createPolygon(shell, holes);
     }
 
-    protected static LinearRing linearRing(GeometryFactory factory, List<Coordinate> coordinates) {
+    public Object toPolygonLucene() {
+        final org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[this.holes.size()];
+        for (int i = 0; i < holes.length; ++i) {
+            holes[i] = linearRing(this.holes.get(i).coordinates);
+        }
+        return new org.apache.lucene.geo.Polygon(this.shell.coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+            this.shell.coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray(), holes);
+    }
+
+    protected static org.apache.lucene.geo.Polygon linearRing(List<Coordinate> coordinates) {
+        return new org.apache.lucene.geo.Polygon(coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+            coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray());
+    }
+
+    protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {
         return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
     }
 
@@ -292,7 +320,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return shell.numDimensions();
     }
 
-    protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
+    protected static Polygon polygonS4J(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;
 
@@ -307,6 +335,35 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return factory.createPolygon(shell, holes);
     }
 
+    protected static org.apache.lucene.geo.Polygon polygonLucene(Coordinate[][] polygon) {
+        org.apache.lucene.geo.Polygon[] holes;
+        Coordinate[] shell = polygon[0];
+        if (polygon.length > 1) {
+            holes = new org.apache.lucene.geo.Polygon[polygon.length - 1];
+            for (int i = 0; i < holes.length; ++i) {
+                Coordinate[] coords = polygon[i+1];
+                double[] x = new double[coords.length];
+                double[] y = new double[coords.length];
+                for (int c = 0; c < coords.length; ++c) {
+                    x[c] = normalizeLon(coords[c].x);
+                    y[c] = normalizeLat(coords[c].y);
+                }
+                holes[i] = new org.apache.lucene.geo.Polygon(y, x);
+            }
+        } else {
+            holes = new org.apache.lucene.geo.Polygon[0];
+        }
+
+        double[] x = new double[shell.length];
+        double[] y = new double[shell.length];
+        for (int i = 0; i < shell.length; ++i) {
+            x[i] = normalizeLon(shell[i].x);
+            y[i] = normalizeLat(shell[i].y);
+        }
+
+        return new org.apache.lucene.geo.Polygon(y, x, holes);
+    }
+
     /**
      * Create a Multipolygon from a set of coordinates. Each primary array contains a polygon which
      * in turn contains an array of linestrings. These line Strings are represented as an array of
@@ -317,12 +374,20 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      * @param polygons definition of polygons
      * @return a new Multipolygon
      */
-    protected static MultiPolygon multipolygon(GeometryFactory factory, Coordinate[][][] polygons) {
+    protected static MultiPolygon multipolygonS4J(GeometryFactory factory, Coordinate[][][] polygons) {
         Polygon[] polygonSet = new Polygon[polygons.length];
         for (int i = 0; i < polygonSet.length; i++) {
-            polygonSet[i] = polygon(factory, polygons[i]);
+            polygonSet[i] = polygonS4J(factory, polygons[i]);
         }
         return factory.createMultiPolygon(polygonSet);
+    }
+
+    protected static org.apache.lucene.geo.Polygon[] multipolygonLucene(Coordinate[][][] polygons) {
+        org.apache.lucene.geo.Polygon[] polygonSet = new org.apache.lucene.geo.Polygon[polygons.length];
+        for (int i = 0; i < polygonSet.length; ++i) {
+            polygonSet[i] = polygonLucene(polygons[i]);
+        }
+        return polygonSet;
     }
 
     /**
@@ -643,14 +708,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      */
     private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
-        // calculate the direction of the points:
-        // find the point a the top of the set and check its
-        // neighbors orientation. So direction is equivalent
-        // to clockwise/counterclockwise
-        final int top = top(points, offset, length);
-        final int prev = (offset + ((top + length - 1) % length));
-        final int next = (offset + ((top + 1) % length));
-        boolean orientation = points[offset + prev].x > points[offset + next].x;
+
+        boolean orientation = getOrientation(points, offset, length);
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -679,6 +738,35 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
     }
 
+    /**
+     * @return whether the points are clockwise (true) or anticlockwise (false)
+     */
+    private static boolean getOrientation(Coordinate[] points, int offset, int length) {
+        // calculate the direction of the points: find the southernmost point
+        // and check its neighbors orientation.
+
+        final int top = top(points, offset, length);
+        final int prev = (top + length - 1) % length;
+        final int next = (top + 1) % length;
+
+        final int determinantSign = orient(
+            points[offset + prev].x, points[offset + prev].y,
+            points[offset + top].x, points[offset + top].y,
+            points[offset + next].x, points[offset + next].y);
+
+        if (determinantSign == 0) {
+            // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
+            throw new InvalidShapeException("Cannot determine orientation: edges adjacent to ("
+                + points[offset + top].x + "," + points[offset +top].y + ") coincide");
+        }
+
+        return determinantSign < 0;
+    }
+
+    /**
+     * @return the (offset) index of the point that is furthest west amongst
+     * those points that are the furthest south in the set.
+     */
     private static int top(Coordinate[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {

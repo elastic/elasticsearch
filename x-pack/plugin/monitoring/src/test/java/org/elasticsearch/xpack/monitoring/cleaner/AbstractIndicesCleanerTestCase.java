@@ -10,7 +10,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -75,8 +74,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         createTimestampedIndex(now().minusYears(1), MonitoringTemplateUtils.OLD_TEMPLATE_VERSION);
         // In the past, this index would not be deleted, but starting in 6.x the monitoring cluster
         // will be required to be a newer template version than the production cluster, so the index
-        // pushed to it will never be "unknown" in terms of their version (relates to the
-        // _xpack/monitoring/_setup API)
+        // pushed to it will never be "unknown" in terms of their version
         createTimestampedIndex(now().minusDays(10), String.valueOf(Integer.MAX_VALUE));
 
         // Won't be deleted
@@ -163,7 +161,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
     protected CleanerService.Listener getListener() {
         Exporters exporters = internalCluster().getInstance(Exporters.class, internalCluster().getMasterName());
-        for (Exporter exporter : exporters) {
+        for (Exporter exporter : exporters.getEnabledExporters()) {
             if (exporter instanceof CleanerService.Listener) {
                 return (CleanerService.Listener) exporter;
             }

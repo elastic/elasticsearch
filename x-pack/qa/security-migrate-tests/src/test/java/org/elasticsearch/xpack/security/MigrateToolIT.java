@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.action.search.SearchResponse;
+
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -20,6 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -46,7 +47,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
         SecurityClient c = new SecurityClient(client);
 
         // Add an existing user so the tool will skip it
-        PutUserResponse pur = c.preparePutUser("existing", "s3kirt".toCharArray(), "role1", "user").get();
+        PutUserResponse pur = c.preparePutUser("existing", "s3kirt".toCharArray(), Hasher.BCRYPT, "role1", "user").get();
         assertTrue(pur.created());
     }
 
@@ -124,6 +125,6 @@ public class MigrateToolIT extends MigrateToolTestCase {
                 .waitForEvents(Priority.LANGUID)
                 .waitForNoRelocatingShards(true))
                 .actionGet();
-        SearchResponse searchResp = client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
+        client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
     }
 }

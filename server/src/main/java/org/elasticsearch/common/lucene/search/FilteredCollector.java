@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -56,7 +57,7 @@ public class FilteredCollector implements Collector {
     }
 
     @Override
-    public boolean needsScores() {
-        return collector.needsScores();
+    public ScoreMode scoreMode() {
+        return collector.scoreMode();
     }
 }

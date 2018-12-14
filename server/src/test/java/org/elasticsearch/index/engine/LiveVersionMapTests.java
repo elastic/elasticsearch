@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LiveVersionMapTests extends ESTestCase {
@@ -89,6 +90,19 @@ public class LiveVersionMapTests extends ESTestCase {
             tolerance = actualRamBytesUsed / 4;
         }
         assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, tolerance);
+    }
+
+    public void testRefreshingBytes() throws IOException {
+        LiveVersionMap map = new LiveVersionMap();
+        BytesRefBuilder uid = new BytesRefBuilder();
+        uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
+        try (Releasable r = map.acquireLock(uid.toBytesRef())) {
+            map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
+        }
+        map.beforeRefresh();
+        assertThat(map.getRefreshingBytes(), greaterThan(0L));
+        map.afterRefresh(true);
+        assertThat(map.getRefreshingBytes(), equalTo(0L));
     }
 
     private BytesRef uid(String string) {

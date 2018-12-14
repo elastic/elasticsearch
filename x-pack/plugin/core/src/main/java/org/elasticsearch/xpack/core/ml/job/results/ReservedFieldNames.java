@@ -57,6 +57,7 @@ public final class ReservedFieldNames {
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
             AnomalyRecord.PROBABILITY.getPreferredName(),
+            AnomalyRecord.MULTI_BUCKET_IMPACT.getPreferredName(),
             AnomalyRecord.BY_FIELD_NAME.getPreferredName(),
             AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
             AnomalyRecord.CORRELATED_BY_FIELD_VALUE.getPreferredName(),
@@ -81,7 +82,6 @@ public final class ReservedFieldNames {
             Bucket.EVENT_COUNT.getPreferredName(),
             Bucket.INITIAL_ANOMALY_SCORE.getPreferredName(),
             Bucket.PROCESSING_TIME_MS.getPreferredName(),
-            Bucket.PARTITION_SCORES.getPreferredName(),
             Bucket.SCHEDULED_EVENTS.getPreferredName(),
 
             BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.ANOMALY_SCORE.getPreferredName(),

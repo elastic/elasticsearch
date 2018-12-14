@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -89,6 +87,7 @@ public class RestReindexActionTests extends ESTestCase {
         assertEquals("http", info.getScheme());
         assertEquals("example.com", info.getHost());
         assertEquals(9200, info.getPort());
+        assertNull(info.getPathPrefix());
         assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout()); // Didn't set the timeout so we should get the default
         assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout()); // Didn't set the timeout so we should get the default
 
@@ -96,8 +95,30 @@ public class RestReindexActionTests extends ESTestCase {
         assertEquals("https", info.getScheme());
         assertEquals("other.example.com", info.getHost());
         assertEquals(9201, info.getPort());
+        assertNull(info.getPathPrefix());
         assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
         assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://other.example.com:9201/");
+        assertEquals("https", info.getScheme());
+        assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertEquals("/", info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://other.example.com:9201/proxy-path/");
+        assertEquals("https", info.getScheme());
+        assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertEquals("/proxy-path/", info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> buildRemoteInfoHostTestCase("https"));
+        assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]",
+            exception.getMessage());
     }
 
     public void testReindexFromRemoteRequestParsing() throws IOException {
@@ -121,7 +142,7 @@ public class RestReindexActionTests extends ESTestCase {
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
+            ReindexRequest r = new ReindexRequest();
             RestReindexAction.PARSER.parse(p, r, null);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
@@ -149,7 +170,7 @@ public class RestReindexActionTests extends ESTestCase {
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));
 
-        assertEquals("_reindex doesn't support [pipeline] as a query parmaeter. Specify it in the [dest] object instead.", e.getMessage());
+        assertEquals("_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead.", e.getMessage());
     }
 
     public void testSetScrollTimeout() throws IOException {

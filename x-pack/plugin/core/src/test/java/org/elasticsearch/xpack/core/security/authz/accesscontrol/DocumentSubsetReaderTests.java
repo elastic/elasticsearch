@@ -81,7 +81,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     }
 
     public void testSearch() throws Exception {
-        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
+        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random())));
 
         Document document = new Document();
         document.add(new StringField("field", "value1", Field.Store.NO));
@@ -108,14 +108,14 @@ public class DocumentSubsetReaderTests extends ESTestCase {
                 new TermQuery(new Term("field", "value1"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         TopDocs result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits, equalTo(1L));
+        assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
         indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
                 new TermQuery(new Term("field", "value2"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits, equalTo(1L));
+        assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(1));
 
         // this doc has been marked as deleted:
@@ -123,13 +123,13 @@ public class DocumentSubsetReaderTests extends ESTestCase {
                 new TermQuery(new Term("field", "value3"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits, equalTo(0L));
+        assertThat(result.totalHits.value, equalTo(0L));
 
         indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
                 new TermQuery(new Term("field", "value4"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits, equalTo(1L));
+        assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(3));
     }
 

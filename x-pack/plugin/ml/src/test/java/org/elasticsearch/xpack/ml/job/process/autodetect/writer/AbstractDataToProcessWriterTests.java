@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AbstractDataToProcessWriter.InputOutputMap;
+import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 import org.junit.Before;
 import org.mockito.Mockito;
 

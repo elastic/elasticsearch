@@ -1,4 +1,7 @@
 "Ingest attachment plugin installed":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -7,6 +10,6 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: ingest-attachment  }
-    - match:  { nodes.$master.ingest.processors.0.type: attachment }
+    - contains:  { 'nodes.$master.plugins': { name: ingest-attachment }  }
+    - contains:  { 'nodes.$master.ingest.processors': { type: attachment } }
 

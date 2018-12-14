@@ -3,19 +3,19 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/watcher/stats",
-      "paths": [ "/_xpack/watcher/stats", "/_xpack/watcher/stats/{metric}" ],
+      "path": "/_watcher/stats",
+      "paths": [ "/_watcher/stats", "/_watcher/stats/{metric}" ],
       "parts": {
         "metric": {
           "type" : "enum",
-          "options" : ["_all", "queued_watches", "pending_watches"],
+          "options" : ["_all", "queued_watches", "current_watches", "pending_watches"],
           "description" : "Controls what additional stat metrics should be include in the response"
         }
       },
       "params": {
         "metric": {
           "type" : "enum",
-          "options" : ["_all", "queued_watches", "pending_watches"],
+          "options" : ["_all", "queued_watches", "current_watches", "pending_watches"],
           "description" : "Controls what additional stat metrics should be include in the response"
         },
         "emit_stacktraces": {

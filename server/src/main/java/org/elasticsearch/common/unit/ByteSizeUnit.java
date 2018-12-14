@@ -26,9 +26,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * A <tt>SizeUnit</tt> represents size at a given unit of
+ * A {@code SizeUnit} represents size at a given unit of
  * granularity and provides utility methods to convert across units.
- * A <tt>SizeUnit</tt> does not maintain size information, but only
+ * A {@code SizeUnit} does not maintain size information, but only
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
  */

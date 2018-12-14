@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -42,7 +42,7 @@ import java.util.Objects;
  */
 public class CompositeAggregationCursor implements Cursor {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     public static final String NAME = "c";
 
@@ -113,12 +113,36 @@ public class CompositeAggregationCursor implements Cursor {
 
         SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), indices);
 
-        client.search(search, ActionListener.wrap(r -> {
-            updateCompositeAfterKey(r, query);
-            CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit,
-                    serializeQuery(query), indices);
-            listener.onResponse(rowSet);
-        }, listener::onFailure));
+        client.search(search, new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse r) {
+                try {
+                    // retry
+                    if (shouldRetryDueToEmptyPage(r)) {
+                        CompositeAggregationCursor.updateCompositeAfterKey(r, search.source());
+                        client.search(search, this);
+                        return;
+                    }
+
+                    updateCompositeAfterKey(r, query);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit, serializeQuery(query), indices);
+                    listener.onResponse(rowSet);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception ex) {
+                listener.onFailure(ex);
+            }
+        });
+    }
+
+    static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
+        CompositeAggregation composite = getComposite(response);
+        // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
+        return composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty();
     }
 
     static CompositeAggregation getComposite(SearchResponse response) {
@@ -144,7 +168,7 @@ public class CompositeAggregationCursor implements Cursor {
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
         if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().get(0);
+            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
             // update after-key with the new value
             if (aggBuilder instanceof CompositeAggregationBuilder) {
                 CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;

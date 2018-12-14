@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -20,6 +22,8 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
     public static final String BASIC_AUTH_PREFIX = "Basic ";
     public static final String BASIC_AUTH_HEADER = "Authorization";
+    // authorization scheme check is case-insensitive
+    private static final boolean IGNORE_CASE_AUTH_HEADER_MATCH = true;
     private final String username;
     private final SecureString password;
 
@@ -79,15 +83,15 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
     public static UsernamePasswordToken extractToken(ThreadContext context) {
         String authStr = context.getHeader(BASIC_AUTH_HEADER);
-        if (authStr == null) {
-            return null;
-        }
-
         return extractToken(authStr);
     }
 
     private static UsernamePasswordToken extractToken(String headerValue) {
-        if (headerValue.startsWith(BASIC_AUTH_PREFIX) == false) {
+        if (Strings.isNullOrEmpty(headerValue)) {
+            return null;
+        }
+        if (headerValue.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, BASIC_AUTH_PREFIX, 0,
+                BASIC_AUTH_PREFIX.length()) == false) {
             // the header does not start with 'Basic ' so we cannot use it, but it may be valid for another realm
             return null;
         }
@@ -104,7 +108,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
             throw authenticationError("invalid basic authentication header encoding", e);
         }
 
-        int i = CharArrays.indexOf(userpasswd, ':');
+        int i = indexOfColon(userpasswd);
         if (i < 0) {
             throw authenticationError("invalid basic authentication header value");
         }
@@ -118,4 +122,15 @@ public class UsernamePasswordToken implements AuthenticationToken {
         context.putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue(token.username, token.password));
     }
 
+    /**
+     * Like String.indexOf for for an array of chars
+     */
+    private static int indexOfColon(char[] array) {
+        for (int i = 0; (i < array.length); i++) {
+            if (array[i] == ':') {
+                return i;
+            }
+        }
+        return -1;
+    }
 }

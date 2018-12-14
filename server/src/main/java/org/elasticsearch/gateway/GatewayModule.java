@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
 
 public class GatewayModule extends AbstractModule {
 

@@ -21,8 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -122,8 +121,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode,
-                                     Mapper.TypeParser.ParserContext parserContext) {
+    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode) {
         builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
@@ -140,7 +138,7 @@ public class TypeParsers {
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
             if ("norms".equals(propName)) {
-                parseNorms(builder, name, propNode, parserContext);
+                parseNorms(builder, name, propNode);
                 iterator.remove();
             }
         }
@@ -230,7 +228,9 @@ public class TypeParsers {
                 } else {
                     throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
-                if (type.equals(ObjectMapper.CONTENT_TYPE) || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)) {
+                if (type.equals(ObjectMapper.CONTENT_TYPE)
+                        || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
+                        || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 
@@ -262,8 +262,11 @@ public class TypeParsers {
         }
     }
 
-    public static FormatDateTimeFormatter parseDateTimeFormatter(Object node) {
-        return Joda.forPattern(node.toString());
+    public static DateFormatter parseDateTimeFormatter(Object node) {
+        if (node instanceof String) {
+            return DateFormatter.forPattern((String) node);
+        }
+        throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
     public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -69,11 +69,7 @@ public class TransportActionProxyTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         IOUtils.close(serviceA, serviceB, serviceC, () -> {
-            try {
-                terminate(threadPool);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            terminate(threadPool);
         });
     }
 
@@ -87,40 +83,37 @@ public class TransportActionProxyTests extends ESTestCase {
 
 
     public void testSendMessage() throws InterruptedException {
-        serviceA.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_A";
+                SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceA, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
         serviceA.connectToNode(nodeB);
 
-        serviceB.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_B";
+                SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceB, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_C";
+                SimpleTestResponse response = new SimpleTestResponse("TS_C");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
-        serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("/test"), TransportActionProxy.wrapRequest(nodeC,
+        serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
             new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
-                public SimpleTestResponse newInstance() {
-                    return new SimpleTestResponse();
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
                 }
 
                 @Override
@@ -135,7 +128,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     try {
-                    throw new AssertionError(exp);
+                        throw new AssertionError(exp);
                     } finally {
                         latch.countDown();
                     }
@@ -150,37 +143,35 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testException() throws InterruptedException {
-        serviceA.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_A";
+                SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceA, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
         serviceA.connectToNode(nodeB);
 
-        serviceB.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_B";
+                SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceB, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> {
                 throw new ElasticsearchException("greetings from TS_C");
             });
-        TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
-        serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("/test"), TransportActionProxy.wrapRequest(nodeC,
+        serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
             new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
-                public SimpleTestResponse newInstance() {
-                    return new SimpleTestResponse();
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
                 }
 
                 @Override
@@ -232,11 +223,20 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public static class SimpleTestResponse extends TransportResponse {
-        String targetNode;
+        final String targetNode;
+
+        SimpleTestResponse(String targetNode) {
+            this.targetNode = targetNode;
+        }
+
+        SimpleTestResponse(StreamInput in) throws IOException {
+            super(in);
+            this.targetNode = in.readString();
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            targetNode = in.readString();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -267,7 +267,7 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testIsProxyRequest() {
-        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>((in) -> null)));
+        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(TransportRequest.Empty.INSTANCE, null)));
         assertFalse(TransportActionProxy.isProxyRequest(TransportRequest.Empty.INSTANCE));
     }
 }

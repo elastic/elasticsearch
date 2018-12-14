@@ -1,0 +1,60 @@
+--
+:api: get-index
+:request: GetIndexRequest
+:response: GetIndexResponse
+--
+
+[id="{upid}-{api}"]
+[[java-rest-high-get-index]]
+=== Get Index API
+
+[id="{upid}-{api}-request"]
+==== Get Index Request
+
+A +{request}+ requires one or more `index` arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The index whose information we want to retrieve
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-includeDefaults]
+--------------------------------------------------
+<1> If true, defaults will be returned for settings not explicitly set on the index
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Index Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Retrieve a Map of different types to `MappingMetadata` for `index`.
+<2> Retrieve a Map for the properties for document type `doc`.
+<3> Get the list of aliases for `index`.
+<4> Get the value for the setting string `index.number_of_shards` for `index`. If the setting was not explicitly
+specified but was part of the default settings (and includeDefault was `true`) then the default setting would be
+retrieved.
+<5> Retrieve all settings for `index`.
+<6> The `Settings` objects gives more flexibility. Here it is used to extract the setting `index.number_of_shards` as an
+integer.
+<7> Get the default setting `index.refresh_interval` (if `includeDefault` was set to `true`). If `includeDefault` was set
+to `false`, `getIndexResponse.defaultSettings()` will return an empty map.

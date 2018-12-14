@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -79,10 +80,17 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         SearchRequest request = new SearchRequest();
+        request.scroll(TimeValue.timeValueHours(10L));
 
         String scrollId = randomAlphaOfLength(5);
         SearchHit[] hits = new SearchHit[] {new SearchHit(1), new SearchHit(2)};
-        InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits, 3, 1), null, null, null, false, false, 1);
+        InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits,
+            new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
+            null,
+            null,
+            null, false,
+            false,
+            1);
         SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
 

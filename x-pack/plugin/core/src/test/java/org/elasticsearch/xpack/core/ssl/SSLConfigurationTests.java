@@ -228,20 +228,6 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(ksTrustInfo.trustStoreAlgorithm, is(equalTo("trusted")));
     }
 
-    public void testThatEmptySettingsAreEqual() {
-        SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.EMPTY);
-        SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.EMPTY);
-        assertThat(sslConfiguration.equals(sslConfiguration1), is(equalTo(true)));
-        assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(true)));
-        assertThat(sslConfiguration.equals(sslConfiguration), is(equalTo(true)));
-        assertThat(sslConfiguration1.equals(sslConfiguration1), is(equalTo(true)));
-
-        SSLConfiguration profileSSLConfiguration = new SSLConfiguration(Settings.EMPTY, sslConfiguration);
-        assertThat(sslConfiguration.equals(profileSSLConfiguration), is(equalTo(true)));
-        assertThat(profileSSLConfiguration.equals(sslConfiguration), is(equalTo(true)));
-        assertThat(profileSSLConfiguration.equals(profileSSLConfiguration), is(equalTo(true)));
-    }
-
     public void testThatSettingsWithDifferentKeystoresAreNotEqual() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path")
@@ -266,15 +252,6 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(false)));
         assertThat(sslConfiguration.equals(sslConfiguration), is(equalTo(true)));
         assertThat(sslConfiguration1.equals(sslConfiguration1), is(equalTo(true)));
-    }
-
-    public void testThatEmptySettingsHaveSameHashCode() {
-        SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.EMPTY);
-        SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.EMPTY);
-        assertThat(sslConfiguration.hashCode(), is(equalTo(sslConfiguration1.hashCode())));
-
-        SSLConfiguration profileSettings = new SSLConfiguration(Settings.EMPTY, sslConfiguration);
-        assertThat(profileSettings.hashCode(), is(equalTo(sslConfiguration.hashCode())));
     }
 
     public void testThatSettingsWithDifferentKeystoresHaveDifferentHashCode() {
@@ -390,7 +367,8 @@ public class SSLConfigurationTests extends ESTestCase {
     private void assertCombiningTrustConfigContainsCorrectIssuers(SSLConfiguration sslConfiguration) {
         X509Certificate[] trustConfAcceptedIssuers = sslConfiguration.trustConfig().createTrustManager(null).getAcceptedIssuers();
         X509Certificate[] keyConfAcceptedIssuers = sslConfiguration.keyConfig().createTrustManager(null).getAcceptedIssuers();
-        X509Certificate[] defaultAcceptedIssuers = DefaultJDKTrustConfig.INSTANCE.createTrustManager(null).getAcceptedIssuers();
+        X509Certificate[] defaultAcceptedIssuers = new DefaultJDKTrustConfig(null).createTrustManager(null)
+            .getAcceptedIssuers();
         assertEquals(keyConfAcceptedIssuers.length + defaultAcceptedIssuers.length, trustConfAcceptedIssuers.length);
         assertThat(Arrays.asList(keyConfAcceptedIssuers), everyItem(isIn(trustConfAcceptedIssuers)));
         assertThat(Arrays.asList(defaultAcceptedIssuers), everyItem(isIn(trustConfAcceptedIssuers)));

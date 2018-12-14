@@ -19,8 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.test.ESTestCase;
 
 public class AnalyzerCasterTests extends ESTestCase {
@@ -35,9 +34,9 @@ public class AnalyzerCasterTests extends ESTestCase {
             return;
         }
 
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
-        assertEquals(actual, cast.from);
-        assertEquals(expected, cast.to);
+        PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
+        assertEquals(actual, cast.originalType);
+        assertEquals(expected, cast.targetType);
 
         if (mustBeExplicit) {
             ClassCastException error = expectThrows(ClassCastException.class,
@@ -45,8 +44,8 @@ public class AnalyzerCasterTests extends ESTestCase {
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = AnalyzerCaster.getLegalCast(location, actual, expected, false, false);
-            assertEquals(actual, cast.from);
-            assertEquals(expected, cast.to);
+            assertEquals(actual, cast.originalType);
+            assertEquals(expected, cast.targetType);
         }
     }
 

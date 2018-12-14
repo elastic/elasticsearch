@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
@@ -18,6 +19,10 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -30,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -56,10 +62,12 @@ public class DatafeedJobTests extends ESTestCase {
     private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
     private Client client;
+    private DelayedDataDetector delayedDataDetector;
     private DataDescription.Builder dataDescription;
     ActionFuture<PostDataAction.Response> postDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
+    private FlushJobAction.Response flushJobResponse;
 
     private long currentTime;
     private XContentType xContentType;
@@ -79,6 +87,9 @@ public class DatafeedJobTests extends ESTestCase {
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
+        flushJobResponse = new FlushJobAction.Response(true, new Date());
+        delayedDataDetector = mock(DelayedDataDetector.class);
+        when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
         currentTime = 0;
         xContentType = XContentType.JSON;
 
@@ -96,6 +107,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
 
         flushJobRequests = ArgumentCaptor.forClass(FlushJobAction.Request.class);
+        when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
     }
 
@@ -193,6 +205,13 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testRealtimeRun() throws Exception {
+        flushJobResponse = new FlushJobAction.Response(true, new Date(2000));
+        Bucket bucket = mock(Bucket.class);
+        when(bucket.getTimestamp()).thenReturn(new Date(2000));
+        when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
+        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
+        when(delayedDataDetector.detectMissingData(2000))
+            .thenReturn(Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(10, bucket)));
         currentTime = 60000L;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
@@ -206,6 +225,29 @@ public class DatafeedJobTests extends ESTestCase {
         flushRequest.setAdvanceTime("59000");
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+
+        // Execute a second valid time, but do so in a smaller window than the interval
+        currentTime = 62000L;
+        byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
+        InputStream inputStream = new ByteArrayInputStream(contentBytes);
+        when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
+        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        datafeedJob.runRealtime();
+
+        // Execute a third time, but this time make sure we exceed the data check interval, but keep the delayedDataDetector response
+        // the same
+        currentTime = 62000L + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        inputStream = new ByteArrayInputStream(contentBytes);
+        when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
+        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        datafeedJob.runRealtime();
+
+        verify(auditor, times(1)).warning(jobId,
+            Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
+                10,
+                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000)));
     }
 
     public void testEmptyDataCountGivenlookback() throws Exception {
@@ -321,6 +363,6 @@ public class DatafeedJobTests extends ESTestCase {
                                             long latestRecordTimeMs) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, client, auditor,
-                currentTimeSupplier, latestFinalBucketEndTimeMs, latestRecordTimeMs);
+                currentTimeSupplier, delayedDataDetector, latestFinalBucketEndTimeMs, latestRecordTimeMs);
     }
 }

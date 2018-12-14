@@ -45,7 +45,8 @@ public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
         }
         indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardUpgradeStatus>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardUpgradeStatus(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardUpgradeStatus[entry.getValue().size()])));
+            indexShards.put(entry.getKey(), new IndexShardUpgradeStatus(entry.getValue().get(0).getShardRouting().shardId(),
+                entry.getValue().toArray(new ShardUpgradeStatus[entry.getValue().size()])));
         }
     }
 

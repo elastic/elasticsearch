@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.security.authc.file;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -21,13 +21,13 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     private final FileUserPasswdStore userPasswdStore;
     private final FileUserRolesStore userRolesStore;
 
-    public FileRealm(RealmConfig config, ResourceWatcherService watcherService) {
-        this(config, new FileUserPasswdStore(config, watcherService), new FileUserRolesStore(config, watcherService));
+    public FileRealm(RealmConfig config, ResourceWatcherService watcherService, ThreadPool threadPool) {
+        this(config, new FileUserPasswdStore(config, watcherService), new FileUserRolesStore(config, watcherService), threadPool);
     }
 
     // pkg private for testing
-    FileRealm(RealmConfig config, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore) {
-        super(FileRealmSettings.TYPE, config);
+    FileRealm(RealmConfig config, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore, ThreadPool threadPool) {
+        super(config, threadPool);
         this.userPasswdStore = userPasswdStore;
         userPasswdStore.addListener(this::expireAll);
         this.userRolesStore = userRolesStore;
@@ -54,11 +54,11 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    public Map<String, Object> usageStats() {
-        Map<String, Object> stats = super.usageStats();
-        // here we can determine the size based on the in mem user store
-        stats.put("size", userPasswdStore.usersCount());
-        return stats;
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("size", userPasswdStore.usersCount());
+            listener.onResponse(stats);
+        }, listener::onFailure));
     }
 
 }

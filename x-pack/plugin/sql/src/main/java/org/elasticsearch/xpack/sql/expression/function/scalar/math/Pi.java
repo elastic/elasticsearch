@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.Params;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -21,7 +21,7 @@ public class Pi extends MathFunction {
     private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.PI", Params.EMPTY, DataType.DOUBLE);
 
     public Pi(Location location) {
-        super(location, new Literal(location, Math.PI, DataType.DOUBLE));
+        super(location, new Literal(location, "PI", Math.PI, DataType.DOUBLE));
     }
 
     @Override

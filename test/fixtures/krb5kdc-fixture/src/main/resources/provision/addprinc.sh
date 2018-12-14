@@ -20,11 +20,14 @@
 set -e
 
 if [[ $# -lt 1 ]]; then
-  echo 'Usage: addprinc.sh <principalNameNoRealm>'
+  echo 'Usage: addprinc.sh principalName [password]'
+  echo '  principalName    user principal name without realm'
+  echo '  password         If provided then will set password for user else it will provision user with keytab'
   exit 1
 fi
 
 PRINC="$1"
+PASSWD="$2"
 USER=$(echo $PRINC | tr "/" "_")
 
 VDIR=/vagrant
@@ -47,12 +50,17 @@ ADMIN_KTAB=$LOCALSTATEDIR/admin.keytab
 USER_PRIN=$PRINC@$REALM
 USER_KTAB=$LOCALSTATEDIR/$USER.keytab
 
-if [ -f $USER_KTAB ]; then
+if [ -f $USER_KTAB ] && [ -z "$PASSWD" ]; then
   echo "Principal '${PRINC}@${REALM}' already exists. Re-copying keytab..."
+  sudo cp $USER_KTAB $KEYTAB_DIR/$USER.keytab
 else
-  echo "Provisioning '${PRINC}@${REALM}' principal and keytab..."
-  sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -randkey $USER_PRIN"
-  sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "ktadd -k $USER_KTAB $USER_PRIN"
+  if [ -z "$PASSWD" ]; then
+    echo "Provisioning '${PRINC}@${REALM}' principal and keytab..."
+    sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -randkey $USER_PRIN"
+    sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "ktadd -k $USER_KTAB $USER_PRIN"
+    sudo cp $USER_KTAB $KEYTAB_DIR/$USER.keytab
+  else
+    echo "Provisioning '${PRINC}@${REALM}' principal with password..."
+    sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -pw $PASSWD $PRINC"
+  fi
 fi
-
-sudo cp $USER_KTAB $KEYTAB_DIR/$USER.keytab

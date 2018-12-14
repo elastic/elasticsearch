@@ -91,6 +91,7 @@ public class ShardInfoIT extends ESIntegTestCase {
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         for (BulkItemResponse item : bulkResponse) {
+            assertThat(item.getFailure(), nullValue());
             assertThat(item.isFailed(), equalTo(false));
             assertShardInfo(item.getResponse());
         }

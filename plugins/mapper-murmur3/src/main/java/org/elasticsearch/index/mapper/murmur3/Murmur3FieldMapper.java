@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -82,7 +81,8 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
             Builder builder = new Builder(name);
 
             // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash
@@ -91,10 +91,6 @@ public class Murmur3FieldMapper extends FieldMapper {
             }
             if (node.get("index") != null) {
                 throw new MapperParsingException("Setting [index] cannot be modified for field [" + name + "]");
-            }
-
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
-                node.remove("precision_step");
             }
 
             TypeParsers.parseField(builder, name, node, parserContext);

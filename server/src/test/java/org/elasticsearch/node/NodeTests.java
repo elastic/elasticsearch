@@ -18,53 +18,28 @@
  */
 package org.elasticsearch.node;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockHttpTransport;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
-
-    public void testNodeName() throws IOException {
-        final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
-        Settings.Builder settings = baseSettings();
-        if (name != null) {
-            settings.put(Node.NODE_NAME_SETTING.getKey(), name);
-        }
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
-            final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
-            if (name == null) {
-                assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(node.getNodeEnvironment().nodeId().substring(0, 7)));
-            } else {
-                assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(name));
-            }
-        }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
-    }
 
     public static class CheckPlugin extends Plugin {
         public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
@@ -75,6 +50,13 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    private List<Class<? extends Plugin>> basePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(getTestTransportPlugin());
+        plugins.add(MockHttpTransport.TestPlugin.class);
+        return plugins;
+    }
+
     public void testLoadPluginBootstrapChecks() throws IOException {
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
         Settings.Builder settings = baseSettings();
@@ -82,7 +64,9 @@ public class NodeTests extends ESTestCase {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
         AtomicBoolean executed = new AtomicBoolean(false);
-        try (Node node = new MockNode(settings.build(), Arrays.asList(getTestTransportPlugin(), CheckPlugin.class)) {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(CheckPlugin.class);
+        try (Node node = new MockNode(settings.build(), plugins) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(BootstrapContext context, BoundTransportAddress boundTransportAddress,
                                                                List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
@@ -95,37 +79,12 @@ public class NodeTests extends ESTestCase {
             expectThrows(NodeValidationException.class, () -> node.start());
             assertTrue(executed.get());
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
-    }
-
-    public void testWarnIfPreRelease() {
-        final Logger logger = mock(Logger.class);
-
-        final int id = randomIntBetween(1, 9) * 1000000;
-        final Version releaseVersion = Version.fromId(id + 99);
-        final Version preReleaseVersion = Version.fromId(id + randomIntBetween(0, 98));
-
-        Node.warnIfPreRelease(releaseVersion, false, logger);
-        verifyNoMoreInteractions(logger);
-
-        reset(logger);
-        Node.warnIfPreRelease(releaseVersion, true, logger);
-        verify(logger).warn(
-            "version [{}] is a pre-release version of Elasticsearch and is not suitable for production", releaseVersion + "-SNAPSHOT");
-
-        reset(logger);
-        final boolean isSnapshot = randomBoolean();
-        Node.warnIfPreRelease(preReleaseVersion, isSnapshot, logger);
-        verify(logger).warn(
-            "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-            preReleaseVersion + (isSnapshot ? "-SNAPSHOT" : ""));
-
     }
 
     public void testNodeAttributes() throws IOException {
         String attr = randomAlphaOfLength(5);
         Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("test_attr"));
         }
@@ -133,7 +92,7 @@ public class NodeTests extends ESTestCase {
         // leading whitespace not allowed
         attr = " leading";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a node attribute with leading whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [ leading]", e.getMessage());
@@ -142,12 +101,30 @@ public class NodeTests extends ESTestCase {
         // trailing whitespace not allowed
         attr = "trailing ";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a node attribute with trailing whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+    }
+
+    public void testServerNameNodeAttribute() throws IOException {
+        String attr = "valid-hostname";
+        Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
+        int i = 0;
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
+            assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("server_name"));
+        }
+
+        // non-LDH hostname not allowed
+        attr = "invalid_hostname";
+        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            fail("should not allow a server_name attribute with an underscore");
+        } catch (IllegalArgumentException e) {
+            assertEquals("invalid node.attr.server_name [invalid_hostname]", e.getMessage());
+        }
     }
 
     private static Settings.Builder baseSettings() {
@@ -155,7 +132,6 @@ public class NodeTests extends ESTestCase {
         return Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                 .put(Node.NODE_DATA_SETTING.getKey(), true);
     }

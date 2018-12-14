@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.sql.tree.Location;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
 
 public abstract class SubQueryExpression extends Expression {
 

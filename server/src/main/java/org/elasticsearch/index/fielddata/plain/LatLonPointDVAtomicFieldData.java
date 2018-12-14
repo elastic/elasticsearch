@@ -23,8 +23,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 

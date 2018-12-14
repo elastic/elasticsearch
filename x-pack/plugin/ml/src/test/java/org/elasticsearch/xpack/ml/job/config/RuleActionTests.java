@@ -15,27 +15,29 @@ import static org.hamcrest.Matchers.equalTo;
 public class RuleActionTests extends ESTestCase {
 
     public void testForString() {
-        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("filter_results"));
-        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("FILTER_RESULTS"));
-        assertEquals(RuleAction.SKIP_SAMPLING, RuleAction.fromString("SKip_sampLing"));
+        assertEquals(RuleAction.SKIP_RESULT, RuleAction.fromString("skip_result"));
+        assertEquals(RuleAction.SKIP_RESULT, RuleAction.fromString("SKIP_RESULT"));
+        assertEquals(RuleAction.SKIP_MODEL_UPDATE, RuleAction.fromString("skip_model_update"));
+        assertEquals(RuleAction.SKIP_MODEL_UPDATE, RuleAction.fromString("SKIP_MODEL_UPDATE"));
     }
 
     public void testToString() {
-        assertEquals("filter_results", RuleAction.FILTER_RESULTS.toString());
+        assertEquals("skip_result", RuleAction.SKIP_RESULT.toString());
+        assertEquals("skip_model_update", RuleAction.SKIP_MODEL_UPDATE.toString());
     }
 
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.FILTER_RESULTS));
+                assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.SKIP_RESULT));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.SKIP_SAMPLING));
+                assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.SKIP_MODEL_UPDATE));
             }
         }
     }

@@ -10,6 +10,8 @@ import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -20,7 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.singletonList;
 
@@ -79,8 +80,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     /**
      * Build a function to replace this one after resolving the function.
      */
-    public Function buildResolved(TimeZone timeZone, FunctionDefinition def) {
-        return resolutionType.buildResolved(this, timeZone, def);
+    public Function buildResolved(Configuration configuration, FunctionDefinition def) {
+        return resolutionType.buildResolved(this, configuration, def);
     }
 
     /**
@@ -144,6 +145,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
+    public ScriptTemplate asScript() {
+        throw new UnresolvedException("script", this);
+    }
+
+    @Override
     public String unresolvedMessage() {
         return unresolvedMsg;
     }
@@ -191,8 +197,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf;
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                return def.builder().build(uf, false, tz);
+            public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
+                return def.builder().build(uf, false, cfg);
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
@@ -212,8 +218,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("* is not valid with DISTINCT");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                return def.builder().build(uf, true, tz);
+            public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
+                return def.builder().build(uf, true, cfg);
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
@@ -233,9 +239,9 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("Can't extract from *");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
+            public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
                 if (def.datetime()) {
-                    return def.builder().build(uf, false, tz);
+                    return def.builder().build(uf, false, cfg);
                 }
                 return uf.withMessage("Invalid datetime field [" + uf.name() + "]. Use any datetime function.");
             }
@@ -260,7 +266,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         /**
          * Build the real function from this one and resolution metadata.
          */
-        protected abstract Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def);
+        protected abstract Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def);
         /**
          * Is {@code def} a valid alternative for function invocations
          * of this kind. Used to filter the list of "did you mean"

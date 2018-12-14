@@ -128,7 +128,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
-                .updateUnassigned(unassignedInfo, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+                .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(newRouting, s -> {});
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);

@@ -26,7 +26,7 @@ public class DiversifiedAggregationBuilderTests extends BaseAggregationTestCase<
 
     @Override
     protected final DiversifiedAggregationBuilder createTestAggregatorBuilder() {
-        DiversifiedAggregationBuilder factory = new DiversifiedAggregationBuilder("foo");
+        DiversifiedAggregationBuilder factory = new DiversifiedAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         String field = randomNumericField();
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {

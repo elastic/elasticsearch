@@ -37,8 +37,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
 
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -60,8 +58,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
 
         MapperService mapperService = Mockito.mock(MapperService.class);
-        Set<String> types = Collections.emptySet();
-        Mockito.when(mapperService.types()).thenReturn(types);
+        Mockito.when(mapperService.documentMapper()).thenReturn(null);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
@@ -69,8 +66,9 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
 
-        types = Collections.singleton("my_type");
-        Mockito.when(mapperService.types()).thenReturn(types);
+        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(mapper.type()).thenReturn("my_type");
+        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
@@ -78,12 +76,35 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         query = ft.termQuery("my_type", context);
         assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
 
-        types = Collections.singleton("other_type");
-        Mockito.when(mapperService.types()).thenReturn(types);
+        mapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(mapper.type()).thenReturn("other_type");
+        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
+        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
     }
 
+    public void testExistsQuery() {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        ft.existsQuery(context);
+        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testRangeQuery() {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
+        Mockito.when(mapper.type()).thenReturn("my_type");
+
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        ft.rangeQuery("type1", "type2", true, true, context);
+        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
+    }
 
     static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {
         Document doc = new Document();

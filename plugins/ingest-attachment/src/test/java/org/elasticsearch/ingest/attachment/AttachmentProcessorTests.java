@@ -27,7 +27,6 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -213,6 +212,12 @@ public class AttachmentProcessorTests extends ESTestCase {
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content_type", "content", "content_length"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+    }
+
+    // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
+    // about the issue that causes a zip file to hang in Tika versions prior to 1.18.
+    public void testZipFileDoesNotHang() {
+        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
     }
 
     public void testParseAsBytesArray() throws Exception {

@@ -21,8 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ValidateDetectorAction
-extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, ValidateDetectorAction.RequestBuilder> {
+public class ValidateDetectorAction extends Action<AcknowledgedResponse> {
 
     public static final ValidateDetectorAction INSTANCE = new ValidateDetectorAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate/detector";
@@ -32,16 +31,11 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
-    @Override
-    public Response newResponse() {
-        return new Response();
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         protected RequestBuilder(ElasticsearchClient client, ValidateDetectorAction action) {
             super(client, action, new Request());
@@ -54,7 +48,7 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
         private Detector detector;
 
         public static Request parseRequest(XContentParser parser) {
-            Detector detector = Detector.CONFIG_PARSER.apply(parser, null).build();
+            Detector detector = Detector.STRICT_PARSER.apply(parser, null).build();
             return new Request(detector);
         }
 
@@ -111,28 +105,4 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
         }
 
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
-    }
-
 }

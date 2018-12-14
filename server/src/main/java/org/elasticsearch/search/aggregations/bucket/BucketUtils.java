@@ -31,27 +31,21 @@ public final class BucketUtils {
      * 
      * @param finalSize
      *            The number of terms required in the final reduce phase.
-     * @param numberOfShards
-     *            The number of shards being queried.
+     * @param singleShard
+     *            whether a single shard is being queried, or multiple shards
      * @return A suggested default for the size of any shard-side PriorityQueues
      */
-    public static int suggestShardSideQueueSize(int finalSize, int numberOfShards) {
+    public static int suggestShardSideQueueSize(int finalSize, boolean singleShard) {
         if (finalSize < 1) {
             throw new IllegalArgumentException("size must be positive, got " + finalSize);
         }
-        if (numberOfShards < 1) {
-            throw new IllegalArgumentException("number of shards must be positive, got " + numberOfShards);
-        }
-
-        if (numberOfShards == 1) {
+        if (singleShard) {
             // In the case of a single shard, we do not need to over-request
             return finalSize;
         }
-
         // Request 50% more buckets on the shards in order to improve accuracy
         // as well as a small constant that should help with small values of 'size'
         final long shardSampleSize = (long) (finalSize * 1.5 + 10);
         return (int) Math.min(Integer.MAX_VALUE, shardSampleSize);
     }
-    
 }

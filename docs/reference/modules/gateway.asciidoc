@@ -51,7 +51,7 @@ NOTE: These settings only take effect on a full cluster restart.
 
 === Dangling indices
 
-When a node joins the cluster, any shards stored in its local data directory 
+When a node joins the cluster, any shards stored in its local data
 directory which do not already exist in the cluster will be imported into the 
 cluster. This functionality is intended as a best effort to help users who 
 lose all master nodes. If a new master node is started which is unaware of 

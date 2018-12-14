@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -23,6 +23,8 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,18 +58,19 @@ public class LoggingActionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final DateTime now = DateTime.now(UTC);
+        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(now.getMillis()), ZoneOffset.UTC);
 
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
                 .time("_watch_id", now)
                 .buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("scheduled_time", now);
-        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", jodaJavaNow);
+        triggerModel.put("triggered_time", jodaJavaNow);
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put("id", ctx.id().value());
         ctxModel.put("watch_id", "_watch_id");
-        ctxModel.put("execution_time", now);
+        ctxModel.put("execution_time", jodaJavaNow);
         ctxModel.put("payload", emptyMap());
         ctxModel.put("metadata", emptyMap());
         ctxModel.put("vars", emptyMap());
@@ -92,8 +95,7 @@ public class LoggingActionTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        Settings settings = Settings.EMPTY;
-        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(engine);
 
         String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
@@ -126,14 +128,13 @@ public class LoggingActionTests extends ESTestCase {
     }
 
     public void testParserSelfGenerated() throws Exception {
-        Settings settings = Settings.EMPTY;
-        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(engine);
 
         String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
         String category = randomAlphaOfLength(10);
         LoggingAction action = new LoggingAction(template, level, category);
-        ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, settings, engine);
+        ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, engine);
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
 
@@ -146,8 +147,7 @@ public class LoggingActionTests extends ESTestCase {
     }
 
     public void testParserBuilder() throws Exception {
-        Settings settings = Settings.EMPTY;
-        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(engine);
 
         String text = randomAlphaOfLength(10);
         TextTemplate template = new TextTemplate(text);
@@ -172,8 +172,7 @@ public class LoggingActionTests extends ESTestCase {
     }
 
     public void testParserFailure() throws Exception {
-        Settings settings = Settings.EMPTY;
-        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(engine);
 
         XContentBuilder builder = jsonBuilder()
                 .startObject().endObject();

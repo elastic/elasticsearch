@@ -37,6 +37,16 @@ public class CategorizerState {
         return jobId + "#";
     }
 
+    /**
+     * Given the id of a categorizer state document it extracts the job id
+     * @param docId the categorizer state document id
+     * @return the job id or {@code null} if the id is not valid
+     */
+    public static final String extractJobId(String docId) {
+        int suffixIndex = docId.lastIndexOf("_" + TYPE);
+        return suffixIndex <= 0 ? null : docId.substring(0, suffixIndex);
+    }
+
     private CategorizerState() {
     }
 }

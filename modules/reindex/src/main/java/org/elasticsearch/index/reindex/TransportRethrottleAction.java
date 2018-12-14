@@ -27,28 +27,23 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TransportRethrottleAction extends TransportTasksAction<BulkByScrollTask, RethrottleRequest, ListTasksResponse, TaskInfo> {
     private final Client client;
 
     @Inject
-    public TransportRethrottleAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-            Client client) {
-        super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+    public TransportRethrottleAction(ClusterService clusterService, TransportService transportService,
+                                     ActionFilters actionFilters, Client client) {
+        super(RethrottleAction.NAME, clusterService, transportService, actionFilters,
+            RethrottleRequest::new, ListTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
         this.client = client;
     }
 
@@ -102,11 +97,6 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
         task.getWorkerState().rethrottle(newRequestsPerSecond);
         listener.onResponse(task.taskInfo(localNodeId, true));
-    }
-
-    @Override
-    protected TaskInfo readTaskResponse(StreamInput in) throws IOException {
-        return new TaskInfo(in);
     }
 
     @Override

@@ -31,9 +31,9 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -163,19 +163,17 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         if (this.ids.isEmpty()) {
              return Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
         } else {
+            final DocumentMapper mapper = context.getMapperService().documentMapper();
             Collection<String> typesForQuery;
             if (types.length == 0) {
                 typesForQuery = context.queryTypes();
             } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
-                typesForQuery = context.getMapperService().types();
+                typesForQuery = Collections.singleton(mapper.type());
             } else {
-                typesForQuery = new HashSet<>();
-                Collections.addAll(typesForQuery, types);
+                typesForQuery = new HashSet<>(Arrays.asList(types));
             }
 
-            final Collection<String> mappingTypes = context.getMapperService().types();
-            assert mappingTypes.size() == 1;
-            if (typesForQuery.contains(mappingTypes.iterator().next())) {
+            if (typesForQuery.contains(mapper.type())) {
                 return idField.termsQuery(new ArrayList<>(ids), context);
             } else {
                 return new MatchNoDocsQuery("Type mismatch");

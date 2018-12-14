@@ -9,9 +9,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 public class NotQuery extends Query {
     private final Query child;
@@ -24,14 +24,18 @@ public class NotQuery extends Query {
         this.child = child;
     }
 
+    public Query child() {
+        return child;
+    }
+
     @Override
     public boolean containsNestedField(String path, String field) {
         return child.containsNestedField(path, field);
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
-        Query rewrittenChild = child.addNestedField(path, field, hasDocValues);
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
+        Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
         if (child == rewrittenChild) {
             return this;
         }

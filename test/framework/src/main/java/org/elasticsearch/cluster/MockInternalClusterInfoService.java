@@ -62,7 +62,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), null, paths);
-        return new NodeStats(new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+        return new NodeStats(
+            new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             System.currentTimeMillis(),
             null, null, null, null, null,
             fsInfo,
@@ -107,7 +108,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Override
     public ClusterInfo getClusterInfo() {
         ClusterInfo clusterInfo = super.getClusterInfo();
-        return new DevNullClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(), clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes);
+        return new DevNullClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(),
+                clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes);
     }
 
     /**

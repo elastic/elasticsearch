@@ -1,0 +1,65 @@
+--
+:api: get-alias
+:request: GetAliasesRequest
+:response: GetAliasesResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Alias API
+
+[id="{upid}-{api}-request"]
+==== Get Alias Request
+
+The Get Alias API uses +{request}+ as its request object.
+One or more aliases can be optionally provided either at construction
+time or later on through the relevant setter method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-alias]
+--------------------------------------------------
+<1> One or more aliases to retrieve
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indices]
+--------------------------------------------------
+<1> The index or indices that the alias is associated with
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded when looking for aliases that belong to
+specified indices.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-local]
+--------------------------------------------------
+<1> The `local` flag (defaults to `false`) controls whether the aliases need
+to be looked up in the local cluster state or in the cluster state held by
+the elected master node
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Alias Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Retrieves a map of indices and their aliases

@@ -89,7 +89,7 @@ public final class IndexId implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked") IndexId that = (IndexId) o;
+        IndexId that = (IndexId) o;
         return Objects.equals(name, that.name) && Objects.equals(id, that.id);
     }
 

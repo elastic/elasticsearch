@@ -31,7 +31,7 @@ POST /_cluster/reroute
 // CONSOLE
 // TEST[skip:doc tests run with only a single node]
 
-It is important to note that that after processing any reroute commands
+It is important to note that after processing any reroute commands
 Elasticsearch will perform rebalancing as normal (respecting the values of
 settings such as `cluster.routing.rebalance.enable`) in order to remain in a
 balanced state. For example, if the requested allocation includes moving a

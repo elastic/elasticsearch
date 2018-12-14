@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -32,9 +34,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -97,7 +99,7 @@ public class RestSnapshotAction extends AbstractCatAction {
                 .endHeaders();
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
+    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);
@@ -107,9 +109,9 @@ public class RestSnapshotAction extends AbstractCatAction {
             table.addCell(snapshotStatus.snapshotId().getName());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
-            table.addCell(dateFormat.print(snapshotStatus.startTime()));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
-            table.addCell(dateFormat.print(snapshotStatus.endTime()));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.endTime())));
             final long durationMillis;
             if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
                 durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();

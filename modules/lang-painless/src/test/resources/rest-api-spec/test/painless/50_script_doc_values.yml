@@ -67,6 +67,7 @@ setup:
 "boolean":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -76,6 +77,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -90,6 +92,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -99,6 +102,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -106,32 +110,11 @@ setup:
                             source: "doc.date.value"
     - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
-    - do:
-        warnings:
-            - getDate is no longer necessary on date fields as the value is now a date.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['date'].date"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
-
-    - do:
-        warnings:
-            - getDates is no longer necessary on date fields as the values are now dates.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['date'].dates.get(0)"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
-
 ---
 "geo_point":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -142,6 +125,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -154,6 +138,7 @@ setup:
 "ip":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -163,6 +148,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -174,6 +160,7 @@ setup:
 "keyword":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -183,6 +170,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -197,6 +185,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -206,6 +195,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -213,32 +203,11 @@ setup:
                             source: "doc['long'].value"
     - match: { hits.hits.0.fields.field.0: 12348732141234 }
 
-    - do:
-        warnings:
-            - getDate on numeric fields is deprecated. Use a date field to get dates.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['long'].date"
-    - match: { hits.hits.0.fields.field.0: '2361-04-26T03:22:21.234Z' }
-
-    - do:
-        warnings:
-            - getDates on numeric fields is deprecated. Use a date field to get dates.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['long'].dates.get(0)"
-    - match: { hits.hits.0.fields.field.0: '2361-04-26T03:22:21.234Z' }
-
 ---
 "integer":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -248,6 +217,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -259,6 +229,7 @@ setup:
 "short":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -268,6 +239,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -279,6 +251,7 @@ setup:
 "byte":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -288,6 +261,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -299,6 +273,7 @@ setup:
 "double":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -308,6 +283,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -319,6 +295,7 @@ setup:
 "float":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -328,6 +305,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -339,6 +317,7 @@ setup:
 "half_float":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -348,6 +327,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -359,6 +339,7 @@ setup:
 "scaled_float":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -368,6 +349,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -379,6 +361,7 @@ setup:
 "token_count":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -388,6 +371,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:

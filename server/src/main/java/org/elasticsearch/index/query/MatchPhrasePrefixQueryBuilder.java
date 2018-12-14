@@ -101,7 +101,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         return this;
     }
 
-    /** Get the analyzer to use, if previously set, otherwise <tt>null</tt> */
+    /** Get the analyzer to use, if previously set, otherwise {@code null} */
     public String analyzer() {
         return this.analyzer;
     }

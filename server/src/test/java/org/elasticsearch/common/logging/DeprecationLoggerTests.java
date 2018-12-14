@@ -19,6 +19,8 @@
 package org.elasticsearch.common.logging;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +51,7 @@ public class DeprecationLoggerTests extends ESTestCase {
 
     private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
 
-    private final DeprecationLogger logger = new DeprecationLogger(Loggers.getLogger(getClass()));
+    private final DeprecationLogger logger = new DeprecationLogger(LogManager.getLogger(getClass()));
 
     @Override
     protected boolean enableWarningsCheck() {

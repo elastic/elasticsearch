@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -28,7 +28,7 @@ import java.util.Objects;
 
 public class ScrollCursor implements Cursor {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     public static final String NAME = "s";
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.MinDocQuery;
@@ -27,7 +29,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -35,10 +36,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
@@ -73,15 +75,16 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
 public class QueryPhase implements SearchPhase {
+    private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
-    public QueryPhase(Settings settings) {
+    public QueryPhase() {
         this.aggregationPhase = new AggregationPhase();
-        this.suggestPhase = new SuggestPhase(settings);
-        this.rescorePhase = new RescorePhase(settings);
+        this.suggestPhase = new SuggestPhase();
+        this.rescorePhase = new RescorePhase();
     }
 
     @Override
@@ -94,11 +97,16 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             // TODO: fix this once we can fetch docs for suggestions
-            searchContext.queryResult().topDocs(
-                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
             return;
         }
+
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        }
+
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
@@ -138,7 +146,7 @@ public class QueryPhase implements SearchPhase {
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
-                if (scrollContext.totalHits == -1) {
+                if (scrollContext.totalHits == null) {
                     // first round
                     assert scrollContext.lastEmittedDoc == null;
                     // there is not much that we can optimize here since we want to collect all
@@ -231,7 +239,10 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable checkCancelled;
             if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> { timeoutRunnable.run(); cancellationRunnable.run(); };
+                checkCancelled = () -> {
+                    timeoutRunnable.run();
+                    cancellationRunnable.run();
+                };
             } else if (timeoutRunnable != null) {
                 checkCancelled = timeoutRunnable;
             } else if (cancellationRunnable != null) {
@@ -268,7 +279,7 @@ public class QueryPhase implements SearchPhase {
                 queryResult.terminatedEarly(true);
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
-                
+
                 if (searchContext.request().allowPartialSearchResults() == false) {
                     // Can't rethrow TimeExceededException because not serializable
                     throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
@@ -327,7 +338,7 @@ public class QueryPhase implements SearchPhase {
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
             Sort indexSort = ctx.reader().getMetaData().getSort();
-            if (indexSort == null || EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort) == false) {
+            if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }
         }

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -35,7 +34,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
     public void testClusterChanged_info() throws Exception {
         Auditor auditor = mock(Auditor.class);
         ClusterService clusterService = mock(ClusterService.class);
-        MlAssignmentNotifier notifier = new MlAssignmentNotifier(Settings.EMPTY, auditor, clusterService);
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(auditor, clusterService);
         notifier.onMaster();
 
         DiscoveryNode node =
@@ -63,7 +62,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
     public void testClusterChanged_warning() throws Exception {
         Auditor auditor = mock(Auditor.class);
         ClusterService clusterService = mock(ClusterService.class);
-        MlAssignmentNotifier notifier = new MlAssignmentNotifier(Settings.EMPTY, auditor, clusterService);
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(auditor, clusterService);
         notifier.onMaster();
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))

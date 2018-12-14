@@ -19,15 +19,15 @@
 
 package org.elasticsearch.client.node;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -36,10 +36,10 @@ import java.util.HashMap;
 
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
-    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.<ActionFilter>emptySet());
+    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.emptySet());
 
     @Override
-    protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
+    protected Client buildClient(Settings headersSettings, Action[] testedActions) {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
@@ -47,10 +47,10 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         return client;
     }
 
-    private static class Actions extends HashMap<GenericAction, TransportAction> {
+    private static class Actions extends HashMap<Action, TransportAction> {
 
-        private Actions(Settings settings, ThreadPool threadPool, GenericAction[] actions) {
-            for (GenericAction action : actions) {
+        private Actions(Settings settings, ThreadPool threadPool, Action[] actions) {
+            for (Action action : actions) {
                 put(action, new InternalTransportAction(settings, action.name(), threadPool));
             }
         }
@@ -59,11 +59,11 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(settings, actionName, threadPool, EMPTY_FILTERS, null, new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
         }
 
         @Override
-        protected void doExecute(ActionRequest request, ActionListener listener) {
+        protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
             listener.onFailure(new InternalException(actionName));
         }
     }

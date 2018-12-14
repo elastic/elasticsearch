@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -30,18 +29,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response, GetBucketsAction.RequestBuilder> {
+public class GetBucketsAction extends Action<GetBucketsAction.Response> {
 
     public static final GetBucketsAction INSTANCE = new GetBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/buckets/get";
 
     private GetBucketsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -167,7 +161,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         public void setPageParams(PageParams pageParams) {
             if (timestamp != null) {
-                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName() 
+                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName()
                         + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "].");
             }
             this.pageParams = ExceptionsHelper.requireNonNull(pageParams, PageParams.PAGE.getPreferredName());
@@ -217,10 +211,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             end = in.readOptionalString();
             anomalyScore = in.readOptionalDouble();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-                sort = in.readString();
-                descending = in.readBoolean();
-            }
+            sort = in.readString();
+            descending = in.readBoolean();
         }
 
         @Override
@@ -234,10 +226,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             out.writeOptionalString(end);
             out.writeOptionalDouble(anomalyScore);
             out.writeOptionalWriteable(pageParams);
-            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-                out.writeString(sort);
-                out.writeBoolean(descending);
-            }
+            out.writeString(sort);
+            out.writeBoolean(descending);
         }
 
         @Override
@@ -294,7 +284,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

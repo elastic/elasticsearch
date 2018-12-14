@@ -42,7 +42,11 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Integer.parseInt(value.toString());
+                    String strValue = value.toString();
+                    if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
+                        return Integer.decode(strValue);
+                    }
+                    return Integer.parseInt(strValue);
                 } catch(NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
                 }
@@ -52,7 +56,11 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Long.parseLong(value.toString());
+                    String strValue = value.toString();
+                    if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
+                        return Long.decode(strValue);
+                    }
+                    return Long.parseLong(strValue);
                 } catch(NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to long", e);
                 }
@@ -165,12 +173,12 @@ public final class ConvertProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         Object oldValue = document.getFieldValue(field, Object.class, ignoreMissing);
         Object newValue;
 
         if (oldValue == null && ignoreMissing) {
-            return;
+            return document;
         } else if (oldValue == null) {
             throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
@@ -186,6 +194,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             newValue = convertType.convert(oldValue);
         }
         document.setFieldValue(targetField, newValue);
+        return document;
     }
 
     @Override

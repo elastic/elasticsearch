@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.diagnostics;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
 import java.util.Date;
 
@@ -22,7 +23,7 @@ public class DataStreamDiagnostics {
      */
     private static final int DATA_SPARSITY_THRESHOLD = 2;
 
-    private static final Logger LOGGER = Loggers.getLogger(DataStreamDiagnostics.class);
+    private static final Logger LOGGER = LogManager.getLogger(DataStreamDiagnostics.class);
 
     private final BucketDiagnostics bucketDiagnostics;
 
@@ -32,8 +33,8 @@ public class DataStreamDiagnostics {
     private long sparseBucketCount = 0;
     private long latestSparseBucketTime = -1;
 
-    public DataStreamDiagnostics(Job job) {
-        bucketDiagnostics = new BucketDiagnostics(job, createBucketFlushListener());
+    public DataStreamDiagnostics(Job job, DataCounts dataCounts) {
+        bucketDiagnostics = new BucketDiagnostics(job, dataCounts, createBucketFlushListener());
     }
 
     private BucketDiagnostics.BucketFlushListener createBucketFlushListener() {

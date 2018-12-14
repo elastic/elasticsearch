@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -137,17 +136,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        } else {
-            for (Iterator<Map.Entry<String, List<String>>> iterator = headers.entrySet().iterator(); iterator.hasNext(); ) {
-                Map.Entry<String, List<String>> header = iterator.next();
-                if (header.getKey().startsWith("es.")) {
-                    metadata.put(header.getKey(), header.getValue());
-                    iterator.remove();
-                }
-            }
-        }
+        metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
     }
 
     /**
@@ -269,7 +258,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
     }
 
-
     /**
      * Retrieve the innermost cause of this exception, if none, returns the current exception.
      */
@@ -288,15 +276,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-            out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            HashMap<String, List<String>> finalHeaders = new HashMap<>(headers.size() + metadata.size());
-            finalHeaders.putAll(headers);
-            finalHeaders.putAll(metadata);
-            out.writeMapOfLists(finalHeaders, StreamOutput::writeString, StreamOutput::writeString);
-        }
+        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
@@ -421,7 +402,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return innerFromXContent(parser, false);
     }
 
-    private static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
+    public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -668,7 +649,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Returns a underscore case name for the given exception. This method strips <tt>Elasticsearch</tt> prefixes from exception names.
+     * Returns a underscore case name for the given exception. This method strips {@code Elasticsearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
         String simpleName = ex.getClass().getSimpleName();
@@ -1006,8 +987,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED),
         TYPE_MISSING_EXCEPTION(org.elasticsearch.indices.TypeMissingException.class,
                 org.elasticsearch.indices.TypeMissingException::new, 137, UNKNOWN_VERSION_ADDED),
-        FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class,
-                org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException::new, 140, UNKNOWN_VERSION_ADDED),
+        FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class,
+                org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException::new, 140, UNKNOWN_VERSION_ADDED),
         QUERY_SHARD_EXCEPTION(org.elasticsearch.index.query.QueryShardException.class,
                 org.elasticsearch.index.query.QueryShardException::new, 141, UNKNOWN_VERSION_ADDED),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
@@ -1019,14 +1000,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_1),
+            org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
-                                           org.elasticsearch.env.ShardLockObtainFailedException::new, 147, Version.V_5_0_2),
+                                           org.elasticsearch.env.ShardLockObtainFailedException::new, 147, UNKNOWN_VERSION_ADDED),
         UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.UnknownNamedObjectException.class,
-                org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, Version.V_5_2_0),
+                org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, UNKNOWN_VERSION_ADDED),
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
-                                   MultiBucketConsumerService.TooManyBucketsException::new, 149,
-            Version.V_7_0_0_alpha1);
+            MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_7_0_0),
+        COORDINATION_STATE_REJECTED_EXCEPTION(org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
+            org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
+        CLUSTER_ALREADY_BOOTSTRAPPED_EXCEPTION(org.elasticsearch.cluster.coordination.ClusterAlreadyBootstrappedException.class,
+            org.elasticsearch.cluster.coordination.ClusterAlreadyBootstrappedException::new, 151, Version.V_7_0_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -26,8 +25,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartRollupJobAction extends Action<StartRollupJobAction.Request, StartRollupJobAction.Response,
-        StartRollupJobAction.RequestBuilder> {
+public class StartRollupJobAction extends Action<StartRollupJobAction.Response> {
 
     public static final StartRollupJobAction INSTANCE = new StartRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/start";
@@ -37,13 +35,13 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
+    public Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
@@ -55,13 +53,8 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
 
         public Request() {}
 
-        public String getId() {
-            return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             id = in.readString();
         }
 
@@ -69,6 +62,10 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+        }
+
+        public String getId() {
+            return id;
         }
 
         @Override
@@ -100,7 +97,7 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, StartRollupJobAction action) {
             super(client, action, new Request());
@@ -109,30 +106,15 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean started;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
-            readFrom(in);
-        }
+        private final boolean started;
 
         public Response(boolean started) {
             super(Collections.emptyList(), Collections.emptyList());
             this.started = started;
         }
 
-        public boolean isStarted() {
-            return started;
-        }
-
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             started = in.readBoolean();
         }
 
@@ -140,6 +122,10 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(started);
+        }
+
+        public boolean isStarted() {
+            return started;
         }
 
         @Override

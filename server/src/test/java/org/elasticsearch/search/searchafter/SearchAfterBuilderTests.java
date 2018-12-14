@@ -136,11 +136,12 @@ public class SearchAfterBuilderTests extends ESTestCase {
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder));
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
-        return SearchAfterBuilder.fromXContent(parser);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder))) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            return SearchAfterBuilder.fromXContent(parser);
+        }
     }
 
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
@@ -174,14 +175,15 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
-            XContentParser parser = createParser(shuffleXContent(builder));
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
-            assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
-            assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
-            assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
+            try (XContentParser parser = createParser(shuffleXContent(builder))) {
+                parser.nextToken();
+                parser.nextToken();
+                parser.nextToken();
+                SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
+                assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
+                assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
+                assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
+            }
         }
     }
 

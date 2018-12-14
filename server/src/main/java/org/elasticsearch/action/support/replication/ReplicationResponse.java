@@ -218,13 +218,13 @@ public class ReplicationResponse extends ActionResponse {
                 '}';
         }
 
-        public static ShardInfo readShardInfo(StreamInput in) throws IOException {
+        static ShardInfo readShardInfo(StreamInput in) throws IOException {
             ShardInfo shardInfo = new ShardInfo();
             shardInfo.readFrom(in);
             return shardInfo;
         }
 
-        public static class Failure implements ShardOperationFailedException, ToXContentObject {
+        public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";
             private static final String _SHARD = "_shard";
@@ -235,35 +235,16 @@ public class ReplicationResponse extends ActionResponse {
 
             private ShardId shardId;
             private String nodeId;
-            private Exception cause;
-            private RestStatus status;
             private boolean primary;
 
             public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
+                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.detailedMessage(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;
-                this.cause = cause;
-                this.status = status;
                 this.primary = primary;
             }
 
             Failure() {
-            }
-
-            /**
-             * @return On what index the failure occurred.
-             */
-            @Override
-            public String index() {
-                return shardId.getIndexName();
-            }
-
-            /**
-             * @return On what shard id the failure occurred.
-             */
-            @Override
-            public int shardId() {
-                return shardId.id();
             }
 
             public ShardId fullShardId() {
@@ -279,27 +260,6 @@ public class ReplicationResponse extends ActionResponse {
             }
 
             /**
-             * @return A text description of the failure
-             */
-            @Override
-            public String reason() {
-                return ExceptionsHelper.detailedMessage(cause);
-            }
-
-            /**
-             * @return The status to report if this failure was a primary failure.
-             */
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-
-            @Override
-            public Throwable getCause() {
-                return cause;
-            }
-
-            /**
              * @return Whether this failure occurred on a primary shard.
              * (this only reports true for delete by query)
              */
@@ -310,6 +270,8 @@ public class ReplicationResponse extends ActionResponse {
             @Override
             public void readFrom(StreamInput in) throws IOException {
                 shardId = ShardId.readShardId(in);
+                super.shardId = shardId.getId();
+                index = shardId.getIndexName();
                 nodeId = in.readOptionalString();
                 cause = in.readException();
                 status = RestStatus.readFrom(in);

@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
@@ -56,7 +56,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put(ThreadContext.PREFIX + ".key2", "val 2")
             .build();
 
-    private static final GenericAction[] ACTIONS = new GenericAction[] {
+    private static final Action<?>[] ACTIONS = new Action[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteStoredScriptAction.INSTANCE,
                 IndexAction.INSTANCE,
@@ -92,7 +92,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
-    protected abstract Client buildClient(Settings headersSettings, GenericAction[] testedActions);
+    protected abstract Client buildClient(Settings headersSettings, Action<?>[] testedActions);
 
 
     public void testActions() {
@@ -106,18 +106,22 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareDeleteStoredScript("id").execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON).execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
+        client.admin().cluster().prepareDeleteStoredScript("id")
+            .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
+        client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON)
+            .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareCreateSnapshot("repo", "bck").execute(new AssertingActionListener<>(CreateSnapshotAction.NAME, client.threadPool()));
+        client.admin().cluster().prepareCreateSnapshot("repo", "bck")
+            .execute(new AssertingActionListener<>(CreateSnapshotAction.NAME, client.threadPool()));
         client.admin().cluster().prepareReroute().execute(new AssertingActionListener<>(ClusterRerouteAction.NAME, client.threadPool()));
 
         // choosing arbitrary indices admin actions to test
         client.admin().indices().prepareCreate("idx").execute(new AssertingActionListener<>(CreateIndexAction.NAME, client.threadPool()));
         client.admin().indices().prepareStats().execute(new AssertingActionListener<>(IndicesStatsAction.NAME, client.threadPool()));
-        client.admin().indices().prepareClearCache("idx1", "idx2").execute(new AssertingActionListener<>(ClearIndicesCacheAction.NAME, client.threadPool()));
+        client.admin().indices().prepareClearCache("idx1", "idx2")
+            .execute(new AssertingActionListener<>(ClearIndicesCacheAction.NAME, client.threadPool()));
         client.admin().indices().prepareFlush().execute(new AssertingActionListener<>(FlushAction.NAME, client.threadPool()));
     }
 
@@ -139,6 +143,8 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     protected static void assertHeaders(Map<String, String> headers, Map<String, String> expected) {
         assertNotNull(headers);
+        headers = new HashMap<>(headers);
+        headers.remove("transport_client"); // default header on TPC
         assertEquals(expected.size(), headers.size());
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             assertEquals(headers.get(expectedEntry.getKey()), expectedEntry.getValue());
@@ -146,7 +152,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     }
 
     protected static void assertHeaders(ThreadPool pool) {
-        Map<String, String> headers = new HashMap<>();
         Settings asSettings = HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX);
         assertHeaders(pool.getThreadContext().getHeaders(),
             asSettings.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> asSettings.get(k))));

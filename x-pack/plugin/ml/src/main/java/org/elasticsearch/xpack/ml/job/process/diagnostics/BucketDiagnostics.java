@@ -6,7 +6,10 @@
 package org.elasticsearch.xpack.ml.job.process.diagnostics;
 
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+
+import java.util.Date;
 
 /**
  * A moving window of buckets that allow keeping
@@ -33,12 +36,17 @@ class BucketDiagnostics {
     private long latestFlushedBucketStartMs = -1;
     private final BucketFlushListener bucketFlushListener;
 
-    BucketDiagnostics(Job job, BucketFlushListener bucketFlushListener) {
+    BucketDiagnostics(Job job, DataCounts dataCounts, BucketFlushListener bucketFlushListener) {
         bucketSpanMs = job.getAnalysisConfig().getBucketSpan().millis();
         latencyMs = job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().millis();
         maxSize = Math.max((int) (Intervals.alignToCeil(latencyMs, bucketSpanMs) / bucketSpanMs), MIN_BUCKETS);
         buckets = new long[maxSize];
         this.bucketFlushListener = bucketFlushListener;
+
+        Date latestRecordTimestamp = dataCounts.getLatestRecordTimeStamp();
+        if (latestRecordTimestamp != null) {
+            addRecord(latestRecordTimestamp.getTime());
+        }
     }
 
     void addRecord(long recordTimestampMs) {

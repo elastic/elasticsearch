@@ -9,7 +9,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Random;
@@ -22,14 +22,14 @@ public class MathProcessor implements Processor {
     public enum MathOperation {
         ABS((Object l) -> {
             if (l instanceof Float) {
-                return Math.abs(((Float) l).floatValue());
+                return Double.valueOf(Math.abs(((Float) l).floatValue()));
             }
             if (l instanceof Double) {
                 return Math.abs(((Double) l).doubleValue());
             }
             long lo = ((Number) l).longValue();
             //handles the corner-case of Long.MIN_VALUE
-            return lo >= 0 ? lo : lo == Long.MIN_VALUE ? Long.MAX_VALUE : -lo;
+            return lo >= 0 ? lo : lo == Long.MIN_VALUE ? Double.valueOf(Long.MAX_VALUE) : -lo;
         }),
 
         ACOS(Math::acos),
@@ -52,16 +52,15 @@ public class MathProcessor implements Processor {
         RANDOM((Object l) -> l != null ?
                 new Random(((Number) l).longValue()).nextDouble() :
                 Randomness.get().nextDouble(), true),
-        ROUND((DoubleFunction<Object>) Math::round),
-        SIGN((DoubleFunction<Object>) Math::signum),
+        SIGN((DoubleFunction<Double>) Math::signum),
         SIN(Math::sin),
         SINH(Math::sinh),
         SQRT(Math::sqrt),
         TAN(Math::tan);
 
-        private final Function<Object, Object> apply;
+        private final Function<Object, Double> apply;
 
-        MathOperation(Function<Object, Object> apply) {
+        MathOperation(Function<Object, Double> apply) {
             this(apply, false);
         }
 
@@ -70,7 +69,7 @@ public class MathProcessor implements Processor {
          * If true, nulls are passed through, otherwise the function is short-circuited
          * and null returned.
          */
-        MathOperation(Function<Object, Object> apply, boolean nullAware) {
+        MathOperation(Function<Object, Double> apply, boolean nullAware) {
             if (nullAware) {
                 this.apply = apply;
             } else {
@@ -78,7 +77,7 @@ public class MathProcessor implements Processor {
             }
         }
 
-        MathOperation(DoubleFunction<Object> apply) {
+        MathOperation(DoubleFunction<Double> apply) {
             this.apply = (Object l) -> l == null ? null : apply.apply(((Number) l).doubleValue());
         }
 
@@ -86,7 +85,7 @@ public class MathProcessor implements Processor {
             this.apply = l -> supplier.get();
         }
 
-        public final Object apply(Object l) {
+        public final Double apply(Object l) {
             return apply.apply(l);
         }
     }

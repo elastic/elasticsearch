@@ -21,7 +21,6 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedFunction;
@@ -103,7 +102,7 @@ public interface ShardSearchRequest {
      * Returns the filter associated with listed filtering aliases.
      * <p>
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
-     * Returns <tt>null</tt> if no filtering is required.</p>
+     * Returns {@code null} if no filtering is required.</p>
      */
     static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
                                          IndexMetaData metaData, String... aliasNames) {

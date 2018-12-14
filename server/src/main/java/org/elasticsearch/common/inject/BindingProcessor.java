@@ -72,7 +72,7 @@ class BindingProcessor extends AbstractProcessor {
 
         if (Void.class.equals(command.getKey().getRawType())) {
             if (command instanceof ProviderInstanceBinding
-                    && ((ProviderInstanceBinding) command).getProviderInstance() instanceof ProviderMethod) {
+                    && ((ProviderInstanceBinding<?>) command).getProviderInstance() instanceof ProviderMethod) {
                 errors.voidProviderMethod();
             } else {
                 errors.missingConstantValues();
@@ -274,7 +274,7 @@ class BindingProcessor extends AbstractProcessor {
      */
     private boolean isOkayDuplicate(Binding<?> original, BindingImpl<?> binding) {
         if (original instanceof ExposedBindingImpl) {
-            ExposedBindingImpl exposed = (ExposedBindingImpl) original;
+            ExposedBindingImpl<?> exposed = (ExposedBindingImpl<?>) original;
             InjectorImpl exposedFrom = (InjectorImpl) exposed.getPrivateElements().getInjector();
             return (exposedFrom == binding.getInjector());
         }

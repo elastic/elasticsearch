@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
@@ -39,19 +41,16 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     @Override
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
-        CommonTermsQueryBuilder query;
-
         int numberOfTerms = randomIntBetween(0, 10);
         StringBuilder text = new StringBuilder("");
         for (int i = 0; i < numberOfTerms; i++) {
             text.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
         }
-        // mapped or unmapped field
-        if (randomBoolean()) {
-            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text.toString());
-        } else {
-            query = new CommonTermsQueryBuilder(randomAlphaOfLengthBetween(1, 10), text.toString());
-        }
+
+        String fieldName = randomFrom(STRING_FIELD_NAME,
+            STRING_ALIAS_FIELD_NAME,
+            randomAlphaOfLengthBetween(1, 10));
+        CommonTermsQueryBuilder query = new CommonTermsQueryBuilder(fieldName, text.toString());
 
         if (randomBoolean()) {
             query.cutoffFrequency(randomIntBetween(1, 10));
@@ -100,6 +99,14 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
+
+        List<Term> terms = extendedCommonTermsQuery.getTerms();
+        if (!terms.isEmpty()) {
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            String actualFieldName = terms.iterator().next().field();
+            assertThat(actualFieldName, equalTo(expectedFieldName));
+        }
+
         assertThat(extendedCommonTermsQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.highFreqMinimumShouldMatch()));
         assertThat(extendedCommonTermsQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.lowFreqMinimumShouldMatch()));
     }
@@ -172,7 +179,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     public void testCommonTermsQuery4() throws IOException {
         Query parsedQuery = parseQuery(commonTermsQuery("field", "text")).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
-        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

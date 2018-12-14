@@ -20,7 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -140,6 +141,42 @@ public class XContentParserTests extends ESTestCase {
         assertThat(map.size(), equalTo(0));
     }
 
+    public void testMap() throws IOException {
+        String source = "{\"i\": {\"_doc\": {\"f1\": {\"type\": \"text\", \"analyzer\": \"english\"}, " +
+            "\"f2\": {\"type\": \"object\", \"properties\": {\"sub1\": {\"type\": \"keyword\", \"foo\": 17}}}}}}";
+        Map<String, Object> f1 = new HashMap<>();
+        f1.put("type", "text");
+        f1.put("analyzer", "english");
+
+        Map<String, Object> sub1 = new HashMap<>();
+        sub1.put("type", "keyword");
+        sub1.put("foo", 17);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("sub1", sub1);
+
+        Map<String, Object> f2 = new HashMap<>();
+        f2.put("type", "object");
+        f2.put("properties", properties);
+
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("f1", f1);
+        doc.put("f2", f2);
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("_doc", doc);
+
+        Map<String, Object> i = new HashMap<>();
+        i.put("i", expected);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            Map<String, Object> map = parser.map();
+            assertThat(map, equalTo(i));
+        }
+    }
+
     private Map<String, String> readMapStrings(String source) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             XContentParser.Token token = parser.nextToken();
@@ -150,35 +187,6 @@ public class XContentParserTests extends ESTestCase {
             token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             return randomBoolean() ? parser.mapStringsOrdered() : parser.mapStrings();
-        }
-    }
-
-    @SuppressWarnings("deprecation") // #isBooleanValueLenient() and #booleanValueLenient() are the test subjects
-    public void testReadLenientBooleans() throws IOException {
-        // allow String, boolean and int representations of lenient booleans
-        String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0", "\"false\"", "false");
-        String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1", "\"true\"", "true");
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
-            XContentParser.Token token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-            token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.currentName(), equalTo("foo"));
-            token = parser.nextToken();
-            assertThat(token, isIn(
-                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
-            assertTrue(parser.isBooleanValueLenient());
-            assertFalse(parser.booleanValueLenient());
-
-            token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.currentName(), equalTo("bar"));
-            token = parser.nextToken();
-            assertThat(token, isIn(
-                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
-            assertTrue(parser.isBooleanValueLenient());
-            assertTrue(parser.booleanValueLenient());
         }
     }
 
@@ -320,4 +328,149 @@ public class XContentParserTests extends ESTestCase {
                     parser.list());
         }
     }
+
+    public void testSubParser() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        int numberOfTokens;
+        numberOfTokens = generateRandomObjectForMarking(builder);
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
+            assertEquals("first_field", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken()); // foo
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // marked field
+            assertEquals("marked_field", parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
+            XContentParser subParser = new XContentSubParser(parser);
+            try {
+                int tokensToSkip = randomInt(numberOfTokens - 1);
+                for (int i = 0; i < tokensToSkip; i++) {
+                    // Simulate incomplete parsing
+                    assertNotNull(subParser.nextToken());
+                }
+                if (randomBoolean()) {
+                    // And sometimes skipping children
+                    subParser.skipChildren();
+                }
+            }  finally {
+                assertFalse(subParser.isClosed());
+                subParser.close();
+                assertTrue(subParser.isClosed());
+            }
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // last field
+            assertEquals("last_field", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testCreateSubParserAtAWrongPlace() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        generateRandomObjectForMarking(builder);
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
+            assertEquals("first_field", parser.currentName());
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new XContentSubParser(parser));
+            assertEquals("The sub parser has to be created on the start of an object", exception.getMessage());
+        }
+    }
+
+
+    public void testCreateRootSubParser() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        int numberOfTokens = generateRandomObjectForMarking(builder);
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            try (XContentParser subParser = new XContentSubParser(parser)) {
+                int tokensToSkip = randomInt(numberOfTokens + 3);
+                for (int i = 0; i < tokensToSkip; i++) {
+                    // Simulate incomplete parsing
+                    assertNotNull(subParser.nextToken());
+                }
+            }
+            assertNull(parser.nextToken());
+        }
+
+    }
+
+    /**
+     * Generates a random object {"first_field": "foo", "marked_field": {...random...}, "last_field": "bar}
+     *
+     * Returns the number of tokens in the marked field
+     */
+    private int generateRandomObjectForMarking(XContentBuilder builder) throws IOException {
+        builder.startObject()
+            .field("first_field", "foo")
+            .field("marked_field");
+        int numberOfTokens = generateRandomObject(builder, 0);
+        builder.field("last_field", "bar").endObject();
+        return numberOfTokens;
+    }
+
+    private int generateRandomObject(XContentBuilder builder, int level) throws IOException {
+        int tokens = 2;
+        builder.startObject();
+        int numberOfElements = randomInt(5);
+        for (int i = 0; i < numberOfElements; i++) {
+            builder.field(randomAlphaOfLength(10) + "_" + i);
+            tokens += generateRandomValue(builder, level + 1);
+        }
+        builder.endObject();
+        return tokens;
+    }
+
+    private int generateRandomValue(XContentBuilder builder, int level) throws IOException {
+        @SuppressWarnings("unchecked") CheckedSupplier<Integer, IOException> fieldGenerator = randomFrom(
+            () -> {
+                builder.value(randomInt());
+                return 1;
+            },
+            () -> {
+                builder.value(randomAlphaOfLength(10));
+                return 1;
+            },
+            () -> {
+                builder.value(randomDouble());
+                return 1;
+            },
+            () -> {
+                if (level < 3) {
+                    // don't need to go too deep
+                    return generateRandomObject(builder, level + 1);
+                } else {
+                    builder.value(0);
+                    return 1;
+                }
+            },
+            () -> {
+                if (level < 5) { // don't need to go too deep
+                    return generateRandomArray(builder, level);
+                } else {
+                    builder.value(0);
+                    return 1;
+                }
+            }
+        );
+        return fieldGenerator.get();
+    }
+
+    private int generateRandomArray(XContentBuilder builder, int level) throws IOException {
+        int tokens = 2;
+        int arraySize = randomInt(3);
+        builder.startArray();
+        for (int i = 0; i < arraySize; i++) {
+            tokens += generateRandomValue(builder, level + 1);
+        }
+        builder.endArray();
+        return tokens;
+    }
+
 }

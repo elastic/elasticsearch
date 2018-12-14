@@ -14,21 +14,16 @@ setup:
 
 ---
 "batched_reduce_size lower limit":
-  - skip:
-      version: " - 5.3.99"
-      reason:  this was added in 5.4.0
   - do:
       catch:      /batchedReduceSize must be >= 2/
       search:
+        rest_total_hits_as_int: true
         index: test_1
         batched_reduce_size: 1
 
 
 ---
 "batched_reduce_size 2 with 5 shards":
-  - skip:
-      version: " - 5.3.99"
-      reason:  this was added in 5.4.0
   - do:
       index:
         index: test_1
@@ -54,6 +49,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         batched_reduce_size: 2
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 

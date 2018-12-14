@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,8 +53,10 @@ public class DistanceUnitTests extends ESTestCase {
         double testValue = 12345.678;
         for (DistanceUnit unit : DistanceUnit.values()) {
             assertThat("Unit can be parsed from '" + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
-            assertThat("Unit can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
-            assertThat("Value can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
+            assertThat("Unit can be parsed from '" + testValue + unit.toString() + "'",
+                DistanceUnit.fromString(unit.toString()), equalTo(unit));
+            assertThat("Value can be parsed from '" + testValue + unit.toString() + "'",
+                DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
         }
     }
 

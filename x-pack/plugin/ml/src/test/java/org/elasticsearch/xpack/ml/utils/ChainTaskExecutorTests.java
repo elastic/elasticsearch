@@ -24,6 +24,7 @@ public class ChainTaskExecutorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final CountDownLatch latch = new CountDownLatch(1);
 
+    @Override
     @After
     public void tearDown() throws Exception {
         try {
@@ -37,8 +38,14 @@ public class ChainTaskExecutorTests extends ESTestCase {
         final List<String> strings = new ArrayList<>();
         ActionListener<Void> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
         ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), false);
-        chainTaskExecutor.add(listener -> { strings.add("first"); listener.onResponse(null); });
-        chainTaskExecutor.add(listener -> { strings.add("second"); listener.onResponse(null); });
+        chainTaskExecutor.add(listener -> {
+            strings.add("first");
+            listener.onResponse(null);
+        });
+        chainTaskExecutor.add(listener -> {
+            strings.add("second");
+            listener.onResponse(null);
+        });
 
         chainTaskExecutor.execute(finalListener);
 
@@ -52,9 +59,17 @@ public class ChainTaskExecutorTests extends ESTestCase {
         ActionListener<Void> finalListener = createBlockingListener(() -> fail(),
                 e -> assertThat(e.getMessage(), equalTo("some error")));
         ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), true);
-        chainTaskExecutor.add(listener -> { strings.add("before"); listener.onResponse(null); });
-        chainTaskExecutor.add(listener -> { throw new RuntimeException("some error"); });
-        chainTaskExecutor.add(listener -> { strings.add("after"); listener.onResponse(null); });
+        chainTaskExecutor.add(listener -> {
+            strings.add("before");
+            listener.onResponse(null);
+        });
+        chainTaskExecutor.add(listener -> {
+            throw new RuntimeException("some error");
+        });
+        chainTaskExecutor.add(listener -> {
+            strings.add("after");
+            listener.onResponse(null);
+        });
 
         chainTaskExecutor.execute(finalListener);
 
@@ -68,9 +83,16 @@ public class ChainTaskExecutorTests extends ESTestCase {
         ActionListener<Void> finalListener = createBlockingListener(() -> fail(),
                 e -> assertThat(e.getMessage(), equalTo("some error 1")));
         ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), true);
-        chainTaskExecutor.add(listener -> { strings.add("before"); listener.onResponse(null); });
-        chainTaskExecutor.add(listener -> { throw new RuntimeException("some error 1"); });
-        chainTaskExecutor.add(listener -> { throw new RuntimeException("some error 2"); });
+        chainTaskExecutor.add(listener -> {
+            strings.add("before");
+            listener.onResponse(null);
+        });
+        chainTaskExecutor.add(listener -> {
+            throw new RuntimeException("some error 1");
+        });
+        chainTaskExecutor.add(listener -> {
+            throw new RuntimeException("some error 2");
+        });
 
         chainTaskExecutor.execute(finalListener);
 
@@ -83,9 +105,17 @@ public class ChainTaskExecutorTests extends ESTestCase {
         final List<String> strings = new ArrayList<>();
         ActionListener<Void> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
         ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), false);
-        chainTaskExecutor.add(listener -> { strings.add("before"); listener.onResponse(null); });
-        chainTaskExecutor.add(listener -> { throw new RuntimeException("some error"); });
-        chainTaskExecutor.add(listener -> { strings.add("after"); listener.onResponse(null); });
+        chainTaskExecutor.add(listener -> {
+            strings.add("before");
+            listener.onResponse(null);
+        });
+        chainTaskExecutor.add(listener -> {
+            throw new RuntimeException("some error");
+        });
+        chainTaskExecutor.add(listener -> {
+            strings.add("after");
+            listener.onResponse(null);
+        });
 
         chainTaskExecutor.execute(finalListener);
 

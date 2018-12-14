@@ -23,7 +23,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PERSISTENT_TASK_ORIGIN;
@@ -111,6 +113,8 @@ public final class AuthorizationUtils {
             case DEPRECATION_ORIGIN:
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
+            case INDEX_LIFECYCLE_ORIGIN:
+            case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
                 break;
             default:
@@ -129,14 +133,14 @@ public final class AuthorizationUtils {
      */
     public static class AsyncAuthorizer {
 
-        private final ActionListener listener;
+        private final ActionListener<Void> listener;
         private final BiConsumer<Role, Role> consumer;
         private final Authentication authentication;
         private volatile Role userRoles;
         private volatile Role runAsRoles;
         private CountDown countDown = new CountDown(2); // we expect only two responses!!
 
-        public AsyncAuthorizer(Authentication authentication, ActionListener listener, BiConsumer<Role, Role> consumer) {
+        public AsyncAuthorizer(Authentication authentication, ActionListener<Void> listener, BiConsumer<Role, Role> consumer) {
             this.consumer = consumer;
             this.listener = listener;
             this.authentication = authentication;

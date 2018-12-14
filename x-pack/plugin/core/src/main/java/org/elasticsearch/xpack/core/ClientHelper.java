@@ -12,11 +12,17 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Utility class to help with the execution of requests made using a {@link Client} such that they
@@ -24,10 +30,22 @@ import java.util.function.Supplier;
  */
 public final class ClientHelper {
 
-    public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+    /**
+     * List of headers that are related to security
+     */
+    public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(AuthenticationServiceField.RUN_AS_USER_HEADER,
+            AuthenticationField.AUTHENTICATION_KEY);
+
+    /**
+     * .
+     * @deprecated use ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME
+     */
+    @Deprecated
+    public static final String ACTION_ORIGIN_TRANSIENT_NAME = ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
     public static final String SECURITY_ORIGIN = "security";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
+    public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
@@ -37,18 +55,20 @@ public final class ClientHelper {
 
     /**
      * Stashes the current context and sets the origin in the current context. The original context is returned as a stored context
+     * @deprecated use ThreadContext.stashWithOrigin
      */
+    @Deprecated
     public static ThreadContext.StoredContext stashWithOrigin(ThreadContext threadContext, String origin) {
-        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
-        threadContext.putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
-        return storedContext;
+        return threadContext.stashWithOrigin(origin);
     }
 
     /**
      * Returns a client that will always set the appropriate origin and ensure the proper context is restored by listeners
+     * @deprecated use {@link OriginSettingClient} instead
      */
+    @Deprecated
     public static Client clientWithOrigin(Client client, String origin) {
-        return new ClientWithOrigin(client, origin);
+        return new OriginSettingClient(client, origin);
     }
 
     /**
@@ -68,9 +88,9 @@ public final class ClientHelper {
      * is wrapped to ensure the proper context is restored
      */
     public static <Request extends ActionRequest, Response extends ActionResponse,
-            RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void executeAsyncWithOrigin(
-            Client client, String origin, Action<Request, Response, RequestBuilder> action, Request request,
-            ActionListener<Response> listener) {
+            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
+        Client client, String origin, Action<Response> action, Request request,
+        ActionListener<Response> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, origin)) {
@@ -78,25 +98,78 @@ public final class ClientHelper {
         }
     }
 
-    private static final class ClientWithOrigin extends FilterClient {
+    /**
+     * Execute a client operation and return the response, try to run an action
+     * with least privileges, when headers exist
+     *
+     * @param headers
+     *            Request headers, ideally including security headers
+     * @param origin
+     *            The origin to fall back to if there are no security headers
+     * @param client
+     *            The client used to query
+     * @param supplier
+     *            The action to run
+     * @return An instance of the response class
+     */
+    public static <T extends ActionResponse> T executeWithHeaders(Map<String, String> headers, String origin, Client client,
+            Supplier<T> supplier) {
+        Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        private final String origin;
-
-        private ClientWithOrigin(Client in, String origin) {
-            super(in);
-            this.origin = origin;
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-                Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-            final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
-            try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashContext()) {
-                in().threadPool().getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
-                super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+        // no security headers, we will have to use the xpack internal user for
+        // our execution by specifying the origin
+        if (filteredHeaders.isEmpty()) {
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), origin)) {
+                return supplier.get();
+            }
+        } else {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashContext()) {
+                client.threadPool().getThreadContext().copyHeaders(filteredHeaders.entrySet());
+                return supplier.get();
             }
         }
     }
 
+    /**
+     * Execute a client operation asynchronously, try to run an action with
+     * least privileges, when headers exist
+     *
+     * @param headers
+     *            Request headers, ideally including security headers
+     * @param origin
+     *            The origin to fall back to if there are no security headers
+     * @param action
+     *            The action to execute
+     * @param request
+     *            The request object for the action
+     * @param listener
+     *            The listener to call when the action is complete
+     */
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, Action<Response> action, Request request,
+                                 ActionListener<Response> listener) {
+
+        Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+
+        // No headers (e.g. security not installed/in use) so execute as origin
+        if (filteredHeaders.isEmpty()) {
+            ClientHelper.executeAsyncWithOrigin(client, origin, action, request, listener);
+        } else {
+            // Otherwise stash the context and copy in the saved headers before executing
+            final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+            try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
+                client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+            }
+        }
+    }
+
+    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
+        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        threadContext.copyHeaders(headers.entrySet());
+        return storedContext;
+    }
 }

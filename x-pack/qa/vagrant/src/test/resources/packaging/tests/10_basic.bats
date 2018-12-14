@@ -30,6 +30,7 @@ setup() {
 
     # Install the archive
     install_archive
+    set_debug_logging
 }
 
 @test "[X-PACK] verify x-pack installation" {

@@ -137,4 +137,91 @@ public class FieldDataTests extends ESTestCase {
         assertEquals(valueBits, asMultiLongs.nextValue());
         assertSame(multiValues, FieldData.sortableLongBitsToDoubles(asMultiLongs));
     }
+
+    private static NumericDocValues asNumericDocValues(Long... values) {
+        return new AbstractNumericDocValues() {
+
+            int docID = -1;
+            
+            @Override
+            public int docID() {
+                return docID;
+            }
+            
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                docID = target;
+                return target < values.length && values[target] != null;
+            }
+            
+            @Override
+            public long longValue() throws IOException {
+                return values[docID];
+            }
+        };
+    }
+
+    public void testReplaceMissingLongs() throws IOException {
+        final NumericDocValues values = asNumericDocValues(null, 3L, 2L, null, 5L, null);
+        final NumericDocValues replaced = FieldData.replaceMissing(values, 4);
+
+        assertTrue(replaced.advanceExact(0));
+        assertEquals(4L, replaced.longValue());
+
+        assertTrue(replaced.advanceExact(1));
+        assertEquals(3L, replaced.longValue());
+
+        assertTrue(replaced.advanceExact(2));
+        assertEquals(2L, replaced.longValue());
+
+        assertTrue(replaced.advanceExact(3));
+        assertEquals(4L, replaced.longValue());
+
+        assertTrue(replaced.advanceExact(4));
+        assertEquals(5L, replaced.longValue());
+
+        assertTrue(replaced.advanceExact(5));
+        assertEquals(4L, replaced.longValue());
+    }
+
+    private static NumericDoubleValues asNumericDoubleValues(Double... values) {
+        return new NumericDoubleValues() {
+
+            int docID = -1;
+            
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                docID = target;
+                return target < values.length && values[target] != null;
+            }
+            
+            @Override
+            public double doubleValue() throws IOException {
+                return values[docID];
+            }
+        };
+    }
+
+    public void testReplaceMissingDoubles() throws IOException {
+        final NumericDoubleValues values = asNumericDoubleValues(null, 1.3, 1.2, null, 1.5, null);
+        final NumericDoubleValues replaced = FieldData.replaceMissing(values, 1.4);
+
+        assertTrue(replaced.advanceExact(0));
+        assertEquals(1.4, replaced.doubleValue(), 0d);
+
+        assertTrue(replaced.advanceExact(1));
+        assertEquals(1.3, replaced.doubleValue(), 0d);
+
+        assertTrue(replaced.advanceExact(2));
+        assertEquals(1.2, replaced.doubleValue(), 0d);
+
+        assertTrue(replaced.advanceExact(3));
+        assertEquals(1.4, replaced.doubleValue(), 0d);
+
+        assertTrue(replaced.advanceExact(4));
+        assertEquals(1.5, replaced.doubleValue(), 0d);
+
+        assertTrue(replaced.advanceExact(5));
+        assertEquals(1.4, replaced.doubleValue(), 0d);
+    }
 }

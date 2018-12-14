@@ -2,7 +2,7 @@
 "Test calendar CRUD":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: cal-job
         body:  >
           {
@@ -15,7 +15,7 @@
   - match: { job_id: "cal-job" }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: cal-job2
         body:  >
           {
@@ -29,7 +29,7 @@
 
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "advent"
         body:  >
           {
@@ -42,7 +42,7 @@
   - match: { description: "This is a calendar about..."}
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: "advent"
   - match: { count: 1 }
   - match:
@@ -53,7 +53,7 @@
   - is_false: type
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "dogs_of_the_year"
         body:  >
           {
@@ -61,83 +61,66 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "cats_of_the_year"
 
   - do:
-      xpack.ml.get_calendars: {}
+      ml.get_calendars: {}
   - match: { count: 3 }
 
   - do:
-      xpack.ml.delete_calendar:
+      ml.delete_calendar:
         calendar_id: "dogs_of_the_year"
 
   - do:
-      xpack.ml.get_calendars: {}
+      ml.get_calendars: {}
   - match: { count: 2 }
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: _all
   - match: { count: 2 }
 
   - do:
       catch: missing
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: "dogs_of_the_year"
-
-  - do:
-      xpack.ml.put_calendar:
-        calendar_id: "new_cal_with_unknown_job_group"
-        body:  >
-          {
-            "job_ids": ["cal-job", "unknown-job-group"]
-          }
-
-  - do:
-      xpack.ml.get_calendars:
-        calendar_id: "new_cal_with_unknown_job_group"
-  - match: { count: 1 }
-  - match:
-      calendars.0:
-        calendar_id: "new_cal_with_unknown_job_group"
-        job_ids: ["cal-job", "unknown-job-group"]
 
 ---
 "Test get calendar given missing":
   - do:
       catch: /No calendar with id \[unknown\]/
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: "unknown"
 
 ---
 "Test put calendar given id contains invalid chars":
   - do:
       catch: bad_request
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "Mayas"
 
 ---
 "Test PageParams":
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "calendar1"
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "calendar2"
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "calendar3"
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         from: 2
   - match: { count: 3 }
   - length: { calendars: 1}
   - match: { calendars.0.calendar_id: calendar3 }
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         from: 1
         size: 1
   - match: { count: 3 }
@@ -148,7 +131,7 @@
 "Test PageParams with ID is invalid":
   - do:
       catch: bad_request
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: tides
         size: 10
 
@@ -156,26 +139,26 @@
 "Test cannot overwrite an exisiting calendar":
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "mayan"
 
   - do:
       catch: bad_request
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "mayan"
 
 ---
 "Test cannot create calendar with name _all":
   - do:
       catch: bad_request
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "_all"
 
 ---
 "Test deleted job is removed from calendar":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: cal-crud-test-delete
         body:  >
           {
@@ -188,7 +171,7 @@
   - match: { job_id: "cal-crud-test-delete" }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "delete-test"
         body:  >
           {
@@ -196,12 +179,12 @@
           }
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: cal-crud-test-delete
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: "delete-test"
   - match: { count: 1 }
   - match: { calendars.0.job_ids: [] }
@@ -210,11 +193,11 @@
 "Test update calendar job ids":
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "wildlife"
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: tiger
         body:  >
           {
@@ -227,7 +210,7 @@
   - match: { job_id: "tiger" }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: otter
         body:  >
           {
@@ -240,14 +223,14 @@
   - match: { job_id: "otter" }
 
   - do:
-      xpack.ml.put_calendar_job:
+      ml.put_calendar_job:
         calendar_id: "wildlife"
         job_id: "tiger"
   - match: { calendar_id: "wildlife" }
   - match: { job_ids.0: "tiger" }
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: "wildlife"
   - match: { count: 1 }
   - match: { calendars.0.calendar_id: "wildlife" }
@@ -255,7 +238,7 @@
   - match: { calendars.0.job_ids.0: "tiger" }
 
   - do:
-      xpack.ml.delete_calendar_job:
+      ml.delete_calendar_job:
         calendar_id: "wildlife"
         job_id: "tiger"
   - match: { calendar_id: "wildlife" }
@@ -263,12 +246,12 @@
 
   - do:
       catch: /Cannot remove \[otter\] as it is not present in calendar \[wildlife\]/
-      xpack.ml.delete_calendar_job:
+      ml.delete_calendar_job:
         calendar_id: "wildlife"
         job_id: "otter"
 
   - do:
-      xpack.ml.get_calendars:
+      ml.get_calendars:
         calendar_id: "wildlife"
   - match: { count: 1 }
   - match: { calendars.0.calendar_id: "wildlife" }
@@ -276,18 +259,18 @@
 
   - do:
       catch: /Cannot remove \[missing_job\] as it is not present in calendar \[wildlife\]/
-      xpack.ml.delete_calendar_job:
+      ml.delete_calendar_job:
         calendar_id: "wildlife"
         job_id: "missing_job"
 ---
 "Test calendar get events":
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "events"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "events"
         body:  >
           {
@@ -299,7 +282,7 @@
           }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "events"
   - length: { events: 4 }
   - match: { events.0.description: "event 1" }
@@ -310,7 +293,7 @@
   - set: { events.0.event_id: event_1_id }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "events"
         from: 1
         size: 2
@@ -319,7 +302,7 @@
   - match: { events.1.description: "event 3" }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "events"
         end: "2017-12-12T00:00:00Z"
   - length: { events: 2 }
@@ -327,7 +310,7 @@
   - match: { events.1.description: "event 2" }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "events"
         start: "2017-12-05T03:00:00Z"
   - length: { events: 3 }
@@ -336,7 +319,7 @@
   - match: { events.2.description: "event 4" }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "events"
         start: "2017-12-02T00:00:00Z"
         end: "2017-12-12T00:00:00Z"
@@ -344,11 +327,11 @@
   - match: { events.0.description: "event 2" }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "events-2"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "events-2"
         body: >
           {
@@ -359,7 +342,7 @@
 
   - do:
       catch: bad_request
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "events-2"
         body: >
           {
@@ -370,18 +353,18 @@
 # Event is not in calendar events-2
   - do:
       catch: bad_request
-      xpack.ml.delete_calendar_event:
+      ml.delete_calendar_event:
         calendar_id: "events-2"
         event_id: $event_1_id
 
   - do:
-      xpack.ml.delete_calendar_event:
+      ml.delete_calendar_event:
         calendar_id: "events"
         event_id: $event_1_id
 
   - do:
       catch: missing
-      xpack.ml.delete_calendar_event:
+      ml.delete_calendar_event:
         calendar_id: "events"
         event_id: "missing event"
 
@@ -390,11 +373,11 @@
 "Test delete calendar deletes events":
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "cal-foo"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "cal-foo"
         body: >
           {
@@ -405,11 +388,11 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "cal-bar"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "cal-bar"
         body: >
           {
@@ -419,7 +402,7 @@
           }
 
   - do:
-      xpack.ml.delete_calendar:
+      ml.delete_calendar:
         calendar_id: "cal-foo"
 
 # Check the event from calendar 1 is deleted
@@ -451,11 +434,11 @@
 "Test get all calendar events":
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "dave-holidays"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "dave-holidays"
         body: >
           {
@@ -465,11 +448,11 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "tom-holidays"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "tom-holidays"
         body: >
           {
@@ -479,7 +462,7 @@
           }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "_all"
   - length: { events: 4 }
 
@@ -487,7 +470,7 @@
 "Test get calendar events for job":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: cal-crud-job-with-events
         body:  >
           {
@@ -499,7 +482,7 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "dave-holidays"
         body: >
           {
@@ -507,7 +490,7 @@
           }
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "dave-holidays"
         body: >
           {
@@ -516,7 +499,7 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "tom-holidays"
         body: >
           {
@@ -524,7 +507,7 @@
           }
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "tom-holidays"
         body: >
           {
@@ -534,11 +517,11 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "not-used-by-job"
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "not-used-by-job"
         body: >
           {
@@ -551,19 +534,19 @@
 # Calendar Id must be _all if a job id is used
   - do:
       catch: /action_request_validation_exception/
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: "dave-holiday"
         job_id: cal-crud-job-with-events
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: _all
         job_id: cal-crud-job-with-events
   - match: { count: 4 }
   - length: { events: 4 }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: _all
         start: "2018-01-01T00:00:00Z"
         job_id: cal-crud-job-with-events
@@ -576,7 +559,7 @@
 "Test get calendar events with job groups":
 # Test job group
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: cal-crud-job-with-events-group
         body:  >
           {
@@ -589,7 +572,7 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "ben-holidays"
         body: >
           {
@@ -597,7 +580,7 @@
           }
 
   - do:
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "ben-holidays"
         body: >
           {
@@ -607,7 +590,7 @@
           }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: _all
         job_id: "cal-crud-job-with-events-group"
   - match: { count: 2 }
@@ -616,7 +599,7 @@
   - match: { events.1.description: snow }
 
   - do:
-      xpack.ml.get_calendar_events:
+      ml.get_calendar_events:
         calendar_id: _all
         job_id: "ben-holidays-group"
   - match: { count: 2 }
@@ -629,7 +612,7 @@
 
   - do:
       catch: /At least 1 event is required/
-      xpack.ml.post_calendar_events:
+      ml.post_calendar_events:
         calendar_id: "foo"
         body: >
           {
@@ -641,7 +624,7 @@
 
   - do:
       catch: /No calendar with id \[unknown\]/
-      xpack.ml.delete_calendar_event:
+      ml.delete_calendar_event:
         calendar_id: "unknown"
         event_id: "event_1"
 
@@ -650,14 +633,14 @@
 
   - do:
       catch: /No calendar with id \[unknown\]/
-      xpack.ml.delete_calendar_job:
+      ml.delete_calendar_job:
         calendar_id: "unknown"
         job_id: "missing_calendar"
 
 ---
 "Test list of job Ids":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: foo-a
         body:  >
           {
@@ -669,7 +652,7 @@
           }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: foo-b
         body:  >
           {
@@ -681,7 +664,7 @@
           }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: bar-a
         body:  >
           {
@@ -693,7 +676,7 @@
           }
 
   - do:
-      xpack.ml.put_calendar:
+      ml.put_calendar:
         calendar_id: "expression"
         body: >
           {
@@ -701,16 +684,119 @@
           }
 
   - do:
-      xpack.ml.put_calendar_job:
+      ml.put_calendar_job:
         calendar_id: "expression"
         job_id: "foo-a,foo-b"
   - match: { calendar_id: "expression" }
   - length: { job_ids: 3 }
 
   - do:
-      xpack.ml.delete_calendar_job:
+      ml.delete_calendar_job:
         calendar_id: "expression"
         job_id: "foo-a,foo-b"
   - match: { calendar_id: "expression" }
   - length: { job_ids: 1 }
   - match: { job_ids.0: "bar-a" }
+
+---
+"Test calendar actions with new job group":
+  - do:
+      ml.put_job:
+        job_id: calendar-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "cal_with_new_job_group"
+        body:  >
+          {
+            "job_ids": ["calendar-job", "new-job-group"]
+          }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "cal_with_new_job_group"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "cal_with_new_job_group"
+        job_ids: ["calendar-job", "new-job-group"]
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "cal_with_new_job_group"
+        body: >
+          {
+            "events" : [{ "description": "beach", "start_time": "2018-05-01T00:00:00Z", "end_time": "2018-05-06T00:00:00Z" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: cal_with_new_job_group
+  - length: { events: 1 }
+  - match: { events.0.description: beach }
+
+  - do:
+      ml.delete_calendar:
+        calendar_id: "cal_with_new_job_group"
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "started_empty_calendar"
+
+  - do:
+      ml.put_calendar_job:
+        calendar_id: "started_empty_calendar"
+        job_id: "new-group"
+  - match: { calendar_id: "started_empty_calendar" }
+  - length: { job_ids: 1 }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "started_empty_calendar"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "started_empty_calendar"
+        job_ids: ["new-group"]
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "started_empty_calendar"
+        body: >
+          {
+            "events" : [{ "description": "beach", "start_time": "2018-05-01T00:00:00Z", "end_time": "2018-05-06T00:00:00Z" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "started_empty_calendar"
+  - length: { events: 1 }
+  - match: { events.0.description: beach }
+  - set: { events.0.event_id: beach_event_id }
+
+  - do:
+      ml.delete_calendar_event:
+        calendar_id: "started_empty_calendar"
+        event_id: $beach_event_id
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "started_empty_calendar"
+  - length: { events: 0 }
+
+  - do:
+      ml.delete_calendar:
+        calendar_id: "started_empty_calendar"
+
+  - do:
+      catch: missing
+      ml.get_calendars:
+        calendar_id: "started_empty_calendar"

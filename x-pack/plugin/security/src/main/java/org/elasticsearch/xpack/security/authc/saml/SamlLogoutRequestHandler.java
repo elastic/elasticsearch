@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.EncryptedID;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -42,8 +41,8 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
 
     private static final String REQUEST_TAG_NAME = "LogoutRequest";
 
-    SamlLogoutRequestHandler(RealmConfig realmConfig, Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
-        super(realmConfig, clock, idp, sp, maxSkew);
+    SamlLogoutRequestHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
+        super(clock, idp, sp, maxSkew);
     }
 
     /**

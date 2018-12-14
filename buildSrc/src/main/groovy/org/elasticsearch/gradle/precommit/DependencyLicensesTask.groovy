@@ -109,6 +109,10 @@ public class DependencyLicensesTask extends DefaultTask {
         mappings.put(from, to)
     }
 
+    public LinkedHashMap<String, String> getMappings() {
+        return new LinkedHashMap<>(mappings)
+    }
+
     /**
      * Add a rule which will skip SHA checking for the given dependency name. This should be used for
      * locally build dependencies, which cause the sha to change constantly.
@@ -129,10 +133,6 @@ public class DependencyLicensesTask extends DefaultTask {
             throw new GradleException("Licences dir ${licensesDir} does not exist, but there are dependencies")
         }
 
-
-        // order is the same for keys and values iteration since we use a linked hashmap
-        List<String> mapped = new ArrayList<>(mappings.values())
-        Pattern mappingsPattern = Pattern.compile('(' + mappings.keySet().join(')|(') + ')')
         Map<String, Integer> licenses = new HashMap<>()
         Map<String, Integer> notices = new HashMap<>()
         Set<File> shaFiles = new HashSet<File>()
@@ -151,7 +151,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
         for (File dependency : dependencies) {
             String jarName = dependency.getName()
-            String depName = jarName - ~/\-\d+.*/
+            String depName = jarName - ~/\-v?\d+.*/
             if (ignoreShas.contains(depName)) {
                 // local deps should not have sha files!
                 if (getShaFile(jarName).exists()) {
@@ -162,16 +162,10 @@ public class DependencyLicensesTask extends DefaultTask {
                 checkSha(dependency, jarName, shaFiles)
             }
 
-            logger.info("Checking license/notice for " + depName)
-            Matcher match = mappingsPattern.matcher(depName)
-            if (match.matches()) {
-                int i = 0
-                while (i < match.groupCount() && match.group(i + 1) == null) ++i;
-                logger.info("Mapped dependency name ${depName} to ${mapped.get(i)} for license check")
-                depName = mapped.get(i)
-            }
-            checkFile(depName, jarName, licenses, 'LICENSE')
-            checkFile(depName, jarName, notices, 'NOTICE')
+            final String dependencyName = getDependencyName(mappings, depName)
+            logger.info("mapped dependency name ${depName} to ${dependencyName} for license/notice check")
+            checkFile(dependencyName, jarName, licenses, 'LICENSE')
+            checkFile(dependencyName, jarName, notices, 'NOTICE')
         }
 
         licenses.each { license, count ->
@@ -187,6 +181,19 @@ public class DependencyLicensesTask extends DefaultTask {
         if (shaFiles.isEmpty() == false) {
             throw new GradleException("Unused sha files found: \n${shaFiles.join('\n')}")
         }
+    }
+
+    public static String getDependencyName(final LinkedHashMap<String, String> mappings, final String dependencyName) {
+        // order is the same for keys and values iteration since we use a linked hashmap
+        List<String> mapped = new ArrayList<>(mappings.values())
+        Pattern mappingsPattern = Pattern.compile('(' + mappings.keySet().join(')|(') + ')')
+        Matcher match = mappingsPattern.matcher(dependencyName)
+        if (match.matches()) {
+            int i = 0
+            while (i < match.groupCount() && match.group(i + 1) == null) ++i;
+            return mapped.get(i)
+        }
+        return dependencyName
     }
 
     private File getShaFile(String jarName) {

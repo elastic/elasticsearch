@@ -49,7 +49,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String host, int port) {
-        return new RemoteInfo(randomAlphaOfLength(5), host, port, new BytesArray("test"), null, null, emptyMap(),
+        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, new BytesArray("test"), null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
@@ -63,7 +63,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedByPrefix() {
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, new BytesArray("test"), null, null, emptyMap(),
+                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, new BytesArray("test"), null, null, emptyMap(),
                         RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
                 newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200));

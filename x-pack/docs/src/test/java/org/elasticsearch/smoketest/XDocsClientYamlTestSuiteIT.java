@@ -20,7 +20,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.xpack.test.rest.XPackRestIT;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -53,9 +52,13 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     }
 
     @Override
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) {
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     /**
@@ -85,7 +88,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
                                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
-                        break;
+                        throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":
                         throw new AssertionError("waiting until stopping state reached stopped state to start again");
                     case "starting":
@@ -103,7 +106,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
-        return testName != null && testName.contains("watcher/");
+        return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
     }
 
     @Override
@@ -114,13 +117,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     @Override
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
-        return testName != null && testName.contains("ml/");
-    }
-
-    @Override
-    protected boolean isRollupTest() {
-        String testName = getTestName();
-        return testName != null && testName.contains("rollup/");
+        return testName != null && (testName.contains("ml/") || testName.contains("ml\\"));
     }
 
     /**
@@ -128,7 +125,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
      */
     @After
     public void deleteUsers() throws Exception {
-        ClientYamlTestResponse response = getAdminExecutionContext().callApi("xpack.security.get_user", emptyMap(), emptyList(),
+        ClientYamlTestResponse response = getAdminExecutionContext().callApi("security.get_user", emptyMap(), emptyList(),
                 emptyMap());
         @SuppressWarnings("unchecked")
         Map<String, Object> users = (Map<String, Object>) response.getBody();
@@ -137,7 +134,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
             Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
             if (reserved == null || reserved == false) {
                 logger.warn("Deleting leftover user {}", user);
-                getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
         }
     }

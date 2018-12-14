@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -43,7 +44,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         try {
             // Empty store
             {
-                recoveryEmptyReplica(replica);
+                recoveryEmptyReplica(replica, true);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
                 recoveryTarget.decRef();
@@ -91,6 +92,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.close("test", false);
                 final List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
                 IndexWriterConfig iwc = new IndexWriterConfig(null)
+                    .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                     .setCommitOnClose(false)
                     .setMergePolicy(NoMergePolicy.INSTANCE)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND);

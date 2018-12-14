@@ -10,7 +10,7 @@ GET /_remote/info
 ----------------------------------
 // CONSOLE
 
-This command returns returns connection and endpoint information keyed by
+This command returns connection and endpoint information keyed by
 the configured remote cluster alias.
 
 [float]
@@ -25,7 +25,7 @@ the configured remote cluster alias.
 `num_nodes_connected`::
     The number of connected nodes in the remote cluster.
 
-`max_connection_per_cluster`::
+`max_connections_per_cluster`::
 	The maximum number of connections maintained for the remote cluster.
 
 `initial_connect_timeout`::

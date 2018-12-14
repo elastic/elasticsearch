@@ -19,6 +19,15 @@
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
+
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -29,17 +38,11 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
-
-import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
@@ -225,10 +228,17 @@ public class CollectionUtils {
         return ints.stream().mapToInt(s -> s).toArray();
     }
 
-    public static void ensureNoSelfReferences(Object value) {
+    /**
+     * Deeply inspects a Map, Iterable, or Object array looking for references back to itself.
+     * @throws IllegalArgumentException if a self-reference is found
+     * @param value The object to evaluate looking for self references
+     * @param messageHint A string to be included in the exception message if the call fails, to provide
+     *                    more context to the handler of the exception
+     */
+    public static void ensureNoSelfReferences(Object value, String messageHint) {
         Iterable<?> it = convert(value);
         if (it != null) {
-            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()));
+            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
         }
     }
 
@@ -237,7 +247,8 @@ public class CollectionUtils {
             return null;
         }
         if (value instanceof Map) {
-            return ((Map<?,?>) value).values();
+            Map<?,?> map = (Map<?,?>) value;
+            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
         } else if (value instanceof Object[]) {
@@ -247,13 +258,15 @@ public class CollectionUtils {
         }
     }
 
-    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors) {
+    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors,
+                                               String messageHint) {
         if (value != null) {
             if (ancestors.add(originalReference) == false) {
-                throw new IllegalArgumentException("Iterable object is self-referencing itself");
+                String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
+                throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
             }
             for (Object o : value) {
-                ensureNoSelfReferences(convert(o), o, ancestors);
+                ensureNoSelfReferences(convert(o), o, ancestors, messageHint);
             }
             ancestors.remove(originalReference);
         }
@@ -294,7 +307,8 @@ public class CollectionUtils {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1, final BytesRefArray bytes, final int[] indices) {
+    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1,
+                             final BytesRefArray bytes, final int[] indices) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;

@@ -16,7 +16,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import javax.crypto.KeyGenerator;

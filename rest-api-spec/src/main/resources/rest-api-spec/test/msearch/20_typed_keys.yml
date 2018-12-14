@@ -1,9 +1,5 @@
 ---
 setup:
-  - skip:
-      version: " - 5.3.99"
-      reason: typed_keys parameter was added in 5.4.0
-
   - do:
       indices.create:
         index: test-0
@@ -63,6 +59,7 @@ setup:
 "Multisearch test with typed_keys parameter":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           # Testing aggegrations
@@ -97,6 +94,7 @@ setup:
 "Multisearch test with typed_keys parameter for sampler and significant terms":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           - index: test-*

@@ -1,0 +1,24 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.core.beats;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackField;
+
+import java.io.IOException;
+
+public final class BeatsFeatureSetUsage extends XPackFeatureSet.Usage {
+
+    public BeatsFeatureSetUsage(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    public BeatsFeatureSetUsage(boolean available, boolean enabled) {
+        super(XPackField.BEATS, available, enabled);
+    }
+
+}

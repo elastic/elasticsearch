@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
@@ -60,11 +59,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
         return false;
-    }
-
-    @Before
-    public void deleteAllWatchHistoryIndices() {
-        assertAcked(client().admin().indices().prepareDelete(HistoryStoreField.INDEX_PREFIX + "*"));
     }
 
     public void testLoadMalformedWatchRecord() throws Exception {
@@ -141,8 +135,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
         startWatcher();
 
-        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-        assertThat(response.getWatchesCount(), equalTo(1L));
+        assertBusy(() -> {
+            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+            assertThat(response.getWatchesCount(), equalTo(1L));
+        });
     }
 
     @AwaitsFix(bugUrl = "Supposedly fixed; https://github.com/elastic/x-pack-elasticsearch/issues/1915")
@@ -160,7 +156,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                             .setSource(watchBuilder()
                                     .trigger(schedule(cron("0 0/5 * * * ? 2050")))
                                     .input(searchInput(request))
-                                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                                    .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
                                     .buildAsBytes(XContentType.JSON), XContentType.JSON
                             )
                             .setWaitForActiveShards(ActiveShardCount.ALL));
@@ -280,8 +276,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
             refresh();
             SearchResponse searchResponse = client().prepareSearch("output").get();
-            assertThat(searchResponse.getHits().getTotalHits(), is(greaterThanOrEqualTo(numberOfWatches)));
-            long successfulWatchExecutions = searchResponse.getHits().getTotalHits();
+            assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
+            long successfulWatchExecutions = searchResponse.getHits().getTotalHits().value;
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
             SearchResponse historySearchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setSize(10000).get();
@@ -354,7 +350,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // the actual documents are in the output index
             refresh();
             SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
-            assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo((long) numRecords));
+            assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
             for (int i = 0; i < numRecords; i++) {
                 assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"),
                         is(ExecutionState.EXECUTED.id()));

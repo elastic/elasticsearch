@@ -37,42 +37,38 @@ public class LicenseVerifier {
      * @param license to verify
      * @return true if valid, false otherwise
      */
-    public static boolean verifyLicense(final License license, byte[] encryptedPublicKeyData) {
+    public static boolean verifyLicense(final License license, byte[] publicKeyData) {
         byte[] signedContent = null;
-        byte[] signatureHash = null;
+        byte[] publicKeyFingerprint = null;
         try {
             byte[] signatureBytes = Base64.getDecoder().decode(license.signature());
             ByteBuffer byteBuffer = ByteBuffer.wrap(signatureBytes);
+            @SuppressWarnings("unused")
             int version = byteBuffer.getInt();
             int magicLen = byteBuffer.getInt();
             byte[] magic = new byte[magicLen];
             byteBuffer.get(magic);
             int hashLen = byteBuffer.getInt();
-            signatureHash = new byte[hashLen];
-            byteBuffer.get(signatureHash);
+            publicKeyFingerprint = new byte[hashLen];
+            byteBuffer.get(publicKeyFingerprint);
             int signedContentLen = byteBuffer.getInt();
             signedContent = new byte[signedContentLen];
             byteBuffer.get(signedContent);
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             license.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
             Signature rsa = Signature.getInstance("SHA512withRSA");
-            rsa.initVerify(CryptUtils.readEncryptedPublicKey(encryptedPublicKeyData));
+            rsa.initVerify(CryptUtils.readPublicKey(publicKeyData));
             BytesRefIterator iterator = BytesReference.bytes(contentBuilder).iterator();
             BytesRef ref;
             while((ref = iterator.next()) != null) {
                 rsa.update(ref.bytes, ref.offset, ref.length);
             }
-            return rsa.verify(signedContent)
-                    && Arrays.equals(Base64.getEncoder().encode(encryptedPublicKeyData), signatureHash);
+            return rsa.verify(signedContent);
         } catch (IOException | NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
             throw new IllegalStateException(e);
         } finally {
-            Arrays.fill(encryptedPublicKeyData, (byte) 0);
             if (signedContent != null) {
                 Arrays.fill(signedContent, (byte) 0);
-            }
-            if (signatureHash != null) {
-                Arrays.fill(signatureHash, (byte) 0);
             }
         }
     }

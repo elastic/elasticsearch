@@ -50,7 +50,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         super(
                 SearchHits.readSearchHits(in),
                 in.readBoolean() ? InternalAggregations.readAggregations(in) : null,
-                in.readBoolean() ? Suggest.readSuggest(in) : null,
+                in.readBoolean() ? new Suggest(in) : null,
                 in.readBoolean(),
                 in.readOptionalBoolean(),
                 in.readOptionalWriteable(SearchProfileShardResults::new),
@@ -62,7 +62,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
         out.writeOptionalStreamable((InternalAggregations)aggregations);
-        out.writeOptionalStreamable(suggest);
+        out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);

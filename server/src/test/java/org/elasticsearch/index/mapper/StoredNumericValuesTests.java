@@ -28,13 +28,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.Collections;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -84,9 +85,11 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(
-                Collections.emptySet(), Collections.singletonList("field*"), false);
+        Set<String> fieldNames = Sets.newHashSet("field1", "field2", "field3", "field4", "field5",
+            "field6", "field7", "field8", "field9", "field10");
+        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
         searcher.doc(0, fieldsVisitor);
+
         fieldsVisitor.postProcess(mapperService);
         assertThat(fieldsVisitor.fields().size(), equalTo(10));
         assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));

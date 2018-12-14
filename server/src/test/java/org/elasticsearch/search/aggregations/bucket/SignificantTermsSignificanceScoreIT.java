@@ -132,7 +132,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                     );
         }
 
-        SearchResponse response = request.execute().actionGet();
+        SearchResponse response = request.get();
         assertSearchResponse(response);
         StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
@@ -154,7 +154,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         // we run the same test again but this time we do not call assertSearchResponse() before the assertions
         // the reason is that this would trigger toXContent and we would like to check that this has no potential side effects
 
-        response = request.execute().actionGet();
+        response = request.get();
 
         classes = (StringTerms) response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
@@ -283,7 +283,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));
         }
 
-        SearchResponse response = request.execute().actionGet();
+        SearchResponse response = request.get();
 
 
         assertSearchResponse(response);
@@ -392,7 +392,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                             .minDocCount(1)));
         }
 
-        request.execute().actionGet();
+        request.get();
 
     }
 
@@ -437,7 +437,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                                     significanceHeuristicExpectingSuperset)));
         }
 
-        SearchResponse response1 = request1.execute().actionGet();
+        SearchResponse response1 = request1.get();
         assertSearchResponse(response1);
 
         SearchRequestBuilder request2;
@@ -470,7 +470,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                     .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));
         }
 
-        SearchResponse response2 = request2.execute().actionGet();
+        SearchResponse response2 = request2.get();
 
         StringTerms classes = response1.getAggregations().get("class");
 
@@ -522,7 +522,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .significanceHeuristic(heuristic)
                             .minDocCount(1).shardSize(1000).size(1000)));
         }
-        SearchResponse response = request.execute().actionGet();
+        SearchResponse response = request.get();
         assertSearchResponse(response);
 
         assertSearchResponse(response);
@@ -600,7 +600,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .significanceHeuristic(scriptHeuristic)
                             .minDocCount(1).shardSize(2).size(2)));
         }
-        SearchResponse response = request.execute().actionGet();
+        SearchResponse response = request.get();
         assertSearchResponse(response);
         for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
             SignificantTerms sigTerms = classBucket.getAggregations().get("mySignificantTerms");

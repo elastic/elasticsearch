@@ -22,8 +22,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.persistent.StartPersistentTaskAction.Request;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
 import java.util.Collections;
@@ -32,17 +32,12 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
 
     @Override
     protected Request createTestInstance() {
-        TestParams testParams;
+        TestParams testParams = new TestParams();
         if (randomBoolean()) {
-            testParams = new TestParams();
-            if (randomBoolean()) {
-                testParams.setTestParam(randomAlphaOfLengthBetween(1, 20));
-            }
-            if (randomBoolean()) {
-                testParams.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
-            }
-        } else {
-            testParams = null;
+            testParams.setTestParam(randomAlphaOfLengthBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            testParams.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
         }
         return new Request(UUIDs.base64UUID(), randomAlphaOfLengthBetween(1, 20), testParams);
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.http.ConnectionClosedException;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
@@ -51,7 +52,8 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertThat(pidFileLines, hasSize(1));
         final int pid = Integer.parseInt(pidFileLines.get(0));
         Files.delete(pidFile);
-        IOException e = expectThrows(IOException.class, () -> client().performRequest("GET", "/_die_with_dignity"));
+        IOException e = expectThrows(IOException.class,
+                () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
         Matcher<IOException> failureMatcher = instanceOf(ConnectionClosedException.class);
         if (Constants.WINDOWS) {
             /*
@@ -88,14 +90,14 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         final Iterator<String> it = lines.iterator();
 
-        boolean fatalErrorOnTheNetworkLayer = false;
+        boolean fatalError = false;
         boolean fatalErrorInThreadExiting = false;
 
-        while (it.hasNext() && (fatalErrorOnTheNetworkLayer == false || fatalErrorInThreadExiting == false)) {
+        while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
             final String line = it.next();
-            if (line.contains("fatal error on the network layer")) {
-                fatalErrorOnTheNetworkLayer = true;
-            } else if (line.matches(".*\\[ERROR\\]\\[o.e.b.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
+            if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.ExceptionsHelper\\s*\\] \\[node-0\\] fatal error")) {
+                fatalError = true;
+            } else if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
                     + " fatal error in thread \\[Thread-\\d+\\], exiting$")) {
                 fatalErrorInThreadExiting = true;
                 assertTrue(it.hasNext());
@@ -103,7 +105,7 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         }
 
-        assertTrue(fatalErrorOnTheNetworkLayer);
+        assertTrue(fatalError);
         assertTrue(fatalErrorInThreadExiting);
     }
 

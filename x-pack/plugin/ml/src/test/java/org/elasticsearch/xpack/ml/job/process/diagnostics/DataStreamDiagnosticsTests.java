@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -20,6 +21,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     private static final long BUCKET_SPAN = 60000;
     private Job job;
+    private DataCounts dataCounts;
 
     @Before
     public void setUpMocks() {
@@ -32,10 +34,11 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         builder.setAnalysisConfig(acBuilder);
         builder.setDataDescription(new DataDescription.Builder());
         job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), null);
+        dataCounts = new DataCounts(job.getId());
     }
 
     public void testIncompleteBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(1000);
         d.checkRecord(2000);
@@ -81,7 +84,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testSimple() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(70000);
         d.checkRecord(130000);
@@ -103,7 +106,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testSimpleReverse() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(610000);
         d.checkRecord(550000);
@@ -126,7 +129,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     public void testWithLatencyLessThanTenBuckets() {
         job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), TimeValue.timeValueMillis(3 * BUCKET_SPAN));
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         long timestamp = 70000;
         while (timestamp < 70000 + 20 * BUCKET_SPAN) {
@@ -141,7 +144,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     public void testWithLatencyGreaterThanTenBuckets() {
         job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), TimeValue.timeValueMillis(13 * BUCKET_SPAN + 10000));
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         long timestamp = 70000;
         while (timestamp < 70000 + 20 * BUCKET_SPAN) {
@@ -155,7 +158,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testEmptyBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(10000);
         d.checkRecord(70000);
@@ -177,7 +180,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testEmptyBucketsStartLater() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(1110000);
         d.checkRecord(1170000);
@@ -199,7 +202,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testSparseBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -227,7 +230,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * signal
      */
     public void testSparseBucketsLast() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -255,7 +258,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * signal on the 2nd to last
      */
     public void testSparseBucketsLastTwo() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -280,7 +283,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testMixedEmptyAndSparseBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -308,7 +311,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * whether counts are right.
      */
     public void testEmptyBucketsLongerOutage() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(10000);
         d.checkRecord(70000);
@@ -336,7 +339,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * The number of sparse buckets should not be to much, it could be normal.
      */
     public void testSparseBucketsLongerPeriod() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -374,7 +377,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testFlushAfterZeroRecords() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
         d.flush();
         assertEquals(0, d.getBucketCount());
     }

@@ -37,7 +37,7 @@ public enum ThreadingModel {
     }
 
     /**
-     * <tt>true</tt> if the actual operation the action represents will be executed
+     * {@code true} if the actual operation the action represents will be executed
      * on a different thread than the calling thread (assuming it will be executed
      * on the same node).
      */
@@ -46,7 +46,7 @@ public enum ThreadingModel {
     }
 
     /**
-     * <tt>true</tt> if the invocation of the action result listener will be executed
+     * {@code true} if the invocation of the action result listener will be executed
      * on a different thread (than the calling thread or an "expensive" thread, like the
      * IO thread).
      */

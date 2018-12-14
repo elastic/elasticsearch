@@ -28,7 +28,8 @@ import java.util.List;
 /**
  * A task that can update the cluster state.
  */
-public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+public abstract class ClusterStateUpdateTask
+        implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -41,7 +42,8 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
     }
 
     @Override
-    public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
+    public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks)
+            throws Exception {
         ClusterState result = execute(currentState);
         return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
@@ -61,6 +63,12 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
      * A callback called when execute fails.
      */
     public abstract void onFailure(String source, Exception e);
+
+    @Override
+    public final void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+        // final, empty implementation here as this method should only be defined in combination
+        // with a batching executor as it will always be executed within the system context.
+    }
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call

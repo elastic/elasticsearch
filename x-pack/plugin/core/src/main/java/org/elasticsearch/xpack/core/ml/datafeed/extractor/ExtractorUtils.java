@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -26,7 +26,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ExtractorUtils {
 
-    private static final Logger LOGGER = Loggers.getLogger(ExtractorUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExtractorUtils.class);
     private static final String EPOCH_MILLIS = "epoch_millis";
 
     private ExtractorUtils() {}
@@ -83,7 +83,7 @@ public final class ExtractorUtils {
      * @param aggregations List of aggregations
      * @return A {@link HistogramAggregationBuilder} or a {@link DateHistogramAggregationBuilder}
      */
-    public static AggregationBuilder getHistogramAggregation(List<AggregationBuilder> aggregations) {
+    public static AggregationBuilder getHistogramAggregation(Collection<AggregationBuilder> aggregations) {
         if (aggregations.isEmpty()) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM));
         }
@@ -91,7 +91,7 @@ public final class ExtractorUtils {
             throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM_NO_SIBLINGS);
         }
 
-        AggregationBuilder agg = aggregations.get(0);
+        AggregationBuilder agg = aggregations.iterator().next();
         if (isHistogram(agg)) {
             return agg;
         } else {
@@ -139,7 +139,7 @@ public final class ExtractorUtils {
         }
     }
 
-    static long validateAndGetCalendarInterval(String calendarInterval) {
+    public static long validateAndGetCalendarInterval(String calendarInterval) {
         TimeValue interval;
         DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
         if (dateTimeUnit != null) {

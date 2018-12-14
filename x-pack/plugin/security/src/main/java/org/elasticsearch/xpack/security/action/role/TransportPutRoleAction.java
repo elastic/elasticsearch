@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.security.action.role;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
@@ -24,15 +22,13 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
     private final NativeRolesStore rolesStore;
 
     @Inject
-    public TransportPutRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                  NativeRolesStore rolesStore, TransportService transportService) {
-        super(settings, PutRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutRoleRequest::new);
+    public TransportPutRoleAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
+        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new);
         this.rolesStore = rolesStore;
     }
 
     @Override
-    protected void doExecute(final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
+    protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
         final String name = request.roleDescriptor().getName();
         if (ReservedRolesStore.isReserved(name)) {
             listener.onFailure(new IllegalArgumentException("role [" + name + "] is reserved and cannot be modified."));

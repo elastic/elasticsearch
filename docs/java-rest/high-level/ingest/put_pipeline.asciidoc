@@ -1,0 +1,83 @@
+[[java-rest-high-ingest-put-pipeline]]
+=== Put Pipeline API
+
+[[java-rest-high-ingest-put-pipeline-request]]
+==== Put Pipeline Request
+
+A `PutPipelineRequest` requires an `id` argument, a source and a `XContentType`. The source consists
+of a description and a list of `Processor` objects.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-request]
+--------------------------------------------------
+<1> The pipeline id
+<2> The source for the pipeline as a `ByteArray`.
+<3> The XContentType for the pipeline source supplied above.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the pipeline creation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the pipeline creation as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-ingest-put-pipeline-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-execute]
+--------------------------------------------------
+<1> Execute the request and get back the response in a WritePipelineResponse object.
+
+[[java-rest-high-ingest-put-pipeline-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a put pipeline request requires both the `PutPipelineRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-execute-async]
+--------------------------------------------------
+<1> The `PutPipelineRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `WritePipelineResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-ingest-put-pipeline-response]]
+==== Put Pipeline Response
+
+The returned `WritePipelineResponse` allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[put-pipeline-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

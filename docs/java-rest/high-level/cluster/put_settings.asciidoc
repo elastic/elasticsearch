@@ -1,16 +1,22 @@
-[[java-rest-high-cluster-put-settings]]
+--
+:api: put-settings
+:request: ClusterUpdateSettingsRequest
+:response: ClusterUpdateSettingsResponse
+--
+
+[id="{upid}-{api}"]
 === Cluster Update Settings API
 
 The Cluster Update Settings API allows to update cluster wide settings.
 
-[[java-rest-high-cluster-put-settings-request]]
+[id="{upid}-{api}-request"]
 ==== Cluster Update Settings Request
 
-A `ClusterUpdateSettingsRequest`:
+A +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
 ==== Cluster Settings
@@ -18,7 +24,7 @@ At least one setting to be updated must be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-cluster-settings]
+include-tagged::{doc-tests-file}[{api}-request-cluster-settings]
 --------------------------------------------------
 <1> Sets the transient settings to be applied
 <2> Sets the persistent setting to be applied
@@ -28,26 +34,26 @@ The settings to be applied can be provided in different ways:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-create-settings]
+include-tagged::{doc-tests-file}[{api}-create-settings]
 --------------------------------------------------
 <1> Creates a transient setting as `Settings`
 <2> Creates a persistent setting as `Settings`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-settings-builder]
+include-tagged::{doc-tests-file}[{api}-settings-builder]
 --------------------------------------------------
 <1> Settings provided as `Settings.Builder`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-settings-source]
+include-tagged::{doc-tests-file}[{api}-settings-source]
 --------------------------------------------------
 <1> Settings provided as `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-settings-map]
+include-tagged::{doc-tests-file}[{api}-settings-map]
 --------------------------------------------------
 <1> Settings provided as a `Map`
 
@@ -56,7 +62,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the settings were applied
 as a `TimeValue`
@@ -65,57 +71,22 @@ as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
-[[java-rest-high-cluster-put-settings-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-execute]
---------------------------------------------------
-
-[[java-rest-high-cluster-put-settings-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a cluster update settings requires both the
-`ClusterUpdateSettingsRequest` instance and an `ActionListener` instance to be
-passed to the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-execute-async]
---------------------------------------------------
-<1> The `ClusterUpdateSettingsRequest` to execute and the `ActionListener`
-to use when the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `ClusterUpdateSettingsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of a failure. The raised exception is provided as an argument
-
-[[java-rest-high-cluster-put-settings-response]]
+[id="{upid}-{api}-response"]
 ==== Cluster Update Settings Response
 
-The returned `ClusterUpdateSettings` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request
 <2> Indicates which transient settings have been applied

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -201,7 +201,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query positive = positiveQuery.toQuery(context);
         Query negative = negativeQuery.toQuery(context);
-        return new BoostingQuery(positive, negative, negativeBoost);
+        return FunctionScoreQuery.boostByQuery(positive, negative, negativeBoost);
     }
 
     @Override

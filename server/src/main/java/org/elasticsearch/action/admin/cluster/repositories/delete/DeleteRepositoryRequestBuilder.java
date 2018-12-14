@@ -20,12 +20,14 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for unregister repository request
  */
-public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
+public class DeleteRepositoryRequestBuilder
+        extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, AcknowledgedResponse, DeleteRepositoryRequestBuilder> {
 
     /**
      * Constructs unregister repository request builder

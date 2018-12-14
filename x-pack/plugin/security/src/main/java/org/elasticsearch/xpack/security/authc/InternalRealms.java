@@ -16,29 +16,31 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -50,17 +52,16 @@ public final class InternalRealms {
     /**
      * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
      */
-    private static final Set<String> XPACK_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE,
-            SamlRealmSettings.TYPE
-    )));
+    private static final Set<String> XPACK_TYPES = Collections
+            .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
+                    LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE));
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive
      * interaction with third party sources
      */
-    private static final Set<String> STANDARD_TYPES =
-            Collections.unmodifiableSet(Sets.difference(XPACK_TYPES, Collections.singleton(SamlRealmSettings.TYPE)));
+    private static final Set<String> STANDARD_TYPES = Collections.unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE,
+            FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
 
     /**
      * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
@@ -71,6 +72,10 @@ public final class InternalRealms {
             return true;
         }
         return ReservedRealm.TYPE.equals(type);
+    }
+
+    static Collection<String> getConfigurableRealmsTypes() {
+        return Collections.unmodifiableSet(XPACK_TYPES);
     }
 
     /**
@@ -90,21 +95,22 @@ public final class InternalRealms {
     public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
                                                           SSLService sslService, NativeUsersStore nativeUsersStore,
                                                           NativeRoleMappingStore nativeRoleMappingStore,
-                                                          SecurityLifecycleService securityLifecycleService) {
+                                                          SecurityIndexManager securityIndex) {
 
         Map<String, Realm.Factory> map = new HashMap<>();
-        map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService));
+        map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService, threadPool));
         map.put(NativeRealmSettings.TYPE, config -> {
-            final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore);
-            securityLifecycleService.addSecurityIndexHealthChangeListener(nativeRealm::onSecurityIndexHealthChange);
+            final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
+            securityIndex.addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
             return nativeRealm;
         });
-        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(LdapRealmSettings.AD_TYPE, config, sslService,
+        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(config, sslService,
                 resourceWatcherService, nativeRoleMappingStore, threadPool));
-        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(LdapRealmSettings.LDAP_TYPE, config,
+        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(config,
                 sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
+        map.put(KerberosRealmSettings.TYPE, config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool));
         return Collections.unmodifiableMap(map);
     }
 
@@ -112,20 +118,14 @@ public final class InternalRealms {
     }
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
-        final List<BootstrapCheck> checks = new ArrayList<>();
-        final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
-        settingsByRealm.forEach((name, settings) -> {
-            final RealmConfig realmConfig = new RealmConfig(name, settings, globalSettings, env, null);
-            switch (realmConfig.type()) {
-                case LdapRealmSettings.AD_TYPE:
-                case LdapRealmSettings.LDAP_TYPE:
-                case PkiRealmSettings.TYPE:
-                    final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(realmConfig);
-                    if (check != null) {
-                        checks.add(check);
-                    }
-            }
-        });
+        final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
+        final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
+            .keySet().stream()
+            .filter(id -> realmTypes.contains(id.getType()))
+            .map(id -> new RealmConfig(id, globalSettings, env, null))
+            .map(RoleMappingFileBootstrapCheck::create)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
         return checks;
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.integration;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -32,8 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.join.aggregations.Children;
-import org.elasticsearch.join.aggregations.JoinAggregationBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -55,7 +52,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -84,7 +80,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -98,10 +93,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers() +
-                "user1:" + USERS_PASSWD_HASHED + "\n" +
-                "user2:" + USERS_PASSWD_HASHED + "\n" +
-                "user3:" + USERS_PASSWD_HASHED + "\n" ;
+            "user1:" + usersPasswdHashed + "\n" +
+            "user2:" + usersPasswdHashed + "\n" +
+            "user3:" + usersPasswdHashed + "\n" +
+            "user4:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -109,7 +106,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         return super.configUsersRoles() +
                 "role1:user1,user2,user3\n" +
                 "role2:user1,user3\n" +
-                "role3:user2,user3\n";
+                "role3:user2,user3\n" +
+                "role4:user4\n";
     }
 
     @Override
@@ -135,7 +133,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
-                "      query: '{\"term\" : {\"field2\" : \"value2\"}}'"; // <-- query defined as json in a string
+                "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n" + // <-- query defined as json in a string
+                "role4:\n" +
+                "  cluster: [ all ]\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ ALL ]\n" +
+                // query that can match nested documents
+                "      query: '{\"bool\": { \"must_not\": { \"term\" : {\"field1\" : \"value2\"}}}}'";
     }
 
     @Override
@@ -349,13 +354,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
 
         assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
@@ -367,13 +372,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
 
         assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
@@ -387,7 +392,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                         .setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits(), is(2L));
+        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(2L));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
@@ -396,7 +401,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
 
         assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits(), is(2L));
+        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(2L));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
@@ -730,7 +735,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .get();
             do {
                 assertNoFailures(response);
-                assertThat(response.getHits().getTotalHits(), is((long) numVisible));
+                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
 
@@ -857,6 +862,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                                 .startObject()
                                     .field("field2", "value2")
                                 .endObject()
+                                .startObject()
+                                    .array("field2", "value2", "value3")
+                                .endObject()
                             .endArray()
                         .endObject())
                 .get();
@@ -873,7 +881,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         refresh("test");
 
         SearchResponse response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(QueryBuilders.nestedQuery("nested_field", QueryBuilders.termQuery("nested_field.field2", "value2"),
                         ScoreMode.None).innerHit(new InnerHitBuilder()))
@@ -884,6 +892,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getSourceAsString(),
                 equalTo("{\"field2\":\"value2\"}"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(1).getNestedIdentity().getOffset(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(1).getSourceAsString(),
+            equalTo("{\"field2\":[\"value2\",\"value3\"]}"));
     }
 
     public void testSuggesters() throws Exception {

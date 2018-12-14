@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import java.io.IOException;
 
 public class MonitoringBulkRequestBuilder
-        extends ActionRequestBuilder<MonitoringBulkRequest, MonitoringBulkResponse, MonitoringBulkRequestBuilder> {
+        extends ActionRequestBuilder<MonitoringBulkRequest, MonitoringBulkResponse> {
 
     public MonitoringBulkRequestBuilder(ElasticsearchClient client) {
         super(client, MonitoringBulkAction.INSTANCE, new MonitoringBulkRequest());

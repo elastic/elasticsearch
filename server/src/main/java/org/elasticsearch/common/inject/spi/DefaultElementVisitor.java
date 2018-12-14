@@ -62,7 +62,7 @@ public abstract class DefaultElementVisitor<V> implements ElementVisitor<V> {
     }
 
     @Override
-    public V visit(InjectionRequest injectionRequest) {
+    public V visit(InjectionRequest<?> injectionRequest) {
         return visitOther(injectionRequest);
     }
 

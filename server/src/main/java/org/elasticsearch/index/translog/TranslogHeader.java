@@ -110,13 +110,15 @@ final class TranslogHeader {
     static TranslogHeader read(final String translogUUID, final Path path, final FileChannel channel) throws IOException {
         // This input is intentionally not closed because closing it will close the FileChannel.
         final BufferedChecksumStreamInput in =
-            new BufferedChecksumStreamInput(new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()));
+            new BufferedChecksumStreamInput(
+                    new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
+                    path.toString());
         final int version;
         try {
             version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             tryReportOldVersionError(path, channel);
-            throw new TranslogCorruptedException("Translog header corrupted. path:" + path, e);
+            throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
         }
         if (version == VERSION_CHECKSUMS) {
             throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
@@ -124,21 +126,24 @@ final class TranslogHeader {
         // Read the translogUUID
         final int uuidLen = in.readInt();
         if (uuidLen > channel.size()) {
-            throw new TranslogCorruptedException("uuid length can't be larger than the translog");
+            throw new TranslogCorruptedException(
+                    path.toString(),
+                    "UUID length can't be larger than the translog");
         }
         final BytesRef uuid = new BytesRef(uuidLen);
         uuid.length = uuidLen;
         in.read(uuid.bytes, uuid.offset, uuid.length);
         final BytesRef expectedUUID = new BytesRef(translogUUID);
         if (uuid.bytesEquals(expectedUUID) == false) {
-            throw new TranslogCorruptedException("expected shard UUID " + expectedUUID + " but got: " + uuid +
-                " this translog file belongs to a different translog. path:" + path);
+            throw new TranslogCorruptedException(
+                    path.toString(),
+                    "expected shard UUID " + expectedUUID + " but got: " + uuid +
+                            " this translog file belongs to a different translog");
         }
         // Read the primary term
         final long primaryTerm;
         if (version == VERSION_PRIMARY_TERM) {
             primaryTerm = in.readLong();
-            assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
         } else {
             assert version == VERSION_CHECKPOINTS : "Unknown header version [" + version + "]";
             primaryTerm = UNKNOWN_PRIMARY_TERM;
@@ -147,6 +152,8 @@ final class TranslogHeader {
         if (version >= VERSION_PRIMARY_TERM) {
             Translog.verifyChecksum(in);
         }
+        assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
+
         final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);
         assert channel.position() == headerSizeInBytes :
             "Header is not fully read; header size [" + headerSizeInBytes + "], position [" + channel.position() + "]";
@@ -164,7 +171,9 @@ final class TranslogHeader {
         // 0x00 => version 0 of the translog
         final byte b1 = Channels.readFromFileChannel(channel, 0, 1)[0];
         if (b1 == 0x3f) { // LUCENE_CODEC_HEADER_BYTE
-            throw new TranslogCorruptedException("translog looks like version 1 or later, but has corrupted header. path:" + path);
+            throw new TranslogCorruptedException(
+                    path.toString(),
+                    "translog looks like version 1 or later, but has corrupted header" );
         } else if (b1 == 0x00) { // UNVERSIONED_TRANSLOG_HEADER_BYTE
             throw new IllegalStateException("pre-1.4 translog found [" + path + "]");
         }

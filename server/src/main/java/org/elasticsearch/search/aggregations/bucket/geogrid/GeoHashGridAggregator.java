@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -47,8 +48,8 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
 
     GeoHashGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
-            int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
@@ -57,8 +58,11 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
+    public ScoreMode scoreMode() {
+        if (valuesSource != null && valuesSource.needsScores()) {
+            return ScoreMode.COMPLETE;
+        }
+        return super.scoreMode();
     }
 
     @Override

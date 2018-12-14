@@ -15,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
@@ -35,18 +36,18 @@ public class LdapTestUtils {
         if (useGlobalSSL) {
             builder.put("xpack.ssl.truststore.path", truststore);
             // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
             secureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
-            secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+            secureSettings.setString("xpack.security.authc.realms.ldap.bar.ssl.truststore.secure_password", "changeit");
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-            secureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
-            secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            secureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
+            secureSettings.setString("xpack.security.authc.realms.ldap.bar.ssl.truststore.secure_password", "changeit");
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -59,16 +60,13 @@ public class LdapTestUtils {
         options.setConnectTimeoutMillis(Math.toIntExact(SessionFactorySettings.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactorySettings.TIMEOUT_DEFAULT.millis());
 
-        Settings connectionSettings;
+        final SSLConfiguration sslConfiguration;
         if (useGlobalSSL) {
-            connectionSettings = Settings.EMPTY;
+            sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
         } else {
-            MockSecureSettings connSecureSettings = new MockSecureSettings();
-            connSecureSettings.setString("truststore.secure_password", "changeit");
-            connectionSettings = Settings.builder().put("truststore.path", truststore)
-                        .setSecureSettings(connSecureSettings).build();
+            sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.ldap.foo.ssl");
         }
-        return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options,
-                ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
+        return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(sslConfiguration), options,
+            ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
     }
 }

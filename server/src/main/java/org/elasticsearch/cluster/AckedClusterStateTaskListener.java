@@ -25,7 +25,11 @@ import org.elasticsearch.common.unit.TimeValue;
 public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
 
     /**
-     * Called to determine which nodes the acknowledgement is expected from
+     * Called to determine which nodes the acknowledgement is expected from.
+     *
+     * As this method will be called multiple times to determine the set of acking nodes,
+     * it is crucial for it to return consistent results: Given the same listener instance
+     * and the same node parameter, the method implementation should return the same result.
      *
      * @param discoveryNode a node
      * @return true if the node is expected to send ack back, false otherwise

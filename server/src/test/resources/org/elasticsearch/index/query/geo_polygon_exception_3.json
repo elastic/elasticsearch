@@ -1,12 +1,5 @@
 {
-    "filtered": {
-        "query": {
-            "match_all": {}
-        },
-        "filter": {
-            "geo_polygon": {
-                "location": ["WRONG"]
-            }
-        }
+    "geo_polygon": {
+        "location": ["WRONG"]
     }
 }

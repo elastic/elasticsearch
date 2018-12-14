@@ -24,10 +24,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -207,9 +207,9 @@ public class CreateIndexIT extends ESIntegTestCase {
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
         }
-        client().admin().indices().prepareDelete("test").execute(new ActionListener<DeleteIndexResponse>() { // this happens async!!!
+        client().admin().indices().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
                 @Override
-                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
+                public void onResponse(AcknowledgedResponse deleteIndexResponse) {
                     Thread thread = new Thread() {
                      @Override
                     public void run() {
@@ -260,8 +260,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
-        logger.info("total: {}", expected.getHits().getTotalHits());
+        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
+        logger.info("total: {}", expected.getHits().getTotalHits().value);
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
@@ -354,16 +354,16 @@ public class CreateIndexIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 if (dataOrMasterNodeNames.contains(nodeName)) {
-                    final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, nodeName);
+                    final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
                     final IndexMetaData brokenMetaData =
                             IndexMetaData
                                     .builder(metaData)
                                     .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
                                     .build();
                     // so evil
-                    IndexMetaData.FORMAT.write(brokenMetaData, nodeEnvironment.indexPaths(brokenMetaData.getIndex()));
+                    metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
                 }
-                return Settings.EMPTY;
+                return super.onNodeStopped(nodeName);
             }
         });
         ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race

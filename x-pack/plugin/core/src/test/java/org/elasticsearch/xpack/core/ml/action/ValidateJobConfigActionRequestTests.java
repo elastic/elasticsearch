@@ -38,7 +38,7 @@ public class ValidateJobConfigActionRequestTests extends AbstractStreamableTestC
     public void testParseRequest_InvalidCreateSetting() throws IOException {
         String jobId = randomValidJobId();
         Job.Builder jobConfiguration = buildJobBuilder(jobId, null);
-        jobConfiguration.setLastDataTime(new Date());
+        jobConfiguration.setFinishedTime(new Date());
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         XContentBuilder xContentBuilder = jobConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS);

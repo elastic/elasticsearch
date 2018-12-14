@@ -177,14 +177,6 @@ POST my_source_index/_split/my_target_index
 
 NOTE: Mappings may not be specified in the `_split` request.
 
-NOTE: By default, with the exception of `index.analysis`, `index.similarity`,
-and `index.sort` settings, index settings on the source index are not copied
-during a split operation. With the exception of non-copyable settings, settings
-from the source index can be copied to the target index by adding the URL
-parameter `copy_settings=true` to the request.
-
-deprecated[6.4.0, `copy_settings` will default to `true` in 8.x and will be removed in 9.0.0]
-
 [float]
 === Monitoring the split process
 

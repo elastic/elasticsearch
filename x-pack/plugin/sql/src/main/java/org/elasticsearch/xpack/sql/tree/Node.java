@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.tree;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
@@ -37,6 +39,9 @@ public abstract class Node<T extends Node<T>> {
 
     public Node(Location location, List<T> children) {
         this.location = (location != null ? location : Location.EMPTY);
+        if (children.contains(null)) {
+            throw new SqlIllegalArgumentException("Null children are not allowed");
+        }
         this.children = children;
     }
 

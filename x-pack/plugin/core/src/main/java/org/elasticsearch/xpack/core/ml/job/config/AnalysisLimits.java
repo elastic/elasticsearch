@@ -17,13 +17,10 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -50,31 +47,26 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     public static final ParseField CATEGORIZATION_EXAMPLES_LIMIT = new ParseField("categorization_examples_limit");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ConstructingObjectParser<AnalysisLimits, Void> METADATA_PARSER = new ConstructingObjectParser<>(
-            "analysis_limits", true, a -> new AnalysisLimits(
-                    a[0] == null ? PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : (Long) a[0],
-                    a[1] == null ? DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT : (Long) a[1]));
-    public static final ConstructingObjectParser<AnalysisLimits, Void> CONFIG_PARSER = new ConstructingObjectParser<>(
-            "analysis_limits", false, a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
-    public static final Map<MlParserType, ConstructingObjectParser<AnalysisLimits, Void>> PARSERS =
-            new EnumMap<>(MlParserType.class);
+    public static final ConstructingObjectParser<AnalysisLimits, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<AnalysisLimits, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ConstructingObjectParser<AnalysisLimits, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()).getMb();
-                } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                    return p.longValue();
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, MODEL_MEMORY_LIMIT, ObjectParser.ValueType.VALUE);
-            parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), CATEGORIZATION_EXAMPLES_LIMIT);
-        }
+    private static ConstructingObjectParser<AnalysisLimits, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<AnalysisLimits, Void> parser = new ConstructingObjectParser<>(
+            "analysis_limits", ignoreUnknownFields, a -> ignoreUnknownFields ? new AnalysisLimits(
+                a[0] == null ? PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : (Long) a[0],
+                a[1] == null ? DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT : (Long) a[1]) : new AnalysisLimits((Long) a[0], (Long) a[1]));
+
+        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()).getMb();
+            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, MODEL_MEMORY_LIMIT, ObjectParser.ValueType.VALUE);
+        parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), CATEGORIZATION_EXAMPLES_LIMIT);
+
+        return parser;
     }
 
     /**

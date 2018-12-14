@@ -238,7 +238,7 @@ public final class RepositoryData {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked") RepositoryData that = (RepositoryData) obj;
+        RepositoryData that = (RepositoryData) obj;
         return snapshotIds.equals(that.snapshotIds)
                    && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)

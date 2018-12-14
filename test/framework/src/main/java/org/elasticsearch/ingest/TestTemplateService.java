@@ -43,8 +43,7 @@ public class TestTemplateService extends ScriptService {
     }
 
     private TestTemplateService(boolean compilationException) {
-        super(Settings.EMPTY, Collections.singletonMap(DEFAULT_TEMPLATE_LANG,
-            new MockScriptEngine(MockScriptEngine.NAME, Collections.emptyMap())), Collections.emptyMap());
+        super(Settings.EMPTY, Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()), Collections.emptyMap());
         this.compilationException = compilationException;
     }
 

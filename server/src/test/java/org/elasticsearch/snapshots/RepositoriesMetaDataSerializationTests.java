@@ -112,7 +112,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         RepositoriesMetaData repositoriesMetaData = RepositoriesMetaData.fromXContent(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        List<RepositoryMetaData> repos = repositoriesMetaData.repositories();
+        List<RepositoryMetaData> repos = new ArrayList<>(repositoriesMetaData.repositories());
         repos.sort(Comparator.comparing(RepositoryMetaData::name));
         return new RepositoriesMetaData(repos);
     }

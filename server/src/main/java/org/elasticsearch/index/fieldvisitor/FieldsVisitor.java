@@ -23,7 +23,9 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -33,7 +35,6 @@ import org.elasticsearch.index.mapper.Uid;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,13 +54,19 @@ public class FieldsVisitor extends StoredFieldVisitor {
             RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
+    private final String sourceFieldName;
     private final Set<String> requiredFields;
     protected BytesReference source;
     protected String type, id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
+        this(loadSource, SourceFieldMapper.NAME);
+    }
+
+    public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
+        this.sourceFieldName = sourceFieldName;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -67,6 +74,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (requiredFields.remove(fieldInfo.name)) {
+            return Status.YES;
+        }
+        // Always load _ignored to be explicit about ignored fields
+        // This works because _ignored is added as the first metadata mapper,
+        // so its stored fields always appear first in the list.
+        if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
         // All these fields are single-valued so we can stop when the set is
@@ -77,10 +90,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        final Collection<String> types = mapperService.types();
-        assert types.size() <= 1 : types;
-        if (types.isEmpty() == false) {
-            type = types.iterator().next();
+        final DocumentMapper mapper = mapperService.documentMapper();
+        if (mapper != null) {
+            type = mapper.type();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fullName(entry.getKey());
@@ -97,7 +109,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-        if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+        if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             id = Uid.decodeId(value);
@@ -169,7 +181,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
         if (loadSource) {
-            requiredFields.add(SourceFieldMapper.NAME);
+            requiredFields.add(sourceFieldName);
         }
     }
 

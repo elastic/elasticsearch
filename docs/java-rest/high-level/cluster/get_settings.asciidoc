@@ -1,0 +1,63 @@
+--
+:api: get-settings
+:request: ClusterGetSettingsRequest
+:response: ClusterGetSettingsResponse
+--
+
+[id="{upid}-{api}"]
+=== Cluster Get Settings API
+
+The Cluster Get Settings API allows to get the cluster wide settings.
+
+[id="{upid}-{api}-request"]
+==== Cluster Get Settings Request
+
+A +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-includeDefaults]
+--------------------------------------------------
+<1> By default only those settings that were explicitly set are returned. Setting this to true also returns
+the default settings.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-local]
+--------------------------------------------------
+<1> By default the request goes to the master of the cluster to get the latest results. If local is specified it gets
+the results from whichever node the request goes to.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Cluster Get Settings Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Get the persistent settings.
+<2> Get the transient settings.
+<3> Get the default settings (returns empty settings if `includeDefaults` was not set to `true`).
+<4> Get the value as a `String` for a particular setting. The order of searching is first in `persistentSettings` then in
+`transientSettings` and finally, if not found in either, in `defaultSettings`.
+

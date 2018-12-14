@@ -66,12 +66,12 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     private String message() {
-        return (qualifier() != null ? qualifier() + "." : "") + "*";
+        return (qualifier() != null ? qualifier().qualifiedName() + "." : "") + "*";
     }
 
     @Override
     public String unresolvedMessage() {
-        return "Cannot determine columns for " + message();
+        return "Cannot determine columns for [" + message() + "]";
     }
 
     @Override

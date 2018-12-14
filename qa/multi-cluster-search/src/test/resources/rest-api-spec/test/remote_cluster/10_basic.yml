@@ -27,6 +27,8 @@
         indices.create:
           index: field_caps_index_1
           body:
+              settings:
+                index.number_of_shards: 1
               mappings:
                 t:
                   properties:
@@ -51,6 +53,8 @@
         indices.create:
           index: field_caps_index_3
           body:
+              settings:
+                index.number_of_shards: 1
               mappings:
                 t:
                   properties:
@@ -104,6 +108,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           aggs:
@@ -119,6 +124,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: aliased_test_index
 
   - match: { _shards.total: 3 }

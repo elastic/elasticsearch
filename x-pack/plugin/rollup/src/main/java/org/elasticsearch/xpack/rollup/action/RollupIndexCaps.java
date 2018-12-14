@@ -75,7 +75,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
 
                         // "job-1"
                         while (parser.nextToken().equals(XContentParser.Token.END_OBJECT) == false) {
-                            jobs.add(RollupJobConfig.PARSER.apply(parser, aVoid).build());
+                            jobs.add(RollupJobConfig.fromXContent(parser, null));
                         }
                     }
                 }

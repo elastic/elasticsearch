@@ -36,8 +36,8 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals("false", ft.docValueFormat(null, null).format(0));
-        assertEquals("true", ft.docValueFormat(null, null).format(1));
+        assertEquals(false, ft.docValueFormat(null, null).format(0));
+        assertEquals(true, ft.docValueFormat(null, null).format(1));
     }
 
     public void testValueForSearch() {

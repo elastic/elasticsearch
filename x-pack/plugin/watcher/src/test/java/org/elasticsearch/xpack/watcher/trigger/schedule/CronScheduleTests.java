@@ -11,11 +11,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class CronScheduleTests extends ScheduleTestCase {
     public void testInvalid() throws Exception {
@@ -54,18 +58,25 @@ public class CronScheduleTests extends ScheduleTestCase {
         assertThat(crons, hasItemInArray("0 0/3 * * * ?"));
     }
 
+    public void testMultipleCronsNextScheduledAfter() {
+        CronSchedule schedule = new CronSchedule("0 5 9 1 1 ? 2019", "0 5 9 1 1 ? 2020", "0 5 9 1 1 ? 2017");
+        ZonedDateTime start2019 = ZonedDateTime.of(2019, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime start2020 = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        long firstSchedule = schedule.nextScheduledTimeAfter(0, start2019.toInstant().toEpochMilli());
+        long secondSchedule = schedule.nextScheduledTimeAfter(0, start2020.toInstant().toEpochMilli());
+
+        assertThat(firstSchedule, is(not(-1L)));
+        assertThat(secondSchedule, is(not(-1L)));
+        assertThat(firstSchedule, is(not(secondSchedule)));
+    }
+
     public void testParseInvalidBadExpression() throws Exception {
         XContentBuilder builder = jsonBuilder().value("0 0/5 * * ?");
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        try {
-            new CronSchedule.Parser().parse(parser);
-            fail("expected cron parsing to fail when using invalid cron expression");
-        } catch (ElasticsearchParseException pe) {
-            // expected
-            assertThat(pe.getCause(), instanceOf(IllegalArgumentException.class));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new CronSchedule.Parser().parse(parser));
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testParseInvalidEmpty() throws Exception {

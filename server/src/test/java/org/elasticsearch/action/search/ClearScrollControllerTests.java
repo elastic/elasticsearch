@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -70,7 +69,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
         };
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
@@ -135,7 +134,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
         };
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
 
             @Override
             public void sendFreeContext(Transport.Connection connection, long contextId,
@@ -213,7 +212,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
         };
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
 
             @Override
             public void sendFreeContext(Transport.Connection connection, long contextId,

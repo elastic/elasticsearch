@@ -20,8 +20,11 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,21 +32,26 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RenameProcessorFactoryTests extends ESTestCase {
 
+    private RenameProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new RenameProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testCreate() throws Exception {
-        RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
         config.put("target_field", "new_field");
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField(), equalTo("new_field"));
+        assertThat(renameProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(false));
     }
 
     public void testCreateWithIgnoreMissing() throws Exception {
-        RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
         config.put("target_field", "new_field");
@@ -51,13 +59,12 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField(), equalTo("new_field"));
+        assertThat(renameProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(true));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
-        RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("target_field", "new_field");
         try {
@@ -69,7 +76,6 @@ public class RenameProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateNoToPresent() throws Exception {
-        RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
         try {

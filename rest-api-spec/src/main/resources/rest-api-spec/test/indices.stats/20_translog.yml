@@ -9,9 +9,6 @@ setup:
 
 ---
 "Translog retention":
-  - skip:
-      version: " - 5.99.0"
-      reason: translog retention was added in 6.0.0
   - do:
       indices.stats:
         metric: [ translog ]

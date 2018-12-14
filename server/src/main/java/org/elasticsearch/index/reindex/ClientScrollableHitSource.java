@@ -198,7 +198,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        return new Response(response.isTimedOut(), failures, response.getHits().getTotalHits(),
+        long total = response.getHits().getTotalHits().value;
+        return new Response(response.isTimedOut(), failures, total,
                 hits, response.getScrollId());
     }
 

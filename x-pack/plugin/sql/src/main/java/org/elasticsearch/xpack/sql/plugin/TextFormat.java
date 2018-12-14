@@ -7,10 +7,15 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -38,17 +43,17 @@ enum TextFormat {
             final CliFormatter formatter;
             if (cursor instanceof CliFormatterCursor) {
                 formatter = ((CliFormatterCursor) cursor).getCliFormatter();
-                return formatter.formatWithoutHeader(response);
+                return formatter.formatWithoutHeader(response.rows());
             } else {
-                formatter = new CliFormatter(response);
-                return formatter.formatWithHeader(response);
+                formatter = new CliFormatter(response.columns(), response.rows());
+                return formatter.formatWithHeader(response.columns(), response.rows());
             }
         }
 
         @Override
         Cursor wrapCursor(Cursor oldCursor, SqlQueryResponse response) {
             CliFormatter formatter = (oldCursor instanceof CliFormatterCursor) ?
-                    ((CliFormatterCursor) oldCursor).getCliFormatter() : new CliFormatter(response);
+                    ((CliFormatterCursor) oldCursor).getCliFormatter() : new CliFormatter(response.columns(), response.rows());
             return CliFormatterCursor.wrap(super.wrapCursor(oldCursor, response), formatter);
         }
 
@@ -222,7 +227,7 @@ enum TextFormat {
         }
 
         for (List<Object> row : response.rows()) {
-            row(sb, row, f -> Objects.toString(f, StringUtils.EMPTY));
+            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY));
         }
 
         return sb.toString();

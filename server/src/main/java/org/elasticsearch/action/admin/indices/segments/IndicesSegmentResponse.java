@@ -186,7 +186,9 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                 builder.field("mode", ((SortedSetSortField) field).getSelector()
                     .toString().toLowerCase(Locale.ROOT));
             }
-            builder.field("missing", field.getMissingValue());
+            if (field.getMissingValue() != null) {
+                builder.field("missing", field.getMissingValue().toString());
+            }
             builder.field("reverse", field.getReverse());
             builder.endObject();
         }

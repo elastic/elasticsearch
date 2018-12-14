@@ -37,6 +37,7 @@ import org.junit.Assert;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -367,7 +368,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(() -> {
             GetJobsStatsAction.Response.JobStats stats = getJobStats(openedJob.getId()).get(0);
             assertThat(stats.getDataCounts().getInputRecordCount(), equalTo(dataCount.get()));
-        });
+        }, 120, TimeUnit.SECONDS);
 
         assertThat(getJobResultsCount(openedJob.getId()), greaterThan(closedJobTotal));
 
@@ -379,7 +380,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
     private long indexSomeDocs(String index) {
         long numDocs = ESTestCase.randomIntBetween(15, 30);
         long now = System.currentTimeMillis();
-        long abitAgo = now - 500;
+        long abitAgo = now - 100;
 
         indexDocs(logger, index, numDocs, abitAgo, now);
         return numDocs;
@@ -445,8 +446,8 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder builder = createDatafeedBuilder(job.getId() + "-datafeed",
             job.getId(),
             Collections.singletonList(dataIndex));
-        builder.setQueryDelay(TimeValue.timeValueSeconds(5));
-        builder.setFrequency(TimeValue.timeValueSeconds(5));
+        builder.setQueryDelay(TimeValue.timeValueSeconds(60));
+        builder.setFrequency(TimeValue.timeValueSeconds(60));
         DatafeedConfig datafeedConfig = builder.build();
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);

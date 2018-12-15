@@ -188,7 +188,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             );
         ClusterNode primary = primaryNode.equals(dataNode1.node.getId()) ? dataNode1 : dataNode2;
 
-        // Notify the primary shard's SnapshotShardsService of the new Snapshot
+        // Notify the previous primary shard's SnapshotShardsService of the new Snapshot
         clusterState.notifyLastChange(primaryNode, primary.snapshotShardsService);
         assertTrue("Primary shard did not enqueue a snapshot task.", primary.deterministicTaskQueue.hasRunnableTasks());
 
@@ -204,8 +204,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             return null;
         }).when(primary.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
 
-        // We assume that the enqueued shard snapshot action will fail since we did not mock out the indices service
-        // to simulate a routing table that is not in sync with the cluster state.
+
+        // The enqueued shard snapshot action must fail since we changed the routing table and the node isn't primary anymore.
         primary.deterministicTaskQueue.runAllTasks();
         // Remove short-circuiting master action on primary shard's node
         when(primary.clusterService.state()).thenReturn(clusterState.currentState(primaryNode));

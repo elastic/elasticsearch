@@ -47,7 +47,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         final AtomicBoolean set = new AtomicBoolean();
         final AtomicReference<DatabaseReader> databaseReader = new AtomicReference<>();
         return () -> {
-            if (set.get() == false && set.compareAndSet(false, true)) {
+            if (set.compareAndSet(false, true)) {
                 try {
                     databaseReader.set(new DatabaseReader.Builder(database).build());
                 } catch (final IOException e) {

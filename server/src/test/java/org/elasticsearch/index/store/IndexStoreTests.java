@@ -19,6 +19,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
@@ -64,6 +65,9 @@ public class IndexStoreTests extends ESTestCase {
             new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
+                case HYBRIDFS:
+                    assertTrue(type + " " + directory.toString(), directory instanceof FileSwitchDirectory);
+                    break;
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
@@ -75,7 +79,7 @@ public class IndexStoreTests extends ESTestCase {
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                        assertTrue(directory.toString(), directory instanceof MMapDirectory);
+                        assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
                     } else if (Constants.WINDOWS) {
                         assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
                     } else {

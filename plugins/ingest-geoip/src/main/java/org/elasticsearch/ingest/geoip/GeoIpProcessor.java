@@ -38,6 +38,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -49,6 +51,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -64,13 +68,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
-    private final DatabaseReader dbReader;
-    private final Set<Property> properties;
+    private final Supplier<DatabaseReader> dbReader;
+    private final Supplier<Set<Property>> properties;
     private final boolean ignoreMissing;
     private final GeoIpCache cache;
 
 
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing,
+    GeoIpProcessor(String tag, String field, Supplier<DatabaseReader> dbReader, String targetField, Supplier<Set<Property>> properties, boolean ignoreMissing,
                    GeoIpCache cache) {
         super(tag);
         this.field = field;
@@ -98,7 +102,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
-        String databaseType = dbReader.getMetadata().getDatabaseType();
+        String databaseType = dbReader.get().getMetadata().getDatabaseType();
 
         if (databaseType.endsWith(CITY_DB_SUFFIX)) {
             try {
@@ -119,7 +123,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 geoData = Collections.emptyMap();
             }
         } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType()
+            throw new ElasticsearchParseException("Unsupported database type [" + dbReader.get().getMetadata().getDatabaseType()
                     + "]", new IllegalStateException());
         }
         if (geoData.isEmpty() == false) {
@@ -142,11 +146,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     DatabaseReader getDbReader() {
-        return dbReader;
+        return dbReader.get();
     }
 
     Set<Property> getProperties() {
-        return properties;
+        return properties.get();
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
@@ -154,7 +158,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
             cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
                 try {
-                    return dbReader.city(ip);
+                    return dbReader.get().city(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -169,7 +173,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Subdivision subdivision = response.getMostSpecificSubdivision();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties) {
+        for (Property property : this.properties.get()) {
             switch (property) {
                 case IP:
                     geoData.put("ip", NetworkAddress.format(ipAddress));
@@ -240,7 +244,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
             cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
                 try {
-                    return dbReader.country(ip);
+                    return dbReader.get().country(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -252,7 +256,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Continent continent = response.getContinent();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties) {
+        for (Property property : this.properties.get()) {
             switch (property) {
                 case IP:
                     geoData.put("ip", NetworkAddress.format(ipAddress));
@@ -285,7 +289,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
             cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
                 try {
-                    return dbReader.asn(ip);
+                    return dbReader.get().asn(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -297,7 +301,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         String organization_name = response.getAutonomousSystemOrganization();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties) {
+        for (Property property : this.properties.get()) {
             switch (property) {
                 case IP:
                     geoData.put("ip", NetworkAddress.format(ipAddress));
@@ -352,33 +356,52 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
 
-            DatabaseReader databaseReader = lazyLoader.get();
-            String databaseType = databaseReader.getMetadata().getDatabaseType();
+            final Supplier<DatabaseReader> databaseReader = () -> {
+                try {
+                    return lazyLoader.get();
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            };
 
-            final Set<Property> properties;
+            final Supplier<Set<Property>> propertiesSupplier;
             if (propertyNames != null) {
-                properties = EnumSet.noneOf(Property.class);
-                for (String fieldName : propertyNames) {
-                    try {
-                        properties.add(Property.parseProperty(databaseType, fieldName));
-                    } catch (IllegalArgumentException e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
+                final AtomicBoolean set = new AtomicBoolean();
+                final Set<Property> properties = EnumSet.noneOf(Property.class);
+                propertiesSupplier = () -> {
+                    if (set.get() == false || set.compareAndSet(false, true)) {
+                        for (String fieldName : propertyNames) {
+                            try {
+                                properties.add(Property.parseProperty(databaseReader.get().getMetadata().getDatabaseType(), fieldName));
+                            } catch (IllegalArgumentException e) {
+                                throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
+                            }
+                        }
                     }
-                }
+                    return properties;
+                };
             } else {
-                if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                    properties = DEFAULT_CITY_PROPERTIES;
-                } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                    properties = DEFAULT_COUNTRY_PROPERTIES;
-                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                    properties = DEFAULT_ASN_PROPERTIES;
-                } else {
-                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
-                            + databaseType + "]");
-                }
+                final AtomicBoolean set = new AtomicBoolean();
+                final Set<Property> properties = EnumSet.noneOf(Property.class);
+                propertiesSupplier = () -> {
+                    if (set.get() == false || set.compareAndSet(false, true)) {
+                        final String databaseType = databaseReader.get().getMetadata().getDatabaseType();
+                        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+                            properties.addAll(DEFAULT_CITY_PROPERTIES);
+                        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+                            properties.addAll(DEFAULT_COUNTRY_PROPERTIES);
+                        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                            properties.addAll(DEFAULT_ASN_PROPERTIES);
+                        } else {
+                            throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
+                                    + databaseType + "]");
+                        }
+                    }
+                    return properties;
+                };
             }
 
-            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties, ignoreMissing, cache);
+            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, propertiesSupplier, ignoreMissing, cache);
         }
     }
 
